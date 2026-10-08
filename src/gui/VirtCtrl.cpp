@@ -98,6 +98,11 @@ void CollectVirtCtrls(ILayout* root, Vec<VirtCtrl*>& out) {
         VecAppend(out, w);
         return;
     }
+    // a collapsed container (e.g. a ribbon page not shown) hides all it holds;
+    // showing it again needs a relayout, which collects them again
+    if (root->GetVisibility() == Visibility::Collapse) {
+        return;
+    }
     int n = root->LayoutChildCount();
     for (int i = 0; i < n; i++) {
         CollectVirtCtrls(root->LayoutChildAt(i), out);
@@ -2799,6 +2804,8 @@ void VirtButton::OnMouseLeave() {
 //--- VirtIconButton
 
 static Kind kindVirtCtrlIconButton = "virtCtrlIconButton";
+// a VirtIconButton subclass (the Swiftleaf ribbon's) that is still an icon button
+Kind kindVirtCtrlRibbonButton = "virtCtrlRibbonButton";
 
 VirtIconButton::VirtIconButton() {
     onMouseEnter = MkMethod0<VirtIconButton, &VirtIconButton::OnMouseEnter>(this);
@@ -3333,7 +3340,7 @@ VirtButton* AsVirtButton(ILayout* l) {
 }
 
 VirtIconButton* AsVirtIconButton(ILayout* l) {
-    if (l && l->GetKind() == kindVirtCtrlIconButton) {
+    if (l && (l->GetKind() == kindVirtCtrlIconButton || l->GetKind() == kindVirtCtrlRibbonButton)) {
         return (VirtIconButton*)l;
     }
     return nullptr;

@@ -19,6 +19,7 @@ struct VirtHost;
 struct VirtIconButton;
 struct Edit;
 struct ILayout;
+struct RibbonTab;
 
 void CreateToolbar(MainWindow*);
 void ReCreateToolbar(MainWindow* win);
@@ -165,6 +166,17 @@ struct ToolbarVirt {
     u64 hoverMoveTick = 0;
     // the open button's tooltip, taken away for as long as the drop-down is up
     Str hoverSavedTip;
+
+    // Swiftleaf ribbon (Ribbon.h). items are the Home page's buttons and
+    // annotationItems the Comment page's; ribbonItems are the other pages'
+    Vec<RibbonTab*> ribbonTabs;
+    Vec<ILayout*> ribbonPanels; // one per RibbonPage, only the shown one visible
+    Vec<VirtCtrl*> ribbonItems; // id is the command, userData the svg icon
+    Vec<int> ribbonItemPages;   // the page of each of ribbonItems
+    PlatformFont* ribbonFont = nullptr;
+    int ribbonTabRowDy = 0;
+    int ribbonDy = 0;
+    bool ribbonAnnotsVisible = false;
 };
 
 Color TbTextColor();

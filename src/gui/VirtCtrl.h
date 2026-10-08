@@ -723,6 +723,7 @@ struct VirtIconButton : VirtCtrl {
 };
 
 VirtIconButton* AsVirtIconButton(ILayout*);
+extern Kind kindVirtCtrlRibbonButton;
 
 // The ✕ that closes or removes something, styled like the tab close button: a
 // gray ✕ that turns white on a red circle when hovered. `withCircle` also fills

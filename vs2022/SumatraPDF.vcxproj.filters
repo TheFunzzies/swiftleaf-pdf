@@ -156,6 +156,9 @@
     <ClInclude Include="..\src\RegistrySearchFilter.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\Ribbon.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\ScreenshotCapture.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -753,6 +756,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\RegistrySearchFilter.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\Ribbon.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\Screenshot.cpp">

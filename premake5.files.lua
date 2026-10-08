@@ -407,6 +407,7 @@ function sumatrapdf_files()
     "TextViewWnd.*",
     "Theme.*",
     "Toolbar.*",
+    "Ribbon.*",
     "TranslationLangs.cpp",
     "Translations.*",
     "Uninstaller.cpp",

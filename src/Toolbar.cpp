@@ -45,6 +45,7 @@
 #include "gui/GuiColors.h"
 #include "gui/VirtCtrl.h"
 #include "gui/VirtHost.h"
+#include "SidebarPanel.h"
 #include "gui/win/TabsCtrl.h"
 #include "FindBar.h"
 #include "SumatraDialogs.h"
@@ -52,6 +53,7 @@
 #include "SvgIcons.h"
 #include "Theme.h"
 #include "ReadAloud.h"
+#include "Ribbon.h"
 #include "Toolbar.h"
 
 // https://docs.microsoft.com/en-us/windows/win32/controls/toolbar-control-reference
@@ -69,29 +71,30 @@ struct ToolbarButtonInfo {
     bool isText = false;
 };
 
+// Swiftleaf: these are the ribbon's Home page. The page box and previous /
+// next page go to the right end of the ribbon's tab row (IsRibbonNavCmd).
 static ToolbarButtonInfo gToolbarButtons[] = {
     {gIconFileOpen, CmdOpenFile, TrN("Open")},
+    {gIconSave, CmdSaveAnnotations, TrN("Save changes to existing PDF")},
+    {gIconSaveToNewFile, CmdSaveAs, TrN("Save As")},
     {gIconPrint, CmdPrint, TrN("Print")},
     {nullptr, 0, {}},          // separator
     {nullptr, PageInfoId, {}}, // text box for page number + show current page / no of pages
     {gIconPagePrev, CmdGoToPrevPage, TrN("Previous Page")},
     {gIconPageNext, CmdGoToNextPage, TrN("Next Page")},
-    {nullptr, 0, {}}, // separator
     {gIconNavigateBack, CmdNavigateBack, TrN("Back")},
     {gIconNavigateForward, CmdNavigateForward, TrN("Forward")},
     {nullptr, 0, {}}, // separator
-    {gIconSpeak, CmdToggleReadAloud, TrN("Read Aloud")},
-    {nullptr, 0, {}}, // separator
-    {gIconLayoutContinuous, CmdZoomFitWidthAndContinuous, TrN("Fit Width and Show Pages Continuously")},
-    {gIconLayoutSinglePage, CmdZoomFitPageAndSinglePage, TrN("Fit a Single Page")},
-    {gIconRotateLeft, CmdRotateLeft, TrN("Rotate &Left")},
-    {gIconRotateRight, CmdRotateRight, TrN("Rotate &Right")},
     {gIconZoomOut, CmdZoomOut, TrN("Zoom Out")},
     {gIconZoomIn, CmdZoomIn, TrN("Zoom In")},
+    {gIconLayoutContinuous, CmdZoomFitWidthAndContinuous, TrN("Fit Width and Show Pages Continuously")},
+    {gIconLayoutSinglePage, CmdZoomFitPageAndSinglePage, TrN("Fit a Single Page")},
+    {nullptr, 0, {}}, // separator
+    {gIconRotateLeft, CmdRotateLeft, TrN("Rotate &Left")},
+    {gIconRotateRight, CmdRotateRight, TrN("Rotate &Right")},
     {nullptr, 0, {}}, // separator
     {gIconSearch, CmdFindFirst, TrN("Find")},
-    {nullptr, 0, {}}, // separator
-    {gIconEditAnnotations, CmdToggleEditPDF, TrN("Edit PDF")},
+    {gIconSpeak, CmdToggleReadAloud, TrN("Read Aloud")},
 };
 // unicode chars: https://www.compart.com/en/unicode/U+25BC
 
@@ -223,6 +226,31 @@ static VirtCtrl* PdfAnnotationToolbarItemAt(MainWindow* win, int idx) {
     return tb->annotationItems[idx];
 }
 
+static bool IsRibbonNavCmd(int cmdId);
+static void ApplyRibbonButtonStyle(RibbonButton* b, Str svg, int cmdId);
+
+// In the ribbon only one page's buttons are laid out; the others keep stale
+// bounds. True for a button that is on screen: on the shown page, or not on a
+// page at all (the classic toolbar, the ribbon's tab row).
+static bool IsOnShownRibbonPage(MainWindow* win, VirtCtrl* w) {
+    ToolbarVirt* tb = win->toolbarVirt;
+    if (!tb || len(tb->ribbonPanels) == 0) {
+        return true;
+    }
+    int page = win->ribbonPage;
+    if (VecContains(tb->items, w)) {
+        return IsRibbonNavCmd(w->id) || page == (int)RibbonPage::Home;
+    }
+    if (VecContains(tb->annotationItems, w)) {
+        return page == (int)RibbonPage::Comment;
+    }
+    int idx = VecFind(tb->ribbonItems, w);
+    if (idx >= 0) {
+        return tb->ribbonItemPages[idx] == page;
+    }
+    return true;
+}
+
 // Includes disabled items (those are not hit-testable), so a click on a gray
 // button is not treated as empty toolbar and does not start a window drag.
 VirtCtrl* ToolbarItemFromPoint(MainWindow* win, Point pt) {
@@ -231,7 +259,7 @@ VirtCtrl* ToolbarItemFromPoint(MainWindow* win, Point pt) {
         return nullptr;
     }
     for (VirtCtrl* w : tb->items) {
-        if (!w || w->GetVisibility() != Visibility::Visible) {
+        if (!w || w->GetVisibility() != Visibility::Visible || !IsOnShownRibbonPage(win, w)) {
             continue;
         }
         if (w->BoundsInWindow().Contains(pt)) {
@@ -239,9 +267,20 @@ VirtCtrl* ToolbarItemFromPoint(MainWindow* win, Point pt) {
         }
     }
     for (VirtCtrl* w : tb->annotationItems) {
-        if (!w || w->GetVisibility() != Visibility::Visible) {
+        if (!w || w->GetVisibility() != Visibility::Visible || !IsOnShownRibbonPage(win, w)) {
             continue;
         }
+        if (w->BoundsInWindow().Contains(pt)) {
+            return w;
+        }
+    }
+    for (VirtCtrl* w : tb->ribbonItems) {
+        if (w->GetVisibility() == Visibility::Visible && IsOnShownRibbonPage(win, w) &&
+            w->BoundsInWindow().Contains(pt)) {
+            return w;
+        }
+    }
+    for (VirtCtrl* w : tb->ribbonTabs) {
         if (w->BoundsInWindow().Contains(pt)) {
             return w;
         }
@@ -434,6 +473,17 @@ void SetToolbarButtonCheckedState(MainWindow* win, int cmdId, bool isChecked) {
             SetToolbarButtonCheckedByIdx(win, i, isChecked);
         }
     }
+    ToolbarVirt* tb = win ? win->toolbarVirt : nullptr;
+    if (!tb) {
+        return;
+    }
+    for (VirtCtrl* w : tb->ribbonItems) {
+        auto* ib = AsVirtIconButton(w);
+        if (ib && ib->id == originalCmdId && ib->isSelected != isChecked) {
+            ib->isSelected = isChecked;
+            ib->Invalidate();
+        }
+    }
 }
 
 // some commands are only avialble in certain contexts
@@ -601,6 +651,14 @@ static void SetToolbarButtonImageByIdx(MainWindow* win, int idx, const char* ico
     if (!w) {
         return;
     }
+    if (auto* rb = AsRibbonButton(w)) {
+        Pixmap* before = rb->pixmap;
+        ApplyRibbonButtonStyle(rb, Str(icon), rb->id);
+        if (rb->pixmap != before) {
+            rb->Invalidate();
+        }
+        return;
+    }
     auto* ib = AsVirtIconButton(w);
     if (!ib) {
         return;
@@ -625,8 +683,37 @@ static void SetToolbarButtonToolTipByIdx(MainWindow* win, int idx, int cmdId, St
     w->SetTooltip(ToolbarTipTemp(cmdId, s, false));
 }
 
-static void SetPdfAnnotationsToolbarVisible(MainWindow* win, bool visible) {
+static void SetRibbonPage(MainWindow* win, int page, bool userAction);
+
+// The ribbon has no annotation row: its Comment / Edit / Forms pages are where
+// the annotation tools live, so edit mode and those pages go together. Edit
+// mode turned on from elsewhere (shortcut, menu) shows the Comment page; turned
+// off on a PDF it goes back to Home.
+static void SetRibbonAnnotationsVisible(MainWindow* win, bool visible, bool docSupportsAnnots) {
+    ToolbarVirt* tb = win->toolbarVirt;
+    if (tb->ribbonAnnotsVisible == visible) {
+        return;
+    }
+    tb->ribbonAnnotsVisible = visible;
+    bool onEditPage = RibbonPageEditsPdf((RibbonPage)win->ribbonPage);
+    if (visible && !onEditPage) {
+        SetRibbonPage(win, (int)RibbonPage::Comment, false);
+    } else if (!visible && onEditPage && docSupportsAnnots) {
+        SetRibbonPage(win, (int)RibbonPage::Home, false);
+    }
+    if (visible) {
+        StartLoadingAnnotationsForUi(win->CurrentTab());
+        RefreshAnnotFilterAnnotations(win);
+    }
+    ScheduleUiUpdate(win, kUiForceRelayout | kUiToolbarDirty);
+}
+
+static void SetPdfAnnotationsToolbarVisible(MainWindow* win, bool visible, bool docSupportsAnnots) {
     ToolbarVirt* tb = win ? win->toolbarVirt : nullptr;
+    if (tb && len(tb->ribbonPanels) > 0) {
+        SetRibbonAnnotationsVisible(win, visible, docSupportsAnnots);
+        return;
+    }
     if (!tb || !tb->annotationRow) {
         return;
     }
@@ -644,6 +731,80 @@ static void SetPdfAnnotationsToolbarVisible(MainWindow* win, bool visible) {
         RefreshAnnotFilterAnnotations(win);
     }
     ScheduleUiUpdate(win, kUiForceRelayout | kUiToolbarDirty);
+}
+
+//--- Swiftleaf ribbon: state of the buttons on the extra pages
+
+// page navigation, which the ribbon shows in its tab row instead of on Home
+static bool IsRibbonNavCmd(int cmdId) {
+    return cmdId == PageInfoId || cmdId == CmdGoToPrevPage || cmdId == CmdGoToNextPage;
+}
+
+// commands that only work in edit mode, like the classic annotation row's
+static bool IsAnnotToolCmd(int cmdId) {
+    if (cmdId >= CmdCreateAnnotFirst && cmdId <= CmdCreateAnnotLast) {
+        return true;
+    }
+    for (const ToolbarButtonInfo& bi : gPdfAnnotationButtons) {
+        if (bi.cmdId != 0 && bi.cmdId == cmdId) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// toggles on the View / Forms pages show whether they are on
+static bool IsRibbonCmdChecked(MainWindow* win, int cmdId) {
+    DocController* ctrl = win->IsDocLoaded() ? win->ctrl : nullptr;
+    DisplayMode dm = ctrl ? ctrl->GetDisplayMode() : DisplayMode::Automatic;
+    switch (cmdId) {
+        case CmdSinglePageView:
+            return ctrl && IsSingle(dm);
+        case CmdFacingView:
+            return ctrl && IsFacing(dm);
+        case CmdBookView:
+            return ctrl && IsBookView(dm);
+        case CmdToggleContinuousView:
+            return ctrl && IsContinuous(dm);
+        case CmdToggleFullscreen:
+            return win->isFullScreen;
+        case CmdToggleBookmarks:
+            return IsSidebarViewShown(win, SidebarView::Bookmarks);
+        case CmdToggleThumbnails:
+            return IsSidebarViewShown(win, SidebarView::Thumbnails);
+        case CmdInvertColors:
+            return GetInvertPageColors();
+        case CmdToggleHighlightFormFields:
+            return gSettings->highlightFormFields;
+    }
+    return false;
+}
+
+static void UpdateRibbonItemsState(MainWindow* win, AppCommandCtx* ctx, bool annotButtonsEnabled) {
+    ToolbarVirt* tb = win->toolbarVirt;
+    if (!tb) {
+        return;
+    }
+    for (VirtCtrl* w : tb->ribbonItems) {
+        int cmdId = w->id;
+        bool enabled = false;
+        if (IsAnnotToolCmd(cmdId)) {
+            CommandVisibility v = GetCommandVisibility(cmdId, *ctx, CommandSurface::Toolbar);
+            enabled = annotButtonsEnabled && !CommandShouldDisable(v) && !CommandShouldRemove(v);
+        } else {
+            enabled = IsCmdAvailable(win, cmdId, ctx) && IsCmdEnabled(win, cmdId, ctx);
+        }
+        if (w->IsEnabled() != enabled) {
+            w->SetIsEnabled(enabled);
+            w->Invalidate();
+        }
+        auto* ib = AsVirtIconButton(w);
+        bool checked = IsRibbonCmdChecked(win, cmdId);
+        if (ib && ib->isSelected != checked) {
+            ib->isSelected = checked;
+            ib->Invalidate();
+        }
+    }
 }
 
 // TODO: this is called too often
@@ -685,8 +846,9 @@ void ToolbarUpdateStateForWindow(MainWindow* win, bool setButtonsVisibility) {
         }
     }
 
-    bool showPdfAnnotationsToolbar = win->pdfAnnotationsToolbarEnabled && ctx->isPdf && ctx->supportsAnnots;
-    SetPdfAnnotationsToolbarVisible(win, showPdfAnnotationsToolbar);
+    bool docSupportsAnnots = ctx->isPdf && ctx->supportsAnnots;
+    bool showPdfAnnotationsToolbar = win->pdfAnnotationsToolbarEnabled && docSupportsAnnots;
+    SetPdfAnnotationsToolbarVisible(win, showPdfAnnotationsToolbar, docSupportsAnnots);
     // a placement mode (ink, shape, highlighter...) owns the page until it ends
     bool annotButtonsEnabled = showPdfAnnotationsToolbar && !IsPlacingAnnotation(win);
     bool annotVisibilityChanged = false;
@@ -711,6 +873,8 @@ void ToolbarUpdateStateForWindow(MainWindow* win, bool setButtonsVisibility) {
         }
     }
 
+    UpdateRibbonItemsState(win, ctx, annotButtonsEnabled);
+
     if (setButtonsVisibility) {
         // drop a separator that would sit next to another, or at either end
         // (Read Aloud is hidden by default, which would otherwise leave ||)
@@ -729,6 +893,10 @@ void ToolbarUpdateStateForWindow(MainWindow* win, bool setButtonsVisibility) {
                 if (!hide) {
                     lastSep = i;
                 }
+                continue;
+            }
+            // in the ribbon these sit in the tab row, not between separators
+            if (IsRibbonNavCmd(bi.cmdId)) {
                 continue;
             }
             // the page box counts as visible content: a separator right after
@@ -793,6 +961,16 @@ void SetToolbarButtonEnableState(MainWindow* win, int cmdId, bool isEnabled) {
     for (int i = 0; i < kPdfAnnotationButtonsCount; i++) {
         if (gPdfAnnotationButtons[i].cmdId == originalCmdId) {
             SetPdfAnnotationButtonEnabledByIdx(win, i, isEnabled);
+        }
+    }
+    ToolbarVirt* tb = win ? win->toolbarVirt : nullptr;
+    if (!tb) {
+        return;
+    }
+    for (VirtCtrl* w : tb->ribbonItems) {
+        if (w->id == originalCmdId && w->IsEnabled() != isEnabled) {
+            w->SetIsEnabled(isEnabled);
+            w->Invalidate();
         }
     }
 }
@@ -1289,6 +1467,38 @@ static void ApplyToolbarItemColors(VirtCtrl* w) {
     }
 }
 
+// colors and icon of a large ribbon button, for its command
+static void ApplyRibbonButtonStyle(RibbonButton* b, Str svg, int cmdId) {
+    ApplyToolbarItemColors(b);
+    b->SetColor(kColIconBtnBgSelected, RibbonSelectedBgColor());
+    b->textColor = TbTextColor();
+    b->textColorDisabled = TbDisabledColor();
+    int sz = RibbonLargeIconSize();
+    Color bg = RibbonPanelBgColor();
+    b->pixmap = RibbonIconPixmap(svg, sz, RibbonIconColor(cmdId), bg);
+    b->pixmapDisabled = RibbonIconPixmap(svg, sz, TbDisabledColor(), bg);
+}
+
+static Str ToolbarButtonSvg(const ToolbarButtonInfo& bi) {
+    if (bi.svgIcon) {
+        return bi.svgIcon;
+    }
+    return Str(RibbonIconForCmd(bi.cmdId, bi.icon));
+}
+
+static void RefreshRibbonIcons(MainWindow* win) {
+    ToolbarVirt* tb = win->toolbarVirt;
+    for (int i = 0; i < len(tb->ribbonItems); i++) {
+        auto* rb = AsRibbonButton(tb->ribbonItems[i]);
+        if (rb) {
+            ApplyRibbonButtonStyle(rb, Str((const char*)rb->userData), rb->id);
+        }
+    }
+    for (RibbonTab* t : tb->ribbonTabs) {
+        t->textColor = TbTextColor();
+    }
+}
+
 static void RefreshToolbarIcons(MainWindow* win) {
     ToolbarVirt* tb = win->toolbarVirt;
     if (!tb) {
@@ -1297,9 +1507,14 @@ static void RefreshToolbarIcons(MainWindow* win) {
     int sz = tb->iconSize;
     Color fg = TbTextColor();
     Color dis = TbDisabledColor();
+    RefreshRibbonIcons(win);
     for (int i = 0; i < len(tb->items); i++) {
         VirtCtrl* w = tb->items[i];
         ApplyToolbarItemColors(w);
+        if (auto* rb = AsRibbonButton(w)) {
+            ApplyRibbonButtonStyle(rb, ToolbarButtonSvg(GetToolbarButtonInfoByIdx(i)), rb->id);
+            continue;
+        }
         auto* ib = AsVirtIconButton(w);
         if (!ib) {
             continue;
@@ -1315,6 +1530,10 @@ static void RefreshToolbarIcons(MainWindow* win) {
     for (int i = 0; i < len(tb->annotationItems); i++) {
         VirtCtrl* w = tb->annotationItems[i];
         ApplyToolbarItemColors(w);
+        if (auto* rb = AsRibbonButton(w)) {
+            ApplyRibbonButtonStyle(rb, ToolbarButtonSvg(gPdfAnnotationButtons[i]), rb->id);
+            continue;
+        }
         auto* ib = AsVirtIconButton(w);
         if (!ib) {
             continue;
@@ -1362,13 +1581,21 @@ static VirtCtrl* ToolbarItemForCmd(MainWindow* win, int cmdId) {
     if (!tb) {
         return nullptr;
     }
+    auto isShownFor = [win, cmdId](VirtCtrl* w) {
+        return w && w->id == cmdId && w->GetVisibility() == Visibility::Visible && IsOnShownRibbonPage(win, w);
+    };
     for (VirtCtrl* w : tb->items) {
-        if (w && w->id == cmdId && w->GetVisibility() == Visibility::Visible) {
+        if (isShownFor(w)) {
             return w;
         }
     }
     for (VirtCtrl* w : tb->annotationItems) {
-        if (w && w->id == cmdId && w->GetVisibility() == Visibility::Visible) {
+        if (isShownFor(w)) {
+            return w;
+        }
+    }
+    for (VirtCtrl* w : tb->ribbonItems) {
+        if (isShownFor(w)) {
             return w;
         }
     }
@@ -1376,21 +1603,8 @@ static VirtCtrl* ToolbarItemForCmd(MainWindow* win, int cmdId) {
 }
 
 static Rect ToolbarButtonRect(MainWindow* win, int cmdId) {
-    ToolbarVirt* tb = win ? win->toolbarVirt : nullptr;
-    if (!tb) {
-        return {};
-    }
-    for (VirtCtrl* w : tb->items) {
-        if (w && w->id == cmdId && w->GetVisibility() == Visibility::Visible) {
-            return w->BoundsInWindow();
-        }
-    }
-    for (VirtCtrl* w : tb->annotationItems) {
-        if (w && w->id == cmdId && w->GetVisibility() == Visibility::Visible) {
-            return w->BoundsInWindow();
-        }
-    }
-    return {};
+    VirtCtrl* w = ToolbarItemForCmd(win, cmdId);
+    return w ? w->BoundsInWindow() : Rect{};
 }
 
 // screen-coordinates rect of a toolbar button, used to position the FindBar.
@@ -3298,7 +3512,144 @@ static VirtCtrl* MakeToolbarSeparator(int rowDy) {
     return sep;
 }
 
-// (re)build the tree of virtual controls the toolbar is made of, one per button
+///--- Swiftleaf ribbon
+
+// The toolbar is a ribbon: a row of page tabs, with page navigation at its far
+// end, above the buttons of the page that is shown.
+//
+//   | Home  Comment  Edit  Organize  Forms & Sign  View     Page: [3] / 12  < > |
+//   |-----------------------------------------------------------------------------|
+//   | [Open] [Save] [Save As] [Print] | [Back] [Fwd] | [Zoom-] [Zoom+] [Fit] ...  |
+//
+// The Home page holds the classic toolbar's buttons (tb->items, in their usual
+// order, so everything that finds a button by index still works) and the
+// Comment page the annotation row's (tb->annotationItems). The other pages'
+// buttons are in tb->ribbonItems.
+
+static void OnRibbonTabClicked(MainWindow* win, VirtMouseEvent* ev) {
+    VirtCtrl* w = ev->target;
+    if (!w) {
+        return;
+    }
+    ev->didHandle = true;
+    SetRibbonPage(win, w->id, true);
+}
+
+static void ShowRibbonPage(ToolbarVirt* tb, int page) {
+    for (int i = 0; i < len(tb->ribbonTabs); i++) {
+        RibbonTab* t = tb->ribbonTabs[i];
+        bool active = (i == page);
+        if (t->isActive != active) {
+            t->isActive = active;
+            t->Invalidate();
+        }
+    }
+    for (int i = 0; i < len(tb->ribbonPanels); i++) {
+        tb->ribbonPanels[i]->SetVisibility(i == page ? Visibility::Visible : Visibility::Collapse);
+    }
+}
+
+// userAction: picked by the user, so also switch edit mode to match the page
+static void SetRibbonPage(MainWindow* win, int page, bool userAction) {
+    ToolbarVirt* tb = win ? win->toolbarVirt : nullptr;
+    if (!tb || len(tb->ribbonPanels) == 0) {
+        return;
+    }
+    page = limitValue(page, 0, len(tb->ribbonPanels) - 1);
+    bool changed = (win->ribbonPage != page);
+    win->ribbonPage = page;
+    ShowRibbonPage(tb, page);
+    if (changed) {
+        HideToolbarHoverDropdown(win);
+        VirtHost* host = tb->host;
+        if (host->vroot) {
+            host->vroot->RequestLayout();
+        }
+        host->Relayout();
+        host->Invalidate(true);
+    }
+    if (!userAction) {
+        return;
+    }
+    bool wantEdit = RibbonPageEditsPdf((RibbonPage)page);
+    if (wantEdit != win->pdfAnnotationsToolbarEnabled) {
+        SetPdfAnnotationsToolbarEnabled(win, wantEdit);
+    }
+    ToolbarUpdateStateForWindow(win, true);
+}
+
+static RibbonButton* NewRibbonButton(MainWindow* win, Str svg, int cmdId, Str label) {
+    auto* b = new RibbonButton();
+    b->font = win->toolbarVirt->ribbonFont;
+    b->id = cmdId;
+    b->SetLabel(label);
+    ApplyRibbonButtonStyle(b, svg, cmdId);
+    return b;
+}
+
+static HBox* NewRibbonPanel() {
+    auto* box = new HBox();
+    box->alignCross = CrossAxisAlign::CrossCenter;
+    box->rtl = IsUIRtl();
+    box->gap = DpiScale(2);
+    return box;
+}
+
+// "Page: [edit] / N", plus the chapter box for documents that have chapters
+static void AddPageInfo(MainWindow* win, HBox* box) {
+    ToolbarVirt* tb = win->toolbarVirt;
+    Color fg = TbTextColor();
+    // Old toolbar: label HWND was text + kTextPaddingRight + kButtonSpacingX
+    // (10dpi) so "Page:" and "/ N" were not flush against the edit.
+    int pageGap = DpiScale(kTextPaddingRight) + DpiScale(kButtonSpacingX);
+    auto* label = new VirtText(Tr("Page:"), tb->platformFont);
+    label->isRtl = box->rtl;
+    label->SetColor(kColText, fg);
+    label->padding = {0, pageGap, 0, DpiScale(4)};
+    label->id = PageInfoId;
+    tb->pageLabel = label;
+    box->AddChild(label);
+
+    // chapter box: [chapterEdit] / N, hidden unless HasChapters()
+    Edit* chapterEdit = ToolbarCreateChapterEdit(win, tb->platformFont, tb->iconSize);
+    chapterEdit->SetVisibility(Visibility::Collapse);
+    win->chapterEdit = chapterEdit;
+    box->AddChild(chapterEdit);
+
+    auto* chapterTotal = new VirtText(StrL(" "), tb->platformFont);
+    chapterTotal->isRtl = box->rtl;
+    chapterTotal->SetColor(kColText, fg);
+    chapterTotal->padding = {0, DpiScale(4), 0, pageGap};
+    chapterTotal->id = PageInfoId;
+    chapterTotal->SetVisibility(Visibility::Collapse);
+    tb->chapterTotal = chapterTotal;
+    box->AddChild(chapterTotal);
+
+    // second "Page:" label, shown before pageEdit only for HasChapters() docs
+    auto* label2 = new VirtText(Tr("Page:"), tb->platformFont);
+    label2->isRtl = box->rtl;
+    label2->SetColor(kColText, fg);
+    label2->padding = {0, pageGap, 0, DpiScale(4)};
+    label2->id = PageInfoId;
+    label2->SetVisibility(Visibility::Collapse);
+    tb->pageLabel2 = label2;
+    box->AddChild(label2);
+
+    Edit* pageEdit = ToolbarCreatePageEdit(win, tb->platformFont, tb->iconSize);
+    win->pageEdit = pageEdit;
+    box->AddChild(pageEdit);
+
+    auto* total = new VirtText(StrL(" "), tb->platformFont);
+    total->isRtl = box->rtl;
+    total->SetColor(kColText, fg);
+    total->padding = {0, DpiScale(4), 0, pageGap};
+    total->id = PageInfoId;
+    tb->pageTotal = total;
+    box->AddChild(total);
+    VecAppend(tb->items, (VirtCtrl*)label);
+}
+
+// (re)build the tree of virtual controls the toolbar is made of
 static void BuildToolbarLayout(MainWindow* win) {
     PopulateToolbarLayout();
     PopulateCustomToolbarButtons();
@@ -3306,6 +3657,11 @@ static void BuildToolbarLayout(MainWindow* win) {
     ToolbarVirt* tb = win->toolbarVirt;
     VecReset(tb->items);
     VecReset(tb->annotationItems);
+    VecReset(tb->ribbonTabs);
+    VecReset(tb->ribbonPanels);
+    VecReset(tb->ribbonItems);
+    VecReset(tb->ribbonItemPages);
+    tb->ribbonAnnotsVisible = false;
     tb->annotationRow = nullptr;
     tb->pageLabel = nullptr;
     tb->pageLabel2 = nullptr;
@@ -3319,112 +3675,87 @@ static void BuildToolbarLayout(MainWindow* win) {
     tb->rowDy = ToolbarRowDy(tb->iconSize);
     Color fg = TbTextColor();
     Color dis = TbDisabledColor();
+    bool rtl = IsUIRtl();
+    int btnDy = RibbonButtonDy(tb->ribbonFont);
 
-    auto* box = new HBox();
-    box->alignCross = CrossAxisAlign::CrossCenter;
-    box->rtl = IsUIRtl();
+    // the tab row: a tab per page, then page navigation at the far end
+    auto* tabRow = new HBox();
+    tabRow->alignCross = CrossAxisAlign::CrossCenter;
+    tabRow->rtl = rtl;
+    for (int i = 0; i < RibbonPageCount(); i++) {
+        auto* t = new RibbonTab(RibbonPageName((RibbonPage)i), tb->ribbonFont);
+        t->id = i;
+        t->textColor = fg;
+        t->onClick = MkFunc1(OnRibbonTabClicked, win);
+        VecAppend(tb->ribbonTabs, t);
+        tabRow->AddChild(t);
+    }
+    tabRow->AddChild(new VirtSpacer(0, 0), 1);
+    auto* nav = new HBox();
+    nav->alignCross = CrossAxisAlign::CrossCenter;
+    nav->rtl = rtl;
+    tabRow->AddChild(nav);
 
+    // Home: the classic toolbar's buttons, as large ribbon buttons
+    HBox* home = NewRibbonPanel();
     int n = TotalButtonsCount();
     for (int i = 0; i < n; i++) {
         const ToolbarButtonInfo& bi = GetToolbarButtonInfoByIdx(i);
-        VirtCtrl* w = nullptr;
         bool noTranslate = i >= gLayoutButtonsCount;
         if (bi.cmdId == PageInfoId) {
-            // Old toolbar: label HWND was text + kTextPaddingRight + kButtonSpacingX
-            // (10dpi) so "Page:" and "/ N" were not flush against the edit.
-            int pageGap = DpiScale(kTextPaddingRight) + DpiScale(kButtonSpacingX);
-            auto* label = new VirtText(Tr("Page:"), tb->platformFont);
-            label->isRtl = box->rtl;
-            label->SetColor(kColText, fg);
-            label->padding = {0, pageGap, 0, DpiScale(4)};
-            label->id = PageInfoId;
-            tb->pageLabel = label;
-            box->AddChild(label);
-
-            // chapter box: [chapterEdit] / N, hidden unless HasChapters()
-            Edit* chapterEdit = ToolbarCreateChapterEdit(win, tb->platformFont, tb->iconSize);
-            chapterEdit->SetVisibility(Visibility::Collapse);
-            win->chapterEdit = chapterEdit;
-            box->AddChild(chapterEdit);
-
-            auto* chapterTotal = new VirtText(StrL(" "), tb->platformFont);
-            chapterTotal->isRtl = box->rtl;
-            chapterTotal->SetColor(kColText, fg);
-            chapterTotal->padding = {0, DpiScale(4), 0, pageGap};
-            chapterTotal->id = PageInfoId;
-            chapterTotal->SetVisibility(Visibility::Collapse);
-            tb->chapterTotal = chapterTotal;
-            box->AddChild(chapterTotal);
-
-            // second "Page:" label, shown before pageEdit only for HasChapters() docs
-            auto* label2 = new VirtText(Tr("Page:"), tb->platformFont);
-            label2->isRtl = box->rtl;
-            label2->SetColor(kColText, fg);
-            label2->padding = {0, pageGap, 0, DpiScale(4)};
-            label2->id = PageInfoId;
-            label2->SetVisibility(Visibility::Collapse);
-            tb->pageLabel2 = label2;
-            box->AddChild(label2);
-
-            Edit* pageEdit = ToolbarCreatePageEdit(win, tb->platformFont, tb->iconSize);
-            win->pageEdit = pageEdit;
-            box->AddChild(pageEdit);
-
-            auto* total = new VirtText(StrL(" "), tb->platformFont);
-            total->isRtl = box->rtl;
-            total->SetColor(kColText, fg);
-            total->padding = {0, DpiScale(4), 0, pageGap};
-            total->id = PageInfoId;
-            tb->pageTotal = total;
-            box->AddChild(total);
-            VecAppend(tb->items, label);
+            AddPageInfo(win, nav);
             continue;
         }
+        HBox* dest = IsRibbonNavCmd(bi.cmdId) ? nav : home;
+        VirtCtrl* w = nullptr;
         if (bi.cmdId == 0 || !HasToolbarButtonContent(bi)) {
-            w = MakeToolbarSeparator(tb->rowDy);
+            w = MakeToolbarSeparator(btnDy);
+            ApplyToolbarItemColors(w);
         } else if (bi.isText) {
             auto* b = new VirtButton(noTranslate ? bi.toolTip : trans::GetTranslation(bi.toolTip), tb->platformFont);
-            b->isRtl = box->rtl;
+            b->isRtl = rtl;
             b->textPadding = {cyPad, iconPad, cyPad, iconPad};
             w = b;
-        } else {
+            ApplyToolbarItemColors(w);
+        } else if (dest == nav) {
             auto* ib = new VirtIconButton();
             ib->padding = {cyPad, iconPad, cyPad, iconPad};
-            ib->hasDropdown = (bi.cmdId == CmdToggleReadAloud);
             Str svg = bi.svgIcon ? bi.svgIcon : Str(bi.icon);
             ib->pixmap = GetCachedPixmapForSvg(svg, tb->iconSize, tb->iconSize, fg, TbBgColor());
             ib->pixmapDisabled = GetCachedPixmapForSvg(svg, tb->iconSize, tb->iconSize, dis, TbBgColor());
             w = ib;
+            ApplyToolbarItemColors(w);
+        } else {
+            Str label = noTranslate ? bi.toolTip : RibbonLabelForCmd(bi.cmdId);
+            if (len(label) == 0) {
+                label = trans::GetTranslation(bi.toolTip);
+            }
+            auto* rb = NewRibbonButton(win, ToolbarButtonSvg(bi), bi.cmdId, label);
+            rb->hasDropdown = (bi.cmdId == CmdToggleReadAloud);
+            w = rb;
         }
-        ApplyToolbarItemColors(w);
         w->id = bi.cmdId;
         if (bi.toolTip) {
             bool translate = !noTranslate && !bi.isText;
             w->SetTooltip(ToolbarTipTemp(bi.cmdId, bi.toolTip, translate));
         }
-        if (bi.cmdId != 0 && bi.cmdId != PageInfoId) {
+        if (bi.cmdId != 0) {
             w->onClick = MkFunc1(OnToolbarButtonClicked, win);
         }
         VecAppend(tb->items, w);
-        box->AddChild(w);
+        dest->AddChild(w);
     }
 
-    auto* annotationBox = new HBox();
-    annotationBox->alignMain = MainAxisAlign::MainCenter;
-    annotationBox->alignCross = CrossAxisAlign::CrossCenter;
-    annotationBox->rtl = box->rtl;
+    // Comment: the annotation row's buttons
+    HBox* comment = NewRibbonPanel();
     for (const ToolbarButtonInfo& bi : gPdfAnnotationButtons) {
         VirtCtrl* w = nullptr;
         if (!HasToolbarButtonContent(bi)) {
-            w = MakeToolbarSeparator(tb->rowDy);
+            w = MakeToolbarSeparator(btnDy);
+            ApplyToolbarItemColors(w);
         } else {
-            auto* ib = new VirtIconButton();
-            ib->padding = {cyPad, iconPad, cyPad, iconPad};
-            ib->pixmap = GetCachedPixmapForSvg(Str(bi.icon), tb->iconSize, tb->iconSize, fg, TbBgColor());
-            ib->pixmapDisabled = GetCachedPixmapForSvg(Str(bi.icon), tb->iconSize, tb->iconSize, dis, TbBgColor());
-            w = ib;
+            w = NewRibbonButton(win, ToolbarButtonSvg(bi), bi.cmdId, RibbonLabelForCmd(bi.cmdId));
         }
-        ApplyToolbarItemColors(w);
         w->id = bi.cmdId;
         if (bi.toolTip) {
             w->SetTooltip(ToolbarTipTemp(bi.cmdId, bi.toolTip, true));
@@ -3433,13 +3764,37 @@ static void BuildToolbarLayout(MainWindow* win) {
             w->onClick = MkFunc1(OnToolbarButtonClicked, win);
         }
         VecAppend(tb->annotationItems, w);
-        annotationBox->AddChild(w);
+        comment->AddChild(w);
     }
 
-    auto* mainRow = new HBox();
-    mainRow->alignCross = CrossAxisAlign::CrossCenter;
-    mainRow->gap = DpiScale(kButtonSpacingX);
-    mainRow->AddChild(box, 1);
+    VecAppend(tb->ribbonPanels, (ILayout*)new RibbonPanelFit(home));
+    VecAppend(tb->ribbonPanels, (ILayout*)new RibbonPanelFit(comment));
+
+    // the pages that are only RibbonItemDef tables
+    for (int page = (int)RibbonPage::Edit; page < RibbonPageCount(); page++) {
+        HBox* panel = NewRibbonPanel();
+        const RibbonItemDef* defs = nullptr;
+        int nDefs = 0;
+        RibbonPageItems((RibbonPage)page, &defs, &nDefs);
+        for (int k = 0; k < nDefs; k++) {
+            const RibbonItemDef& d = defs[k];
+            if (!d.icon) {
+                VirtCtrl* sep = MakeToolbarSeparator(btnDy);
+                ApplyToolbarItemColors(sep);
+                panel->AddChild(sep);
+                continue;
+            }
+            RibbonButton* b = NewRibbonButton(win, Str(d.icon), d.cmdId, trans::GetTranslation(d.label));
+            b->userData = (uintptr_t)d.icon;
+            Str tip = len(d.tip) > 0 ? d.tip : d.label;
+            b->SetTooltip(ToolbarTipTemp(d.cmdId, tip, true));
+            b->onClick = MkFunc1(OnToolbarButtonClicked, win);
+            VecAppend(tb->ribbonItems, (VirtCtrl*)b);
+            VecAppend(tb->ribbonItemPages, page);
+            panel->AddChild(b);
+        }
+        VecAppend(tb->ribbonPanels, (ILayout*)new RibbonPanelFit(panel));
+    }
 
     SetToolbarHoverDropdown(win, CmdSaveAnnotations, MkFunc1(BuildSaveHoverMenu, win));
     // one strip for the two of them, so it doesn't jump when the mouse crosses
@@ -3451,31 +3806,46 @@ static void BuildToolbarLayout(MainWindow* win) {
         SetToolbarHoverDropdown(win, cmdId, MkFunc1(BuildAnnotColorsHoverMenu, win));
     }
 
+    auto* panels = new VBox();
+    panels->alignCross = CrossAxisAlign::Stretch;
+    for (ILayout* panel : tb->ribbonPanels) {
+        panels->AddChild(panel);
+    }
+    ShowRibbonPage(tb, limitValue(win->ribbonPage, 0, len(tb->ribbonPanels) - 1));
+
+    int padX = DpiScale(8);
+    int padY = DpiScale(4);
+    tb->ribbonTabRowDy = std::max(RibbonTabDy(tb->ribbonFont), tb->rowDy);
+    tb->ribbonDy = tb->ribbonTabRowDy + padY + btnDy + padY + 1;
+
     auto* root = new VBox();
     root->alignCross = CrossAxisAlign::Stretch;
-    root->AddChild(new Padding(mainRow, Insets{0, DpiScale(4), 0, DpiScale(4)}));
-    tb->annotationRow = new Padding(annotationBox, Insets{0, DpiScale(4), 0, DpiScale(4)});
-    tb->annotationRow->SetVisibility(Visibility::Collapse);
-    root->AddChild(tb->annotationRow);
+    root->AddChild(new Padding(tabRow, Insets{0, padX, 0, DpiScale(4)}));
+    root->AddChild(new Padding(panels, Insets{padY, padX, padY + 1, padX}));
     tb->host->SetLayout(root);
 }
 
-static void PaintToolbarBackground(MainWindow*, VirtHostPaintEvent* ev) {
-    ev->gfx->FillRect(ev->clientRect, TbBgColor());
-}
-
-// the default theme separates the toolbar from the canvas with a hairline.
-// Use the document background, not ThemeEdgeColor: on Light that is #c0c0c0
-// and reads as a dark strip against the page.
-static void PaintToolbarEdge(MainWindow*, VirtHostPaintEvent* ev) {
-    if (!IsCurrentThemeDefault() || ThemeColorizeControls()) {
+static void PaintToolbarBackground(MainWindow* win, VirtHostPaintEvent* ev) {
+    ToolbarVirt* tb = win ? win->toolbarVirt : nullptr;
+    Rect rc = ev->clientRect;
+    if (tb && tb->ribbonTabRowDy > 0) {
+        ev->gfx->FillRect(rc, RibbonPanelBgColor());
+        ev->gfx->FillRect({rc.x, rc.y, rc.dx, tb->ribbonTabRowDy}, RibbonTabRowBgColor());
         return;
     }
-    Color canvasBg;
-    ThemeDocumentColors(canvasBg);
+    ev->gfx->FillRect(rc, TbBgColor());
+}
+
+// hairlines under the ribbon's tab row and under the whole ribbon
+static void PaintToolbarEdge(MainWindow* win, VirtHostPaintEvent* ev) {
+    ToolbarVirt* tb = win ? win->toolbarVirt : nullptr;
     Rect rc = ev->clientRect;
-    int y = ToolbarAtBottom() ? rc.y : (rc.Bottom() - 1);
-    ev->gfx->FillRect({rc.x, y, rc.dx, 1}, canvasBg);
+    if (!tb || tb->ribbonTabRowDy <= 0) {
+        return;
+    }
+    Color edge = RibbonEdgeColor();
+    ev->gfx->FillRect({rc.x, rc.y + tb->ribbonTabRowDy, rc.dx, 1}, edge);
+    ev->gfx->FillRect({rc.x, rc.Bottom() - 1, rc.dx, 1}, edge);
 }
 
 static const WStr kToolbarHostClass = WStrL(L"SUMATRA_VIRT_TOOLBAR");
@@ -3522,11 +3892,14 @@ void CreateToolbar(MainWindow* win) {
         newSize = maxFontSize;
     }
     tb->platformFont = GetUserGuiFont({}, newSize);
+    // ribbon labels and tabs are a notch smaller than menu text, like Office / Foxit
+    tb->ribbonFont = GetScaledPlatformFont(GetAppFont(), 85);
     win->toolbarVirt = tb;
     win->hwndToolbar = host->native;
     host->SetFont(tb->platformFont);
 
     BuildToolbarLayout(win);
+    ToolbarSetHeight(win, tb->ribbonDy);
 
     DocController* ctrl = win->ctrl;
     UpdateToolbarPageText(win, ctrl ? ctrl->PageCount() : -1);

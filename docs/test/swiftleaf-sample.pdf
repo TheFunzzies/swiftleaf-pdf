@@ -1,0 +1,373 @@
+%PDF-1.7
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R] /Count 6 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Length 3707 >>
+stream
+0.06 0.48 0.42 rg 0 762 612 30 re f
+BT /F2 12 Tf 1 1 1 rg 50 772 Td (Swiftleaf PDF - Sample Document) Tj ET
+BT /F2 22 Tf 0.1 0.1 0.1 rg 50 715 Td (Chapter 1: Section Title) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 680 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 665 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 650 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 635 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 620 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 593 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 578 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 563 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 548 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 533 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 506 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 491 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 476 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 461 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 446 Td (simple table and a few shapes.) Tj ET
+BT /F2 14 Tf 0.1 0.1 0.1 rg 50 419 Td (Feature overview) Tj ET
+0.86 0.93 0.92 rg 50 391 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 391 512 20 re S
+BT /F2 10 Tf 0.1 0.1 0.1 rg 58 397 Td (Feature) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 220 397 Td (Status) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 330 397 Td (Notes) Tj ET
+1 1 1 rg 50 371 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 371 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 377 Td (Annotations) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 377 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 377 Td (Highlight, notes, shapes, ink) Tj ET
+0.96 0.96 0.96 rg 50 351 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 351 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 357 Td (Forms) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 357 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 357 Td (Fill and save AcroForms) Tj ET
+1 1 1 rg 50 331 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 331 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 337 Td (Signatures) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 337 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 337 Td (Image and digital signatures) Tj ET
+0.96 0.96 0.96 rg 50 311 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 311 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 317 Td (Organize) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 317 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 317 Td (Insert, delete, rotate, reorder) Tj ET
+0.93 0.42 0.16 rg 80 207 120 60 re f
+0.2 0.45 0.8 rg 250 207 m 310 267 l 370 207 l f
+0.1 0.6 0.35 rg 430 237 m 430 253.6 443.4 267 460 267 c 476.6 267 490 253.6 490 237 c 490 220.4 476.6 207 460 207 c 443.4 207 430 220.4 430 237 c f
+BT /F1 9 Tf 0.45 0.45 0.45 rg 280 30 Td (Page 1 of 6) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>
+endobj
+7 0 obj
+<< /Length 3707 >>
+stream
+0.06 0.48 0.42 rg 0 762 612 30 re f
+BT /F2 12 Tf 1 1 1 rg 50 772 Td (Swiftleaf PDF - Sample Document) Tj ET
+BT /F2 22 Tf 0.1 0.1 0.1 rg 50 715 Td (Chapter 2: Section Title) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 680 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 665 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 650 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 635 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 620 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 593 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 578 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 563 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 548 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 533 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 506 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 491 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 476 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 461 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 446 Td (simple table and a few shapes.) Tj ET
+BT /F2 14 Tf 0.1 0.1 0.1 rg 50 419 Td (Feature overview) Tj ET
+0.86 0.93 0.92 rg 50 391 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 391 512 20 re S
+BT /F2 10 Tf 0.1 0.1 0.1 rg 58 397 Td (Feature) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 220 397 Td (Status) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 330 397 Td (Notes) Tj ET
+1 1 1 rg 50 371 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 371 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 377 Td (Annotations) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 377 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 377 Td (Highlight, notes, shapes, ink) Tj ET
+0.96 0.96 0.96 rg 50 351 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 351 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 357 Td (Forms) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 357 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 357 Td (Fill and save AcroForms) Tj ET
+1 1 1 rg 50 331 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 331 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 337 Td (Signatures) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 337 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 337 Td (Image and digital signatures) Tj ET
+0.96 0.96 0.96 rg 50 311 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 311 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 317 Td (Organize) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 317 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 317 Td (Insert, delete, rotate, reorder) Tj ET
+0.93 0.42 0.16 rg 80 207 120 60 re f
+0.2 0.45 0.8 rg 250 207 m 310 267 l 370 207 l f
+0.1 0.6 0.35 rg 430 237 m 430 253.6 443.4 267 460 267 c 476.6 267 490 253.6 490 237 c 490 220.4 476.6 207 460 207 c 443.4 207 430 220.4 430 237 c f
+BT /F1 9 Tf 0.45 0.45 0.45 rg 280 30 Td (Page 2 of 6) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>
+endobj
+9 0 obj
+<< /Length 3707 >>
+stream
+0.06 0.48 0.42 rg 0 762 612 30 re f
+BT /F2 12 Tf 1 1 1 rg 50 772 Td (Swiftleaf PDF - Sample Document) Tj ET
+BT /F2 22 Tf 0.1 0.1 0.1 rg 50 715 Td (Chapter 3: Section Title) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 680 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 665 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 650 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 635 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 620 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 593 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 578 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 563 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 548 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 533 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 506 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 491 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 476 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 461 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 446 Td (simple table and a few shapes.) Tj ET
+BT /F2 14 Tf 0.1 0.1 0.1 rg 50 419 Td (Feature overview) Tj ET
+0.86 0.93 0.92 rg 50 391 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 391 512 20 re S
+BT /F2 10 Tf 0.1 0.1 0.1 rg 58 397 Td (Feature) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 220 397 Td (Status) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 330 397 Td (Notes) Tj ET
+1 1 1 rg 50 371 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 371 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 377 Td (Annotations) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 377 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 377 Td (Highlight, notes, shapes, ink) Tj ET
+0.96 0.96 0.96 rg 50 351 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 351 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 357 Td (Forms) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 357 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 357 Td (Fill and save AcroForms) Tj ET
+1 1 1 rg 50 331 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 331 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 337 Td (Signatures) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 337 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 337 Td (Image and digital signatures) Tj ET
+0.96 0.96 0.96 rg 50 311 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 311 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 317 Td (Organize) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 317 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 317 Td (Insert, delete, rotate, reorder) Tj ET
+0.93 0.42 0.16 rg 80 207 120 60 re f
+0.2 0.45 0.8 rg 250 207 m 310 267 l 370 207 l f
+0.1 0.6 0.35 rg 430 237 m 430 253.6 443.4 267 460 267 c 476.6 267 490 253.6 490 237 c 490 220.4 476.6 207 460 207 c 443.4 207 430 220.4 430 237 c f
+BT /F1 9 Tf 0.45 0.45 0.45 rg 280 30 Td (Page 3 of 6) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 9 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>
+endobj
+11 0 obj
+<< /Length 3707 >>
+stream
+0.06 0.48 0.42 rg 0 762 612 30 re f
+BT /F2 12 Tf 1 1 1 rg 50 772 Td (Swiftleaf PDF - Sample Document) Tj ET
+BT /F2 22 Tf 0.1 0.1 0.1 rg 50 715 Td (Chapter 4: Section Title) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 680 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 665 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 650 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 635 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 620 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 593 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 578 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 563 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 548 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 533 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 506 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 491 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 476 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 461 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 446 Td (simple table and a few shapes.) Tj ET
+BT /F2 14 Tf 0.1 0.1 0.1 rg 50 419 Td (Feature overview) Tj ET
+0.86 0.93 0.92 rg 50 391 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 391 512 20 re S
+BT /F2 10 Tf 0.1 0.1 0.1 rg 58 397 Td (Feature) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 220 397 Td (Status) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 330 397 Td (Notes) Tj ET
+1 1 1 rg 50 371 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 371 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 377 Td (Annotations) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 377 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 377 Td (Highlight, notes, shapes, ink) Tj ET
+0.96 0.96 0.96 rg 50 351 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 351 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 357 Td (Forms) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 357 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 357 Td (Fill and save AcroForms) Tj ET
+1 1 1 rg 50 331 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 331 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 337 Td (Signatures) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 337 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 337 Td (Image and digital signatures) Tj ET
+0.96 0.96 0.96 rg 50 311 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 311 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 317 Td (Organize) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 317 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 317 Td (Insert, delete, rotate, reorder) Tj ET
+0.93 0.42 0.16 rg 80 207 120 60 re f
+0.2 0.45 0.8 rg 250 207 m 310 267 l 370 207 l f
+0.1 0.6 0.35 rg 430 237 m 430 253.6 443.4 267 460 267 c 476.6 267 490 253.6 490 237 c 490 220.4 476.6 207 460 207 c 443.4 207 430 220.4 430 237 c f
+BT /F1 9 Tf 0.45 0.45 0.45 rg 280 30 Td (Page 4 of 6) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 11 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>
+endobj
+13 0 obj
+<< /Length 3707 >>
+stream
+0.06 0.48 0.42 rg 0 762 612 30 re f
+BT /F2 12 Tf 1 1 1 rg 50 772 Td (Swiftleaf PDF - Sample Document) Tj ET
+BT /F2 22 Tf 0.1 0.1 0.1 rg 50 715 Td (Chapter 5: Section Title) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 680 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 665 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 650 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 635 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 620 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 593 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 578 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 563 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 548 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 533 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 506 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 491 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 476 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 461 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 446 Td (simple table and a few shapes.) Tj ET
+BT /F2 14 Tf 0.1 0.1 0.1 rg 50 419 Td (Feature overview) Tj ET
+0.86 0.93 0.92 rg 50 391 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 391 512 20 re S
+BT /F2 10 Tf 0.1 0.1 0.1 rg 58 397 Td (Feature) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 220 397 Td (Status) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 330 397 Td (Notes) Tj ET
+1 1 1 rg 50 371 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 371 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 377 Td (Annotations) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 377 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 377 Td (Highlight, notes, shapes, ink) Tj ET
+0.96 0.96 0.96 rg 50 351 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 351 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 357 Td (Forms) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 357 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 357 Td (Fill and save AcroForms) Tj ET
+1 1 1 rg 50 331 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 331 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 337 Td (Signatures) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 337 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 337 Td (Image and digital signatures) Tj ET
+0.96 0.96 0.96 rg 50 311 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 311 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 317 Td (Organize) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 317 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 317 Td (Insert, delete, rotate, reorder) Tj ET
+0.93 0.42 0.16 rg 80 207 120 60 re f
+0.2 0.45 0.8 rg 250 207 m 310 267 l 370 207 l f
+0.1 0.6 0.35 rg 430 237 m 430 253.6 443.4 267 460 267 c 476.6 267 490 253.6 490 237 c 490 220.4 476.6 207 460 207 c 443.4 207 430 220.4 430 237 c f
+BT /F1 9 Tf 0.45 0.45 0.45 rg 280 30 Td (Page 5 of 6) Tj ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 13 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>
+endobj
+15 0 obj
+<< /Length 3707 >>
+stream
+0.06 0.48 0.42 rg 0 762 612 30 re f
+BT /F2 12 Tf 1 1 1 rg 50 772 Td (Swiftleaf PDF - Sample Document) Tj ET
+BT /F2 22 Tf 0.1 0.1 0.1 rg 50 715 Td (Chapter 6: Section Title) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 680 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 665 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 650 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 635 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 620 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 593 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 578 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 563 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 548 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 533 Td (simple table and a few shapes.) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 506 Td (Swiftleaf is a fast, lightweight PDF reader and editor for Windows. It opens large documents) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 491 Td (instantly, renders crisply at any zoom level and lets you highlight, comment, fill forms,) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 476 Td (sign and reorganize pages without leaving the app. This sample document exists so the) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 461 Td (interface can be exercised with realistic content: paragraphs of running text, headings, a) Tj ET
+BT /F1 11 Tf 0.15 0.15 0.15 rg 50 446 Td (simple table and a few shapes.) Tj ET
+BT /F2 14 Tf 0.1 0.1 0.1 rg 50 419 Td (Feature overview) Tj ET
+0.86 0.93 0.92 rg 50 391 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 391 512 20 re S
+BT /F2 10 Tf 0.1 0.1 0.1 rg 58 397 Td (Feature) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 220 397 Td (Status) Tj ET
+BT /F2 10 Tf 0.1 0.1 0.1 rg 330 397 Td (Notes) Tj ET
+1 1 1 rg 50 371 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 371 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 377 Td (Annotations) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 377 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 377 Td (Highlight, notes, shapes, ink) Tj ET
+0.96 0.96 0.96 rg 50 351 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 351 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 357 Td (Forms) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 357 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 357 Td (Fill and save AcroForms) Tj ET
+1 1 1 rg 50 331 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 331 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 337 Td (Signatures) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 337 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 337 Td (Image and digital signatures) Tj ET
+0.96 0.96 0.96 rg 50 311 512 20 re f
+0.8 0.8 0.8 RG 0.5 w 50 311 512 20 re S
+BT /F1 10 Tf 0.1 0.1 0.1 rg 58 317 Td (Organize) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 220 317 Td (Ready) Tj ET
+BT /F1 10 Tf 0.1 0.1 0.1 rg 330 317 Td (Insert, delete, rotate, reorder) Tj ET
+0.93 0.42 0.16 rg 80 207 120 60 re f
+0.2 0.45 0.8 rg 250 207 m 310 267 l 370 207 l f
+0.1 0.6 0.35 rg 430 237 m 430 253.6 443.4 267 460 267 c 476.6 267 490 253.6 490 237 c 490 220.4 476.6 207 460 207 c 443.4 207 430 220.4 430 237 c f
+BT /F1 9 Tf 0.45 0.45 0.45 rg 280 30 Td (Page 6 of 6) Tj ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 15 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>
+endobj
+xref
+0 17
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000149 00000 n 
+0000000246 00000 n 
+0000000348 00000 n 
+0000004107 00000 n 
+0000004243 00000 n 
+0000008002 00000 n 
+0000008138 00000 n 
+0000011897 00000 n 
+0000012034 00000 n 
+0000015794 00000 n 
+0000015932 00000 n 
+0000019692 00000 n 
+0000019830 00000 n 
+0000023590 00000 n 
+trailer
+<< /Size 17 /Root 1 0 R >>
+startxref
+23728
+%%EOF

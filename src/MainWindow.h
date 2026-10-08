@@ -513,6 +513,8 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
 
     bool isToolbarVisible = false;
     bool pdfAnnotationsToolbarEnabled = false;
+    // the ribbon page (RibbonPage) shown; kept here so it survives ReCreateToolbar
+    int ribbonPage = 0;
     AnnotPlacement annotPlacement;
     // overlay toolbar mode: the toolbar floats over the page (doesn't reserve
     // space) and is only revealed when the mouse is near the top

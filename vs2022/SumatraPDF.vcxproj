@@ -1423,6 +1423,7 @@
     <ClInclude Include="..\src\PageThumbnails.h" />
     <ClInclude Include="..\src\RegistryPreview.h" />
     <ClInclude Include="..\src\RegistrySearchFilter.h" />
+    <ClInclude Include="..\src\Ribbon.h" />
     <ClInclude Include="..\src\ScreenshotCapture.h" />
     <ClInclude Include="..\src\SearchAndDDE.h" />
     <ClInclude Include="..\src\Settings.h" />
@@ -1652,6 +1653,7 @@
     <ClCompile Include="..\src\RefHoverPopup.cpp" />
     <ClCompile Include="..\src\RegistryPreview.cpp" />
     <ClCompile Include="..\src\RegistrySearchFilter.cpp" />
+    <ClCompile Include="..\src\Ribbon.cpp" />
     <ClCompile Include="..\src\Screenshot.cpp" />
     <ClCompile Include="..\src\ScreenshotCapture.cpp" />
     <ClCompile Include="..\src\SearchAndDDE.cpp" />
