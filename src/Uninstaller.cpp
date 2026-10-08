@@ -192,6 +192,7 @@ static void OnUninstallationFinished() {
     gButtonUninstaller = nullptr;
     gButtonExit = CreateDefaultButton(gHwndFrame, Tr("Close"), isRtl);
     gButtonExit->onClick = MkFunc0Void(OnButtonExit);
+    MakeMaterialButton(gButtonExit->hwnd);
     SetMsg(Tr("SumatraPDF has been uninstalled."), gMsgError ? kColorMsgFailed : kColorMsgOk);
     gMsgError = gFirstError;
     HwndRepaintNow(gHwndFrame);
@@ -231,6 +232,7 @@ static void CreateUninstallerWindow() {
     auto isRtl = IsUIRtl();
     gButtonUninstaller = CreateDefaultButton(gHwndFrame, Tr("Uninstall SumatraPDF"), isRtl);
     gButtonUninstaller->onClick = MkFunc0Void(OnButtonUninstall);
+    MakeMaterialButton(gButtonUninstaller->hwnd);
 }
 
 static void ShowUsage() {
@@ -257,12 +259,21 @@ static LRESULT CALLBACK WndProcUninstallerFrame(HWND hwnd, UINT msg, WPARAM wp, 
     switch (msg) {
         case WM_CTLCOLORSTATIC: {
             if (ghbrBackground == nullptr) {
-                ghbrBackground = CreateSolidBrush(MkRgb(0xff, 0xf2, 0));
+                ghbrBackground = CreateSolidBrush(kM3Surface);
             }
             HDC hdc = (HDC)wp;
-            SetTextColor(hdc, kColBlack);
+            SetTextColor(hdc, kM3OnSurface);
             SetBkMode(hdc, TRANSPARENT);
             return (LRESULT)ghbrBackground;
+        }
+
+        case WM_DRAWITEM: {
+            auto* dis = (DRAWITEMSTRUCT*)lp;
+            if ((gButtonUninstaller && dis->hwndItem == gButtonUninstaller->hwnd) ||
+                (gButtonExit && dis->hwndItem == gButtonExit->hwnd)) {
+                return DrawMaterialButton(dis, true);
+            }
+            break;
         }
 
         case WM_DESTROY:

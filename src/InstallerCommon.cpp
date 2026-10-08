@@ -26,13 +26,16 @@
 #include "gui/Gfx.h"
 #include "gui/VirtCtrl.h"
 
+#include "resource.h"
 #include "Installer.h"
 
 // set to true to enable shadow effect
 constexpr bool kDrawTextShadow = true;
 constexpr bool kDrawMsgTextShadow = false;
 
-constexpr Color kInstallerWinBgColor = MkRgb(0xff, 0xf2, 0); // yellow
+constexpr Color kInstallerWinBgColor = kM3Surface;
+// Swiftleaf draws its own header instead of SumatraPDF's colored letters
+constexpr bool kDrawSumatraLetters = false;
 
 constexpr DWORD kTenSecondsInMs = 10 * 1000;
 
@@ -61,10 +64,10 @@ Gdiplus::Color gCol4Shadow(47, 89, 127);
 Gdiplus::Color gCol5(112, 115, 207);
 Gdiplus::Color gCol5Shadow(66, 71, 118);
 
-Gdiplus::Color kColorMsgWelcome(gCol5);
-Gdiplus::Color kColorMsgOk(gCol5);
-Gdiplus::Color kColorMsgInstallation(gCol5);
-Gdiplus::Color kColorMsgFailed(gCol1);
+Gdiplus::Color kColorMsgWelcome(0x00, 0x6b, 0x5a);
+Gdiplus::Color kColorMsgOk(0x00, 0x6b, 0x5a);
+Gdiplus::Color kColorMsgInstallation(0x3f, 0x49, 0x45);
+Gdiplus::Color kColorMsgFailed(0xba, 0x1a, 0x1a);
 
 HWND gHwndFrame = nullptr;
 Str gFirstError;
@@ -856,7 +859,7 @@ static void CalcLettersLayout(Graphics& g, Font* f, int dx) {
 static float DrawMessage(Graphics& g, Str msg, float y, float dx, Gdiplus::Color color) {
     WCHAR* s = CWStrTemp(msg);
 
-    Font f(L"Impact", ImpactPx(16), FontStyleRegular, UnitPixel);
+    Font f(L"Segoe UI Semibold", ImpactPx(13), FontStyleRegular, UnitPixel);
     Gdiplus::RectF maxbox(0, y, dx, 0);
     Gdiplus::RectF bbox;
     g.MeasureString(s, -1, &f, maxbox, &bbox);
@@ -924,13 +927,73 @@ static void DrawSumatraLetters(Graphics& g, Font* f, Font* fVer, float y) {
     g.ResetTransform();
 }
 
+static void AddRoundRect(Gdiplus::GraphicsPath& path, Gdiplus::RectF r, float radius) {
+    float d = radius * 2;
+    path.AddArc(r.X, r.Y, d, d, 180, 90);
+    path.AddArc(r.X + r.Width - d, r.Y, d, d, 270, 90);
+    path.AddArc(r.X + r.Width - d, r.Y + r.Height - d, d, d, 0, 90);
+    path.AddArc(r.X, r.Y + r.Height - d, d, d, 90, 90);
+    path.CloseFigure();
+}
+
+static Gdiplus::Color GdipColor(Color c) {
+    return Gdiplus::Color(GetRed(c), GetGreen(c), GetBlue(c));
+}
+
+// Swiftleaf header: the app icon next to the name, a tagline and a version chip
+static void DrawSwiftleafHeader(Graphics& g, Rect r) {
+    int iconSz = DpiScale(64);
+    float gap = (float)DpiScale(16);
+    float y = (float)DpiScale(36);
+    Font title(L"Segoe UI Semibold", ImpactPx(22), FontStyleRegular, UnitPixel);
+    Font sub(L"Segoe UI", ImpactPx(10), FontStyleRegular, UnitPixel);
+    Font chip(L"Segoe UI Semibold", ImpactPx(8), FontStyleRegular, UnitPixel);
+    const WCHAR* titleStr = L"Swiftleaf PDF";
+    const WCHAR* subStr = L"Fast, lightweight PDF reader and editor";
+    const WCHAR* verStr = L"v" CURR_VERSION_STR;
+
+    Gdiplus::PointF origin(0.f, 0.f);
+    Gdiplus::RectF tb, sb, vb;
+    g.MeasureString(titleStr, -1, &title, origin, &tb);
+    g.MeasureString(subStr, -1, &sub, origin, &sb);
+    g.MeasureString(verStr, -1, &chip, origin, &vb);
+    float chipPadX = (float)DpiScale(8);
+    float chipDx = vb.Width + 2 * chipPadX;
+    float textDx = std::max(tb.Width + gap / 2 + chipDx, sb.Width);
+    float x = ((float)r.dx - ((float)iconSz + gap + textDx)) / 2.f;
+
+    HICON icon = (HICON)LoadImageW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_SUMATRAPDF), IMAGE_ICON, iconSz,
+                                   iconSz, LR_DEFAULTCOLOR);
+    if (icon) {
+        HDC hdc = g.GetHDC();
+        DrawIconEx(hdc, (int)x, (int)y, icon, iconSz, iconSz, 0, nullptr, DI_NORMAL);
+        g.ReleaseHDC(hdc);
+        DestroyIcon(icon);
+    }
+
+    float tx = x + (float)iconSz + gap;
+    float ty = y + ((float)iconSz - tb.Height - sb.Height) / 2.f;
+    SolidBrush onSurface(GdipColor(kM3OnSurface));
+    g.DrawString(titleStr, -1, &title, Gdiplus::PointF(tx, ty), &onSurface);
+    SolidBrush onVariant(GdipColor(kM3OnSurfaceVariant));
+    g.DrawString(subStr, -1, &sub, Gdiplus::PointF(tx + (float)DpiScale(2), ty + tb.Height), &onVariant);
+
+    // the version as a Material assist chip after the name
+    Gdiplus::RectF chipRect(tx + tb.Width + gap / 2, ty + (tb.Height - vb.Height - (float)DpiScale(4)) / 2.f, chipDx,
+                            vb.Height + (float)DpiScale(4));
+    Gdiplus::GraphicsPath path;
+    AddRoundRect(path, chipRect, chipRect.Height / 2.f);
+    SolidBrush chipBg(GdipColor(kM3SecondaryContainer));
+    g.FillPath(&chipBg, &path);
+    SolidBrush chipFg(GdipColor(kM3OnSecondaryContainer));
+    g.DrawString(verStr, -1, &chip, Gdiplus::PointF(chipRect.X + chipPadX, chipRect.Y + (float)DpiScale(2)), &chipFg);
+}
+
 static void DrawFrame2(Graphics& g, Rect r, bool skipMessage) {
     g.SetCompositingQuality(CompositingQualityHighQuality);
     g.SetSmoothingMode(SmoothingModeAntiAlias);
+    g.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
     g.SetPageUnit(Gdiplus::UnitPixel);
-
-    Font f(L"Impact", ImpactPx(40), FontStyleRegular, UnitPixel);
-    CalcLettersLayout(g, &f, r.dx);
 
     Gdiplus::Color bgCol;
     bgCol.SetFromCOLORREF(kInstallerWinBgColor);
@@ -939,8 +1002,14 @@ static void DrawFrame2(Graphics& g, Rect r, bool skipMessage) {
     r2.Inflate(1, 1);
     g.FillRectangle(&bgBrush, r2);
 
-    Font f2(L"Impact", ImpactPx(16), FontStyleRegular, UnitPixel);
-    DrawSumatraLetters(g, &f, &f2, (float)DpiScale(18));
+    if (kDrawSumatraLetters) {
+        Font f(L"Impact", ImpactPx(40), FontStyleRegular, UnitPixel);
+        CalcLettersLayout(g, &f, r.dx);
+        Font f2(L"Impact", ImpactPx(16), FontStyleRegular, UnitPixel);
+        DrawSumatraLetters(g, &f, &f2, (float)DpiScale(18));
+    } else {
+        DrawSwiftleafHeader(g, r);
+    }
 
     if (skipMessage) {
         return;
@@ -977,4 +1046,77 @@ void OnPaintFrame(HWND hwnd, bool skipMessage, VirtRoot* virt) {
         virt->Paint(&gfx, HwndClientRect(hwnd));
     }
     EndPaint(hwnd, &ps);
+}
+
+//--- Swiftleaf: Material buttons
+
+void MakeMaterialButton(HWND hwnd) {
+    LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+    style = (style & ~(LONG_PTR)BS_TYPEMASK) | BS_OWNERDRAW;
+    SetWindowLongPtrW(hwnd, GWL_STYLE, style);
+}
+
+// room for the pill's rounded ends, and Material's 40dp height
+Size MaterialButtonSize(Size ideal) {
+    return {ideal.dx + DpiScale(24), std::max(ideal.dy, DpiScale(36))};
+}
+
+bool DrawMaterialButton(DRAWITEMSTRUCT* dis, bool filled) {
+    if (!dis || dis->CtlType != ODT_BUTTON) {
+        return false;
+    }
+    HDC hdc = dis->hDC;
+    Rect rc = ToRect(dis->rcItem);
+    bool disabled = (dis->itemState & ODS_DISABLED) != 0;
+    bool pressed = (dis->itemState & ODS_SELECTED) != 0;
+    bool focused = (dis->itemState & ODS_FOCUS) != 0;
+    {
+        Graphics g(hdc);
+        g.SetSmoothingMode(SmoothingModeAntiAlias);
+        SolidBrush bg(GdipColor(kM3Surface));
+        g.FillRectangle(&bg, rc.x, rc.y, rc.dx, rc.dy);
+
+        float inset = focused ? 2.5f : 1.f;
+        Gdiplus::RectF pill((float)rc.x + inset, (float)rc.y + inset, (float)rc.dx - 2 * inset - 1,
+                            (float)rc.dy - 2 * inset - 1);
+        Gdiplus::GraphicsPath path;
+        AddRoundRect(path, pill, pill.Height / 2.f);
+        if (filled) {
+            Gdiplus::Color fill = disabled ? Gdiplus::Color(31, 0x17, 0x1d, 0x1b)
+                                           : GdipColor(pressed ? kM3PrimaryPressed : kM3Primary);
+            SolidBrush b(fill);
+            g.FillPath(&b, &path);
+        } else {
+            if (pressed) {
+                SolidBrush b(Gdiplus::Color(31, 0x00, 0x6b, 0x5a));
+                g.FillPath(&b, &path);
+            }
+            Gdiplus::Pen pen(disabled ? Gdiplus::Color(31, 0x17, 0x1d, 0x1b) : GdipColor(kM3Outline), 1.f);
+            g.DrawPath(&pen, &path);
+        }
+        if (focused) {
+            Gdiplus::RectF ring((float)rc.x + 0.5f, (float)rc.y + 0.5f, (float)rc.dx - 2, (float)rc.dy - 2);
+            Gdiplus::GraphicsPath ringPath;
+            AddRoundRect(ringPath, ring, ring.Height / 2.f);
+            Gdiplus::Pen pen(GdipColor(kM3OnSecondaryContainer), 1.5f);
+            g.DrawPath(&pen, &ringPath);
+        }
+    }
+
+    WCHAR text[256]{};
+    GetWindowTextW(dis->hwndItem, text, dimof(text));
+    HFONT font = (HFONT)SendMessageW(dis->hwndItem, WM_GETFONT, 0, 0);
+    HGDIOBJ prev = font ? SelectObject(hdc, font) : nullptr;
+    SetBkMode(hdc, TRANSPARENT);
+    Color fg = filled ? kColWhite : kM3Primary;
+    if (disabled) {
+        fg = MkRgb(0x8c, 0x93, 0x90);
+    }
+    SetTextColor(hdc, fg);
+    RECT r = dis->rcItem;
+    DrawTextW(hdc, text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_HIDEPREFIX);
+    if (prev) {
+        SelectObject(hdc, prev);
+    }
+    return true;
 }

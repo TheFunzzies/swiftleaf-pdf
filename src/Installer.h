@@ -28,6 +28,22 @@ struct PreviousInstallationInfo {
     ~PreviousInstallationInfo();
 };
 
+// Swiftleaf: the installer's Material 3 colors (light scheme from the teal seed)
+constexpr Color kM3Surface = MkRgb(0xf4, 0xfb, 0xf8);
+constexpr Color kM3OnSurface = MkRgb(0x17, 0x1d, 0x1b);
+constexpr Color kM3OnSurfaceVariant = MkRgb(0x3f, 0x49, 0x45);
+constexpr Color kM3Primary = MkRgb(0x00, 0x6b, 0x5a);
+constexpr Color kM3PrimaryPressed = MkRgb(0x00, 0x56, 0x48);
+constexpr Color kM3Outline = MkRgb(0x6f, 0x79, 0x75);
+constexpr Color kM3SecondaryContainer = MkRgb(0xcd, 0xe8, 0xe0);
+constexpr Color kM3OnSecondaryContainer = MkRgb(0x06, 0x20, 0x1b);
+constexpr Color kM3Error = MkRgb(0xba, 0x1a, 0x1a);
+
+// native buttons drawn as Material pills: filled (primary action) or outlined
+void MakeMaterialButton(HWND hwnd);
+bool DrawMaterialButton(DRAWITEMSTRUCT* dis, bool filled);
+Size MaterialButtonSize(Size ideal);
+
 // This is the height of the lower part
 extern int gBottomPartDy;
 

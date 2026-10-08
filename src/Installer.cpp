@@ -1712,7 +1712,7 @@ static void UpdateUIForOptionsState(InstallerWnd* wnd) {
         //| ACCESSKEY_ALTERNATIVE
         s = Tr("Hide &Options");
     }
-    Size sz = SetButtonTextAndResize(btnOptions, s);
+    Size sz = MaterialButtonSize(SetButtonTextAndResize(btnOptions, s));
     if (wnd->optionsBtnSlot) {
         wnd->optionsBtnSlot->dx = sz.dx;
         wnd->optionsBtnSlot->dy = sz.dy;
@@ -1854,7 +1854,9 @@ static void CreateInstallerWindowControls(InstallerWnd* wnd, Flags* cli) {
 
     wnd->btnOptions = CreateDefaultButton(hwnd, Tr("&Options"), isRtl);
     wnd->btnOptions->onClick = MkFunc0(OnButtonOptions, wnd);
-    Size optSz = wnd->btnOptions->GetIdealSize();
+    MakeMaterialButton(wnd->btnInstall->hwnd);
+    MakeMaterialButton(wnd->btnOptions->hwnd);
+    Size optSz = MaterialButtonSize(wnd->btnOptions->GetIdealSize());
     gButtonDy = optSz.dy;
     gBottomPartDy = gButtonDy + (margin * 2);
 
@@ -1948,7 +1950,7 @@ static void CreateInstallerWindowControls(InstallerWnd* wnd, Flags* cli) {
     auto* overlay = new Overlay();
     overlay->AddChild(wnd->optionsBox, CrossAxisAlign::Stretch, CrossAxisAlign::CrossEnd);
 
-    Size instSz = wnd->btnInstall->GetIdealSize();
+    Size instSz = MaterialButtonSize(wnd->btnInstall->GetIdealSize());
     auto* bottom = new HBox();
     bottom->alignCross = CrossAxisAlign::CrossCenter;
     bottom->gap = GetDefaultGuiFont()->averageCharWidth;
@@ -2004,12 +2006,23 @@ static LRESULT CALLBACK WndProcInstallerFrame(HWND hwnd, UINT msg, WPARAM wp, LP
     switch (msg) {
         case WM_CTLCOLORSTATIC: {
             if (gWnd->hbrBackground == nullptr) {
-                gWnd->hbrBackground = CreateSolidBrush(MkRgb(0xff, 0xf2, 0));
+                gWnd->hbrBackground = CreateSolidBrush(kM3Surface);
             }
             HDC hdc = (HDC)wp;
-            SetTextColor(hdc, kColBlack);
+            SetTextColor(hdc, kM3OnSurface);
             SetBkMode(hdc, TRANSPARENT);
             return (LRESULT)gWnd->hbrBackground;
+        }
+
+        case WM_DRAWITEM: {
+            auto* dis = (DRAWITEMSTRUCT*)lp;
+            if (gWnd && gWnd->btnInstall && dis->hwndItem == gWnd->btnInstall->hwnd) {
+                return DrawMaterialButton(dis, true);
+            }
+            if (gWnd && gWnd->btnOptions && dis->hwndItem == gWnd->btnOptions->hwnd) {
+                return DrawMaterialButton(dis, false);
+            }
+            break;
         }
 
         case WM_DESTROY:
