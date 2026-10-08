@@ -502,7 +502,7 @@ TempStr GetWebViewDataDirTemp() {
     if (len(dir) == 0) {
         return {};
     }
-    dir = path::JoinTemp(dir, StrL("SumatraPDF-data"));
+    dir = path::JoinTemp(dir, StrL("Swiftleaf-data"));
     char id[7] = "000000";
     Str sha1 = Sha1OfAppExe();
     if (sha1) {

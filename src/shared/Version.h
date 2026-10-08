@@ -6,10 +6,10 @@
 
 // CURR_VERSION can be over-written externally
 #ifndef CURR_VERSION
-#define CURR_VERSION 3.7
+#define CURR_VERSION 0.1
 #endif
 #ifndef CURR_VERSION_COMMA
-#define CURR_VERSION_COMMA 3, 7, 0
+#define CURR_VERSION_COMMA 0, 1, 0
 #endif
 
 // this is sth. like "3.5"
@@ -54,7 +54,7 @@
 #endif
 #define CURR_VERSION_STR TEXT(CURR_VERSION_STRA)
 
-#define kCopyrightStr "Copyright 2006-2026 all authors (GPLv3)"
-#define kPublisherStr "Krzysztof Kowalczyk"
+#define kCopyrightStr "Copyright 2006-2026 SumatraPDF and Swiftleaf authors (GPLv3)"
+#define kPublisherStr "Swiftleaf PDF"
 
-#define kAppName "SumatraPDF"
+#define kAppName "Swiftleaf"

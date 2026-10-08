@@ -13,6 +13,7 @@
 #if OS_WIN
 #include "resource.h"
 #endif
+#include "SumatraConfig.h"
 #include "EmbeddedResources.h"
 
 #if OS_WIN
@@ -35,7 +36,7 @@ static HMODULE GetArchiveModule() {
     if (FindResourceW(self, MAKEINTRESOURCEW(IDR_EMBEDDED_PAK), RT_RCDATA)) {
         return self;
     }
-    TempStr path = GetPathInExeDirTemp(StrL("SumatraPDF.exe"));
+    TempStr path = GetPathInExeDirTemp(Str(kExeName));
     WStr wpath = ToWStrTemp(path);
     return LoadLibraryExW(wpath.s, nullptr, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
 }

@@ -7,7 +7,7 @@ enum class FileType : u8;
 
 #include "OverlayScrollbar.h"
 
-constexpr const WCHAR* kFrameClassName = L"SUMATRA_PDF_FRAME";
+constexpr const WCHAR* kFrameClassName = L"SWIFTLEAF_PDF_FRAME";
 
 constexpr int kFrameResizeHitTest = 5;
 

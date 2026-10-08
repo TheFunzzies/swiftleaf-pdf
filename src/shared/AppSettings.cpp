@@ -276,7 +276,7 @@ static int cmpFloat(const float* a, const float* b) {
 }
 
 TempStr GetSettingsFileNameTemp() {
-    return str::DupTemp(StrL("SumatraPDF-settings.txt"));
+    return str::DupTemp(StrL("Swiftleaf-settings.txt"));
 }
 
 // this could be virtual path when running in app store

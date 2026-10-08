@@ -152,8 +152,8 @@ constexpr const WCHAR* kCanvasClassName = L"SUMATRA_PDF_CANVAS";
 
 constexpr const char* kRestrictionsFileName = "sumatrapdfrestrict.ini";
 
-constexpr const char* kSumatraWindowTitle = "SumatraPDF";
-constexpr const WCHAR* kSumatraWindowTitleW = L"SumatraPDF";
+constexpr const char* kSumatraWindowTitle = kAppName;
+constexpr const WCHAR* kSumatraWindowTitleW = L"Swiftleaf";
 
 // used to show it in debug, but is not very useful,
 // so always disable
@@ -10441,7 +10441,7 @@ TempStr GetSumatraDataDirTemp() {
     if (len(dir) == 0) {
         return {};
     }
-    return path::JoinTemp(dir, StrL("SumatraPDF-data"));
+    return path::JoinTemp(dir, StrL("Swiftleaf-data"));
 }
 
 TempStr GetSumatraBuildSpecificDirTemp() {
@@ -17024,7 +17024,7 @@ For more information see <a href="%s">Failed to load libsumatrapdf.dll</a>.)",
         flags |= TDF_RTL_LAYOUT;
     }
     dialogConfig.cbSize = sizeof(TASKDIALOGCONFIG);
-    dialogConfig.pszWindowTitle = L"SumatraPDF";
+    dialogConfig.pszWindowTitle = L"Swiftleaf";
     dialogConfig.pszMainInstruction = L"Failed to load libsumatrapdf.dll";
     dialogConfig.pszContent = CWStrTemp(msg);
     dialogConfig.nDefaultButton = IDOK;
@@ -17089,7 +17089,7 @@ Learn more at https://www.sumatrapdfreader.org/docs/Corrupted-installation
         printf("%s", corruptedInstallationConsole.s);
     }
 
-    const auto* title = L"SumatraPDF installer";
+    const auto* title = L"Swiftleaf installer";
     TASKDIALOGCONFIG dialogConfig{};
 
     DWORD flags =
@@ -17154,7 +17154,7 @@ static void ShowInstallerHelp() {
         flags |= TDF_RTL_LAYOUT;
     }
     dialogConfig.cbSize = sizeof(TASKDIALOGCONFIG);
-    dialogConfig.pszWindowTitle = L"SumatraPDF installer usage";
+    dialogConfig.pszWindowTitle = L"Swiftleaf installer usage";
     dialogConfig.pszMainInstruction = CWStrTemp(msg);
     dialogConfig.pszContent =
         LR"(<a href="https://www.sumatrapdfreader.org/docs/Installer-cmd-line-arguments">Read more on website</a>)";

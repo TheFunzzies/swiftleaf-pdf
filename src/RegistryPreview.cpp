@@ -6,6 +6,7 @@
 #include "base/File.h"
 #include "base/Crypto.h"
 
+#include "SumatraConfig.h"
 #include "RegistryPreview.h"
 #include "SumatraLog.h"
 
@@ -192,7 +193,7 @@ TempStr GetPdfPreviewLogDirTemp() {
     if (len(exeDir) == 0) {
         return {};
     }
-    TempStr exePath = path::JoinTemp(exeDir, StrL("SumatraPDF.exe"));
+    TempStr exePath = path::JoinTemp(exeDir, Str(kExeName));
     Str d = file::ReadFile(exePath);
     if (len(d) == 0) {
         return {};
@@ -208,7 +209,7 @@ TempStr GetPdfPreviewLogDirTemp() {
     if (len(local) == 0) {
         return {};
     }
-    TempStr dir = path::JoinTemp(local, StrL("SumatraPDF-data"));
+    TempStr dir = path::JoinTemp(local, StrL("Swiftleaf-data"));
     return path::JoinTemp(dir, Str(id));
 }
 

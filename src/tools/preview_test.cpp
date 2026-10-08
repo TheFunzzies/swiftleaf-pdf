@@ -6,14 +6,14 @@
 
 #pragma comment(lib, "gdiplus.lib")
 
-constexpr const WCHAR* kPdfPreviewClsid = L"{3D3B1846-CC43-42AE-BFF9-D914083C2BA3}";
-constexpr const WCHAR* kXpsPreviewClsid = L"{D427A82C-6545-4FBE-8E87-030EDB3BE46D}";
-constexpr const WCHAR* kDjVuPreviewClsid = L"{6689D0D4-1E9C-400A-8BCA-FA6C56B2C3B5}";
-constexpr const WCHAR* kEpubPreviewClsid = L"{80C4E4B1-2B0F-40D5-95AF-BE7B57FEA4F9}";
-constexpr const WCHAR* kFb2PreviewClsid = L"{D5878036-E863-403E-A62C-7B9C7453336A}";
-constexpr const WCHAR* kMobiPreviewClsid = L"{42CA907E-BDF5-4A75-994A-E1AEC8A10954}";
-constexpr const WCHAR* kCbxPreviewClsid = L"{C29D3E2B-8FF6-4033-A4E8-54221D859D74}";
-constexpr const WCHAR* kTgaPreviewClsid = L"{CB1D63A6-FE5E-4DED-BEA5-3F6AF1A70D08}";
+constexpr const WCHAR* kPdfPreviewClsid = L"{33197FE0-BDA9-4128-86DD-9E8912BABEAE}";
+constexpr const WCHAR* kXpsPreviewClsid = L"{17C0EC9D-887F-421D-A914-222F6D5D503B}";
+constexpr const WCHAR* kDjVuPreviewClsid = L"{D01B1968-6E13-49F6-9F68-26DFDE7CA787}";
+constexpr const WCHAR* kEpubPreviewClsid = L"{957DB259-ABBF-4817-9819-6F4FB0FBCA89}";
+constexpr const WCHAR* kFb2PreviewClsid = L"{B6074459-9245-4773-9A3C-05395ACD3E16}";
+constexpr const WCHAR* kMobiPreviewClsid = L"{E54B04C8-1D40-4939-BDC6-BB4B4835D7F3}";
+constexpr const WCHAR* kCbxPreviewClsid = L"{A246FEA1-F17D-46ED-BAD6-9D8A2C2FFB05}";
+constexpr const WCHAR* kTgaPreviewClsid = L"{711FD03E-003A-43A1-8F0E-C961D72D4E60}";
 
 // Our GUID here:
 LPCOLESTR myGuid = kPdfPreviewClsid;
