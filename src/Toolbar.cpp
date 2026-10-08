@@ -56,6 +56,7 @@
 #include "Ribbon.h"
 #include "PageOrganize.h"
 #include "StatusBar.h"
+#include "NavRail.h"
 #include "Toolbar.h"
 
 // https://docs.microsoft.com/en-us/windows/win32/controls/toolbar-control-reference
@@ -881,6 +882,7 @@ void ToolbarUpdateStateForWindow(MainWindow* win, bool setButtonsVisibility) {
 
     UpdateRibbonItemsState(win, ctx, annotButtonsEnabled);
     StatusBarUpdate(win);
+    NavRailUpdate(win);
 
     if (setButtonsVisibility) {
         // drop a separator that would sit next to another, or at either end
@@ -1576,6 +1578,8 @@ static void RefreshToolbarIcons(MainWindow* win) {
 
 void UpdateToolbarAfterThemeChange(MainWindow* win) {
     RefreshToolbarIcons(win);
+    StatusBarAfterThemeChange(win);
+    NavRailAfterThemeChange(win);
     VirtHost* host = ToolbarHost(win);
     if (host) {
         host->bgColor = TbBgColor();
@@ -3910,6 +3914,7 @@ void CreateToolbar(MainWindow* win) {
     BuildToolbarLayout(win);
     ToolbarSetHeight(win, tb->ribbonDy);
     CreateStatusBar(win);
+    CreateNavRail(win);
 
     DocController* ctrl = win->ctrl;
     UpdateToolbarPageText(win, ctrl ? ctrl->PageCount() : -1);
@@ -3932,6 +3937,7 @@ void CreateToolbar(MainWindow* win) {
 
 void DestroyToolbar(MainWindow* win) {
     DestroyStatusBar(win);
+    DestroyNavRail(win);
     ToolbarVirt* tb = win->toolbarVirt;
     if (!tb) {
         win->hwndToolbar = nullptr;

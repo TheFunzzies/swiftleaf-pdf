@@ -50,6 +50,7 @@
 #include "PageOrganize.h"
 #include "EditText.h"
 #include "StatusBar.h"
+#include "NavRail.h"
 #include "MergePdf.h"
 #include "ChmModel.h"
 #include "MarkdownModel.h"
@@ -3211,6 +3212,7 @@ static void CreateFrameLayout(MainWindow* win) {
     win->toolbarTopSlot = new HwndSlot();
     win->toolbarBottomSlot = new HwndSlot();
     win->statusBarSlot = new HwndSlot();
+    win->navRailSlot = new HwndSlot();
     CreateCaptionLayout(win);
 
     // the webview is expensive to resize, so this one only moves the panes
@@ -3231,6 +3233,7 @@ static void CreateFrameLayout(MainWindow* win) {
 
     auto* row = new HBox();
     row->alignCross = CrossAxisAlign::Stretch;
+    row->AddChild(win->navRailSlot);
     row->AddChild(sidebar);
     row->AddChild(win->sidebarSplitter);
     row->AddChild(content, 1);
@@ -8009,6 +8012,9 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     bool showToolbar = win->isToolbarVisible;
     bool toolbarBottom = showToolbar && ToolbarAtBottom();
     bool showStatusBar = ShouldShowStatusBar(win) && win->hwndStatusBar;
+    bool showNavRail = ShouldShowNavRail(win) && win->hwndNavRail;
+    int navRailDx = showNavRail ? NavRailDx() : 0;
+    NavRailUpdate(win);
     int statusBarDy = showStatusBar ? HwndWindowRect(win->hwndStatusBar).dy : 0;
 
     int tabHeight = GetTabbarHeight(win->hwndFrame);
@@ -8033,6 +8039,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     win->toolbarBottomSlot->dy = rebarDy;
     SetVis(win->statusBarSlot, showStatusBar);
     win->statusBarSlot->dy = statusBarDy;
+    SetVis(win->navRailSlot, showNavRail);
+    win->navRailSlot->dx = navRailDx;
 
     // leave at least this much canvas for the document when sidebar is open
     constexpr int kMinDocCanvasDx = 200;
@@ -8067,7 +8075,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
             Rect side = ChildPosWithinParent(sideHwnd);
             if (!side.IsEmpty()) {
                 int right = rc.x + rc.dx;
-                rc.x = side.x;
+                // the navigation rail sits left of the sidebar
+                rc.x = side.x - navRailDx;
                 rc.dx = std::max(0, right - rc.x);
                 if (isFrameResize) {
                     sidebarDxApplied = side.dx;
@@ -8135,6 +8144,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     BindSlot(win->toolbarTopSlot, win->hwndToolbar, &dh, updateToolbars && showToolbar && !toolbarBottom);
     BindSlot(win->toolbarBottomSlot, win->hwndToolbar, &dh, updateToolbars && showToolbar && toolbarBottom);
     BindSlot(win->statusBarSlot, win->hwndStatusBar, &dh, updateToolbars && showStatusBar);
+    BindSlot(win->navRailSlot, win->hwndNavRail, &dh, updateToolbars && showNavRail);
     HWND topHwnd = win->sidebarTop->hwnd;
     HWND bottomHwnd = win->sidebarBottom->hwnd;
     BindSlot(win->sidebarTopSlot, topHwnd, &dh, topVisible && !isFrameResize && !isSplitterDrag);
@@ -8170,7 +8180,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
                                win->toolbarBottomSlot, win->capMenuSlot,    win->capTabsRow1,
                                win->capTabsRow2,       win->sidebarTopSlot, win->sidebarBottomSlot,
                                win->favoritesTabSlot,  win->canvasSlot,     win->aiChatSlot,
-                               win->statusBarSlot};
+                               win->statusBarSlot,     win->navRailSlot};
     for (HwndSlot* s : chromeSlots) {
         ClearSlotDefer(s);
     }
@@ -8199,6 +8209,9 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     }
     if (updateToolbars && win->hwndStatusBar) {
         ShowWindow(win->hwndStatusBar, showStatusBar ? SW_SHOW : SW_HIDE);
+    }
+    if (updateToolbars && win->hwndNavRail) {
+        ShowWindow(win->hwndNavRail, showNavRail ? SW_SHOW : SW_HIDE);
     }
 
     dh.End();

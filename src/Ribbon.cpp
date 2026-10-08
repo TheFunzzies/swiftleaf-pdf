@@ -16,6 +16,7 @@
 #include "SvgIcons.h"
 #include "Theme.h"
 #include "Translations.h"
+#include "Material.h"
 #include "Ribbon.h"
 
 //--- icons the classic toolbar doesn't have (Tabler icons, MIT license)
@@ -444,95 +445,33 @@ const char* RibbonIconForCmd(int cmdId, const char* fallback) {
     return fallback;
 }
 
-//--- colors
+///--- colors: Material 3 roles (Material.h)
 
-static bool RibbonIsDark() {
-    return !IsLightColor(ThemeControlBackgroundColor());
-}
-
-static Color MixColors(Color a, Color b, int pctA) {
-    u8 ar, ag, ab, br, bg, bb;
-    UnpackColor(a, ar, ag, ab);
-    UnpackColor(b, br, bg, bb);
-    auto mix = [pctA](u8 x, u8 y) { return (u8)((x * pctA + y * (100 - pctA)) / 100); };
-    return MkRgb(mix(ar, br), mix(ag, bg), mix(ab, bb));
-}
-
-// Swiftleaf teal
 Color RibbonAccentColor() {
-    return RibbonIsDark() ? MkRgb(0x3d, 0xc2, 0xa4) : MkRgb(0x0e, 0x7c, 0x66);
+    return M3().primary;
 }
 
+// the ribbon, navigation rail and status bar share one tonal surface, set off
+// from the document by outline-variant dividers
 Color RibbonTabRowBgColor() {
-    return ThemeControlBackgroundColor();
+    return M3().surfaceContainerLow;
 }
 
 Color RibbonPanelBgColor() {
-    return ThemeControlBackgroundColor();
+    return M3().surfaceContainerLow;
 }
 
 Color RibbonEdgeColor() {
-    return MixColors(ThemeWindowTextColor(), RibbonPanelBgColor(), RibbonIsDark() ? 22 : 12);
+    return M3().outlineVariant;
 }
 
 Color RibbonSelectedBgColor() {
-    return MixColors(RibbonAccentColor(), RibbonPanelBgColor(), RibbonIsDark() ? 30 : 16);
+    return M3().secondaryContainer;
 }
 
-// icons are tinted by what they do, like Foxit / Office: files and navigation
-// blue, markup amber, destructive red, pages purple, signing green
-Color RibbonIconColor(int cmdId) {
-    bool dark = RibbonIsDark();
-    Color blue = dark ? MkRgb(0x6c, 0xa8, 0xf0) : MkRgb(0x1e, 0x63, 0xc4);
-    Color amber = dark ? MkRgb(0xf2, 0xb1, 0x4c) : MkRgb(0xc8, 0x6a, 0x00);
-    Color red = dark ? MkRgb(0xf0, 0x7a, 0x7a) : MkRgb(0xc4, 0x2b, 0x2b);
-    Color purple = dark ? MkRgb(0xb3, 0x96, 0xf0) : MkRgb(0x6a, 0x3f, 0xc0);
-    Color green = dark ? MkRgb(0x5c, 0xc9, 0x86) : MkRgb(0x16, 0x84, 0x45);
-    switch (cmdId) {
-        case CmdOpenFile:
-        case CmdSaveAs:
-        case CmdSaveAnnotations:
-        case CmdSaveAnnotationsNewFile:
-        case CmdPrint:
-            return blue;
-        case CmdAnnotationHighlightBrush:
-        case CmdCreateAnnotHighlight:
-        case CmdCreateAnnotUnderline:
-        case CmdCreateAnnotSquiggly:
-        case CmdCreateAnnotText:
-        case CmdCreateAnnotCaret:
-        case CmdCreateAnnotInk:
-        case CmdFindAnnotation:
-            return amber;
-        case CmdCreateAnnotStrikeOut:
-        case CmdCreateAnnotRedact:
-        case CmdApplyRedactions:
-        case CmdPdfDeletePages:
-        case CmdDeleteCurrentPage:
-            return red;
-        case CmdInsertBlankPage:
-        case CmdInsertPagesFromFile:
-        case CmdRotatePageLeft:
-        case CmdRotatePageRight:
-        case CmdMovePageUp:
-        case CmdMovePageDown:
-        case CmdSplitPdf:
-        case CmdToggleThumbnails:
-        case CmdPdfExtractPages:
-        case CmdMergePDF:
-        case CmdConvertPdfToImages:
-        case CmdConvertImageToPdf:
-        case CmdPdfCompress:
-            return purple;
-        case CmdSignWithImage:
-        case CmdSignDocument:
-        case CmdCreateAnnotStamp:
-        case CmdToggleHighlightFormFields:
-        case CmdPdfEncrypt:
-        case CmdPdfDecrypt:
-            return green;
-    }
-    return ThemeWindowTextColor();
+// Material icons are monochrome, in on-surface-variant
+Color RibbonIconColor(int) {
+    return M3().onSurfaceVariant;
 }
 
 int RibbonLargeIconSize() {
@@ -583,17 +522,28 @@ Size RibbonButton::GetIdealSize() {
     return {dx, dy};
 }
 
+// Material: a toggled-on button sits on a secondary-container shape; hover and
+// press lay the content color over it at 8% / 12% (state layers)
 void RibbonButton::Paint(VirtPaintCtx& ctx) {
     bool enabled = IsEnabled();
     Rect r = ctx.bounds;
-    int radius = DpiScale(4);
-    Color bgSel = GetColor(kColIconBtnBgSelected);
-    if (isSelected && enabled && bgSel != kColorUnset) {
-        ctx.gfx->FillRoundedRect(r, radius, bgSel);
+    int radius = DpiScale(12);
+    const M3Scheme& m3 = M3();
+    Color container = RibbonPanelBgColor();
+    if (isSelected && enabled) {
+        container = m3.secondaryContainer;
     }
-    Color bgHover = GetColor(kColIconBtnBgHover);
-    if (enabled && HasFlag(vwfHovered) && bgHover != kColorUnset) {
-        ctx.gfx->FillRoundedRect(r, radius, bgHover);
+    int layer = 0;
+    if (enabled && HasFlag(vwfPressed)) {
+        layer = kM3PressedOpacity;
+    } else if (enabled && HasFlag(vwfHovered)) {
+        layer = kM3HoverOpacity;
+    }
+    if (layer > 0) {
+        container = M3StateLayer(container, m3.onSurface, layer);
+    }
+    if (container != RibbonPanelBgColor()) {
+        ctx.gfx->FillRoundedRect(r, radius, container);
     }
 
     Pixmap* px = (!enabled && pixmapDisabled) ? pixmapDisabled : pixmap;
@@ -614,7 +564,8 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
     y += DpiScale(kRibbonBtnIconGap);
 
     if (len(label) > 0) {
-        Color col = enabled ? textColor : textColorDisabled;
+        Color col = enabled ? (isSelected ? m3.onSecondaryContainer : m3.onSurface)
+                            : M3StateLayer(RibbonPanelBgColor(), m3.onSurface, 38);
         int lineDy = PlatformFontLineHeight(font);
         Rect rText{r.x, y, r.dx, lineDy};
         ctx.gfx->DrawText(label, rText, gfxTextCenter | gfxTextSingleLine | gfxTextNoClip, font, col);
@@ -697,25 +648,33 @@ Size RibbonTab::GetIdealSize() {
     return {dx, RibbonTabDy(font)};
 }
 
+// Material primary tabs: the active one in primary with a 3dp indicator as wide
+// as its label, rounded on top; the others in on-surface-variant
 void RibbonTab::Paint(VirtPaintCtx& ctx) {
     Rect r = ctx.bounds;
-    if (!isActive && HasFlag(vwfHovered)) {
+    const M3Scheme& m3 = M3();
+    if (HasFlag(vwfHovered) || HasFlag(vwfPressed)) {
+        int layer = HasFlag(vwfPressed) ? kM3PressedOpacity : kM3HoverOpacity;
         Rect hi = r;
-        hi.y += DpiScale(3);
-        hi.dy -= DpiScale(3) + DpiScale(kRibbonTabUnderlineDy);
-        ctx.gfx->FillRoundedRect(hi, DpiScale(4), AccentColor(RibbonTabRowBgColor(), 14));
+        hi.y += DpiScale(4);
+        hi.dy -= DpiScale(4) + DpiScale(kRibbonTabUnderlineDy);
+        ctx.gfx->FillRoundedRect(hi, DpiScale(8), M3StateLayer(RibbonTabRowBgColor(), m3.onSurface, layer));
     }
-    Color accent = RibbonAccentColor();
-    Color col = isActive ? accent : textColor;
+    Color col = isActive ? m3.primary : m3.onSurfaceVariant;
     Rect rText = r;
     rText.dy -= DpiScale(kRibbonTabUnderlineDy);
     ctx.gfx->DrawText(label, rText, gfxTextCenter | gfxTextVCenter | gfxTextSingleLine, font, col);
-    if (isActive) {
-        int inset = DpiScale(kRibbonTabPadX - 4);
-        int dy = DpiScale(kRibbonTabUnderlineDy);
-        Rect bar{r.x + inset, r.Bottom() - dy, r.dx - (2 * inset), dy};
-        ctx.gfx->FillRoundedRect(bar, dy / 2, accent);
+    if (!isActive) {
+        return;
     }
+    int dy = DpiScale(kRibbonTabUnderlineDy);
+    int textDx = PlatformFontMeasureText(font, label).dx;
+    int barDx = std::max(textDx, DpiScale(24));
+    Rect bar{r.x + (r.dx - barDx) / 2, r.Bottom() - dy, barDx, dy * 2};
+    // round the top only: the lower half of the shape is clipped by the tab
+    ctx.gfx->PushClip({r.x, r.Bottom() - dy, r.dx, dy});
+    ctx.gfx->FillRoundedRect(bar, dy, m3.primary);
+    ctx.gfx->PopClip();
 }
 
 void RibbonTab::OnMouseEnter() {

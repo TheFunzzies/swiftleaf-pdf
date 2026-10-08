@@ -251,6 +251,9 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     // Swiftleaf status bar (StatusBar.cpp)
     HWND hwndStatusBar = nullptr;
     struct StatusBarVirt* statusBar = nullptr;
+    // Swiftleaf navigation rail (NavRail.cpp)
+    HWND hwndNavRail = nullptr;
+    struct NavRailVirt* navRail = nullptr;
     HWND hwndMenuReBar = nullptr;
     HWND hwndMenuToolbar = nullptr;
     // the search input of the active find UI (compact bar or floating window)
@@ -486,6 +489,7 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     HwndSlot* toolbarTopSlot = nullptr;
     HwndSlot* toolbarBottomSlot = nullptr;
     HwndSlot* statusBarSlot = nullptr;
+    HwndSlot* navRailSlot = nullptr;
     // tabs-in-titlebar caption: VirtCtrl buttons + HwndSlots for tabs/menu
     VBox* captionLayout = nullptr;
     HBox* captionRow1 = nullptr;

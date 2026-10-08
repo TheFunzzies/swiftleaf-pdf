@@ -25,6 +25,7 @@
 #include "SvgIcons.h"
 #include "Theme.h"
 #include "Translations.h"
+#include "Material.h"
 #include "Ribbon.h"
 #include "Toolbar.h"
 #include "StatusBar.h"
@@ -93,7 +94,7 @@ struct StatusBarVirt {
 static const WStr kStatusBarClass = WStrL(L"SWIFTLEAF_STATUS_BAR");
 
 static Color StatusBgColor() {
-    return AccentColor(ThemeControlBackgroundColor(), 6);
+    return RibbonPanelBgColor();
 }
 
 static const char* IconForCmd(int cmdId) {
@@ -132,9 +133,9 @@ static VirtIconButton* NewButton(StatusBarVirt* sb, const char* icon, int cmdId,
     b->padding = {pad, pad + 1, pad, pad + 1};
     Color bg = StatusBgColor();
     Str svg = Str(icon);
-    b->pixmap = RibbonIconPixmap(svg, sz, ThemeWindowTextColor(), bg);
-    b->pixmapDisabled = RibbonIconPixmap(svg, sz, ThemeWindowTextDisabledColor(), bg);
-    b->SetColor(kColIconBtnBgHover, AccentColor(bg, 18));
+    b->pixmap = RibbonIconPixmap(svg, sz, M3().onSurfaceVariant, bg);
+    b->pixmapDisabled = RibbonIconPixmap(svg, sz, M3StateLayer(bg, M3().onSurface, 38), bg);
+    b->SetColor(kColIconBtnBgHover, M3StateLayer(bg, M3().onSurface, kM3HoverOpacity));
     b->SetColor(kColIconBtnBgSelected, RibbonSelectedBgColor());
     b->id = cmdId;
     b->SetTooltip(trans::GetTranslation(tip));
@@ -193,7 +194,7 @@ static void PaintBackground(StatusBarVirt*, VirtHostPaintEvent* ev) {
 static void BuildLayout(StatusBarVirt* sb) {
     VecReset(sb->buttons);
     int rowDy = sb->dy;
-    Color fg = ThemeWindowTextColor();
+    Color fg = M3().onSurfaceVariant;
 
     auto* left = new HBox();
     left->alignCross = CrossAxisAlign::CrossCenter;
@@ -231,8 +232,8 @@ static void BuildLayout(StatusBarVirt* sb) {
     zoomText->textPadding = {DpiScale(2), DpiScale(8), DpiScale(2), DpiScale(8)};
     zoomText->SetColor(kColBtnBg, kColorTransparent);
     zoomText->SetColor(kColBtnBorder, kColorTransparent);
-    zoomText->SetColor(kColBtnBgHover, AccentColor(StatusBgColor(), 18));
-    zoomText->SetColor(kColBtnText, fg);
+    zoomText->SetColor(kColBtnBgHover, M3StateLayer(StatusBgColor(), M3().onSurface, kM3HoverOpacity));
+    zoomText->SetColor(kColBtnText, M3().onSurface);
     zoomText->SetTooltip(Tr("Custom zoom"));
     zoomText->onClick = MkFunc1(OnZoomTextClicked, sb);
     sb->zoomText = zoomText;
@@ -278,6 +279,18 @@ void CreateStatusBar(MainWindow* win) {
     win->statusBar = sb;
     win->hwndStatusBar = sb->host->native;
     BuildLayout(sb);
+    StatusBarUpdate(win);
+}
+
+// after a theme change: new colors and icons for everything
+void StatusBarAfterThemeChange(MainWindow* win) {
+    StatusBarVirt* sb = win ? win->statusBar : nullptr;
+    if (!sb) {
+        return;
+    }
+    sb->host->bgColor = StatusBgColor();
+    BuildLayout(sb);
+    sb->host->Relayout();
     StatusBarUpdate(win);
 }
 

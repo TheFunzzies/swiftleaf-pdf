@@ -26,6 +26,7 @@
 #include "WindowTab.h"
 #include "SumatraPDF.h"
 #include "PagePosition.h"
+#include "Material.h"
 #include "PageThumbnails.h"
 
 constexpr int kThumbnailDx = 120;
@@ -37,7 +38,6 @@ constexpr int kThumbnailSidebarPadding = 8;
 constexpr int kThumbnailMaxCols = 6;
 constexpr int kThumbnailRenderScreens = 1;
 constexpr int kThumbnailKeepScreens = 2;
-constexpr Color kCurrentPageColor = MkRgb(0, 120, 215);
 
 static Pixmap* const kThumbnailRenderFailed = (Pixmap*)(intptr_t)-1;
 
@@ -381,7 +381,8 @@ void PageThumbnailsCtrl::DrawRow(DrawItemEvent* ev) {
         }
 
         if (isCurrent) {
-            ev->gfx->DrawRect(pageRect, kCurrentPageColor, 3);
+            // Swiftleaf: Material primary, like the rest of the chrome
+            ev->gfx->DrawRect(pageRect, M3().primary, 3);
         }
 
         TempStr label = fmt("%d", pageNo);
@@ -404,8 +405,10 @@ void PageThumbnailsCtrl::DrawRow(DrawItemEvent* ev) {
         }
         Rect box{boxX, boxY, boxDx, boxDy};
         // a pill: half the height rounds the short sides into semicircles
-        ev->gfx->FillRoundedRect(box, boxDy / 2, ThemeWindowBackgroundColor());
-        ev->gfx->DrawText(label, box, gfxTextCenter | gfxTextVCenter, font, ThemeWindowTextColor());
+        Color pillBg = isCurrent ? M3().primary : ThemeWindowBackgroundColor();
+        Color pillFg = isCurrent ? M3().onPrimary : ThemeWindowTextColor();
+        ev->gfx->FillRoundedRect(box, boxDy / 2, pillBg);
+        ev->gfx->DrawText(label, box, gfxTextCenter | gfxTextVCenter, font, pillFg);
     }
 }
 

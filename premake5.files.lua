@@ -411,6 +411,8 @@ function sumatrapdf_files()
     "PageOrganize.*",
     "EditText.*",
     "StatusBar.*",
+    "NavRail.*",
+    "Material.*",
     "TranslationLangs.cpp",
     "Translations.*",
     "Uninstaller.cpp",

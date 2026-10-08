@@ -28,6 +28,7 @@
 #include "MainWindow.h"
 #include "AppTools.h"
 #include "Theme.h"
+#include "Material.h"
 #include "gui/win/TabsCtrl.h"
 
 #include "DarkModeSubclass.h" // IWYU pragma: keep
@@ -158,10 +159,11 @@ void ThemeApplyPlatformColors() {
     gColsFill[kColFillBg] = ctlBg;
     gColsLine[kColLineFg] = edge;
 
-    gColsSlider[kColSliderTrack] = AccentColor(ctlBg, 40);
-    gColsSlider[kColSliderFill] = text;
-    gColsSlider[kColSliderThumb] = text;
-    gColsSlider[kColSliderThumbHover] = AccentColor(text, 20);
+    // Swiftleaf: Material sliders, primary on a secondary-container track
+    gColsSlider[kColSliderTrack] = M3().secondaryContainer;
+    gColsSlider[kColSliderFill] = M3().primary;
+    gColsSlider[kColSliderThumb] = M3().primary;
+    gColsSlider[kColSliderThumbHover] = M3StateLayer(M3().primary, M3().onPrimary, kM3HoverOpacity);
 
     gColsRichText[kColRichText] = text;
     gColsRichText[kColRichLink] = link;

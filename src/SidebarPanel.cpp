@@ -392,6 +392,11 @@ static void UpdateViewIcons(SidebarPanel* p, int dpi) {
         b->SetIsEnabled(IsSidebarViewAvailable(p->win, v));
         b->Invalidate();
     }
+    if (p->title) {
+        p->title->SetText(ViewName(p->view));
+        p->title->SetColor(kColText, ThemeWindowTextColor());
+        p->title->Invalidate();
+    }
 }
 
 SidebarPanel* CreateSidebarPanel(MainWindow* win, SidebarPanelKind kind) {
@@ -418,10 +423,14 @@ SidebarPanel* CreateSidebarPanel(MainWindow* win, SidebarPanelKind kind) {
     for (int i = 0; i < kSidebarViewCount; i++) {
         auto* b = new VirtIconButton();
         b->onClick = MkFunc1(onClick[i], p);
-        b->SetIsVisible(kind != SidebarPanelKind::FavoritesTab);
+        // Swiftleaf: the navigation rail switches views, the header names it
+        b->SetIsVisible(false);
         p->viewBtns[i] = b;
         header->AddChild(b);
     }
+    p->title = new VirtText(ViewName(p->view), GetBoldPlatformFont(GetAppFont()));
+    p->title->padding = {DpiScale(8), 0, DpiScale(8), DpiScale(12)};
+    header->AddChild(p->title);
     header->AddChild(new Spacer(0, 0), 1);
     p->closeBtn = new VirtCloseButton();
     p->closeBtn->onClick = MkFunc1(OnCloseClick, p);

@@ -9,4 +9,5 @@ struct MainWindow;
 void CreateStatusBar(MainWindow*);
 void DestroyStatusBar(MainWindow*);
 void StatusBarUpdate(MainWindow*);
+void StatusBarAfterThemeChange(MainWindow*);
 bool ShouldShowStatusBar(MainWindow*);

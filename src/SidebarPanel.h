@@ -30,6 +30,8 @@ struct SidebarPanel {
     VirtRoot* root = nullptr;
     VirtIconButton* viewBtns[kSidebarViewCount]{};
     VirtCloseButton* closeBtn = nullptr;
+    // Swiftleaf: the view's name; the navigation rail switches views
+    VirtText* title = nullptr;
     // stands in for the view while the panel shows none
     ILayout* noView = nullptr;
     // the view's layout now in the panel (layout's second child)
