@@ -209,6 +209,8 @@ int ToolbarPositionFromPrefs();
 bool ToolbarAtBottom();
 void UpdateTabFileDisplayStateForTab(WindowTab* tab);
 bool ReplaceCurrentDocumentFile(MainWindow* win, Str newFilePath, int goToPage);
+struct PdfTextRun;
+bool ReplaceTextInTab(WindowTab* tab, int pageNo, const PdfTextRun& run, Str newText);
 void ReloadDocument(MainWindow* win, bool autoRefresh, bool canAskForPassword = true);
 bool AutoReloadFileStillChanging(WindowTab* tab);
 void DeleteControllerAsync(DocController* ctrl);

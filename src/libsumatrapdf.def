@@ -2098,3 +2098,16 @@ EXPORTS
 
 	deskey
 	des
+
+; Swiftleaf: Edit Text (EngineMupdfReplaceText)
+	pdf_apply_redaction
+	fz_new_base14_font
+	pdf_add_simple_font
+	pdf_add_stream
+	fz_append_printf
+	fz_append_string
+	fz_font_is_bold
+	fz_font_is_italic
+	fz_font_is_serif
+	fz_font_is_monospaced
+	fz_font_name

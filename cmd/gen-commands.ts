@@ -349,6 +349,7 @@ const commandsRaw = [
     "CmdDeleteCurrentPage", "Delete Current Page",
     "CmdSplitPdf", "Split PDF...",
     "CmdUndoPageChange", "Undo Page Change",
+    "CmdEditText", "Edit Text",
 ];
 
 // removed slots are dropped: nothing outside the generators should see them

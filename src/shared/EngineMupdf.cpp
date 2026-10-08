@@ -9584,6 +9584,347 @@ bool EngineMupdfApplyRedactions(EngineBase* engine, Vec<Annotation*>& deletedOut
     return any;
 }
 
+//--- Swiftleaf: Edit Text
+
+static bool RectsTouch(const fz_rect& a, const fz_rect& b) {
+    return a.x0 <= b.x1 && b.x0 <= a.x1 && a.y0 <= b.y1 && b.y0 <= a.y1;
+}
+
+static fz_rect UnionRects(const fz_rect& a, const fz_rect& b) {
+    if (a.x0 > a.x1) {
+        return b;
+    }
+    return {std::min(a.x0, b.x0), std::min(a.y0, b.y0), std::max(a.x1, b.x1), std::max(a.y1, b.y1)};
+}
+
+static void AppendUtf8(str::Builder& b, int c) {
+    char buf[8];
+    int n = fz_runetochar(buf, c);
+    b.Append(Str(buf, n));
+}
+
+// The horizontal text lines of page pageNo that `area` (page coordinates)
+// touches, as one run: their box, their text (one line per line) and the style
+// of their first character.
+bool EngineMupdfGetTextRun(EngineBase* engine, int pageNo, RectF area, PdfTextRun* out) {
+    EngineMupdf* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc || pageNo < 1 || pageNo > e->pageCount || !out) {
+        return false;
+    }
+    auto* ctx = e->Ctx();
+    fz_rect want{area.x, area.y, area.x + area.dx, area.y + area.dy};
+    fz_stext_page* stext = nullptr;
+    fz_var(stext);
+    {
+        ScopedRecursiveMutex csPages(&e->pagesLock);
+        ScopedMutex csRender(&e->renderLock);
+        ScopedRecursiveMutex csDoc(&e->docLock);
+        FzPageInfo* pi = GetFzPageInfoLocked(e, e->LocationFromPageNo(pageNo), true, nullptr);
+        if (!pi || !pi->page) {
+            return false;
+        }
+        fz_stext_options opts = NewTextPageOptions();
+        fz_try(ctx) {
+            stext = fz_new_stext_page_from_page(ctx, pi->page, &opts);
+        }
+        fz_catch(ctx) {
+            fz_report_error(ctx);
+            stext = nullptr;
+        }
+    }
+    if (!stext) {
+        return false;
+    }
+
+    str::Builder text;
+    fz_rect box{1, 1, 0, 0};
+    int nLines = 0;
+    float firstBaseline = 0;
+    float lastBaseline = 0;
+    auto walk = [&](auto& self, fz_stext_block* block) -> void {
+        for (; block; block = block->next) {
+            if (block->type == FZ_STEXT_BLOCK_STRUCT && block->u.s.down) {
+                self(self, block->u.s.down->first_block);
+                continue;
+            }
+            if (block->type != FZ_STEXT_BLOCK_TEXT) {
+                continue;
+            }
+            for (fz_stext_line* line = block->u.t.first_line; line; line = line->next) {
+                if (line->wmode != 0 || !line->first_char || !RectsTouch(line->bbox, want)) {
+                    continue;
+                }
+                fz_stext_char* first = line->first_char;
+                if (nLines == 0) {
+                    out->origin = {first->origin.x, first->origin.y};
+                    out->fontSize = first->size;
+                    u32 argb = first->argb;
+                    out->color = MkRgb((argb >> 16) & 0xff, (argb >> 8) & 0xff, argb & 0xff);
+                    fz_font* font = first->font;
+                    out->bold = (first->flags & FZ_STEXT_BOLD) || (font && fz_font_is_bold(ctx, font));
+                    out->italic = font && fz_font_is_italic(ctx, font);
+                    out->serif = font && fz_font_is_serif(ctx, font);
+                    out->mono = font && fz_font_is_monospaced(ctx, font);
+                    firstBaseline = first->origin.y;
+                } else {
+                    text.AppendChar('\n');
+                }
+                for (fz_stext_char* ch = first; ch; ch = ch->next) {
+                    AppendUtf8(text, ch->c);
+                }
+                lastBaseline = first->origin.y;
+                box = UnionRects(box, line->bbox);
+                nLines++;
+            }
+        }
+    };
+    walk(walk, stext->first_block);
+    fz_drop_stext_page(ctx, stext);
+    if (nLines == 0) {
+        return false;
+    }
+    out->bbox = RectF{box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0};
+    out->lineGap = nLines > 1 ? (lastBaseline - firstBaseline) / (nLines - 1) : out->fontSize * 1.2f;
+    str::Free(out->text);
+    out->text = text.TakeStr();
+    return true;
+}
+
+// the base-14 font closest to the run's
+static const char* Base14ForRun(const PdfTextRun& run) {
+    if (run.mono) {
+        return run.bold ? (run.italic ? "Courier-BoldOblique" : "Courier-Bold")
+                        : (run.italic ? "Courier-Oblique" : "Courier");
+    }
+    if (run.serif) {
+        return run.bold ? (run.italic ? "Times-BoldItalic" : "Times-Bold") : (run.italic ? "Times-Italic" : "Times-Roman");
+    }
+    return run.bold ? (run.italic ? "Helvetica-BoldOblique" : "Helvetica-Bold")
+                    : (run.italic ? "Helvetica-Oblique" : "Helvetica");
+}
+
+// UTF-8 to a PDF string literal in WinAnsi, the encoding of the base-14 font
+static void AppendWinAnsiPdfString(str::Builder& b, Str utf8) {
+    b.AppendChar('(');
+    TempWStr ws = ToWStrTemp(utf8);
+    for (int i = 0; i < ws.len; i++) {
+        int c = ws.s[i];
+        switch (c) {
+            case 0x2018: c = 0x91; break;
+            case 0x2019: c = 0x92; break;
+            case 0x201C: c = 0x93; break;
+            case 0x201D: c = 0x94; break;
+            case 0x2022: c = 0x95; break;
+            case 0x2013: c = 0x96; break;
+            case 0x2014: c = 0x97; break;
+            case 0x20AC: c = 0x80; break;
+            case 0x2026: c = 0x85; break;
+        }
+        if (c > 0xff) {
+            c = '?';
+        }
+        if (c == '(' || c == ')' || c == '\\') {
+            b.AppendChar('\\');
+            b.AppendChar((char)c);
+        } else if (c < 0x20 || c >= 0x7f) {
+            b.Append(fmt("\\%03o", c));
+        } else {
+            b.AppendChar((char)c);
+        }
+    }
+    b.AppendChar(')');
+}
+
+static pdf_obj* AddContentStream(fz_context* ctx, pdf_document* doc, Str s) {
+    fz_buffer* buf = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)s.s, (size_t)s.len);
+    pdf_obj* stm = nullptr;
+    fz_try(ctx) {
+        stm = pdf_add_stream(ctx, doc, buf, nullptr, 0);
+    }
+    fz_always(ctx) {
+        fz_drop_buffer(ctx, buf);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+    return stm;
+}
+
+// Replace the text of `run` (from EngineMupdfGetTextRun) on page pageNo with
+// newText: the old glyphs are removed by a text-only redaction of the run's
+// box, the new text is drawn in the closest base-14 font, same size, color and
+// position. One undo step. Annotations the redaction removed (it removes those
+// over the area) go to deletedOut, for the caller to detach and delete.
+bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& run, Str newText,
+                            Vec<Annotation*>& deletedOut) {
+    VecReset(deletedOut);
+    EngineMupdf* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc || pageNo < 1 || pageNo > e->pageCount) {
+        return false;
+    }
+    auto* ctx = e->Ctx();
+    pdf_document* doc = e->pdfdoc;
+    ScopedEngineOperation op(engine, "Edit text");
+    ScopedRecursiveMutex pagesScope(&e->pagesLock);
+    ScopedMutex renderScope(&e->renderLock);
+    FzPageInfo* pi = GetFzPageInfoLocked(e, e->LocationFromPageNo(pageNo), true, nullptr);
+    if (!pi || !pi->page) {
+        return false;
+    }
+
+    Vec<Annotation*> before = pi->annotations;
+    bool ok = false;
+    {
+        ScopedRecursiveMutex docScope(&e->docLock);
+        pdf_annot* redact = nullptr;
+        fz_font* font = nullptr;
+        pdf_obj* fontRef = nullptr;
+        pdf_obj* arr = nullptr;
+        pdf_obj* stmPush = nullptr;
+        pdf_obj* stmPop = nullptr;
+        pdf_obj* stmText = nullptr;
+        fz_var(redact);
+        fz_var(font);
+        fz_var(fontRef);
+        fz_var(arr);
+        fz_var(stmPush);
+        fz_var(stmPop);
+        fz_var(stmText);
+        fz_var(ok);
+        fz_try(ctx) {
+            pdf_page* page = pdf_page_from_fz_page(ctx, pi->page);
+            if (!page) {
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "not a PDF page");
+            }
+
+            // 1. the old glyphs. Inset a little so the lines above and below,
+            // whose boxes often overlap this one, are left alone
+            float inset = std::min(run.bbox.dy * 0.2f, run.fontSize * 0.2f);
+            fz_rect r{run.bbox.x, run.bbox.y + inset, run.bbox.x + run.bbox.dx, run.bbox.y + run.bbox.dy - inset};
+            redact = pdf_create_annot(ctx, page, PDF_ANNOT_REDACT);
+            pdf_set_annot_rect(ctx, redact, r);
+            pdf_redact_options ropts{};
+            ropts.black_boxes = 0;
+            ropts.image_method = PDF_REDACT_IMAGE_NONE;
+            ropts.line_art = PDF_REDACT_LINE_ART_NONE;
+            ropts.text = PDF_REDACT_TEXT_REMOVE;
+            pdf_apply_redaction(ctx, redact, &ropts);
+
+            // 2. the font, under a name of its own in the page's resources
+            font = fz_new_base14_font(ctx, Base14ForRun(run));
+            fontRef = pdf_add_simple_font(ctx, doc, font, PDF_SIMPLE_ENCODING_LATIN);
+            pdf_obj* res = pdf_dict_get_inheritable(ctx, page->obj, PDF_NAME(Resources));
+            if (!res) {
+                res = pdf_new_dict(ctx, doc, 1);
+                pdf_dict_put_drop(ctx, page->obj, PDF_NAME(Resources), res);
+            }
+            pdf_obj* fonts = pdf_dict_get(ctx, res, PDF_NAME(Font));
+            if (!fonts) {
+                fonts = pdf_new_dict(ctx, doc, 1);
+                pdf_dict_put_drop(ctx, res, PDF_NAME(Font), fonts);
+            }
+            TempStr fontName;
+            for (int n = 1;; n++) {
+                fontName = fmt("SwiftleafF%d", n);
+                if (!pdf_dict_gets(ctx, fonts, CStrTemp(fontName))) {
+                    break;
+                }
+            }
+            pdf_dict_puts(ctx, fonts, CStrTemp(fontName), fontRef);
+
+            // 3. the text: upright on screen at the old baseline. Page space has
+            // y going down, text space up, hence the flip before mapping to PDF
+            fz_rect mediabox;
+            fz_matrix ctm;
+            pdf_page_transform(ctx, page, &mediabox, &ctm);
+            fz_matrix upright{1, 0, 0, -1, run.origin.x, run.origin.y};
+            fz_matrix tm = fz_concat(upright, fz_invert_matrix(ctm));
+            u8 cr, cg, cb;
+            UnpackColor(run.color, cr, cg, cb);
+            str::Builder content;
+            content.Append(fmt("q BT /%s %.2f Tf %.3f %.3f %.3f rg %.4f %.4f %.4f %.4f %.3f %.3f Tm\n", fontName,
+                               run.fontSize, cr / 255.f, cg / 255.f, cb / 255.f, tm.a, tm.b, tm.c, tm.d, tm.e, tm.f));
+            StrVec lines;
+            Split(&lines, newText, StrL("\n"), false);
+            for (int i = 0; i < len(lines); i++) {
+                Str line = lines[i];
+                str::TrimSuffix(line, StrL("\r"));
+                if (i > 0) {
+                    content.Append(fmt("0 %.3f Td\n", -run.lineGap));
+                }
+                AppendWinAnsiPdfString(content, line);
+                content.Append(StrL(" Tj\n"));
+            }
+            content.Append(StrL("ET Q\n"));
+
+            // 4. the page's content becomes [q, old content, Q, new text], so
+            // a graphics state the old content leaves behind doesn't leak in
+            stmPush = AddContentStream(ctx, doc, StrL("q\n"));
+            stmPop = AddContentStream(ctx, doc, StrL("Q\n"));
+            stmText = AddContentStream(ctx, doc, ToStrTemp(content));
+            pdf_obj* contents = pdf_dict_get(ctx, page->obj, PDF_NAME(Contents));
+            arr = pdf_new_array(ctx, doc, 4);
+            pdf_array_push(ctx, arr, stmPush);
+            if (pdf_is_array(ctx, contents)) {
+                int n = pdf_array_len(ctx, contents);
+                for (int i = 0; i < n; i++) {
+                    pdf_array_push(ctx, arr, pdf_array_get(ctx, contents, i));
+                }
+            } else if (contents) {
+                pdf_array_push(ctx, arr, contents);
+            }
+            pdf_array_push(ctx, arr, stmPop);
+            pdf_array_push(ctx, arr, stmText);
+            pdf_dict_put(ctx, page->obj, PDF_NAME(Contents), arr);
+            ok = true;
+        }
+        fz_always(ctx) {
+            pdf_drop_obj(ctx, arr);
+            pdf_drop_obj(ctx, stmPush);
+            pdf_drop_obj(ctx, stmPop);
+            pdf_drop_obj(ctx, stmText);
+            pdf_drop_obj(ctx, fontRef);
+            fz_drop_font(ctx, font);
+            pdf_drop_annot(ctx, redact);
+        }
+        fz_catch(ctx) {
+            fz_report_error(ctx);
+            logf("EngineMupdfReplaceText: failed on page %d: '%s'\n", pageNo, Str(fz_caught_message(ctx)));
+        }
+    }
+
+    // the redaction may have taken annotations over the area with it
+    Vec<pdf_annot*> live;
+    {
+        ScopedRecursiveMutex docScope(&e->docLock);
+        fz_try(ctx) {
+            pdf_page* page = pdf_page_from_fz_page(ctx, pi->page);
+            for (pdf_annot* a = page ? pdf_first_annot(ctx, page) : nullptr; a; a = pdf_next_annot(ctx, a)) {
+                VecAppend(live, a);
+            }
+        }
+        fz_catch(ctx) {
+            fz_report_error(ctx);
+        }
+    }
+    for (Annotation* w : before) {
+        if (!w || VecFind(live, w->pdfannot) >= 0) {
+            continue;
+        }
+        w->pdfannot = nullptr;
+        VecRemove(pi->annotations, w);
+        VecAppend(deletedOut, w);
+    }
+    {
+        ScopedRecursiveMutex docScope(&e->docLock);
+        RebuildCommentsFromAnnotations(ctx, pi);
+    }
+    InvalidateFzPageAfterContentChange(e, pi);
+    e->InvalidateTextForPage(pageNo);
+    e->modifiedAnnotations = true;
+    return ok;
+}
+
 //--- Undo / redo, on top of MuPDF's journal (see pdf_enable_journal)
 
 // Where we are in the undo history: 0 is the document as it was loaded,

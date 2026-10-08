@@ -14,8 +14,11 @@ editing features inspired by [Okular](https://invent.kde.org/graphics/okular)
 - **Comment**: highlight, underline, squiggly, strikeout, sticky notes, text
   boxes, lines, rectangles, ovals, polygons, freehand ink, stamps, file
   attachments, a comments list, undo / redo.
-- **Edit**: add text and images, links, redaction, compress, password protect.
-- **Organize**: thumbnails, delete / extract pages, merge PDFs, export pages as images.
+- **Edit**: change the existing text of a page (Edit Text: click a line, type,
+  Enter), add text and images, links, redaction, compress, password protect.
+- **Organize**: works on the open PDF like Foxit / Acrobat: rotate, insert blank
+  pages or another PDF's pages, move, delete, split, with Undo; plus extract,
+  merge and export pages as images.
 - **Forms & Sign**: fill AcroForms, place signature images, sign with a digital ID.
 - **Fast**: single ~13 MB executable, opens large documents instantly, also reads
   EPUB, MOBI, CBZ/CBR, XPS, DjVu, CHM and images.

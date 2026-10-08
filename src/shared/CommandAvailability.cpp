@@ -559,7 +559,7 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
             return CommandVisibility::Hide;
         }
         // Swiftleaf page organizing
-        if (cmdId >= CmdRotatePageLeft && cmdId <= CmdUndoPageChange) {
+        if (cmdId >= CmdRotatePageLeft && cmdId <= CmdEditText) {
             return CommandVisibility::Hide;
         }
     }

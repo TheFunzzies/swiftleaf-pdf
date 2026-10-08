@@ -348,6 +348,7 @@ const CommandInfo gCommands[] = {
     {CmdDeleteCurrentPage, "CmdDeleteCurrentPage\0", StrL("Delete Current Page")},
     {CmdSplitPdf, "CmdSplitPdf\0", StrL("Split PDF...")},
     {CmdUndoPageChange, "CmdUndoPageChange\0", StrL("Undo Page Change")},
+    {CmdEditText, "CmdEditText\0", StrL("Edit Text")},
 };
 const int gCommandsCount = dimofi(gCommands);
 

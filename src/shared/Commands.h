@@ -342,8 +342,9 @@ enum {
     CmdDeleteCurrentPage = 536,
     CmdSplitPdf = 537,
     CmdUndoPageChange = 538,
+    CmdEditText = 539,
 
-    CmdLast = 538,
+    CmdLast = 539,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

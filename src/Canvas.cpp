@@ -49,6 +49,7 @@
 #include "MainWindow.h"
 #include "SidebarPanel.h"
 #include "AnnotPlacement.h"
+#include "EditText.h"
 #include "Menu.h"
 #include "uia/Provider.h"
 #include "SearchAndDDE.h"
@@ -2390,6 +2391,10 @@ static void OnMouseLeftButtonDown(MainWindow* win, int x, int y, WPARAM key) {
         return;
     }
 
+    if (EditTextOnLeftDown(win, Point{x, y})) {
+        return;
+    }
+
     RefHoverOnCanvasLeftButtonDown(win->refHover, win->hwndCanvas);
 
     if (MouseAction::Scrolling == win->mouseAction) {
@@ -4319,6 +4324,11 @@ static LRESULT OnSetCursor(MainWindow* win, HWND hwnd) {
     }
 
     if (AnnotationPlacementOnSetCursor(win)) {
+        win->DeleteToolTip();
+        return TRUE;
+    }
+
+    if (EditTextOnSetCursor(win)) {
         win->DeleteToolTip();
         return TRUE;
     }

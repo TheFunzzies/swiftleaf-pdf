@@ -138,6 +138,23 @@ struct PdfMergePage {
 };
 bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePage>& pages, Str destPath);
 
+// Swiftleaf Edit Text: a run of text lines on a page and its style
+struct PdfTextRun {
+    RectF bbox;    // page coordinates, all the lines
+    PointF origin; // baseline start of the first line
+    Str text;      // owned, one line per line
+    float fontSize = 0;
+    float lineGap = 0; // between baselines
+    Color color = 0;
+    bool bold = false;
+    bool italic = false;
+    bool serif = false;
+    bool mono = false;
+};
+bool EngineMupdfGetTextRun(EngineBase*, int pageNo, RectF area, PdfTextRun* out);
+bool EngineMupdfReplaceText(EngineBase*, int pageNo, const PdfTextRun& run, Str newText,
+                            Vec<Annotation*>& deletedOut);
+
 bool EngineMupdfSupportsAnnotations(EngineBase*);
 bool EngineMupdfIsPdf(EngineBase* engine);
 bool EngineMupdfIsEncrypted(EngineBase* engine);
