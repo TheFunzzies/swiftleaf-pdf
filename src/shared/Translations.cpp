@@ -6,6 +6,7 @@
 #include "EmbeddedResources.h"
 
 #include "SumatraConfig.h"
+#include "Version.h"
 
 #include "Translations.h"
 
@@ -119,8 +120,36 @@ static void ParseTranslationsTxt(Str d, Str langCode) {
     }
 }
 
+// Swiftleaf: the UI strings (and their translations) name the app
+// "SumatraPDF". Pairs of original, rebranded string, made once per string.
+static StrVec* gRebrandedCache = nullptr;
+
+static Str Rebrand(Str s) {
+    if (!str::Contains(s, StrL("SumatraPDF"))) {
+        return s;
+    }
+    if (!gRebrandedCache) {
+        gRebrandedCache = new StrVec();
+    }
+    StrVec* c = gRebrandedCache;
+    for (int i = 0; i + 1 < len(*c); i += 2) {
+        if (str::Eq(c->At(i), s)) {
+            return c->At(i + 1);
+        }
+    }
+    c->Append(s);
+    c->Append(str::ReplaceTemp(s, StrL("SumatraPDF"), StrL(kAppName)));
+    return c->At(len(*c) - 1);
+}
+
+static Str GetTranslationRaw(Str s);
+
 // don't free the result
 Str GetTranslation(Str s) {
+    return Rebrand(GetTranslationRaw(s));
+}
+
+static Str GetTranslationRaw(Str s) {
     if (gCurrLangIdx == 0) {
         // 0 is english, no translation needed
         return s;
@@ -293,6 +322,8 @@ Str DetectUserLang() {
 #endif
 
 void Destroy() {
+    delete gRebrandedCache;
+    gRebrandedCache = nullptr;
     FreeTranslations();
 }
 

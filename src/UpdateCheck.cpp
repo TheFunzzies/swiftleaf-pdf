@@ -860,6 +860,15 @@ static void UpdateCheckAsync(UpdateCheckAsyncData* data) {
 // if autoCheck is true, this is a check *not* triggered by explicit action
 // of the user and therefore will show less UI
 void StartAsyncUpdateCheck(MainWindow* win, UpdateCheck updateCheckType) {
+    // Swiftleaf: the update feeds above are SumatraPDF's, which would offer to
+    // replace Swiftleaf with SumatraPDF. Until Swiftleaf has a feed of its own,
+    // asking for an update opens the releases page and there is no auto check.
+    if (UpdateCheck::UserInitiated == updateCheckType) {
+        SumatraLaunchBrowser(Str(kReleasesURL));
+    }
+    if (kSwiftleafNoUpdateFeed) {
+        return;
+    }
     if (!ShouldCheckForUpdate(updateCheckType)) {
         return;
     }

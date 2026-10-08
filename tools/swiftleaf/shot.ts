@@ -21,12 +21,12 @@ import {
 import { cmdId } from "../../tests/util";
 
 const WM_COMMAND = 0x0111;
-const FRAME_CLASS = "SUMATRA_PDF_FRAME";
+const FRAME_CLASS = "SWIFTLEAF_PDF_FRAME";
 
 const args = process.argv.slice(2);
 let out = "";
 let file = "";
-let exe = resolve("out/rel64/SumatraPDF.exe");
+let exe = resolve("out/rel64/Swiftleaf.exe");
 let size = "1400x900";
 let waitMs = 1500;
 const actions: { kind: "cmd" | "click"; arg: string }[] = [];

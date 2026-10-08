@@ -17955,7 +17955,7 @@ static void ShowCrashHandlerMessage() {
         log(StrL("ShowCrashHandlerMessage: res != IDCANCEL\n"));
         return;
     }
-    const auto* url = "https://www.sumatrapdfreader.org/docs/Submit-crash-report.html";
+    const auto* url = kCrashReportUrl;
     LaunchFileShell(Str(url), {}, StrL("open"));
 }
 
@@ -18152,6 +18152,9 @@ static void InstallSumatraCrashHandler(bool localOnly) {
         cfg.uploadCrashes = false;
         cfg.uploadDebugReports = false;
     }
+    // Swiftleaf: never send crash reports to SumatraPDF's server
+    cfg.uploadCrashes = false;
+    cfg.uploadDebugReports = false;
     cfg.getCrashComment = GetCrashComment;
     cfg.onCrashBegin = OnCrashBegin;
     cfg.showCrashMessage = ShowCrashHandlerMessage;

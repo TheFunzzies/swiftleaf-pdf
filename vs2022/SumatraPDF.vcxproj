@@ -333,7 +333,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\dbg32\</OutDir>
     <IntDir>$(ProjectDir)..\out\dbg32\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -341,7 +341,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\dbg64\</OutDir>
     <IntDir>$(ProjectDir)..\out\dbg64\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -349,7 +349,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\dbgarm64\</OutDir>
     <IntDir>$(ProjectDir)..\out\dbgarm64\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -357,7 +357,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\dbg64_asan\</OutDir>
     <IntDir>$(ProjectDir)..\out\dbg64_asan\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -365,7 +365,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\dbgfull32\</OutDir>
     <IntDir>$(ProjectDir)..\out\dbgfull32\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -373,7 +373,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\dbgfull64\</OutDir>
     <IntDir>$(ProjectDir)..\out\dbgfull64\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -381,7 +381,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\dbgfullarm64\</OutDir>
     <IntDir>$(ProjectDir)..\out\dbgfullarm64\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -389,7 +389,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\dbgfull64_asan\</OutDir>
     <IntDir>$(ProjectDir)..\out\dbgfull64_asan\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -397,7 +397,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\rel32\</OutDir>
     <IntDir>$(ProjectDir)..\out\rel32\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -405,7 +405,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\rel64\</OutDir>
     <IntDir>$(ProjectDir)..\out\rel64\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -413,7 +413,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\arm64\</OutDir>
     <IntDir>$(ProjectDir)..\out\arm64\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -421,7 +421,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\rel64_asan\</OutDir>
     <IntDir>$(ProjectDir)..\out\rel64_asan\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -429,7 +429,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\rel32_prefast\</OutDir>
     <IntDir>$(ProjectDir)..\out\rel32_prefast\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -437,7 +437,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\rel64_prefast\</OutDir>
     <IntDir>$(ProjectDir)..\out\rel64_prefast\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -445,7 +445,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\arm64_prefast\</OutDir>
     <IntDir>$(ProjectDir)..\out\arm64_prefast\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -453,7 +453,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\rel64_prefast_asan\</OutDir>
     <IntDir>$(ProjectDir)..\out\rel64_prefast_asan\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -461,7 +461,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\prf32\</OutDir>
     <IntDir>$(ProjectDir)..\out\prf32\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -469,7 +469,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\prf64\</OutDir>
     <IntDir>$(ProjectDir)..\out\prf64\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -477,7 +477,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\prfarm64\</OutDir>
     <IntDir>$(ProjectDir)..\out\prfarm64\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
@@ -485,7 +485,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(ProjectDir)..\out\prf64_asan\</OutDir>
     <IntDir>$(ProjectDir)..\out\prf64_asan\obj\SumatraPDF\</IntDir>
-    <TargetName>SumatraPDF</TargetName>
+    <TargetName>Swiftleaf</TargetName>
     <TargetExt>.exe</TargetExt>
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>

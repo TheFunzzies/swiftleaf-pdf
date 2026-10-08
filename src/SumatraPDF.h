@@ -13,12 +13,16 @@ constexpr int kFrameResizeHitTest = 5;
 
 extern bool gRedrawLog;
 
-constexpr const char* kWebsiteURL = "https://www.sumatrapdfreader.org/";
+constexpr const char* kWebsiteURL = "https://github.com/TheFunzzies/swiftleaf-pdf";
+constexpr const char* kReleasesURL = "https://github.com/TheFunzzies/swiftleaf-pdf/releases";
+// SumatraPDF's manual still describes most of what Swiftleaf does
 constexpr const char* kManualURL = "https://www.sumatrapdfreader.org/manual";
 constexpr const char* kContributeTranslationsURL = "https://www.sumatrapdfreader.org/docs/Contribute-translation";
+// no Swiftleaf update feed yet: see StartAsyncUpdateCheck
+constexpr bool kSwiftleafNoUpdateFeed = true;
 
 #ifndef kCrashReportUrl
-#define kCrashReportUrl "https://www.sumatrapdfreader.org/docs/Contribute-to-SumatraPDF"
+#define kCrashReportUrl "https://github.com/TheFunzzies/swiftleaf-pdf/issues"
 #endif
 
 // scrolls half a page down/up (needed for Shift+Up/Down)

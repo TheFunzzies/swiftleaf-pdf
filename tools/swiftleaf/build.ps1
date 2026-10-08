@@ -1,4 +1,4 @@
-# Build Swiftleaf (SumatraPDF.exe) with MSBuild and print only errors / warnings.
+# Build Swiftleaf (Swiftleaf.exe) with MSBuild and print only errors / warnings.
 #   powershell -File tools/swiftleaf/build.ps1 [-Config Release|Debug] [-Target SumatraPDF]
 param(
     [string]$Config = "Release",
@@ -15,7 +15,7 @@ try {
     & $msbuild vs2022\SumatraPDF.sln "/t:$Target" "/p:Configuration=$Config;Platform=x64" /m /nologo /v:minimal "/clp:ErrorsOnly;WarningsOnly"
     if ($LASTEXITCODE -ne 0) { throw "build failed ($LASTEXITCODE)" }
     $outDir = if ($Config -eq "Release") { "out\rel64" } else { "out\dbg64" }
-    Get-Item "$outDir\SumatraPDF.exe" | Select-Object FullName, Length, LastWriteTime
+    Get-Item "$outDir\Swiftleaf.exe" | Select-Object FullName, Length, LastWriteTime
 } finally {
     Pop-Location
 }

@@ -32,8 +32,8 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           # the same exe: run directly it is the portable app, and with
           # "install" in its name it starts as the installer
-          Copy-Item out\rel64\SumatraPDF.exe dist\Swiftleaf.exe
-          Copy-Item out\rel64\SumatraPDF.exe dist\Swiftleaf-install.exe
+          Copy-Item out\rel64\Swiftleaf.exe dist\Swiftleaf.exe
+          Copy-Item out\rel64\Swiftleaf.exe dist\Swiftleaf-install.exe
           Get-ChildItem dist | Format-Table Name, Length
 
       - name: Upload build

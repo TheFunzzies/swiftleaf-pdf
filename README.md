@@ -27,7 +27,7 @@ Requirements: Windows 10/11, Visual Studio 2022 (or Build Tools) with the
 code generators and helper scripts.
 
 ```powershell
-powershell -File tools/swiftleaf/build.ps1            # Release x64 -> out/rel64/SumatraPDF.exe
+powershell -File tools/swiftleaf/build.ps1            # Release x64 -> out/rel64/Swiftleaf.exe
 powershell -File tools/swiftleaf/build.ps1 -Config Debug
 ```
 
@@ -37,7 +37,7 @@ source files, regenerate the projects with `bin/premake5.exe vs2022`.
 To try a build without touching your settings:
 
 ```powershell
-out/rel64/SumatraPDF.exe -for-testing docs/test/swiftleaf-sample.pdf
+out/rel64/Swiftleaf.exe -for-testing docs/test/swiftleaf-sample.pdf
 ```
 
 ## Installing

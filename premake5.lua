@@ -1380,6 +1380,8 @@ workspace "SumatraPDF"
 
   -- a dll version where most functionality is in libsumatrapdf.dll
   project "SumatraPDF"
+    -- Swiftleaf: the app exe (kExeName); the project keeps its upstream name
+    targetname "Swiftleaf"
     dll_app_objdir()
     dll_linker_intermediates()
     kind "WindowedApp"

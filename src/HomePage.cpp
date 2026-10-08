@@ -227,7 +227,7 @@ constexpr int kAboutRectPadding = 8;
 
 constexpr int kInnerPadding = 8;
 
-static const Str kSumatraTxtFont = StrL("Arial Black");
+static const Str kSumatraTxtFont = StrL("Segoe UI Semibold");
 constexpr int kSumatraTxtFontSize = 24;
 
 constexpr int kLayoutLtr = 0;
@@ -250,15 +250,15 @@ static AboutRow gAboutRows[] = {
     // isn't known until runtime (32/64-bit, debug)
     {StrL("version"), {}, {}},
     {StrL("built on"), StrL(__DATE__ " " __TIME__), {}},
+    {StrL("website"), StrL("Swiftleaf on GitHub"), Str(kWebsiteURL)},
+    {StrL("releases"), StrL("Downloads and what's new"), Str(kReleasesURL)},
+    {StrL("feedback"), StrL("Report a problem"), StrL("https://github.com/TheFunzzies/swiftleaf-pdf/issues")},
+    {StrL("based on"), StrL("SumatraPDF"), StrL("https://www.sumatrapdfreader.org/")},
     {StrL("manual"), StrL("SumatraPDF manual"), StrL("https://www.sumatrapdfreader.org/docs/SumatraPDF-documentation")},
-    {StrL("version history"), StrL("What's new"), StrL("https://www.sumatrapdfreader.org/docs/Version-history")},
-    {StrL("website"), StrL("SumatraPDF website"), Str(kWebsiteURL)},
-    {StrL("forums"), StrL("SumatraPDF forums"), StrL("https://github.com/sumatrapdfreader/sumatrapdf/discussions")},
-    {StrL("licenses"), StrL("Various Open Source"),
-     StrL("https://github.com/sumatrapdfreader/sumatrapdf/blob/master/AUTHORS")},
+    {StrL("licenses"), StrL("Various Open Source"), StrL("https://github.com/TheFunzzies/swiftleaf-pdf/blob/main/AUTHORS")},
 #ifdef GIT_COMMIT_ID_STR
     {StrL("last change"), StrL("git commit " GIT_COMMIT_ID_STR),
-     StrL("https://github.com/sumatrapdfreader/sumatrapdf/commit/" GIT_COMMIT_ID_STR)},
+     StrL("https://github.com/TheFunzzies/swiftleaf-pdf/commit/" GIT_COMMIT_ID_STR)},
 #endif
 #ifdef PRE_RELEASE_VER
     {StrL("a note"), StrL("Pre-release version, for testing only!"), {}},
@@ -327,11 +327,6 @@ static TempStr GetAppVersionTemp() {
     return s;
 }
 
-constexpr Color kCol1 = MkRgb(196, 64, 50);
-constexpr Color kCol2 = MkRgb(227, 107, 35);
-constexpr Color kCol3 = MkRgb(93, 160, 40);
-constexpr Color kCol4 = MkRgb(69, 132, 190);
-constexpr Color kCol5 = MkRgb(112, 115, 207);
 
 static Kind kindSumatraLogo = "sumatraLogo";
 
@@ -359,19 +354,18 @@ Size SumatraLogo::GetIdealSize() {
     return sz;
 }
 
+// Swiftleaf: "Swift" in teal, "leaf" in green
 void SumatraLogo::Paint(VirtPaintCtx& ctx) {
-    static Color cols[] = {kCol1, kCol2, kCol3, kCol4, kCol5, kCol5, kCol4, kCol3, kCol2, kCol1};
-    Size txtSize = PlatformFontMeasureText(font, StrL(kAppName));
+    constexpr Color kColSwift = MkRgb(0x0e, 0x7c, 0x66);
+    constexpr Color kColLeaf = MkRgb(0x3c, 0xa5, 0x3c);
+    Str swift = StrL("Swift");
+    Str leaf = StrL("leaf");
+    Size szSwift = PlatformFontMeasureText(font, swift);
+    Size szLeaf = PlatformFontMeasureText(font, leaf);
     Rect r = ctx.bounds;
-    Point pt{r.x + ((r.dx - txtSize.dx) / 2), r.y + ((r.dy - txtSize.dy) / 2)};
-    char buf[2] = {};
-    for (int i = 0; i < len(kAppName); i++) {
-        buf[0] = kAppName[i];
-        Str letter{buf, 1};
-        Size sz = PlatformFontMeasureText(font, letter);
-        ctx.gfx->DrawText(letter, {pt.x, pt.y, sz.dx, sz.dy}, 0, font, cols[i % dimofi(cols)]);
-        pt.x += sz.dx;
-    }
+    Point pt{r.x + ((r.dx - szSwift.dx - szLeaf.dx) / 2), r.y + ((r.dy - szSwift.dy) / 2)};
+    ctx.gfx->DrawText(swift, {pt.x, pt.y, szSwift.dx, szSwift.dy}, 0, font, kColSwift);
+    ctx.gfx->DrawText(leaf, {pt.x + szSwift.dx, pt.y, szLeaf.dx, szLeaf.dy}, 0, font, kColLeaf);
 }
 
 static TempStr TrimGitTemp(Str s) {
