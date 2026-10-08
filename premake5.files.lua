@@ -410,6 +410,7 @@ function sumatrapdf_files()
     "Ribbon.*",
     "PageOrganize.*",
     "EditText.*",
+    "StatusBar.*",
     "TranslationLangs.cpp",
     "Translations.*",
     "Uninstaller.cpp",

@@ -49,6 +49,7 @@
 #include "PdfTools.h"
 #include "PageOrganize.h"
 #include "EditText.h"
+#include "StatusBar.h"
 #include "MergePdf.h"
 #include "ChmModel.h"
 #include "MarkdownModel.h"
@@ -3209,6 +3210,7 @@ static void CreateFrameLayout(MainWindow* win) {
     win->menuSlot->mapRtlX = true;
     win->toolbarTopSlot = new HwndSlot();
     win->toolbarBottomSlot = new HwndSlot();
+    win->statusBarSlot = new HwndSlot();
     CreateCaptionLayout(win);
 
     // the webview is expensive to resize, so this one only moves the panes
@@ -3244,6 +3246,7 @@ static void CreateFrameLayout(MainWindow* win) {
     chrome->AddChild(win->toolbarTopSlot);
     chrome->AddChild(win->frameLayout, 1);
     chrome->AddChild(win->toolbarBottomSlot);
+    chrome->AddChild(win->statusBarSlot);
     win->chromeLayout = chrome;
     FrameSyncSplitters(win);
 }
@@ -8005,6 +8008,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     bool showMenuRebar = showingMenuBar && (!win->tabsInTitlebar || win->isFullScreen);
     bool showToolbar = win->isToolbarVisible;
     bool toolbarBottom = showToolbar && ToolbarAtBottom();
+    bool showStatusBar = ShouldShowStatusBar(win) && win->hwndStatusBar;
+    int statusBarDy = showStatusBar ? HwndWindowRect(win->hwndStatusBar).dy : 0;
 
     int tabHeight = GetTabbarHeight(win->hwndFrame);
     if (showCaption) {
@@ -8026,6 +8031,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     win->menuSlot->dy = menuBarDy;
     win->toolbarTopSlot->dy = rebarDy;
     win->toolbarBottomSlot->dy = rebarDy;
+    SetVis(win->statusBarSlot, showStatusBar);
+    win->statusBarSlot->dy = statusBarDy;
 
     // leave at least this much canvas for the document when sidebar is open
     constexpr int kMinDocCanvasDx = 200;
@@ -8070,7 +8077,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
         }
     }
 
-    int chromeDy = captionHeight + (showTabsBar ? tabHeight : 0) + menuBarDy + rebarDy;
+    int chromeDy = captionHeight + (showTabsBar ? tabHeight : 0) + menuBarDy + rebarDy + statusBarDy;
     int contentDy = std::max(rc.dy - chromeDy, 0);
 
     int tocDy = 0;
@@ -8127,6 +8134,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
              updateToolbars && capTwoRow && capHasFileTabs);
     BindSlot(win->toolbarTopSlot, win->hwndToolbar, &dh, updateToolbars && showToolbar && !toolbarBottom);
     BindSlot(win->toolbarBottomSlot, win->hwndToolbar, &dh, updateToolbars && showToolbar && toolbarBottom);
+    BindSlot(win->statusBarSlot, win->hwndStatusBar, &dh, updateToolbars && showStatusBar);
     HWND topHwnd = win->sidebarTop->hwnd;
     HWND bottomHwnd = win->sidebarBottom->hwnd;
     BindSlot(win->sidebarTopSlot, topHwnd, &dh, topVisible && !isFrameResize && !isSplitterDrag);
@@ -8161,7 +8169,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     HwndSlot* chromeSlots[] = {win->tabsSlot,          win->menuSlot,       win->toolbarTopSlot,
                                win->toolbarBottomSlot, win->capMenuSlot,    win->capTabsRow1,
                                win->capTabsRow2,       win->sidebarTopSlot, win->sidebarBottomSlot,
-                               win->favoritesTabSlot,  win->canvasSlot,     win->aiChatSlot};
+                               win->favoritesTabSlot,  win->canvasSlot,     win->aiChatSlot,
+                               win->statusBarSlot};
     for (HwndSlot* s : chromeSlots) {
         ClearSlotDefer(s);
     }
@@ -8187,6 +8196,9 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     // here so a relayout doesn't flash it on/off
     if (updateToolbars && !win->isToolbarOverlay) {
         ShowWindow(win->hwndToolbar, win->isToolbarVisible ? SW_SHOW : SW_HIDE);
+    }
+    if (updateToolbars && win->hwndStatusBar) {
+        ShowWindow(win->hwndStatusBar, showStatusBar ? SW_SHOW : SW_HIDE);
     }
 
     dh.End();

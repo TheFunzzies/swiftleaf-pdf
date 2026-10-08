@@ -55,6 +55,7 @@
 #include "ReadAloud.h"
 #include "Ribbon.h"
 #include "PageOrganize.h"
+#include "StatusBar.h"
 #include "Toolbar.h"
 
 // https://docs.microsoft.com/en-us/windows/win32/controls/toolbar-control-reference
@@ -879,6 +880,7 @@ void ToolbarUpdateStateForWindow(MainWindow* win, bool setButtonsVisibility) {
     }
 
     UpdateRibbonItemsState(win, ctx, annotButtonsEnabled);
+    StatusBarUpdate(win);
 
     if (setButtonsVisibility) {
         // drop a separator that would sit next to another, or at either end
@@ -1272,6 +1274,7 @@ void UpdateToolbarFindText(MainWindow* win) {
 static void UpdateZoomHoverDropdown(MainWindow* win);
 
 void UpdateToolbarState(MainWindow* win) {
+    StatusBarUpdate(win);
     if (!win->IsDocLoaded()) {
         return;
     }
@@ -1293,6 +1296,7 @@ void UpdateToolbarState(MainWindow* win) {
 }
 
 void UpdateToolbarPageText(MainWindow* win, int pageCount, bool updateOnly) {
+    StatusBarUpdate(win);
     VirtHost* host = ToolbarHost(win);
     if (!host) {
         return;
@@ -3905,6 +3909,7 @@ void CreateToolbar(MainWindow* win) {
 
     BuildToolbarLayout(win);
     ToolbarSetHeight(win, tb->ribbonDy);
+    CreateStatusBar(win);
 
     DocController* ctrl = win->ctrl;
     UpdateToolbarPageText(win, ctrl ? ctrl->PageCount() : -1);
@@ -3926,6 +3931,7 @@ void CreateToolbar(MainWindow* win) {
 }
 
 void DestroyToolbar(MainWindow* win) {
+    DestroyStatusBar(win);
     ToolbarVirt* tb = win->toolbarVirt;
     if (!tb) {
         win->hwndToolbar = nullptr;
