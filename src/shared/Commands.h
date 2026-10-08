@@ -333,8 +333,17 @@ enum {
     CmdInsertTextSnippet = 527,
     CmdToggleThumbnails = 528,
     CmdMergePDF = 529,
+    CmdRotatePageLeft = 530,
+    CmdRotatePageRight = 531,
+    CmdInsertBlankPage = 532,
+    CmdInsertPagesFromFile = 533,
+    CmdMovePageUp = 534,
+    CmdMovePageDown = 535,
+    CmdDeleteCurrentPage = 536,
+    CmdSplitPdf = 537,
+    CmdUndoPageChange = 538,
 
-    CmdLast = 529,
+    CmdLast = 538,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

@@ -340,6 +340,15 @@ const commandsRaw = [
     "CmdInsertTextSnippet", "Insert Text Snippet",
     "CmdToggleThumbnails", "Toggle Thumbnails",
     "CmdMergePDF", "Merge PDF...",
+    "CmdRotatePageLeft", "Rotate Page Left (Saved)",
+    "CmdRotatePageRight", "Rotate Page Right (Saved)",
+    "CmdInsertBlankPage", "Insert Blank Page",
+    "CmdInsertPagesFromFile", "Insert Pages From File...",
+    "CmdMovePageUp", "Move Page Up",
+    "CmdMovePageDown", "Move Page Down",
+    "CmdDeleteCurrentPage", "Delete Current Page",
+    "CmdSplitPdf", "Split PDF...",
+    "CmdUndoPageChange", "Undo Page Change",
 ];
 
 // removed slots are dropped: nothing outside the generators should see them

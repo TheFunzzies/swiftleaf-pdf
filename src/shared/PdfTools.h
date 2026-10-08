@@ -14,6 +14,7 @@ void ShowPdfCompressDialog(MainWindow* win);
 void ShowPdfDecompressDialog(MainWindow* win);
 void ShowPdfDeletePageDialog(MainWindow* win);
 void ShowPdfExtractPagesDialog(MainWindow* win);
+void ShowPdfSplitDialog(MainWindow* win);
 void ShowMergePdfDialog(MainWindow* win);
 TempStr MergePdfResultTemp(Str action, Str arg, int n, int* exitCodeOut);
 void ShowPdfEncryptDialog(MainWindow* win);

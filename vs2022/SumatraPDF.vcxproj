@@ -1420,6 +1420,7 @@
     <ClInclude Include="..\src\MergePdf.h" />
     <ClInclude Include="..\src\Notifications.h" />
     <ClInclude Include="..\src\OverlayScrollbar.h" />
+    <ClInclude Include="..\src\PageOrganize.h" />
     <ClInclude Include="..\src\PageThumbnails.h" />
     <ClInclude Include="..\src\RegistryPreview.h" />
     <ClInclude Include="..\src\RegistrySearchFilter.h" />
@@ -1644,6 +1645,7 @@
     <ClCompile Include="..\src\Notifications.cpp" />
     <ClCompile Include="..\src\OverlayScrollbar.cpp" />
     <ClCompile Include="..\src\PageGridDialog.cpp" />
+    <ClCompile Include="..\src\PageOrganize.cpp" />
     <ClCompile Include="..\src\PageThumbnails.cpp" />
     <ClCompile Include="..\src\PdfTools.cpp" />
     <ClCompile Include="..\src\ReadAloud.cpp" />

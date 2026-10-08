@@ -408,6 +408,7 @@ function sumatrapdf_files()
     "Theme.*",
     "Toolbar.*",
     "Ribbon.*",
+    "PageOrganize.*",
     "TranslationLangs.cpp",
     "Translations.*",
     "Uninstaller.cpp",

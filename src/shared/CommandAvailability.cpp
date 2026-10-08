@@ -558,9 +558,14 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
             cmdId == CmdToggleEditPDF || cmdId == CmdMergePDF) {
             return CommandVisibility::Hide;
         }
+        // Swiftleaf page organizing
+        if (cmdId >= CmdRotatePageLeft && cmdId <= CmdUndoPageChange) {
+            return CommandVisibility::Hide;
+        }
     }
     if (ctx.pageCount < 2) {
-        if (cmdId == CmdPdfDeletePages || cmdId == CmdPdfExtractPages) {
+        if (cmdId == CmdPdfDeletePages || cmdId == CmdPdfExtractPages || cmdId == CmdMovePageUp ||
+            cmdId == CmdMovePageDown || cmdId == CmdDeleteCurrentPage || cmdId == CmdSplitPdf) {
             return CommandVisibility::Hide;
         }
     }

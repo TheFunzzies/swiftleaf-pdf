@@ -9849,6 +9849,46 @@ bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePag
             pdf_drop_document(ctx, src);
             src = nullptr;
         }
+        // blank pages go to the end too, sized like the base page they name
+        for (int i = 0; i < nPages; i++) {
+            if (pages[i].src != kPdfMergeBlankPage) {
+                continue;
+            }
+            if (pages[i].pageNo < 1 || pages[i].pageNo > nBase) {
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "no page %d", pages[i].pageNo);
+            }
+            pdf_obj* like = pdf_lookup_page_obj(ctx, doc, pages[i].pageNo - 1);
+            fz_rect box = pdf_to_rect(ctx, pdf_dict_get_inheritable(ctx, like, PDF_NAME(MediaBox)));
+            int rot = pdf_to_int(ctx, pdf_dict_get_inheritable(ctx, like, PDF_NAME(Rotate)));
+            pdf_obj* res = pdf_new_dict(ctx, doc, 1);
+            fz_buffer* contents = fz_new_buffer(ctx, 1);
+            pdf_obj* page = nullptr;
+            fz_try(ctx) {
+                page = pdf_add_page(ctx, doc, box, rot, res, contents);
+                order[i] = pdf_count_pages(ctx, doc);
+                pdf_insert_page(ctx, doc, -1, page);
+            }
+            fz_always(ctx) {
+                pdf_drop_obj(ctx, page);
+                pdf_drop_obj(ctx, res);
+                fz_drop_buffer(ctx, contents);
+            }
+            fz_catch(ctx) {
+                fz_rethrow(ctx);
+            }
+        }
+        // Swiftleaf: page rotation, saved in the page's /Rotate
+        for (int i = 0; i < nPages; i++) {
+            if (pages[i].rotate % 360 == 0) {
+                continue;
+            }
+            pdf_obj* page = pdf_lookup_page_obj(ctx, doc, order[i]);
+            int rot = pdf_to_int(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Rotate)));
+            rot = (((rot + pages[i].rotate) % 360) + 360) % 360;
+            pdf_obj* v = pdf_new_int(ctx, rot);
+            pdf_dict_put(ctx, page, PDF_NAME(Rotate), v);
+            pdf_drop_obj(ctx, v);
+        }
         // drops the pages not in order and fixes bookmarks and links to them
         pdf_rearrange_pages(ctx, doc, nPages, order.els, PDF_CLEAN_STRUCTURE_KEEP);
 

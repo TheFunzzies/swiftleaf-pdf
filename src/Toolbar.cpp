@@ -54,6 +54,7 @@
 #include "Theme.h"
 #include "ReadAloud.h"
 #include "Ribbon.h"
+#include "PageOrganize.h"
 #include "Toolbar.h"
 
 // https://docs.microsoft.com/en-us/windows/win32/controls/toolbar-control-reference
@@ -595,9 +596,13 @@ static bool IsCmdEnabled(MainWindow* win, int cmdId, AppCommandCtx* ctx) {
         }
 
         case CmdGoToNextPage:
+        case CmdMovePageDown:
             return win->ctrl->CurrentPageNo() < win->ctrl->PageCount();
         case CmdGoToPrevPage:
+        case CmdMovePageUp:
             return win->ctrl->CurrentPageNo() > 1;
+        case CmdUndoPageChange:
+            return OrganizeCanUndo(win);
 
         case CmdNavigateBack:
             return win->ctrl->CanNavigate(-1);

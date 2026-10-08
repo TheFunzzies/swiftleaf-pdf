@@ -127,10 +127,14 @@ struct PdfMergeSource {
     Str path;
     Str password;
 };
-// page pageNo (1-based) of source src
+// page pageNo (1-based) of source src. src kPdfMergeBlankPage: a blank page the
+// size of page pageNo of srcs[0]
+constexpr int kPdfMergeBlankPage = -1;
 struct PdfMergePage {
     int src = 0;
     int pageNo = 0;
+    // degrees (a multiple of 90) added to the page's rotation
+    int rotate = 0;
 };
 bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePage>& pages, Str destPath);
 

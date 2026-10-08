@@ -339,6 +339,15 @@ const CommandInfo gCommands[] = {
     {CmdInsertTextSnippet, "CmdInsertTextSnippet\0", StrL("Insert Text Snippet")},
     {CmdToggleThumbnails, "CmdToggleThumbnails\0", StrL("Toggle Thumbnails")},
     {CmdMergePDF, "CmdMergePDF\0", StrL("Merge PDF...")},
+    {CmdRotatePageLeft, "CmdRotatePageLeft\0", StrL("Rotate Page Left (Saved)")},
+    {CmdRotatePageRight, "CmdRotatePageRight\0", StrL("Rotate Page Right (Saved)")},
+    {CmdInsertBlankPage, "CmdInsertBlankPage\0", StrL("Insert Blank Page")},
+    {CmdInsertPagesFromFile, "CmdInsertPagesFromFile\0", StrL("Insert Pages From File...")},
+    {CmdMovePageUp, "CmdMovePageUp\0", StrL("Move Page Up")},
+    {CmdMovePageDown, "CmdMovePageDown\0", StrL("Move Page Down")},
+    {CmdDeleteCurrentPage, "CmdDeleteCurrentPage\0", StrL("Delete Current Page")},
+    {CmdSplitPdf, "CmdSplitPdf\0", StrL("Split PDF...")},
+    {CmdUndoPageChange, "CmdUndoPageChange\0", StrL("Undo Page Change")},
 };
 const int gCommandsCount = dimofi(gCommands);
 

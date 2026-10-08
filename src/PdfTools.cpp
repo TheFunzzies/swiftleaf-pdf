@@ -39,6 +39,7 @@
 
 #include "DarkMode.h"
 #include "Commands.h"
+#include "PageOrganize.h"
 #include "PdfTools.h"
 
 extern "C" int pdfbake_main(int argc, char** argv);
@@ -987,6 +988,85 @@ void ShowPdfDeletePageDialog(MainWindow* win) {
 
 void ShowPdfExtractPagesDialog(MainWindow* win) {
     ShowPdfPageRangeDialog(win, true);
+}
+
+// --- Split PDF dialog (Swiftleaf) ---
+
+struct PdfSplitDialog : PdfToolDialog {
+    Edit* pagesEdit = nullptr;
+    int pageCount = 0;
+
+    bool Create(MainWindow* win, WindowTab* tab);
+    void DoIt(VirtMouseEvent* ev = nullptr) override;
+    void UpdateButton();
+};
+
+static int ParsePagesPerFile(Str s) {
+    int n = 0;
+    str::TrimWSInPlace(s, str::TrimOpt::Both);
+    if (str::IsNull(str::Parse(s, "%d%$", &n))) {
+        return 0;
+    }
+    return n;
+}
+
+void PdfSplitDialog::UpdateButton() {
+    int n = ParsePagesPerFile(pagesEdit->GetTextTemp());
+    bool valid = n >= 1 && n < pageCount;
+    if (valid == actionBtn->HasFlag(vwfEnabled)) {
+        return;
+    }
+    actionBtn->SetFlag(vwfEnabled, valid);
+    actionBtn->Invalidate();
+}
+
+void PdfSplitDialog::DoIt(VirtMouseEvent*) {
+    TempStr dest = str::DupTemp(destEdit->GetTextTemp());
+    int n = ParsePagesPerFile(pagesEdit->GetTextTemp());
+    if (len(dest) == 0 || n < 1) {
+        return;
+    }
+    MainWindow* w = win;
+    Close();
+    OrganizeSplitPdf(w, dest, n);
+}
+
+bool PdfSplitDialog::Create(MainWindow* w, WindowTab* tab) {
+    if (!CreateToolDialog(w, tab, Tr("Split PDF"))) {
+        return false;
+    }
+    pageCount = w->ctrl ? w->ctrl->PageCount() : 0;
+    AddPathRow();
+    Str base = str::DupTemp(srcPath);
+    if (str::EndsWithI(base, StrL(".pdf"))) {
+        base.len -= 4;
+    }
+    AddDestRow(fmt("%s-part.pdf", base), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+    pagesEdit = AddLabeledEdit(Tr("Pages per file:"), StrL("1"));
+    lastRow->AddChild(new Spacer(gap, 0));
+    lastRow->AddChild(NewVirtText({.s = fmt("of %d", pageCount), .font = font, .isRtl = IsUIRtl()}));
+    AddButtonsRow(Tr("Split"), StrL("Writes <name>-1.pdf, <name>-2.pdf, ..."));
+    FinishDialog(pagesEdit);
+    pagesEdit->onTextChanged = MkMethod0<PdfSplitDialog, &PdfSplitDialog::UpdateButton>(this);
+    UpdateButton();
+    return true;
+}
+
+void ShowPdfSplitDialog(MainWindow* win) {
+    if (!win || !win->IsDocLoaded()) {
+        return;
+    }
+    WindowTab* tab = win->CurrentTab();
+    if (!tab || len(tab->filePath) == 0 || !IsPdfDoc(tab)) {
+        return;
+    }
+    if (!win->ctrl || win->ctrl->PageCount() < 2) {
+        return;
+    }
+    auto* dlg = new PdfSplitDialog();
+    if (!dlg->Create(win, tab)) {
+        delete dlg;
+    }
 }
 
 // --- Encrypt PDF dialog ---

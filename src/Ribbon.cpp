@@ -43,6 +43,20 @@ static const char* gIconPageDelete = TABLER_SVG(
     R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
     R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
     R"(<path d="M9 14l6 0" />)");
+// files-off-ish: two pages with a minus
+static const char* gIconPageDeleteMany = TABLER_SVG(
+    R"(<path d="M15 3v4a1 1 0 0 0 1 1h4" />)"
+    R"(<path d="M18 17h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h4l5 5v7a2 2 0 0 1 -2 2z" />)"
+    R"(<path d="M16 17v2a2 2 0 0 1 -2 2h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h2" /><path d="M12 11h5" />)");
+// file-arrow-up-ish: a page with an arrow up
+static const char* gIconMoveUp = TABLER_SVG(
+    R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
+    R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
+    R"(<path d="M12 17v-6" /><path d="M9.5 13.5l2.5 -2.5l2.5 2.5" />)");
+static const char* gIconMoveDown = TABLER_SVG(
+    R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
+    R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
+    R"(<path d="M12 11v6" /><path d="M9.5 14.5l2.5 2.5l2.5 -2.5" />)");
 // file-export
 static const char* gIconPageExtract = TABLER_SVG(
     R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
@@ -191,12 +205,20 @@ static const RibbonItemDef gEditItems[] = {
 static const RibbonItemDef gOrganizeItems[] = {
     {gIconThumbnails, CmdToggleThumbnails, TrN("Thumbnails"), TrN("Show page thumbnails")},
     {nullptr, 0, {}},
-    {gIconPageDelete, CmdPdfDeletePages, TrN("Delete"), TrN("Delete pages")},
-    {gIconPageExtract, CmdPdfExtractPages, TrN("Extract"), TrN("Extract pages to a new PDF")},
-    {gIconMerge, CmdMergePDF, TrN("Merge"), TrN("Combine several PDF files into one")},
+    {gIconPageInsert, CmdInsertBlankPage, TrN("Blank Page"), TrN("Insert a blank page after this one")},
+    {gIconPageImport, CmdInsertPagesFromFile, TrN("Insert File"), TrN("Insert the pages of another PDF after this page")},
+    {gIconPageDelete, CmdDeleteCurrentPage, TrN("Delete Page"), TrN("Delete this page")},
+    {gIconPageDeleteMany, CmdPdfDeletePages, TrN("Delete..."), TrN("Delete a range of pages")},
     {nullptr, 0, {}},
-    {gIconRotateLeft, CmdRotateLeft, TrN("Rotate Left")},
-    {gIconRotateRight, CmdRotateRight, TrN("Rotate Right")},
+    {gIconRotateLeft, CmdRotatePageLeft, TrN("Rotate Left"), TrN("Rotate this page left and save it")},
+    {gIconRotateRight, CmdRotatePageRight, TrN("Rotate Right"), TrN("Rotate this page right and save it")},
+    {gIconMoveUp, CmdMovePageUp, TrN("Move Up"), TrN("Move this page before the previous one")},
+    {gIconMoveDown, CmdMovePageDown, TrN("Move Down"), TrN("Move this page after the next one")},
+    {gIconUndo, CmdUndoPageChange, TrN("Undo"), TrN("Undo the last page change")},
+    {nullptr, 0, {}},
+    {gIconPageExtract, CmdPdfExtractPages, TrN("Extract"), TrN("Extract pages to a new PDF")},
+    {gIconSplit, CmdSplitPdf, TrN("Split"), TrN("Split the PDF into several files")},
+    {gIconMerge, CmdMergePDF, TrN("Merge"), TrN("Combine several PDF files into one")},
     {nullptr, 0, {}},
     {gIconExportImages, CmdConvertPdfToImages, TrN("To Images"), TrN("Save pages as images")},
     {gIconImage, CmdConvertImageToPdf, TrN("From Image"), TrN("Create a PDF from images")},
@@ -485,7 +507,15 @@ Color RibbonIconColor(int cmdId) {
         case CmdCreateAnnotRedact:
         case CmdApplyRedactions:
         case CmdPdfDeletePages:
+        case CmdDeleteCurrentPage:
             return red;
+        case CmdInsertBlankPage:
+        case CmdInsertPagesFromFile:
+        case CmdRotatePageLeft:
+        case CmdRotatePageRight:
+        case CmdMovePageUp:
+        case CmdMovePageDown:
+        case CmdSplitPdf:
         case CmdToggleThumbnails:
         case CmdPdfExtractPages:
         case CmdMergePDF:

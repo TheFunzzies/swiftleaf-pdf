@@ -47,6 +47,7 @@
 #include "Annotation.h"
 #include "FormFields.h"
 #include "PdfTools.h"
+#include "PageOrganize.h"
 #include "MergePdf.h"
 #include "ChmModel.h"
 #include "MarkdownModel.h"
@@ -6788,6 +6789,62 @@ static void RenameCurrentFile(MainWindow* win) {
     }
 }
 
+struct ReplacedDocGoTo {
+    MainWindow* win = nullptr;
+    int pageNo = 0;
+};
+
+static void GoToPageNowAfterReplace(ReplacedDocGoTo* data) {
+    MainWindow* win = data->win;
+    int pageNo = data->pageNo;
+    delete data;
+    if (!IsMainWindowValidAndNotClosing(win) || !win->ctrl) {
+        return;
+    }
+    pageNo = limitValue(pageNo, 1, win->ctrl->PageCount());
+    win->ctrl->GoToPage(pageNo, false);
+}
+
+// the load restores the previous position after onFinished, so go to the page
+// from the message loop, once that's done
+static void GoToPageAfterReplace(ReplacedDocGoTo* data, bool ok) {
+    if (!ok) {
+        delete data;
+        return;
+    }
+    uitask::Post(MkFunc0(GoToPageNowAfterReplace, data), "GoToPageAfterReplace");
+}
+
+// Swiftleaf page organizing: close the current document, move newFilePath over
+// its file and open it again in the same tab, on goToPage (0: where it was).
+// The document must be closed first: the engine keeps its file open.
+bool ReplaceCurrentDocumentFile(MainWindow* win, Str newFilePath, int goToPage) {
+    if (!win || !win->IsDocLoaded() || !win->CurrentTab()) {
+        return false;
+    }
+    TempStr path = str::DupTemp(win->ctrl->GetFilePath());
+    UpdateTabFileDisplayStateForTab(win->CurrentTab());
+    CloseDocumentInCurrentTab(win, true, true);
+    HwndSetFocus(win->hwndFrame);
+
+    TempWStr srcW = ToWStrTemp(newFilePath);
+    TempWStr dstW = ToWStrTemp(path);
+    DWORD flags = MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH;
+    BOOL moveOk = MoveFileExW(srcW.s, dstW.s, flags);
+    if (!moveOk) {
+        LogLastError();
+    }
+
+    LoadArgs args(path, win);
+    args.forceReuse = true;
+    if (goToPage > 0) {
+        auto* data = new ReplacedDocGoTo{win, goToPage};
+        args.onFinished = MkFunc1(GoToPageAfterReplace, data);
+    }
+    LoadDocument(&args);
+    return moveOk;
+}
+
 static void CreateLnkShortcut(MainWindow* win) {
     if (!CanAccessDisk() || gPluginMode) {
         return;
@@ -13213,6 +13270,35 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
 
         case CmdMergePDF:
             ShowMergePdfDialog(win);
+            break;
+
+        // Swiftleaf page organizing (PageOrganize.cpp)
+        case CmdRotatePageLeft:
+            OrganizeRotatePage(win, -90);
+            break;
+        case CmdRotatePageRight:
+            OrganizeRotatePage(win, 90);
+            break;
+        case CmdInsertBlankPage:
+            OrganizeInsertBlankPage(win);
+            break;
+        case CmdInsertPagesFromFile:
+            OrganizeInsertPagesFromFile(win);
+            break;
+        case CmdMovePageUp:
+            OrganizeMovePage(win, -1);
+            break;
+        case CmdMovePageDown:
+            OrganizeMovePage(win, 1);
+            break;
+        case CmdDeleteCurrentPage:
+            OrganizeDeleteCurrentPage(win);
+            break;
+        case CmdSplitPdf:
+            ShowPdfSplitDialog(win);
+            break;
+        case CmdUndoPageChange:
+            OrganizeUndo(win);
             break;
 
         case CmdPdfExtractPages:

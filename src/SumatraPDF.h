@@ -208,6 +208,7 @@ extern SeqStrings gToolbarPositionNames;
 int ToolbarPositionFromPrefs();
 bool ToolbarAtBottom();
 void UpdateTabFileDisplayStateForTab(WindowTab* tab);
+bool ReplaceCurrentDocumentFile(MainWindow* win, Str newFilePath, int goToPage);
 void ReloadDocument(MainWindow* win, bool autoRefresh, bool canAskForPassword = true);
 bool AutoReloadFileStillChanging(WindowTab* tab);
 void DeleteControllerAsync(DocController* ctrl);
