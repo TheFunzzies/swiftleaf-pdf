@@ -211,6 +211,9 @@ bool SetWidgetChoiceValue(Annotation*, Str value);
 bool ToggleFormButton(Annotation*);
 
 bool AnnotationIsLive(Annotation*);
+bool IsImageStamp(Annotation*);
+Pixmap* StampImagePixmap(Annotation*);
+void SetAnnotationHidden(Annotation*, bool hidden);
 
 void DeleteAnnotation(Annotation*);
 bool AnnotationCanBeMoved(AnnotationType);

@@ -211,7 +211,7 @@ Str WindowTab::GetTabTitle() const {
     }
     if (len(filePath) == 0) {
         if (IsAboutTab()) {
-            return StrL("Home");
+            return Tr("Start");
         }
         if (IsFavoritesTab()) {
             // same label as Favorites menu / sidebar header

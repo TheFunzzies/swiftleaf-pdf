@@ -104,6 +104,8 @@ struct SignaturePad : VirtCtrl {
     Pixmap* image = nullptr; // owned; white already made transparent
     int ink = 0;
     PlatformFont* hintFont = nullptr;
+    // a stroke was drawn or the pad cleared: the dialog's Save follows it
+    Func0 onChanged;
 
     SignaturePad();
     ~SignaturePad() override;
@@ -204,6 +206,7 @@ void SignaturePad::OnUp(VirtMouseEvent* ev) {
         root->ReleaseCapture();
     }
     ev->didHandle = true;
+    onChanged.Call();
 }
 
 // the largest font size at which the name fits the pad
@@ -674,6 +677,7 @@ bool SignatureDialog::Create(MainWindow* w) {
 
     pad = new SignaturePad();
     pad->hintFont = font;
+    pad->onChanged = MkMethod0<SignatureDialog, &SignatureDialog::UpdateSaveButton>(this);
     box->AddChild(pad);
 
     // Draw: just a hint

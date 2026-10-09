@@ -11629,7 +11629,7 @@ void LaunchDocumentation(Str docURI) {
 // the way ? toggles the keyboard shortcuts window (issue #6084). Only for the
 // F1 / menu entry point -- LaunchDocumentation() itself always navigates,
 // since its other callers open a specific page.
-static void ToggleDocumentationWindow() {
+[[maybe_unused]] static void ToggleDocumentationWindow() {
     DiscardManualBrowserWindowIfClosed();
     if (IsManualBrowserWindowOpen()) {
         gManualBrowserWindow->Close();
@@ -13218,7 +13218,8 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             break;
 
         case CmdHelpOpenManual:
-            ToggleDocumentationWindow();
+            // Swiftleaf: the embedded manual is SumatraPDF's; ours is online
+            SumatraLaunchBrowser(Str(kManualURL));
             break;
 
         case CmdHelpOpenKeyboardShortcuts:

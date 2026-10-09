@@ -15,8 +15,8 @@ extern bool gRedrawLog;
 
 constexpr const char* kWebsiteURL = "https://github.com/TheFunzzies/swiftleaf-pdf";
 constexpr const char* kReleasesURL = "https://github.com/TheFunzzies/swiftleaf-pdf/releases";
-// SumatraPDF's manual still describes most of what Swiftleaf does
-constexpr const char* kManualURL = "https://www.sumatrapdfreader.org/manual";
+// Swiftleaf's user guide: the README
+constexpr const char* kManualURL = "https://github.com/TheFunzzies/swiftleaf-pdf#readme";
 constexpr const char* kContributeTranslationsURL = "https://www.sumatrapdfreader.org/docs/Contribute-translation";
 
 #ifndef kCrashReportUrl

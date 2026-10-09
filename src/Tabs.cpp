@@ -775,7 +775,7 @@ static WindowTab* InsertHomeTab(MainWindow* win, bool deferUpdate) {
     homeTab->type = WindowTab::Type::About;
     homeTab->canvasRc = win->canvasRc;
     TabInfo* newTab = new TabInfo();
-    newTab->text = str::Dup(StrL("Home"));
+    newTab->text = str::Dup(Tr("Start"));
     newTab->tooltip = {};
     newTab->isPinned = true;
     newTab->canClose = true;

@@ -2249,6 +2249,19 @@ static void StartAnnotationResize(MainWindow* win, Annotation* annot, Point& pt,
     // outline and write the annotation once, when the drag ends
     win->annotationResizeOutlineOnly =
         annot->type == AnnotationType::FreeText && !IsLineEndpointHandle(handle) && !IsVertexHandle(handle);
+    // Swiftleaf: an image stamp (a signature) follows the mouse as a picture
+    // drawn over the page; the annotation is hidden meanwhile and written once
+    // at the end, rather than re-rendered whenever the mouse rests
+    FreePixmap(win->annotationResizeImage);
+    win->annotationResizeImage = nullptr;
+    if (IsImageStamp(annot)) {
+        win->annotationResizeImage = StampImagePixmap(annot);
+    }
+    if (win->annotationResizeImage) {
+        win->annotationResizeOutlineOnly = true;
+        SetAnnotationHidden(annot, true);
+        MainWindowRerender(win);
+    }
     win->annotationOriginalLineStart = {};
     win->annotationOriginalLineEnd = {};
     win->annotationLinePreviewStart = {};
@@ -2289,6 +2302,14 @@ static bool StopAnnotationResize(MainWindow* win, bool aborted) {
     win->annotationResizeOutlineOnly = false;
     win->annotationBeingDragged = nullptr;
     CancelAnnotationResizeRerender(win);
+    if (win->annotationResizeImage) {
+        FreePixmap(win->annotationResizeImage);
+        win->annotationResizeImage = nullptr;
+        SetAnnotationHidden(annot, false);
+        if (aborted) {
+            MainWindowRerender(win);
+        }
+    }
 
     // Release mouse capture and reset cursor
     if (GetCapture() == win->hwndCanvas) {
@@ -3741,9 +3762,17 @@ NO_INLINE static void PaintCurrentEditAnnotationMark(WindowTab* tab, HDC hdc, Di
         dm->ScrollScreenToRect(pageNo, rect);
         tab->didScrollToSelectedAnnotation = true;
     }
-    rect.Inflate(DisplayModel::kAnnotMarkPadding, DisplayModel::kAnnotMarkPadding);
-
     Gdiplus::Graphics gs(hdc);
+    if (draggingOutline && win->annotationResizeImage) {
+        // the image stamp being resized, at its new size
+        Gdiplus::Bitmap* bmp = WrapPixmapGdiplus(win->annotationResizeImage);
+        if (bmp) {
+            gs.SetInterpolationMode(Gdiplus::InterpolationModeBilinear);
+            gs.DrawImage(bmp, rect.x, rect.y, rect.dx, rect.dy);
+            delete bmp;
+        }
+    }
+    rect.Inflate(DisplayModel::kAnnotMarkPadding, DisplayModel::kAnnotMarkPadding);
 
     Gdiplus::SolidBrush handleBrush(Gdiplus::Color(255, 255, 255, 255)); // White
     Gdiplus::Pen handlePen(Gdiplus::Color(255, 0, 0, 0), 1);             // Black

@@ -253,8 +253,7 @@ static AboutRow gAboutRows[] = {
     {StrL("website"), StrL("Swiftleaf on GitHub"), Str(kWebsiteURL)},
     {StrL("releases"), StrL("Downloads and what's new"), Str(kReleasesURL)},
     {StrL("feedback"), StrL("Report a problem"), StrL("https://github.com/TheFunzzies/swiftleaf-pdf/issues")},
-    {StrL("based on"), StrL("SumatraPDF"), StrL("https://www.sumatrapdfreader.org/")},
-    {StrL("manual"), StrL("SumatraPDF manual"), StrL("https://www.sumatrapdfreader.org/docs/SumatraPDF-documentation")},
+    {StrL("based on"), StrL("Open source PDF software"), {}},
     {StrL("licenses"), StrL("Various Open Source"), StrL("https://github.com/TheFunzzies/swiftleaf-pdf/blob/main/AUTHORS")},
 #ifdef GIT_COMMIT_ID_STR
     {StrL("last change"), StrL("git commit " GIT_COMMIT_ID_STR),

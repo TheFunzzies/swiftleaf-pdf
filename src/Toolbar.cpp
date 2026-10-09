@@ -3560,13 +3560,17 @@ static VirtCtrl* MakeToolbarSeparator(int rowDy) {
 // Comment page the annotation row's (tb->annotationItems). The other pages'
 // buttons are in tb->ribbonItems.
 
+// tab ids: not 0, which OnCaptionDrag takes for the empty background (the
+// Home tab used to drag the window instead of showing its page)
+constexpr int kRibbonTabIdBase = 0x7100;
+
 static void OnRibbonTabClicked(MainWindow* win, VirtMouseEvent* ev) {
     VirtCtrl* w = ev->target;
     if (!w) {
         return;
     }
     ev->didHandle = true;
-    SetRibbonPage(win, w->id, true);
+    SetRibbonPage(win, w->id - kRibbonTabIdBase, true);
 }
 
 static void ShowRibbonPage(ToolbarVirt* tb, int page) {
@@ -3719,7 +3723,7 @@ static void BuildToolbarLayout(MainWindow* win) {
     // ribbonTabs is indexed by page; the row shows them in tab order
     for (int i = 0; i < RibbonPageCount(); i++) {
         auto* t = new RibbonTab(RibbonPageName((RibbonPage)i), tb->ribbonFont);
-        t->id = i;
+        t->id = kRibbonTabIdBase + i;
         t->textColor = fg;
         t->onClick = MkFunc1(OnRibbonTabClicked, win);
         VecAppend(tb->ribbonTabs, t);

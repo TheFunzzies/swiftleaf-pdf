@@ -12,6 +12,7 @@
 #include "gui/win/WinGui.h"
 #include "gui/PlatformFont.h"
 #include "gui/Gfx.h"
+#include "gui/GuiColors.h"
 #include "gui/VirtCtrl.h"
 
 #include "Settings.h"
@@ -38,6 +39,7 @@
 #include "Notifications.h"
 
 #include "DarkMode.h"
+#include "Material.h"
 #include "Commands.h"
 #include "PageOrganize.h"
 #include "PdfTools.h"
@@ -480,10 +482,69 @@ void ShowPdfExtractTextDialog(MainWindow* win) {
 
 // --- Compress PDF dialog ---
 
+// Swiftleaf: how hard Compress PDF tries. Light is lossless; Medium and High
+// also scale photos down (to 150 / 96 dpi) and re-encode them as JPEG
+enum class CompressLevel {
+    Light = 0,
+    Medium,
+    High,
+};
+constexpr int kCompressLevelCount = 3;
+
 struct PdfCompressDialog : PdfToolDialog {
+    CompressLevel level = CompressLevel::Medium;
+    VirtButton* levelBtns[kCompressLevelCount]{};
+    VirtText* levelHint = nullptr;
+
     bool Create(MainWindow* win, WindowTab* tab);
     void DoIt(VirtMouseEvent* ev = nullptr) override;
+    void OnLevel(VirtMouseEvent* ev);
+    void StyleLevels();
+    void UpdateTheme() override;
 };
+
+static Str CompressLevelHint(CompressLevel level) {
+    switch (level) {
+        case CompressLevel::Light:
+            return Tr("Lossless: removes waste, the pages look the same.");
+        case CompressLevel::Medium:
+            return Tr("Photos scaled to 150 dpi: good for screens and printing.");
+        case CompressLevel::High:
+            return Tr("Photos scaled to 96 dpi: smallest file, for screens.");
+    }
+    return {};
+}
+
+// the chosen level in the selected-segment colors
+void PdfCompressDialog::StyleLevels() {
+    const M3Scheme& m3 = M3();
+    for (int i = 0; i < kCompressLevelCount; i++) {
+        VirtButton* b = levelBtns[i];
+        bool selected = (int)level == i;
+        Color bg = selected ? m3.secondaryContainer : kColorTransparent;
+        Color base = selected ? bg : DarkModeDialogBgColor();
+        b->SetColor(kColBtnBg, bg);
+        b->SetColor(kColBtnBgHover, M3StateLayer(base, m3.onSurface, kM3HoverOpacity));
+        b->SetColor(kColBtnText, selected ? m3.onSecondaryContainer : m3.onSurface);
+        b->SetColor(kColBtnBorder, m3.outline);
+        b->Invalidate();
+    }
+}
+
+void PdfCompressDialog::UpdateTheme() {
+    PdfToolDialog::UpdateTheme();
+    if (levelBtns[0]) {
+        StyleLevels();
+    }
+}
+
+void PdfCompressDialog::OnLevel(VirtMouseEvent* ev) {
+    level = (CompressLevel)ev->target->id;
+    StyleLevels();
+    levelHint->SetText(CompressLevelHint(level));
+    DoLayout();
+    HwndInvalidate(hwnd);
+}
 
 void PdfCompressDialog::DoIt(VirtMouseEvent*) {
     TempStr destPath = destEdit->GetTextTemp();
@@ -491,15 +552,31 @@ void PdfCompressDialog::DoIt(VirtMouseEvent*) {
         return;
     }
 
-    logf("PdfCompressDoIt: compressing '%s' to '%s'\n", srcPath, destPath);
+    logf("PdfCompressDoIt: compressing '%s' to '%s', level %d\n", srcPath, destPath, (int)level);
 
-    // equivalent of: clean -gggg -e 100 -f -i -t -Z input output
-    char* argv[] = {(char*)"clean", (char*)"-gggg", (char*)"-e", (char*)"100",      (char*)"-f",
-                    (char*)"-i",    (char*)"-t",    (char*)"-Z", CStrTemp(srcPath), CStrTemp(destPath)};
-    int argc = 10;
+    // Light: clean -gggg -e 100 -f -i -t -Z input output
+    Vec<char*> argv;
+    const char* base[] = {"clean", "-gggg", "-e", "100", "-f", "-i", "-t", "-Z"};
+    for (const char* a : base) {
+        VecAppend(argv, (char*)a);
+    }
+    // images above the first dpi go down to the second, as JPEG
+    if (level == CompressLevel::Medium) {
+        VecAppend(argv, (char*)"--color-image-subsample-dpi=225,150");
+        VecAppend(argv, (char*)"--gray-image-subsample-dpi=225,150");
+        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:75");
+        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:75");
+    } else if (level == CompressLevel::High) {
+        VecAppend(argv, (char*)"--color-image-subsample-dpi=144,96");
+        VecAppend(argv, (char*)"--gray-image-subsample-dpi=144,96");
+        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:50");
+        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
+    }
+    VecAppend(argv, CStrTemp(srcPath));
+    VecAppend(argv, CStrTemp(destPath));
 
     fz_set_optind(0);
-    int res = pdfclean_main(argc, argv);
+    int res = pdfclean_main(len(argv), argv.els);
     if (res == 0) {
         logf("PdfCompressDoIt: compressed successfully\n");
         MainWindow* w = win;
@@ -518,9 +595,33 @@ bool PdfCompressDialog::Create(MainWindow* w, WindowTab* tab) {
         return false;
     }
     AddPathRow();
-    AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+    // report.pdf -> report_compressed.pdf
+    Str stem = str::DupTemp(srcPath);
+    if (str::EndsWithI(stem, StrL(".pdf"))) {
+        stem.len -= 4;
+    }
+    TempStr dest = MakeUniqueFilePathTemp(fmt("%s_compressed.pdf", stem));
+    AddDestRow(dest, L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+
+    // Light | Medium | High, then what the chosen one does
+    HBox* row = AddRow();
+    row->gap = DpiScale(4);
+    row->AddChild(NewVirtText({.s = Tr("Compression:"), .font = font, .isRtl = IsUIRtl()}));
+    row->AddChild(new Spacer(gap, 0));
+    Str names[kCompressLevelCount] = {Tr("Light"), Tr("Medium"), Tr("High")};
+    for (int i = 0; i < kCompressLevelCount; i++) {
+        levelBtns[i] = NewButton(names[i], false);
+        levelBtns[i]->id = i;
+        levelBtns[i]->onClick = MkMethod1<PdfCompressDialog, VirtMouseEvent*, &PdfCompressDialog::OnLevel>(this);
+        row->AddChild(levelBtns[i]);
+    }
+    HBox* hintRow = AddRow();
+    levelHint = NewVirtText({.s = CompressLevelHint(level), .font = font, .isRtl = IsUIRtl()});
+    hintRow->AddChild(levelHint, 1);
+
     AddButtonsRow(Tr("Compress PDF"));
     FinishDialog(destEdit);
+    StyleLevels();
     return true;
 }
 

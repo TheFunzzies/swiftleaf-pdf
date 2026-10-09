@@ -425,6 +425,8 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     // rewritten once, on mouse up
     bool annotationResizeOutlineOnly = false;
     RectF annotationResizePreviewRect;
+    // Swiftleaf: an image stamp being resized, drawn live at its new size (owned)
+    Pixmap* annotationResizeImage = nullptr;
 
     /* when moving the document by middle-click auto-scroll, this keeps track of
        the speed (in pixels per 20ms) at which we should scroll, which depends on

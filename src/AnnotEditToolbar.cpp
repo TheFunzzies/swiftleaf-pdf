@@ -431,6 +431,8 @@ static void CollectItems(Annotation* annot, Vec<AnnotEditItem>& out) {
     }
     AnnotationType type = Type(annot);
     bool isFreeText = type == AnnotationType::FreeText;
+    // a picture (a signature, an inserted image) has no color or stamp name
+    bool isImage = IsImageStamp(annot);
 
     if (type == AnnotationType::FileAttachment) {
         Str fileName;
@@ -470,7 +472,7 @@ static void CollectItems(Annotation* annot, Vec<AnnotEditItem>& out) {
     // the page and picking one sets the annotation's opacity too, so there is
     // no separate Opacity chip when there is a color to carry it
     bool colorCarriesOpacity = AnnotationSupportsOpacity(type) && AnnotationSupportsColor(type);
-    if (AnnotationSupportsColor(type)) {
+    if (AnnotationSupportsColor(type) && !isImage) {
         AnnotEditItem it;
         it.kind = AnnotEditKind::Color;
         it.color = ColorWithOpacity(GetColor(annot), annot, colorCarriesOpacity);
@@ -487,7 +489,7 @@ static void CollectItems(Annotation* annot, Vec<AnnotEditItem>& out) {
         it.tooltip = Tr("Interior Color");
         VecAppend(out, it);
     }
-    if (AnnotationSupportsOpacity(type) && !colorCarriesOpacity) {
+    if (AnnotationSupportsOpacity(type) && !colorCarriesOpacity && !isImage) {
         AnnotEditItem it;
         it.kind = AnnotEditKind::Opacity;
         it.number = Opacity(annot);
@@ -531,7 +533,7 @@ static void CollectItems(Annotation* annot, Vec<AnnotEditItem>& out) {
         }
     }
     SeqStrings icons = AnnotationIconNames(annot);
-    if (icons) {
+    if (icons && !isImage) {
         AnnotEditItem it;
         it.kind = AnnotEditKind::Icon;
         it.iconName = ResolvedAnnotIconName(annot);

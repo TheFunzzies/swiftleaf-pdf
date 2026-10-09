@@ -2184,14 +2184,21 @@ static Pixmap* GetStampImage(Annotation* annot) {
     ScopedRecursiveMutex cs(&e->docLock);
     fz_image* img = nullptr;
     fz_pixmap* pix = nullptr;
+    fz_pixmap* maskPix = nullptr;
     fz_var(img);
     fz_var(pix);
+    fz_var(maskPix);
     fz_try(ctx) {
         pdf_obj* obj = pdf_annot_stamp_image_obj(ctx, annot->pdfannot);
         if (obj) {
             img = pdf_load_image(ctx, e->pdfdoc, obj);
             if (img) {
                 pix = fz_get_pixmap_from_image(ctx, img, nullptr, nullptr, nullptr, nullptr);
+                // Swiftleaf: a transparent image (a signature) keeps its alpha
+                // in a separate soft mask
+                if (img->mask) {
+                    maskPix = fz_get_pixmap_from_image(ctx, img->mask, nullptr, nullptr, nullptr, nullptr);
+                }
             }
         }
     }
@@ -2201,13 +2208,26 @@ static Pixmap* GetStampImage(Annotation* annot) {
     fz_catch(ctx) {
         fz_report_error(ctx);
         fz_drop_pixmap(ctx, pix);
+        fz_drop_pixmap(ctx, maskPix);
         pix = nullptr;
+        maskPix = nullptr;
     }
     if (!pix) {
         return nullptr;
     }
     Pixmap* res = PixmapFromRgbFzPixmap(ctx, pix);
     fz_drop_pixmap(ctx, pix);
+    bool maskFits = res && maskPix && maskPix->w == res->width && maskPix->h == res->height && maskPix->n >= 1;
+    if (maskFits) {
+        for (int y = 0; y < res->height; y++) {
+            const u8* s = maskPix->samples + ((ptrdiff_t)y * maskPix->stride);
+            u8* d = res->data + ((ptrdiff_t)y * res->stride);
+            for (int x = 0; x < res->width; x++) {
+                d[(x * 4) + 3] = s[x * maskPix->n];
+            }
+        }
+    }
+    fz_drop_pixmap(ctx, maskPix);
     return res;
 }
 
@@ -2467,4 +2487,68 @@ AnnotationType CmdIdToAnnotationType(int cmdId) {
     }
     // clang-format on
     return AnnotationType::Unknown;
+}
+
+// Swiftleaf: a stamp that shows a picture (a signature, an inserted image)
+// rather than one of the standard stamps (Approved, Draft, ...)
+bool IsImageStamp(Annotation* annot) {
+    if (!AnnotationIsLive(annot) || annot->type != AnnotationType::Stamp) {
+        return false;
+    }
+    EngineMupdf* e = annot->engine;
+    if (!e || !e->pdfdoc) {
+        return false;
+    }
+    auto* ctx = e->Ctx();
+    ScopedRecursiveMutex cs(&e->docLock);
+    bool res = false;
+    fz_try(ctx) {
+        res = pdf_annot_stamp_image_obj(ctx, annot->pdfannot) != nullptr;
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    return res;
+}
+
+// the picture of an image stamp, in the BGRA gdi+ draws; the caller owns it
+Pixmap* StampImagePixmap(Annotation* annot) {
+    Pixmap* p = GetStampImage(annot);
+    if (!p) {
+        return nullptr;
+    }
+    if (p->format == PixmapFormat::RGBA8) {
+        for (int y = 0; y < p->height; y++) {
+            u8* d = p->data + ((ptrdiff_t)y * p->stride);
+            for (int x = 0; x < p->width; x++, d += 4) {
+                std::swap(d[0], d[2]);
+            }
+        }
+        p->format = PixmapFormat::BGRA8;
+    }
+    p->hasAlpha = true;
+    return p;
+}
+
+// hidden annotations aren't drawn; resizing an image stamp hides it while a
+// preview stands in for it
+void SetAnnotationHidden(Annotation* annot, bool hidden) {
+    if (!AnnotationIsLive(annot)) {
+        return;
+    }
+    EngineMupdf* e = annot->engine;
+    auto* ctx = e->Ctx();
+    {
+        ScopedRecursiveMutex cs(&e->docLock);
+        fz_try(ctx) {
+            int flags = pdf_annot_flags(ctx, annot->pdfannot);
+            flags = hidden ? (flags | PDF_ANNOT_IS_HIDDEN) : (flags & ~PDF_ANNOT_IS_HIDDEN);
+            pdf_set_annot_flags(ctx, annot->pdfannot, flags);
+            pdf_update_annot(ctx, annot->pdfannot);
+        }
+        fz_catch(ctx) {
+            fz_report_error(ctx);
+        }
+    }
+    MarkNotificationAsModified(e, annot);
 }

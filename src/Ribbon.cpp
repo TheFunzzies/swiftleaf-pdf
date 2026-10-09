@@ -315,8 +315,8 @@ static const RibbonItemDef gProtectItems[] = {
 };
 
 static const RibbonItemDef gHelpItems[] = {
-    {gIconHelp, CmdHelpOpenManual, TrN("Help"), TrN("Open the manual")},
-    {gIconKeyboard, CmdHelpOpenKeyboardShortcuts, TrN("Shortcuts"), TrN("Keyboard shortcuts")},
+    {gIconHelp, CmdHelpOpenManualOnWebsite, TrN("Help"), TrN("Open the user guide")},
+    {gIconKeyboard, CmdToggleKeyboardHelp, TrN("Shortcuts"), TrN("Keyboard shortcuts")},
     {gIconCommandPalette, CmdCommandPalette, TrN("Commands"), TrN("Find any command by name")},
     {nullptr, 0, {}},
     {gIconUpdate, CmdCheckUpdate, TrN("Update"), TrN("Check for a new version and install it")},

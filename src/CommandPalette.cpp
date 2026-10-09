@@ -1740,7 +1740,7 @@ static void AppendTab(StrVecCP& tabs, WindowTab* tab, WindowTab* currTab, int& c
     ItemDataCP data;
     data.tab = tab;
     if (tab->IsAboutTab()) {
-        tabs.Append(Tr("Home"), data);
+        tabs.Append(Tr("Start"), data);
     } else {
         auto name = path::GetBaseNameTemp(tab->filePath);
         if (len(name) == 0) {
