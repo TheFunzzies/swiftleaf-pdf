@@ -343,8 +343,12 @@ enum {
     CmdSplitPdf = 537,
     CmdUndoPageChange = 538,
     CmdEditText = 539,
+    CmdToolHand = 540,
+    CmdToolSelect = 541,
+    CmdToolSnapshot = 542,
+    CmdCreateSignature = 543,
 
-    CmdLast = 539,
+    CmdLast = 543,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

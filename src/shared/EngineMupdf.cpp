@@ -9603,10 +9603,21 @@ static void AppendUtf8(str::Builder& b, int c) {
     b.Append(Str(buf, n));
 }
 
+static bool BlockTouches(fz_stext_block* block, const fz_rect& want) {
+    for (fz_stext_line* line = block->u.t.first_line; line; line = line->next) {
+        if (line->wmode == 0 && line->first_char && RectsTouch(line->bbox, want)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // The horizontal text lines of page pageNo that `area` (page coordinates)
-// touches, as one run: their box, their text (one line per line) and the style
-// of their first character.
-bool EngineMupdfGetTextRun(EngineBase* engine, int pageNo, RectF area, PdfTextRun* out) {
+// touches, or with Paragraph the whole paragraphs (stext blocks) they're in, as
+// one run: their box, their text and the style of their first character. Lines
+// come one per line; a paragraph's lines are joined into running text, its
+// paragraphs one per line.
+bool EngineMupdfGetTextRun(EngineBase* engine, int pageNo, RectF area, TextRunScope scope, PdfTextRun* out) {
     EngineMupdf* e = AsEngineMupdf(engine);
     if (!e || !e->pdfdoc || pageNo < 1 || pageNo > e->pageCount || !out) {
         return false;
@@ -9650,8 +9661,13 @@ bool EngineMupdfGetTextRun(EngineBase* engine, int pageNo, RectF area, PdfTextRu
             if (block->type != FZ_STEXT_BLOCK_TEXT) {
                 continue;
             }
+            bool wholeBlock = scope == TextRunScope::Paragraph && BlockTouches(block, want);
+            bool firstInBlock = true;
             for (fz_stext_line* line = block->u.t.first_line; line; line = line->next) {
-                if (line->wmode != 0 || !line->first_char || !RectsTouch(line->bbox, want)) {
+                if (line->wmode != 0 || !line->first_char) {
+                    continue;
+                }
+                if (!wholeBlock && !RectsTouch(line->bbox, want)) {
                     continue;
                 }
                 fz_stext_char* first = line->first_char;
@@ -9666,9 +9682,13 @@ bool EngineMupdfGetTextRun(EngineBase* engine, int pageNo, RectF area, PdfTextRu
                     out->serif = font && fz_font_is_serif(ctx, font);
                     out->mono = font && fz_font_is_monospaced(ctx, font);
                     firstBaseline = first->origin.y;
-                } else {
+                } else if (!wholeBlock || firstInBlock) {
                     text.AppendChar('\n');
+                } else if (len(text) > 0 && text.LastChar() != ' ' && text.LastChar() != '-') {
+                    // a soft line break inside the paragraph; "exam-\nple" stays joined
+                    text.AppendChar(' ');
                 }
+                firstInBlock = false;
                 for (fz_stext_char* ch = first; ch; ch = ch->next) {
                     AppendUtf8(text, ch->c);
                 }
@@ -9685,6 +9705,7 @@ bool EngineMupdfGetTextRun(EngineBase* engine, int pageNo, RectF area, PdfTextRu
     }
     out->bbox = RectF{box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0};
     out->lineGap = nLines > 1 ? (lastBaseline - firstBaseline) / (nLines - 1) : out->fontSize * 1.2f;
+    out->reflow = scope == TextRunScope::Paragraph;
     str::Free(out->text);
     out->text = text.TakeStr();
     return true;
@@ -9733,6 +9754,38 @@ static void AppendWinAnsiPdfString(str::Builder& b, Str utf8) {
         }
     }
     b.AppendChar(')');
+}
+
+static float TextWidth(fz_context* ctx, fz_font* font, float size, Str utf8) {
+    TempWStr ws = ToWStrTemp(utf8);
+    float w = 0;
+    for (int i = 0; i < ws.len; i++) {
+        int gid = fz_encode_character(ctx, font, ws.s[i]);
+        w += fz_advance_glyph(ctx, font, gid, 0);
+    }
+    return w * size;
+}
+
+// breaks a paragraph into lines no wider than maxDx, at spaces
+static void WrapParagraph(fz_context* ctx, fz_font* font, float size, Str para, float maxDx, StrVec& out) {
+    StrVec words;
+    Split(&words, para, StrL(" "), true);
+    str::Builder line;
+    for (int i = 0; i < len(words); i++) {
+        Str w = words[i];
+        if (len(line) == 0) {
+            line.Append(w);
+            continue;
+        }
+        TempStr candidate = fmt("%s %s", ToStrTemp(line), w);
+        if (TextWidth(ctx, font, size, candidate) <= maxDx) {
+            line.Reset(candidate);
+            continue;
+        }
+        out.Append(ToStrTemp(line));
+        line.Reset(w);
+    }
+    out.Append(ToStrTemp(line));
 }
 
 static pdf_obj* AddContentStream(fz_context* ctx, pdf_document* doc, Str s) {
@@ -9845,7 +9898,18 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
             content.Append(fmt("q BT /%s %.2f Tf %.3f %.3f %.3f rg %.4f %.4f %.4f %.4f %.3f %.3f Tm\n", fontName,
                                run.fontSize, cr / 255.f, cg / 255.f, cb / 255.f, tm.a, tm.b, tm.c, tm.d, tm.e, tm.f));
             StrVec lines;
-            Split(&lines, newText, StrL("\n"), false);
+            if (run.reflow) {
+                // each paragraph flows within the old one's width
+                StrVec paras;
+                Split(&paras, newText, StrL("\n"), false);
+                for (int i = 0; i < len(paras); i++) {
+                    Str para = paras[i];
+                    str::TrimSuffix(para, StrL("\r"));
+                    WrapParagraph(ctx, font, run.fontSize, para, run.bbox.dx, lines);
+                }
+            } else {
+                Split(&lines, newText, StrL("\n"), false);
+            }
             for (int i = 0; i < len(lines); i++) {
                 Str line = lines[i];
                 str::TrimSuffix(line, StrL("\r"));

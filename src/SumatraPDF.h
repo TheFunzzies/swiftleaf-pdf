@@ -18,8 +18,6 @@ constexpr const char* kReleasesURL = "https://github.com/TheFunzzies/swiftleaf-p
 // SumatraPDF's manual still describes most of what Swiftleaf does
 constexpr const char* kManualURL = "https://www.sumatrapdfreader.org/manual";
 constexpr const char* kContributeTranslationsURL = "https://www.sumatrapdfreader.org/docs/Contribute-translation";
-// no Swiftleaf update feed yet: see StartAsyncUpdateCheck
-constexpr bool kSwiftleafNoUpdateFeed = true;
 
 #ifndef kCrashReportUrl
 #define kCrashReportUrl "https://github.com/TheFunzzies/swiftleaf-pdf/issues"
@@ -141,6 +139,7 @@ void CrashHandlerSetSettings(Str settings);
 void InitializePolicies(bool restrict);
 bool HasPermission(Perm permission);
 bool CanAccessDisk();
+TempStr PickImageFilePathTemp(HWND hwnd);
 bool AnnotationsAreDisabled();
 bool IsUIRtl();
 bool SumatraLaunchBrowser(Str url);

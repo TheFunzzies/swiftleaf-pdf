@@ -150,8 +150,15 @@ struct PdfTextRun {
     bool italic = false;
     bool serif = false;
     bool mono = false;
+    // whole paragraphs, their lines joined: new text is wrapped to bbox's width
+    bool reflow = false;
 };
-bool EngineMupdfGetTextRun(EngineBase*, int pageNo, RectF area, PdfTextRun* out);
+// Lines: the lines an area touches; Paragraph: the paragraphs they are in
+enum class TextRunScope {
+    Lines,
+    Paragraph,
+};
+bool EngineMupdfGetTextRun(EngineBase*, int pageNo, RectF area, TextRunScope, PdfTextRun* out);
 bool EngineMupdfReplaceText(EngineBase*, int pageNo, const PdfTextRun& run, Str newText,
                             Vec<Annotation*>& deletedOut);
 

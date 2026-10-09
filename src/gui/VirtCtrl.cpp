@@ -25,7 +25,7 @@ VirtButton* NewThemedButton(HWND hwndForDpi, Str text, PlatformFont* font, bool 
     DpiSetFromHwnd(hwndForDpi);
     auto* b = new VirtButton(text, font);
     b->SetIsDefault(isDefault);
-    b->textPadding = DpiScaledInsets(5, 12);
+    b->textPadding = DpiScaledInsets(6, 18);
     return b;
 }
 
@@ -2733,18 +2733,21 @@ Color VirtButton::TextColor(Color bg) const {
     return EnsureContrast(textCol, bg);
 }
 
+// Swiftleaf: a Material pill, filled and / or outlined by the palette
 void VirtButton::Paint(VirtPaintCtx& ctx) {
     bool isEnabled = HasFlag(vwfEnabled);
     Color bg = GetColor((isEnabled && HasFlag(vwfHovered)) ? kColBtnBgHover : kColBtnBg);
-    ctx.gfx->FillRect(ctx.bounds, bg);
-    Color borderCol = GetColor(kColBtnBorder);
-    if (!ColorSkipsPaint(borderCol)) {
-        Rect b = ctx.bounds;
-        ctx.gfx->FillRect({b.x, b.y, b.dx, 1}, borderCol);
-        ctx.gfx->FillRect({b.x, b.Bottom() - 1, b.dx, 1}, borderCol);
-        ctx.gfx->FillRect({b.x, b.y, 1, b.dy}, borderCol);
-        ctx.gfx->FillRect({b.Right() - 1, b.y, 1, b.dy}, borderCol);
+    Color bgDisabled = GetColor(kColBtnBgDisabled);
+    if (!isEnabled && bgDisabled != kColorUnset) {
+        bg = bgDisabled;
     }
+    Color borderCol = GetColor(kColBtnBorder);
+    if (ColorSkipsPaint(borderCol)) {
+        borderCol = kColorTransparent;
+    }
+    Rect pill = ctx.bounds;
+    int radius = pill.dy; // FillRoundedRect takes the corner diameter
+    ctx.gfx->FillRoundedRect(pill, radius, bg, borderCol);
     Rect r = ctx.content;
     r.SubTB(textPadding.top, textPadding.bottom);
     r.SubLR(textPadding.left, textPadding.right);
@@ -2754,16 +2757,13 @@ void VirtButton::Paint(VirtPaintCtx& ctx) {
     PaintText(c2, textCol);
 
     if (HasFlag(vwfFocused)) {
-        // focus ring, just inside the border
+        // focus ring, just inside the outline
         Rect b = ctx.bounds;
         b.SubTB(2, 2);
         b.SubLR(2, 2);
         Color col = (textCol != kColorUnset) ? textCol : borderCol;
         if (col != kColorUnset && !b.IsEmpty()) {
-            ctx.gfx->FillRect({b.x, b.y, b.dx, 1}, col);
-            ctx.gfx->FillRect({b.x, b.Bottom() - 1, b.dx, 1}, col);
-            ctx.gfx->FillRect({b.x, b.y, 1, b.dy}, col);
-            ctx.gfx->FillRect({b.Right() - 1, b.y, 1, b.dy}, col);
+            ctx.gfx->FillRoundedRect(b, b.dy, kColorTransparent, col);
         }
     }
 }

@@ -55,6 +55,26 @@ jobs:
           name: swiftleaf-x64
           path: dist
 
+      # what the app's update check reads (UpdateCheck.cpp), via
+      # releases/latest/download/update-check.txt
+      - name: Write update-check.txt
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          sha_inst=$(sha256sum dist/Swiftleaf-install.exe | cut -d' ' -f1)
+          sha_port=$(sha256sum dist/Swiftleaf.exe | cut -d' ' -f1)
+          cat > dist/update-check.txt <<EOF
+          [Swiftleaf]
+          Latest: ${ver}
+          BuiltOn: $(date -u +%Y-%m-%d)
+          Installer64: ${base}/Swiftleaf-install.exe
+          Sha256Installer64: ${sha_inst}
+          PortableExe64: ${base}/Swiftleaf.exe
+          Sha256PortableExe64: ${sha_port}
+          EOF
+          sed -i 's/^ *//' dist/update-check.txt
+          cat dist/update-check.txt
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:

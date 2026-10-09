@@ -9,17 +9,27 @@ editing features inspired by [Okular](https://invent.kde.org/graphics/okular)
 
 ## Features
 
-- **Ribbon UI**: Home, Comment, Edit, Organize, Forms & Sign and View pages,
-  large labeled buttons, page navigation always in reach.
+- **Ribbon UI** in Foxit's order: File, Home, Comment, Edit, Organize, View,
+  Fill & Sign, Protect and Help, with labeled buttons, a quick access toolbar
+  (Open, Save, Print, Undo, Redo) in the title bar and an icon rail on the left
+  for bookmarks, pages, comments, search and favorites.
+- **Home**: Hand, Select and Snapshot tools (Snapshot copies a dragged area as
+  an image), zoom, fit, rotate, typewriter, highlight, Fill & Sign.
 - **Comment**: highlight, underline, squiggly, strikeout, sticky notes, text
   boxes, lines, rectangles, ovals, polygons, freehand ink, stamps, file
   attachments, a comments list, undo / redo.
-- **Edit**: change the existing text of a page (Edit Text: click a line, type,
-  Enter), add text and images, links, redaction, compress, password protect.
-- **Organize**: works on the open PDF like Foxit / Acrobat: rotate, insert blank
-  pages or another PDF's pages, move, delete, split, with Undo; plus extract,
-  merge and export pages as images.
-- **Forms & Sign**: fill AcroForms, place signature images, sign with a digital ID.
+- **Edit**: change the existing text of a page (Edit Text: click a paragraph,
+  type, Enter; the text re-flows to the paragraph's width), add text and images,
+  links, compress.
+- **Organize**: works on the open PDF like Foxit / Acrobat: drag thumbnails to
+  reorder pages, rotate, insert blank pages or another PDF's pages, move,
+  delete, split, with Undo; plus extract, merge and export pages as images.
+- **Fill & Sign**: fill AcroForms; create a signature by drawing it, typing your
+  name in a handwriting font or uploading a photo (the paper turns
+  transparent), then place it on the page; sign with a digital ID.
+- **Protect**: password protect / unprotect, redact, flatten.
+- **Updates**: Help > Update (and a daily check) downloads the newest release
+  from GitHub, verifies its SHA-256 and installs it.
 - **Fast**: single ~13 MB executable, opens large documents instantly, also reads
   EPUB, MOBI, CBZ/CBR, XPS, DjVu, CHM and images.
 

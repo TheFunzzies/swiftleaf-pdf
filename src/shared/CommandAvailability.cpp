@@ -311,6 +311,7 @@ static const i32 gBlacklistCommandsFromPalette[] = {
     CmdFileHistory,
     CmdFavorite,
     CmdGoToHomePage,
+    CmdCreateSignature,
     0,
 };
 
@@ -635,6 +636,11 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
     }
 
     if (cmdId == CmdToggleFreePan && !ctx.isFixedPage) {
+        return CommandVisibility::Hide;
+    }
+
+    // Swiftleaf pointer tools
+    if (cmdId >= CmdToolHand && cmdId <= CmdToolSnapshot && !ctx.isFixedPage) {
         return CommandVisibility::Hide;
     }
 

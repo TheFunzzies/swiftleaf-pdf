@@ -349,6 +349,10 @@ const CommandInfo gCommands[] = {
     {CmdSplitPdf, "CmdSplitPdf\0", StrL("Split PDF...")},
     {CmdUndoPageChange, "CmdUndoPageChange\0", StrL("Undo Page Change")},
     {CmdEditText, "CmdEditText\0", StrL("Edit Text")},
+    {CmdToolHand, "CmdToolHand\0", StrL("Hand Tool")},
+    {CmdToolSelect, "CmdToolSelect\0", StrL("Select Tool")},
+    {CmdToolSnapshot, "CmdToolSnapshot\0", StrL("Snapshot Tool")},
+    {CmdCreateSignature, "CmdCreateSignature\0", StrL("Create Signature")},
 };
 const int gCommandsCount = dimofi(gCommands);
 

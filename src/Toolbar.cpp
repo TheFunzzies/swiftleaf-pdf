@@ -74,27 +74,31 @@ struct ToolbarButtonInfo {
     bool isText = false;
 };
 
-// Swiftleaf: these are the ribbon's Home page. The page box and previous /
-// next page go to the right end of the ribbon's tab row (IsRibbonNavCmd).
+// Swiftleaf: these are the ribbon's Home page, in Foxit's order: pointer tools,
+// view, the common comment tools, Fill & Sign. Open / Save / Print are in the
+// quick access toolbar and on the File page. The page box and previous / next
+// page go to the right end of the ribbon's tab row (IsRibbonNavCmd). A null
+// icon means the ribbon's own (RibbonIconForCmd).
 static ToolbarButtonInfo gToolbarButtons[] = {
-    {gIconFileOpen, CmdOpenFile, TrN("Open")},
-    {gIconSave, CmdSaveAnnotations, TrN("Save changes to existing PDF")},
-    {gIconSaveToNewFile, CmdSaveAs, TrN("Save As")},
-    {gIconPrint, CmdPrint, TrN("Print")},
+    {nullptr, CmdToolHand, TrN("Hand: drag to scroll the page")},
+    {nullptr, CmdToolSelect, TrN("Select: select text and links")},
+    {nullptr, CmdToolSnapshot, TrN("Snapshot: drag a rectangle to copy it as an image")},
+    {nullptr, CmdCopySelection, TrN("Copy the selection to the clipboard")},
     {nullptr, 0, {}},          // separator
     {nullptr, PageInfoId, {}}, // text box for page number + show current page / no of pages
     {gIconPagePrev, CmdGoToPrevPage, TrN("Previous Page")},
     {gIconPageNext, CmdGoToNextPage, TrN("Next Page")},
-    {gIconNavigateBack, CmdNavigateBack, TrN("Back")},
-    {gIconNavigateForward, CmdNavigateForward, TrN("Forward")},
-    {nullptr, 0, {}}, // separator
     {gIconZoomOut, CmdZoomOut, TrN("Zoom Out")},
     {gIconZoomIn, CmdZoomIn, TrN("Zoom In")},
     {gIconLayoutContinuous, CmdZoomFitWidthAndContinuous, TrN("Fit Width and Show Pages Continuously")},
     {gIconLayoutSinglePage, CmdZoomFitPageAndSinglePage, TrN("Fit a Single Page")},
-    {nullptr, 0, {}}, // separator
     {gIconRotateLeft, CmdRotateLeft, TrN("Rotate &Left")},
     {gIconRotateRight, CmdRotateRight, TrN("Rotate &Right")},
+    {nullptr, 0, {}}, // separator
+    {nullptr, CmdCreateAnnotFreeText, TrN("Typewriter: type text anywhere on the page")},
+    {gIconAnnotHighlight, CmdCreateAnnotHighlight, TrN("Highlight the selected text")},
+    {nullptr, 0, {}}, // separator
+    {nullptr, CmdSignWithImage, TrN("Fill & Sign: place your signature")},
     {nullptr, 0, {}}, // separator
     {gIconSearch, CmdFindFirst, TrN("Find")},
     {gIconSpeak, CmdToggleReadAloud, TrN("Read Aloud")},
@@ -204,8 +208,10 @@ static int ToolbarRowDy(int iconSize) {
     return iconSize + (2 * ToolbarCyPad());
 }
 
+static Str ToolbarButtonSvg(const ToolbarButtonInfo& bi);
+
 static bool HasToolbarButtonContent(const ToolbarButtonInfo& tbi) {
-    return tbi.icon || tbi.isText || !str::IsEmptyOrWhiteSpace(tbi.svgIcon);
+    return tbi.isText || !str::IsEmptyOrWhiteSpace(ToolbarButtonSvg(tbi));
 }
 
 static VirtHost* ToolbarHost(MainWindow* win) {
@@ -783,8 +789,18 @@ static bool IsRibbonCmdChecked(MainWindow* win, int cmdId) {
             return GetInvertPageColors();
         case CmdToggleHighlightFormFields:
             return gSettings->highlightFormFields;
+        case CmdToolHand:
+            return win->pointerTool == PointerTool::Hand;
+        case CmdToolSelect:
+            return win->pointerTool == PointerTool::Select;
+        case CmdToolSnapshot:
+            return win->pointerTool == PointerTool::Snapshot;
     }
     return false;
+}
+
+static bool IsPointerToolCmd(int cmdId) {
+    return cmdId >= CmdToolHand && cmdId <= CmdToolSnapshot;
 }
 
 static void UpdateRibbonItemsState(MainWindow* win, AppCommandCtx* ctx, bool annotButtonsEnabled) {
@@ -838,6 +854,11 @@ void ToolbarUpdateStateForWindow(MainWindow* win, bool setButtonsVisibility) {
         }
         bool isEnabled = IsCmdEnabled(win, cmdId, ctx);
         SetToolbarButtonEnabledByIdx(win, i, isEnabled);
+        auto* toolBtn = IsPointerToolCmd(cmdId) ? AsVirtIconButton(ToolbarItemAt(win, i)) : nullptr;
+        if (toolBtn && toolBtn->isSelected != IsRibbonCmdChecked(win, cmdId)) {
+            toolBtn->isSelected = !toolBtn->isSelected;
+            toolBtn->Invalidate();
+        }
 
         if (cmdId == CmdToggleReadAloud || cmdId == CmdPauseReadAloud) {
             bool speaking = TtsIsSpeaking();
@@ -3695,13 +3716,16 @@ static void BuildToolbarLayout(MainWindow* win) {
     auto* tabRow = new HBox();
     tabRow->alignCross = CrossAxisAlign::CrossCenter;
     tabRow->rtl = rtl;
+    // ribbonTabs is indexed by page; the row shows them in tab order
     for (int i = 0; i < RibbonPageCount(); i++) {
         auto* t = new RibbonTab(RibbonPageName((RibbonPage)i), tb->ribbonFont);
         t->id = i;
         t->textColor = fg;
         t->onClick = MkFunc1(OnRibbonTabClicked, win);
         VecAppend(tb->ribbonTabs, t);
-        tabRow->AddChild(t);
+    }
+    for (int pos = 0; pos < RibbonPageCount(); pos++) {
+        tabRow->AddChild(tb->ribbonTabs[(int)RibbonPageAtTab(pos)]);
     }
     tabRow->AddChild(new VirtSpacer(0, 0), 1);
     auto* nav = new HBox();

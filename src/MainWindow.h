@@ -75,7 +75,13 @@ enum CaptionButtons {
     CB_CLOSE = 3,
     CB_MENU = 4,
     CB_SYSTEM_MENU = 5,
-    CB_BTN_COUNT = 6
+    // Swiftleaf quick access toolbar, next to the app menu (like Foxit / Office)
+    CB_QA_OPEN = 6,
+    CB_QA_SAVE = 7,
+    CB_QA_PRINT = 8,
+    CB_QA_UNDO = 9,
+    CB_QA_REDO = 10,
+    CB_BTN_COUNT = 11
 };
 
 struct ButtonInfo {
@@ -109,6 +115,13 @@ enum class MouseAction {
     Selecting,
     Scrolling,
     SelectingText
+};
+
+// Swiftleaf: what a left-drag on the page does (Home > Hand / Select / Snapshot)
+enum class PointerTool {
+    Select = 0,
+    Hand,
+    Snapshot,
 };
 
 enum class ReadingBarDrag {
@@ -523,6 +536,7 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     bool pdfAnnotationsToolbarEnabled = false;
     // the ribbon page (RibbonPage) shown; kept here so it survives ReCreateToolbar
     int ribbonPage = 0;
+    PointerTool pointerTool = PointerTool::Select;
     AnnotPlacement annotPlacement;
     // overlay toolbar mode: the toolbar floats over the page (doesn't reserve
     // space) and is only revealed when the mouse is near the top

@@ -71,9 +71,10 @@ struct NavItemDef {
 };
 
 // clang-format off
+// Foxit order: bookmarks first, then pages; icons only, the name is the tooltip
 static const NavItemDef gNavItems[] = {
-    {NavItemKind::Thumbnails, gIconThumbs, CmdToggleThumbnails, TrN("Pages"), TrN("Page thumbnails"), true, false},
     {NavItemKind::Bookmarks, gIconBookmark, CmdToggleBookmarks, TrN("Bookmarks"), TrN("Bookmarks"), true, false},
+    {NavItemKind::Thumbnails, gIconThumbs, CmdToggleThumbnails, TrN("Pages"), TrN("Page thumbnails"), true, false},
     {NavItemKind::Comments, gIconComments, CmdFindAnnotation, TrN("Comments"), TrN("All comments in the PDF"), true, false},
     {NavItemKind::Search, nullptr, CmdFindFirst, TrN("Search"), TrN("Find text"), true, false},
     {NavItemKind::Favorites, gIconStar, CmdFavoriteToggle, TrN("Favorites"), TrN("Favorite documents and pages"), false, false},
@@ -81,14 +82,14 @@ static const NavItemDef gNavItems[] = {
 };
 // clang-format on
 
-// Material navigation rail metrics, in dp
-constexpr int kRailDx = 80;
-constexpr int kIndicatorDx = 56;
-constexpr int kIndicatorDy = 32;
-constexpr int kIconSize = 24;
-constexpr int kItemDy = 64;
-constexpr int kLabelGap = 4;
-constexpr int kRailTopPad = 12;
+// a compact icon rail like Foxit's, with Material icon-button shapes, in dp
+constexpr int kRailDx = 52;
+constexpr int kIndicatorDx = 40;
+constexpr int kIndicatorDy = 40;
+constexpr int kIndicatorRadius = 24; // FillRoundedRect wants the diameter
+constexpr int kIconSize = 22;
+constexpr int kItemDy = 48;
+constexpr int kRailTopPad = 8;
 
 static Kind kindNavRailItem = "navRailItem";
 
@@ -121,7 +122,7 @@ struct NavRailItem : VirtCtrl {
         bool enabled = IsEnabled();
         int indDx = DpiScale(kIndicatorDx);
         int indDy = DpiScale(kIndicatorDy);
-        Rect ind{r.x + (r.dx - indDx) / 2, r.y + DpiScale(4), indDx, indDy};
+        Rect ind{r.x + (r.dx - indDx) / 2, r.y + (r.dy - indDy) / 2, indDx, indDy};
 
         // the active item's pill, with hover / press as state layers on it
         Color base = RibbonPanelBgColor();
@@ -132,7 +133,7 @@ struct NavRailItem : VirtCtrl {
             fill = M3StateLayer(fill, m3.onSurface, kM3HoverOpacity);
         }
         if (fill != base) {
-            ctx.gfx->FillRoundedRect(ind, indDy / 2, fill);
+            ctx.gfx->FillRoundedRect(ind, DpiScale(kIndicatorRadius), fill);
         }
 
         Pixmap* px = !enabled ? iconDisabled : (isActive ? iconActive : icon);
@@ -140,12 +141,6 @@ struct NavRailItem : VirtCtrl {
             ctx.gfx->DrawPixmap(px, {ind.x + (ind.dx - px->width) / 2, ind.y + (ind.dy - px->height) / 2, px->width,
                                      px->height});
         }
-
-        Color textCol = !enabled ? M3StateLayer(base, m3.onSurface, 38)
-                                 : (isActive ? m3.onSurface : m3.onSurfaceVariant);
-        Rect rText{r.x, ind.Bottom() + DpiScale(kLabelGap), r.dx, PlatformFontLineHeight(font)};
-        Str label = trans::GetTranslation(def->label);
-        ctx.gfx->DrawText(label, rText, gfxTextCenter | gfxTextSingleLine, font, textCol);
     }
 };
 
@@ -203,7 +198,7 @@ static void BuildLayout(NavRailVirt* rail) {
         item->def = &d;
         item->font = rail->font;
         item->id = d.cmdId;
-        item->SetTooltip(trans::GetTranslation(d.tip));
+        item->SetTooltip(trans::GetTranslation(d.label));
         item->onClick = MkFunc1(OnItemClicked, rail);
         SetItemIcons(item);
         VecAppend(rail->items, item);

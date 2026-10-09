@@ -179,6 +179,46 @@ static const char* gIconCommentList = TABLER_SVG(
 static const char* gIconBookmarks = TABLER_SVG(
     R"(<rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 4l0 16" />)");
 
+// pointer
+static const char* gIconPointer = TABLER_SVG(
+    R"(<path d="M7.904 17.563a1.2 1.2 0 0 0 2.228 .308l2.09 -3.093l4.907 4.907a1.067 1.067 0 0 0 1.509 0l1.047 -1.047a1.067 1.067 0 0 0 0 -1.509l-4.907 -4.907l3.113 -2.09a1.2 1.2 0 0 0 -.309 -2.228l-13.582 -3.904l3.904 13.563z" />)");
+// camera
+static const char* gIconSnapshot = TABLER_SVG(
+    R"(<path d="M5 7h1a2 2 0 0 0 2 -2a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />)"
+    R"(<path d="M9 13a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />)");
+// help-circle
+static const char* gIconHelp = TABLER_SVG(
+    R"(<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 17l0 .01" />)"
+    R"(<path d="M12 13.5a1.5 1.5 0 0 1 1 -1.5a2.6 2.6 0 1 0 -3 -4" />)");
+// keyboard
+static const char* gIconKeyboard = TABLER_SVG(
+    R"(<path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" />)"
+    R"(<path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" />)"
+    R"(<path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" />)");
+// world
+static const char* gIconWorld = TABLER_SVG(
+    R"(<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M3.6 9h16.8" /><path d="M3.6 15h16.8" />)"
+    R"(<path d="M11.5 3a17 17 0 0 0 0 18" /><path d="M12.5 3a17 17 0 0 1 0 18" />)");
+// cloud-download
+static const char* gIconUpdate = TABLER_SVG(
+    R"(<path d="M19 18a3.5 3.5 0 0 0 0 -7h-1a5 4.5 0 0 0 -11 -2a4.6 4.4 0 0 0 -2.1 8.4" />)"
+    R"(<path d="M12 13l0 9" /><path d="M9 19l3 3l3 -3" />)");
+// settings
+static const char* gIconSettings = TABLER_SVG(
+    R"(<path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" />)"
+    R"(<path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />)");
+// logout
+static const char* gIconExit = TABLER_SVG(
+    R"(<path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" />)"
+    R"(<path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" />)");
+// stack
+static const char* gIconFlatten = TABLER_SVG(
+    R"(<path d="M12 4l-8 4l8 4l8 -4l-8 -4" /><path d="M4 12l8 4l8 -4" /><path d="M4 16l8 4l8 -4" />)");
+// writing-sign
+static const char* gIconCreateSignature = TABLER_SVG(
+    R"(<path d="M3 19c3.333 -2 5 -4 5 -6c0 -3 -1 -3 -2 -3s-2.032 1.085 -2 3c.034 2.048 1.658 2.877 2.5 4c1.5 2 2.5 2.5 3.5 1c.667 -1 1.167 -1.833 1.5 -2.5c1 2.333 2.333 3.5 4 3.5h2.5" />)"
+    R"(<path d="M20 17v-12c0 -1.121 -.879 -2 -2 -2s-2 .879 -2 2v12l2 2l2 -2z" /><path d="M16 7h4" />)");
+
 //--- pages
 
 // clang-format off
@@ -196,8 +236,6 @@ static const RibbonItemDef gEditItems[] = {
     {gIconRedo, CmdRedo, TrN("Redo")},
     {nullptr, 0, {}},
     {gIconCompress, CmdPdfCompress, TrN("Compress"), TrN("Save a smaller copy of the PDF")},
-    {gIconLock, CmdPdfEncrypt, TrN("Protect"), TrN("Encrypt the PDF with a password")},
-    {gIconUnlock, CmdPdfDecrypt, TrN("Unprotect"), TrN("Remove the password from the PDF")},
     {gIconExtractText, CmdDocumentExtractText, TrN("To Text"), TrN("Extract the text of the document")},
     {nullptr, 0, {}},
     {gIconSave, CmdSaveAnnotations, TrN("Save"), TrN("Save changes to the PDF")},
@@ -230,7 +268,8 @@ static const RibbonItemDef gFormsSignItems[] = {
     {gIconForms, CmdToggleHighlightFormFields, TrN("Highlight Fields"), TrN("Highlight form fields")},
     {gIconTypewriter, CmdCreateAnnotFreeText, TrN("Typewriter"), TrN("Type text anywhere on the page")},
     {nullptr, 0, {}},
-    {gIconSignature, CmdSignWithImage, TrN("Fill & Sign"), TrN("Place a signature image on the page")},
+    {gIconCreateSignature, CmdCreateSignature, TrN("Create Signature"), TrN("Draw, type or upload your signature")},
+    {gIconSignature, CmdSignWithImage, TrN("Place Signature"), TrN("Place your signature on the page")},
     {gIconCertificate, CmdSignDocument, TrN("Digital ID"), TrN("Sign the document with a certificate")},
     {gIconAnnotStamp, CmdCreateAnnotStamp, TrN("Stamp")},
     {nullptr, 0, {}},
@@ -257,14 +296,60 @@ static const RibbonItemDef gViewItems[] = {
     {gIconTheme, CmdToggleLightDarkTheme, TrN("Theme"), TrN("Switch between light and dark theme")},
     {gIconSpeak, CmdToggleReadAloud, TrN("Read Aloud")},
     {nullptr, 0, {}},
+    {gIconNavigateBack, CmdNavigateBack, TrN("Back"), TrN("Go back to the previous view")},
+    {gIconNavigateForward, CmdNavigateForward, TrN("Forward")},
     {gIconInfo, CmdProperties, TrN("Properties"), TrN("Document properties")},
+};
+
+static const RibbonItemDef gProtectItems[] = {
+    {gIconLock, CmdPdfEncrypt, TrN("Protect"), TrN("Encrypt the PDF with a password")},
+    {gIconUnlock, CmdPdfDecrypt, TrN("Unprotect"), TrN("Remove the password from the PDF")},
+    {nullptr, 0, {}},
+    {gIconAnnotRedact, CmdCreateAnnotRedact, TrN("Redact"), TrN("Mark an area for redaction")},
+    {gIconApplyRedactions, CmdApplyRedactions, TrN("Apply"), TrN("Apply redactions (permanently removes the content)")},
+    {nullptr, 0, {}},
+    {gIconCertificate, CmdSignDocument, TrN("Digital ID"), TrN("Sign the document with a certificate")},
+    {gIconFlatten, CmdPdfBake, TrN("Flatten"), TrN("Merge comments and form fields into the pages")},
+    {nullptr, 0, {}},
+    {gIconSave, CmdSaveAnnotations, TrN("Save"), TrN("Save changes to the PDF")},
+};
+
+static const RibbonItemDef gHelpItems[] = {
+    {gIconHelp, CmdHelpOpenManual, TrN("Help"), TrN("Open the manual")},
+    {gIconKeyboard, CmdHelpOpenKeyboardShortcuts, TrN("Shortcuts"), TrN("Keyboard shortcuts")},
+    {gIconCommandPalette, CmdCommandPalette, TrN("Commands"), TrN("Find any command by name")},
+    {nullptr, 0, {}},
+    {gIconUpdate, CmdCheckUpdate, TrN("Update"), TrN("Check for a new version and install it")},
+    {gIconWorld, CmdHelpVisitWebsite, TrN("Website"), TrN("Visit the Swiftleaf PDF website")},
+    {gIconInfo, CmdHelpAbout, TrN("About")},
+};
+
+static const RibbonItemDef gFileItems[] = {
+    {gIconFileOpen, CmdOpenFile, TrN("Open")},
+    {gIconSave, CmdSaveAnnotations, TrN("Save"), TrN("Save changes to the PDF")},
+    {gIconSaveToNewFile, CmdSaveAs, TrN("Save As")},
+    {gIconPrint, CmdPrint, TrN("Print")},
+    {gIconClose, CmdClose, TrN("Close"), TrN("Close the document")},
+    {nullptr, 0, {}},
+    {gIconInfo, CmdProperties, TrN("Properties"), TrN("Document properties")},
+    {gIconSettings, CmdOptions, TrN("Settings")},
+    {nullptr, 0, {}},
+    {gIconExit, CmdExit, TrN("Exit")},
 };
 // clang-format on
 
 static const Str gPageNames[] = {
-    TrN("Home"), TrN("Comment"), TrN("Edit"), TrN("Organize"), TrN("Forms & Sign"), TrN("View"),
+    TrN("Home"), TrN("Comment"), TrN("Edit"),    TrN("Organize"), TrN("Fill & Sign"),
+    TrN("View"), TrN("Protect"), TrN("Help"),    TrN("File"),
 };
 static_assert(dimof(gPageNames) == (int)RibbonPage::Count);
+
+// the order of the tabs, like Foxit PDF Editor's
+static const RibbonPage gTabOrder[] = {
+    RibbonPage::File, RibbonPage::Home,      RibbonPage::Comment, RibbonPage::Edit, RibbonPage::Organize,
+    RibbonPage::View, RibbonPage::FormsSign, RibbonPage::Protect, RibbonPage::Help,
+};
+static_assert(dimof(gTabOrder) == (int)RibbonPage::Count);
 
 int RibbonPageCount() {
     return (int)RibbonPage::Count;
@@ -272,6 +357,10 @@ int RibbonPageCount() {
 
 Str RibbonPageName(RibbonPage page) {
     return trans::GetTranslation(gPageNames[(int)page]);
+}
+
+RibbonPage RibbonPageAtTab(int tabPos) {
+    return gTabOrder[tabPos];
 }
 
 void RibbonPageItems(RibbonPage page, const RibbonItemDef** items, int* count) {
@@ -294,13 +383,26 @@ void RibbonPageItems(RibbonPage page, const RibbonItemDef** items, int* count) {
             *items = gViewItems;
             *count = dimof(gViewItems);
             break;
+        case RibbonPage::Protect:
+            *items = gProtectItems;
+            *count = dimof(gProtectItems);
+            break;
+        case RibbonPage::Help:
+            *items = gHelpItems;
+            *count = dimof(gHelpItems);
+            break;
+        case RibbonPage::File:
+            *items = gFileItems;
+            *count = dimof(gFileItems);
+            break;
         default:
             break;
     }
 }
 
 bool RibbonPageEditsPdf(RibbonPage page) {
-    return page == RibbonPage::Comment || page == RibbonPage::Edit || page == RibbonPage::FormsSign;
+    return page == RibbonPage::Comment || page == RibbonPage::Edit || page == RibbonPage::FormsSign ||
+           page == RibbonPage::Protect;
 }
 
 // labels for the buttons of the Home and Comment pages, which come from the
@@ -378,7 +480,7 @@ Str RibbonLabelForCmd(int cmdId) {
             s = TrN("Note");
             break;
         case CmdCreateAnnotFreeText:
-            s = TrN("Text Box");
+            s = TrN("Typewriter");
             break;
         case CmdCreateAnnotLine:
             s = TrN("Line");
@@ -419,6 +521,21 @@ Str RibbonLabelForCmd(int cmdId) {
         case CmdFindAnnotation:
             s = TrN("Comments");
             break;
+        case CmdToolHand:
+            s = TrN("Hand");
+            break;
+        case CmdToolSelect:
+            s = TrN("Select");
+            break;
+        case CmdToolSnapshot:
+            s = TrN("Snapshot");
+            break;
+        case CmdCopySelection:
+            s = TrN("Copy");
+            break;
+        case CmdSignWithImage:
+            s = TrN("Fill & Sign");
+            break;
         default:
             return {};
     }
@@ -428,7 +545,16 @@ Str RibbonLabelForCmd(int cmdId) {
 const char* RibbonIconForCmd(int cmdId, const char* fallback) {
     switch (cmdId) {
         case CmdToggleFreePan:
+        case CmdToolHand:
             return gIconHand;
+        case CmdToolSelect:
+            return gIconPointer;
+        case CmdToolSnapshot:
+            return gIconSnapshot;
+        case CmdCopySelection:
+            return gIconCopy;
+        case CmdSignWithImage:
+            return gIconSignature;
         case CmdZoomFitWidthAndContinuous:
             return gIconFitWidth;
         case CmdZoomFitPageAndSinglePage:

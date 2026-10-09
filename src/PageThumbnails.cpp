@@ -27,6 +27,8 @@
 #include "SumatraPDF.h"
 #include "PagePosition.h"
 #include "Material.h"
+#include "Canvas.h"
+#include "PageOrganize.h"
 #include "PageThumbnails.h"
 
 constexpr int kThumbnailDx = 120;
@@ -241,6 +243,7 @@ PageThumbnailsCtrl::PageThumbnailsCtrl(MainWindow* win, PlatformFont* font, int 
     onDrawItem = MkMethod1<PageThumbnailsCtrl, DrawItemEvent*, &PageThumbnailsCtrl::DrawRow>(this);
     VirtCtrl::onMouseDown = MkMethod1<PageThumbnailsCtrl, VirtMouseEvent*, &PageThumbnailsCtrl::OnThumbMouseDown>(this);
     VirtCtrl::onMouseMove = MkMethod1<PageThumbnailsCtrl, VirtMouseEvent*, &PageThumbnailsCtrl::OnThumbMouseMove>(this);
+    VirtCtrl::onMouseUp = MkMethod1<PageThumbnailsCtrl, VirtMouseEvent*, &PageThumbnailsCtrl::OnThumbMouseUp>(this);
     VirtCtrl::onMouseWheel =
         MkMethod1<PageThumbnailsCtrl, VirtMouseEvent*, &PageThumbnailsCtrl::OnThumbMouseWheel>(this);
     VirtCtrl::onDoubleClick =
@@ -411,6 +414,96 @@ void PageThumbnailsCtrl::DrawRow(DrawItemEvent* ev) {
         Color pillFg = isCurrent ? M3().onPrimary : M3().onSurface;
         ev->gfx->FillRoundedRect(box, boxDy / 2, pillBg);
         ev->gfx->DrawText(label, box, gfxTextCenter | gfxTextVCenter, font, pillFg);
+        DrawDropMarker(ev->gfx, pageRect, pageNo);
+    }
+}
+
+// where a dragged page would land: a bar in the gap before / after pageNo
+void PageThumbnailsCtrl::DrawDropMarker(Gfx* gfx, Rect pageRect, int pageNo) {
+    if (!dragging || dropBefore < 1) {
+        return;
+    }
+    bool before = dropBefore == pageNo;
+    bool after = dropBefore == pageNo + 1;
+    if (!before && !after) {
+        return;
+    }
+    // one column: between rows; several: between columns, but the end of a
+    // row and the start of the next both mean the same slot: mark one
+    if (cols > 1 && after && (pageNo % cols) != 0 && pageNo != pageCount) {
+        return;
+    }
+    int t = DpiScaleByDpi(dpi, 4);
+    Rect bar;
+    if (cols == 1) {
+        int y = before ? pageRect.y - (rowGap + t) / 2 : pageRect.Bottom() + (rowGap - t) / 2;
+        bar = {pageRect.x, y, pageRect.dx, t};
+    } else {
+        int x = before ? pageRect.x - (gap + t) / 2 : pageRect.Right() + (gap - t) / 2;
+        bar = {x, pageRect.y, t, pageRect.dy};
+    }
+    gfx->FillRoundedRect(bar, t / 2, M3().primary);
+}
+
+// the slot (1..pageCount + 1) nearest to a point, for dropping a page
+int PageThumbnailsCtrl::DropSlotAt(Point pt) {
+    if (pageCount <= 0) {
+        return 0;
+    }
+    Point origin = OriginInWindow();
+    int rows = rowsModel->rows;
+    int best = 0;
+    int bestDist = INT_MAX;
+    for (int row = 0; row < rows; row++) {
+        Rect rowRect = ItemRect(row);
+        if (rowRect.IsEmpty()) {
+            continue;
+        }
+        rowRect.Offset(-origin.x, -origin.y);
+        int gridDx = (cols * thumbDx) + ((cols - 1) * gap);
+        int left = rowRect.x + std::max(0, (rowRect.dx - gridDx) / 2);
+        for (int col = 0; col < cols; col++) {
+            int pageNo = (row * cols) + col + 1;
+            if (pageNo > pageCount) {
+                break;
+            }
+            Rect r{left + (col * (thumbDx + gap)), rowRect.y, thumbDx, thumbDy};
+            // the middle of the page: left / above it means before, else after
+            Point c{r.x + r.dx / 2, r.y + r.dy / 2};
+            int dist = abs(pt.x - c.x) + abs(pt.y - c.y);
+            if (dist >= bestDist) {
+                continue;
+            }
+            bestDist = dist;
+            bool isAfter = cols == 1 ? pt.y > c.y : pt.x > c.x;
+            best = isAfter ? pageNo + 1 : pageNo;
+        }
+    }
+    return best;
+}
+
+struct MovePageData {
+    MainWindow* win = nullptr;
+    int from = 0;
+    int before = 0;
+};
+
+static void MovePageLater(MovePageData* d) {
+    if (IsMainWindowValidAndNotClosing(d->win)) {
+        OrganizeMovePageTo(d->win, d->from, d->before);
+    }
+    delete d;
+}
+
+void PageThumbnailsCtrl::EndDrag() {
+    bool wasDragging = dragging;
+    dragPending = false;
+    dragging = false;
+    if (root && root->captured == this) {
+        root->ReleaseCapture();
+    }
+    if (wasDragging) {
+        Invalidate();
     }
 }
 
@@ -486,6 +579,12 @@ void PageThumbnailsCtrl::OnThumbMouseDown(VirtMouseEvent* ev) {
     if (pageNo > 0 && ev->button == 0) {
         SelectPage(pageNo);
         OpenSelectedPage();
+        if (OrganizeCanMovePages(win) && root) {
+            dragFromPage = pageNo;
+            dragPending = true;
+            dragStartPt = ev->ptWindow;
+            root->SetCapture(this);
+        }
         ev->didHandle = true;
         return;
     }
@@ -501,6 +600,34 @@ void PageThumbnailsCtrl::OnThumbMouseDown(VirtMouseEvent* ev) {
 }
 
 void PageThumbnailsCtrl::OnThumbMouseMove(VirtMouseEvent* ev) {
+    if (dragPending) {
+        Point p = ev->ptWindow;
+        if (!dragging && IsDragDistance(dragStartPt.x, p.x, dragStartPt.y, p.y)) {
+            dragging = true;
+        }
+        if (dragging) {
+            Point origin = OriginInWindow();
+            Point local{p.x - origin.x, p.y - origin.y};
+            // near an edge: scroll, so a page can travel past what is visible
+            int edge = thumbDy / 4;
+            int dy = 0;
+            if (local.y < edge) {
+                dy = -edge / 2;
+            } else if (local.y > bounds.dy - edge) {
+                dy = edge / 2;
+            }
+            if (dy != 0 && ScrollBy(dy)) {
+                StartRendering();
+            }
+            int slot = DropSlotAt(local);
+            if (slot != dropBefore) {
+                dropBefore = slot;
+                Invalidate();
+            }
+        }
+        ev->didHandle = true;
+        return;
+    }
     int oldScrollY = scrollY;
     VirtListBox::OnMouseMove(ev);
     if (scrollY != oldScrollY) {
@@ -517,6 +644,25 @@ void PageThumbnailsCtrl::OnThumbMouseMove(VirtMouseEvent* ev) {
         SelectPage(pageNo);
         ev->didHandle = true;
     }
+}
+
+void PageThumbnailsCtrl::OnThumbMouseUp(VirtMouseEvent* ev) {
+    if (!dragPending) {
+        VirtListBox::OnMouseUp(ev);
+        return;
+    }
+    bool drop = dragging;
+    int from = dragFromPage;
+    int before = dropBefore;
+    EndDrag();
+    ev->didHandle = true;
+    if (!drop || before < 1 || before == from || before == from + 1) {
+        return;
+    }
+    // reorganizing reloads the document, which rebuilds this control: not
+    // from inside its own mouse handler
+    auto* d = new MovePageData{win, from, before};
+    uitask::Post(MkFunc0<MovePageData>(MovePageLater, d), "TaskMovePage");
 }
 
 // Scrolls in proportion to the delta, 3 thumbnails a notch, so a touchpad's

@@ -41,6 +41,7 @@ enum {
     kColBtnBgHover,
     kColBtnBorder,
     kColBtnTextDisabled,
+    kColBtnBgDisabled, // unset: kColBtnBg
     kColBtnCount,
 };
 extern Color gColsBtn[kColBtnCount];

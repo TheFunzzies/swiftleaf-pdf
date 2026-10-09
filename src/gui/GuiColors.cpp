@@ -79,12 +79,14 @@ void GuiSetDefaultColorsFromSystem() {
     gColsBtn[kColBtnBgHover] = AccentColor(ctlBg, 28);
     gColsBtn[kColBtnBorder] = AccentColor(ctlBg, 40);
     gColsBtn[kColBtnTextDisabled] = disabledText;
+    gColsBtn[kColBtnBgDisabled] = kColorUnset;
 
     gColsBtnDefault[kColBtnText] = ctlText;
     gColsBtnDefault[kColBtnBg] = AccentColor(ctlBg, 26);
     gColsBtnDefault[kColBtnBgHover] = AccentColor(ctlBg, 40);
     gColsBtnDefault[kColBtnBorder] = AccentColor(ctlBg, 55);
     gColsBtnDefault[kColBtnTextDisabled] = disabledText;
+    gColsBtnDefault[kColBtnBgDisabled] = kColorUnset;
 
     gColsIconBtn[kColIconBtnBgHover] = AccentColor(ctlBg, 20);
     gColsIconBtn[kColIconBtnBgSelected] = AccentColor(ctlBg, 36);

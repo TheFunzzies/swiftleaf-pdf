@@ -1,10 +1,11 @@
 /* Copyright 2026 the Swiftleaf PDF authors.
    License: GPLv3 */
 
-// Edit Text: select some text, then Edit Text (ribbon Edit page) puts an editor
-// over the lines the selection touches, in about the same font and size. Enter
-// writes the new text into the page (EngineMupdfReplaceText), Shift+Enter
-// starts a new line, Esc leaves the page as it was.
+// Edit Text: select some text (or click it after Edit Text), and an editor
+// opens over the whole paragraph, in about the same font and size, wrapping
+// like the page does. Enter writes the new text into the page, re-flowed to
+// the paragraph's width (EngineMupdfReplaceText), Shift+Enter starts a new
+// paragraph, Esc leaves the page as it was.
 
 #include "base/Base.h"
 #include "base/UITask.h"
@@ -202,7 +203,7 @@ static void OpenEditor(MainWindow* win, int pageNo, RectF area) {
         return;
     }
     auto* s = new EditTextSession();
-    if (!EngineMupdfGetTextRun(engine, pageNo, area, &s->run) || len(s->run.text) == 0) {
+    if (!EngineMupdfGetTextRun(engine, pageNo, area, TextRunScope::Paragraph, &s->run) || len(s->run.text) == 0) {
         DestroySession(s);
         ShowTemporaryNotification(win->hwndCanvas, Tr("There is no text there that can be edited"));
         return;
@@ -213,17 +214,19 @@ static void OpenEditor(MainWindow* win, int pageNo, RectF area) {
     DeleteOldSelectionInfo(win, true);
     ScheduleRepaint(win, 0);
 
-    // the editor covers the old lines, in their size at the current zoom
+    // the editor covers the old paragraph, in its size at the current zoom,
+    // with a line to spare for text that grows; it wraps at the same width
     Rect r = dm->CvtToScreen(pageNo, s->run.bbox);
     float scale = s->run.bbox.dy > 0 ? (float)r.dy / s->run.bbox.dy : dm->GetZoomReal(pageNo);
     int fontPx = std::max(8, (int)(s->run.fontSize * scale + 0.5f));
+    int lineDy = std::max(fontPx, (int)(s->run.lineGap * scale + 0.5f));
     int pad = DpiScale(4);
     r.x -= pad;
     r.y -= pad;
-    r.dx = std::max(r.dx + (2 * pad) + fontPx * 2, DpiScale(220));
-    r.dy += 2 * pad;
+    r.dx = std::max(r.dx + (2 * pad) + fontPx, DpiScale(220));
+    r.dy += (2 * pad) + lineDy;
 
-    DWORD style = WS_CHILD | WS_VISIBLE | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_WANTRETURN;
+    DWORD style = WS_CHILD | WS_VISIBLE | WS_BORDER | ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN;
     s->hwndEdit = CreateWindowExW(0, WC_EDITW, L"", style, r.x, r.y, r.dx, r.dy, win->hwndCanvas, nullptr,
                                   GetModuleHandleW(nullptr), nullptr);
     if (!s->hwndEdit) {

@@ -34,6 +34,13 @@ struct PageThumbnailsCtrl : VirtListBox {
     bool active = false;
     // palette: after going to a page on Enter or double click
     Func0 onPageOpened;
+    // sidebar: dragging a thumbnail moves its page (PageOrganize)
+    int dragFromPage = 0;
+    bool dragPending = false;
+    bool dragging = false;
+    Point dragStartPt; // window coords
+    // the page the dragged one goes before; pageCount + 1 is the end
+    int dropBefore = 0;
 
     PageThumbnailsCtrl(MainWindow*, PlatformFont*, int dpi, ThumbnailsHost);
     ~PageThumbnailsCtrl() override;
@@ -43,6 +50,7 @@ struct PageThumbnailsCtrl : VirtListBox {
     void DrawRow(DrawItemEvent*);
     void OnThumbMouseDown(VirtMouseEvent*);
     void OnThumbMouseMove(VirtMouseEvent*);
+    void OnThumbMouseUp(VirtMouseEvent*);
     void OnThumbMouseWheel(VirtMouseEvent*);
     void OnThumbDoubleClick(VirtMouseEvent*);
     void OnThumbKeyDown(VirtKeyEvent*);
@@ -59,6 +67,9 @@ struct PageThumbnailsCtrl : VirtListBox {
 
   protected:
     int PageAtPoint(Point);
+    int DropSlotAt(Point ptLocal);
+    void DrawDropMarker(Gfx*, Rect pageRect, int pageNo);
+    void EndDrag();
     void OpenSelectedPage();
     void ResetCache();
 };

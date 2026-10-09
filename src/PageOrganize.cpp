@@ -230,6 +230,30 @@ void OrganizeMovePage(MainWindow* win, int delta) {
     ApplyPageList(win, pages, nullptr, to, {});
 }
 
+// page `from` goes before page `before` (n + 1 for the end), both 1-based;
+// what dragging a thumbnail does
+void OrganizeMovePageTo(MainWindow* win, int from, int before) {
+    if (!OrganizableTab(win)) {
+        return;
+    }
+    int n = 0;
+    CurrentPage(win, &n);
+    if (from < 1 || from > n || before < 1 || before > n + 1 || before == from || before == from + 1) {
+        return;
+    }
+    Vec<PdfMergePage> pages;
+    for (int i = 1; i <= n + 1; i++) {
+        if (i == before) {
+            VecAppend(pages, PdfMergePage{0, from, 0});
+        }
+        if (i <= n && i != from) {
+            VecAppend(pages, PdfMergePage{0, i, 0});
+        }
+    }
+    int to = before > from ? before - 1 : before;
+    ApplyPageList(win, pages, nullptr, to, {});
+}
+
 void OrganizeDeleteCurrentPage(MainWindow* win) {
     if (!OrganizableTab(win)) {
         return;
@@ -314,4 +338,10 @@ void OrganizeUndo(MainWindow* win) {
     }
     str::Free(step.filePath);
     str::Free(step.backupPath);
+}
+
+// thumbnails can be dragged to reorder the pages of a PDF file on disk
+bool OrganizeCanMovePages(MainWindow* win) {
+    WindowTab* tab = OrganizableTab(win);
+    return tab && win->ctrl && win->ctrl->PageCount() > 1;
 }

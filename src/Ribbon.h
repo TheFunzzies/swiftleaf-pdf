@@ -9,7 +9,8 @@
 struct PlatformFont;
 struct Pixmap;
 
-// a page (tab) of the ribbon
+// a page (tab) of the ribbon. The values index the panels; the tab row shows
+// them in Foxit's order (RibbonPageAtTab)
 enum class RibbonPage {
     Home = 0,
     Comment,
@@ -17,6 +18,9 @@ enum class RibbonPage {
     Organize,
     FormsSign,
     View,
+    Protect,
+    Help,
+    File,
     Count,
 };
 
@@ -30,6 +34,7 @@ struct RibbonItemDef {
 
 int RibbonPageCount();
 Str RibbonPageName(RibbonPage);
+RibbonPage RibbonPageAtTab(int tabPos);
 // buttons of the pages built purely from RibbonItemDef (Edit, Organize, ...)
 void RibbonPageItems(RibbonPage, const RibbonItemDef** items, int* count);
 // pages whose tools edit the PDF: switching to them turns on edit mode

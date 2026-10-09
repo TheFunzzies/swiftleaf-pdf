@@ -51,6 +51,9 @@
 #include "EditText.h"
 #include "StatusBar.h"
 #include "NavRail.h"
+#include "SignatureCreate.h"
+#include "Ribbon.h"
+#include "Material.h"
 #include "MergePdf.h"
 #include "ChmModel.h"
 #include "MarkdownModel.h"
@@ -3171,6 +3174,9 @@ static void CreateCaptionLayout(MainWindow* win) {
     win->captionRow1->alignCross = CrossAxisAlign::CrossEnd;
     win->captionRow1->AddChild(win->capBtn[CB_SYSTEM_MENU]);
     win->captionRow1->AddChild(win->capBtn[CB_MENU]);
+    for (int i = CB_QA_OPEN; i <= CB_QA_REDO; i++) {
+        win->captionRow1->AddChild(win->capBtn[i]);
+    }
     win->captionRow1->AddChild(win->capMenuSlot);
     win->captionRow1->AddChild(win->capTabsRow1, 1);
     win->captionRow1->AddChild(win->capDrag1, 1);
@@ -7818,6 +7824,9 @@ static void SyncCaptionLayout(MainWindow* win) {
     };
     setBtn(CB_SYSTEM_MENU, true, tabBtn);
     setBtn(CB_MENU, !twoRow, tabBtn);
+    for (int i = CB_QA_OPEN; i <= CB_QA_REDO; i++) {
+        setBtn(i, !twoRow, tabBtn);
+    }
     setBtn(CB_MINIMIZE, true, winBtn);
     setBtn(CB_MAXIMIZE, !maximized, winBtn);
     setBtn(CB_RESTORE, maximized, winBtn);
@@ -8883,6 +8892,18 @@ static void ToggleTrimEmptyMargins(MainWindow* win) {
     ScrollState state = dm->GetScrollState();
     dm->SetTrimEmptyMargins(!dm->GetTrimEmptyMargins());
     dm->SetScrollState(state);
+}
+
+// Swiftleaf: Home > Hand / Select / Snapshot set what a left-drag on the page does
+static void SetPointerTool(MainWindow* win, int cmdId) {
+    PointerTool tool = PointerTool::Select;
+    if (cmdId == CmdToolHand) {
+        tool = PointerTool::Hand;
+    } else if (cmdId == CmdToolSnapshot) {
+        tool = PointerTool::Snapshot;
+    }
+    win->pointerTool = tool;
+    ToolbarUpdateStateForWindow(win, false);
 }
 
 static void ToggleFreePan(MainWindow* win) {
@@ -11841,18 +11862,35 @@ static Annotation* CreateImageStampAnnotation(MainWindow* win, WindowTab* tab, D
         pt.y = GET_Y_LPARAM(lp);
     }
     int pageNoUnderCursor = dm->GetPageNoByPoint(pt);
+    // Swiftleaf: from the ribbon the mouse isn't over a page: the middle of
+    // the view
+    if (pageNoUnderCursor < 0) {
+        Rect rc = HwndClientRect(win->hwndCanvas);
+        pt = {rc.x + rc.dx / 2, rc.y + rc.dy / 2};
+        pageNoUnderCursor = dm->GetPageNoByPoint(pt);
+    }
     if (pageNoUnderCursor < 0) {
         if (!SetPointToVisiblePage(dm, pt, pageNoUnderCursor)) {
             return nullptr;
         }
     }
     PointF ptOnPage = dm->CvtFromScreen(pt, pageNoUnderCursor);
+
+    // centered on the point, and all of it on the page (the engine puts the
+    // image's top-left corner at the point, in its natural size)
+    float xres = image->xres > 0 ? image->xres : 96.f;
+    float yres = image->yres > 0 ? image->yres : 96.f;
+    float wPt = (float)image->width * 72.f / xres;
+    float hPt = (float)image->height * 72.f / yres;
+    RectF page = engine->PageMediabox(pageNoUnderCursor);
+    ptOnPage.x = limitValue(ptOnPage.x - wPt / 2, page.x, std::max(page.x, page.x + page.dx - wPt));
+    ptOnPage.y = limitValue(ptOnPage.y - hPt / 2, page.y, std::max(page.y, page.y + page.dy - hPt));
     AnnotCreateArgs args{AnnotationType::Stamp};
     args.stampImage = image;
     return EngineMupdfCreateAnnotation(engine, pageNoUnderCursor, ptOnPage, &args);
 }
 
-static TempStr PickImageFilePathTemp(HWND hwnd) {
+TempStr PickImageFilePathTemp(HWND hwnd) {
     WCHAR pathW[MAX_PATH + 1]{};
     str::Builder fileFilter;
     fileFilter.Reserve(256);
@@ -13360,6 +13398,16 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             StartEditText(win);
             break;
 
+        case CmdToolHand:
+        case CmdToolSelect:
+        case CmdToolSnapshot:
+            SetPointerTool(win, cmdId);
+            break;
+
+        case CmdCreateSignature:
+            ShowCreateSignatureDialog(win);
+            break;
+
         case CmdPdfExtractPages:
             ShowPdfExtractPagesDialog(win);
             break;
@@ -14060,6 +14108,12 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             if (!engine || !EngineSupportsAnnotations(engine)) {
                 return 0;
             }
+            // Fill & Sign without a signature yet: make one first; saving it
+            // comes back here
+            if (cmdId == CmdSignWithImage && !HasSavedSignature()) {
+                ShowCreateSignatureDialog(win);
+                return 0;
+            }
             // Sign With Image stamps Annotations.SignatureImage without asking
             TempStr path{};
             Str sigPath = gSettings->annotations.signatureImage;
@@ -14279,6 +14333,32 @@ static void MenuBarAsPopupMenu(MainWindow* win, Rect btnRect) {
     DestroyMenu(popup);
 }
 
+struct QuickAccessDef {
+    int btn;
+    int cmdId;
+    const char* icon;
+};
+
+static const QuickAccessDef gQuickAccess[] = {
+    {CB_QA_OPEN, CmdOpenFile, gIconFileOpen},  {CB_QA_SAVE, CmdSaveAnnotations, gIconSave},
+    {CB_QA_PRINT, CmdPrint, gIconPrint},       {CB_QA_UNDO, CmdUndo, gIconUndo},
+    {CB_QA_REDO, CmdRedo, gIconRedo},
+};
+
+static const QuickAccessDef* FindQuickAccess(int btnIdx) {
+    for (const QuickAccessDef& d : gQuickAccess) {
+        if (d.btn == btnIdx) {
+            return &d;
+        }
+    }
+    return nullptr;
+}
+
+static int QuickAccessCmd(int btnIdx) {
+    const QuickAccessDef* d = FindQuickAccess(btnIdx);
+    return d ? d->cmdId : 0;
+}
+
 static void HandleCaptionClick(MainWindow* win, int btnIdx) {
     switch (btnIdx) {
         case CB_MINIMIZE:
@@ -14307,6 +14387,11 @@ static void HandleCaptionClick(MainWindow* win, int btnIdx) {
             break;
         case CB_SYSTEM_MENU:
             OpenSystemMenu(win);
+            break;
+        default:
+            if (btnIdx >= CB_QA_OPEN && btnIdx <= CB_QA_REDO) {
+                HwndPostCommand(win->hwndFrame, QuickAccessCmd(btnIdx));
+            }
             break;
     }
 }
@@ -14600,6 +14685,32 @@ static void DrawCaptionSysButtonGlyph(HDC hdc, CaptionSysButtonKind kind, Rect r
     gfx.FillPath(&br, &path);
 }
 
+// a quick access button: a Material icon button on the caption background
+static void DrawQuickAccessButton(MainWindow* win, HDC hdc, ButtonInfo* bi, const char* icon, int stateId) {
+    Rect r = bi->rect;
+    Color bg = ThemeControlBackgroundColor();
+    GfxHdc gfx(hdc);
+    gfx.FillRect(r, bg);
+
+    bool enabled = bi->id == CB_QA_OPEN || win->IsDocLoaded();
+    const M3Scheme& m3 = M3();
+    Color iconBg = bg;
+    if (enabled && (stateId == CBS_HOT || stateId == CBS_PUSHED)) {
+        int layer = stateId == CBS_PUSHED ? kM3PressedOpacity : kM3HoverOpacity;
+        iconBg = M3StateLayer(bg, m3.onSurface, layer);
+        Rect hi = r;
+        hi.Inflate(-DpiScale(3), -DpiScale(3));
+        gfx.FillRoundedRect(hi, DpiScale(16), iconBg);
+    }
+
+    Color fg = enabled ? m3.onSurfaceVariant : M3StateLayer(bg, m3.onSurface, 38);
+    int sz = DpiScale(18);
+    Pixmap* px = RibbonIconPixmap(Str(icon), sz, fg, iconBg);
+    if (px) {
+        gfx.DrawPixmap(px, {r.x + (r.dx - sz) / 2, r.y + (r.dy - sz) / 2, sz, sz});
+    }
+}
+
 static void DrawCaptionButton(MainWindow* win, HDC hdc, ButtonInfo* bi) {
     int button = bi->id;
     if (!bi->visible) {
@@ -14715,6 +14826,8 @@ static void DrawCaptionButton(MainWindow* win, HDC hdc, ButtonInfo* bi) {
         for (int i = 0; i < 3; i++) {
             gfx.DrawLine(&p, rc.x, rc.y + (i * rc.dy / 2), rc.x + rc.dx, rc.y + (i * rc.dy / 2));
         }
+    } else if (const QuickAccessDef* qa = FindQuickAccess(button)) {
+        DrawQuickAccessButton(win, hdc, bi, qa->icon, stateId);
     } else if (button == CB_SYSTEM_MENU) {
         SolidBrush bgBrSys(GdiRgbFromColor(ThemeControlBackgroundColor()));
         gfx.FillRectangle(&bgBrSys, rButton.x, rButton.y, rButton.dx, rButton.dy);

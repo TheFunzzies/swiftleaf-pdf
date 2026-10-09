@@ -350,6 +350,10 @@ const commandsRaw = [
     "CmdSplitPdf", "Split PDF...",
     "CmdUndoPageChange", "Undo Page Change",
     "CmdEditText", "Edit Text",
+    "CmdToolHand", "Hand Tool",
+    "CmdToolSelect", "Select Tool",
+    "CmdToolSnapshot", "Snapshot Tool",
+    "CmdCreateSignature", "Create Signature",
 ];
 
 // removed slots are dropped: nothing outside the generators should see them

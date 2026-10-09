@@ -1417,6 +1417,7 @@
     <ClInclude Include="..\src\SearchAndDDE.h" />
     <ClInclude Include="..\src\Settings.h" />
     <ClInclude Include="..\src\SidebarPanel.h" />
+    <ClInclude Include="..\src\SignatureCreate.h" />
     <ClInclude Include="..\src\SimpleBrowserWindow.h" />
     <ClInclude Include="..\src\StatusBar.h" />
     <ClInclude Include="..\src\SumatraDialogs.h" />
@@ -1656,6 +1657,7 @@
     <ClCompile Include="..\src\SettingsDialog.cpp" />
     <ClCompile Include="..\src\SidebarPanel.cpp" />
     <ClCompile Include="..\src\SignDocumentDialog.cpp" />
+    <ClCompile Include="..\src\SignatureCreate.cpp" />
     <ClCompile Include="..\src\SimpleBrowserWindow.cpp" />
     <ClCompile Include="..\src\StatusBar.cpp" />
     <ClCompile Include="..\src\SumatraControl.cpp" />

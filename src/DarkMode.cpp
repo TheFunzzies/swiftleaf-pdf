@@ -47,11 +47,9 @@ bool DarkModeIsActive() {
     return gUseDarkModeLib && DarkMode::isEnabled();
 }
 
+// Swiftleaf: dialogs sit on the same tonal surface as the ribbon
 Color DarkModeDialogBgColor() {
-    if (DarkModeIsActive()) {
-        return ThemeWindowControlBackgroundColor();
-    }
-    return MkGray(0xee);
+    return M3().surfaceContainerLow;
 }
 
 void DarkModeInit() {
@@ -143,6 +141,21 @@ void ThemeApplyPlatformColors() {
     gColsBtnDefault[kColBtnBgHover] = AccentColor(ctlBg, 40);
     gColsBtnDefault[kColBtnBorder] = hotEdge;
     gColsBtnDefault[kColBtnTextDisabled] = disabled;
+
+    // Swiftleaf: Material buttons, the default one filled in primary, the
+    // others outlined with primary text; disabled ones on a faint container
+    const M3Scheme& m3 = M3();
+    Color dlgBg = DarkModeDialogBgColor();
+    gColsBtn[kColBtnText] = m3.primary;
+    gColsBtn[kColBtnBg] = kColorTransparent;
+    gColsBtn[kColBtnBgHover] = M3StateLayer(dlgBg, m3.primary, kM3HoverOpacity);
+    gColsBtn[kColBtnBorder] = m3.outline;
+    gColsBtn[kColBtnBgDisabled] = dlgBg;
+    gColsBtnDefault[kColBtnText] = m3.onPrimary;
+    gColsBtnDefault[kColBtnBg] = m3.primary;
+    gColsBtnDefault[kColBtnBgHover] = M3StateLayer(m3.primary, m3.onPrimary, kM3HoverOpacity);
+    gColsBtnDefault[kColBtnBorder] = m3.primary;
+    gColsBtnDefault[kColBtnBgDisabled] = M3StateLayer(dlgBg, m3.onSurface, 12);
 
     gColsIconBtn[kColIconBtnBgHover] = AccentColor(ctlBg, 20);
     gColsIconBtn[kColIconBtnBgSelected] = AccentColor(ctlBg, 36);

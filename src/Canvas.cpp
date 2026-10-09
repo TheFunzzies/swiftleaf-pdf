@@ -2575,6 +2575,16 @@ static void OnMouseLeftButtonDown(MainWindow* win, int x, int y, WPARAM key) {
     win->dragStart = pt;
     win->textDragPending = false;
 
+    // Swiftleaf pointer tools: Hand always pans, Snapshot always draws a rectangle
+    if (win->pointerTool == PointerTool::Hand && !isMoveableAnnot) {
+        StartMouseDrag(win, x, y);
+        return;
+    }
+    if (win->pointerTool == PointerTool::Snapshot && !isMoveableAnnot && HasPermission(Perm::CopySelection)) {
+        OnSelectionStart(win, x, y, key, true);
+        return;
+    }
+
     // - without modifiers, clicking on text starts a text selection
     //   and clicking somewhere else starts a drag
     // - pressing Shift forces dragging
@@ -2750,6 +2760,10 @@ static void OnMouseLeftButtonUp(MainWindow* win, int x, int y, WPARAM key) {
         if (FinishSignaturePlacement(win, x, y, !didDragMouse)) {
             win->mouseAction = MouseAction::None;
             return;
+        }
+        if (MouseAction::Selecting == ma && win->pointerTool == PointerTool::Snapshot && win->showSelection) {
+            CopySelectionAsImageToClipboard(win);
+            ShowTemporaryNotification(win->hwndCanvas, Tr("Snapshot copied to the clipboard"));
         }
     }
 
@@ -4367,6 +4381,16 @@ static LRESULT OnSetCursor(MainWindow* win, HWND hwnd) {
             }
             break;
         case MouseAction::None: {
+            if (win->pointerTool == PointerTool::Hand) {
+                SetCursor(gCursorDrag);
+                win->DeleteToolTip();
+                return TRUE;
+            }
+            if (win->pointerTool == PointerTool::Snapshot && !IsRectangularSelection(win)) {
+                SetCursorCached(IDC_CROSS);
+                win->DeleteToolTip();
+                return TRUE;
+            }
             // resize / move cursors over an existing rectangular selection
             if (IsRectangularSelection(win)) {
                 Point pt = HwndGetCursorPos(hwnd);

@@ -33,27 +33,13 @@ static Kind kNotifUpdateCheckInProgress = StrL("notifUpdateCheckInProgress").s;
 // certificate on www.sumatrapdfreader.org is not supported by win7 and win8.1
 // (doesn't have the ciphers they understand) so we have a backup on backblaze
 
-// clang-format off
-// tried in order; later entries are backups if earlier HTTP gets fail
-#if defined(PRE_RELEASE_VER) || defined(DEBUG)
+// Swiftleaf: every GitHub release carries update-check.txt (written by CI);
+// releases/latest/download redirects to the newest release's copy
 static const Str updateInfoURLs[] = {
-    StrL("https://www.sumatrapdfreader.org/updatecheck-pre-release.txt"),
-    StrL("https://kjk-files.s3.us-west-001.backblazeb2.com/software/sumatrapdf/sumpdf-prerelease-update.txt"),
+    StrL("https://github.com/TheFunzzies/swiftleaf-pdf/releases/latest/download/update-check.txt"),
 };
-#else
-static const Str updateInfoURLs[] = {
-    StrL("https://www.sumatrapdfreader.org/update-check-rel.txt"),
-};
-#endif
 
-#ifndef kWebisteDownloadPageURL
-#ifdef PRE_RELEASE_VER
-#define kWebisteDownloadPageURL "https://www.sumatrapdfreader.org/prerelease"
-#else
-#define kWebisteDownloadPageURL "https://www.sumatrapdfreader.org/download-free-pdf-viewer"
-#endif
-#endif
-// clang-format on
+#define kWebisteDownloadPageURL "https://github.com/TheFunzzies/swiftleaf-pdf/releases/latest"
 
 // prevent multiple update tasks from happening simultaneously
 // (this might e.g. happen if a user checks manually very quickly after startup)
@@ -81,6 +67,9 @@ struct UpdateInfo {
     Str portableArm64;
 
     Str dlURL;
+    // hex SHA-256 of what dlURL serves: Swiftleaf builds aren't code-signed,
+    // so this is what a download is checked against
+    Str dlSha256;
     Str installerPath;
     Str builtOn; // optional "yyyy-mm-dd" from the update-check file
 
@@ -94,6 +83,7 @@ struct UpdateInfo {
         str::Free(installerArm64);
         str::Free(portableArm64);
         str::Free(dlURL);
+        str::Free(dlSha256);
         str::Free(installerPath);
         str::Free(builtOn);
     }
@@ -134,7 +124,7 @@ static UpdateInfo* ParseUpdateInfo(Str d) {
     if (len(d) == 0) {
         return nullptr;
     }
-    Str prefix = (d.s[0] == '[') ? StrL("[SumatraPDF]") : StrL("SumatraPDF");
+    Str prefix = (d.s[0] == '[') ? StrL("[Swiftleaf]") : StrL("Swiftleaf");
     if (!str::StartsWith(d, prefix)) {
         return nullptr;
     }
@@ -147,7 +137,7 @@ static UpdateInfo* ParseUpdateInfo(Str d) {
 
     SetPromoString(SerializeSquareTreeNodeTemp(root->GetChild(StrL("Promo"))));
 
-    SquareTreeNode* node = root->GetChild(StrL("SumatraPDF"));
+    SquareTreeNode* node = root->GetChild(StrL("Swiftleaf"));
     if (!node) {
         return nullptr;
     }
@@ -174,15 +164,20 @@ static UpdateInfo* ParseUpdateInfo(Str d) {
 
     // figure out which executable to download
     Str dlURL;
+    Str shaKey;
     bool isDll = IsDllBuild();
     if (IsArmBuild()) {
         dlURL = isDll ? res->installerArm64 : res->portableArm64;
+        shaKey = isDll ? StrL("Sha256InstallerArm64") : StrL("Sha256PortableExeArm64");
     } else if (IsProcess64()) {
         dlURL = isDll ? res->installer64 : res->portable64;
+        shaKey = isDll ? StrL("Sha256Installer64") : StrL("Sha256PortableExe64");
     } else {
         dlURL = isDll ? res->installer32 : res->portable32;
+        shaKey = isDll ? StrL("Sha256Installer32") : StrL("Sha256PortableExe32");
     }
     res->dlURL = str::Dup(dlURL);
+    res->dlSha256 = str::Dup(node->GetValue(shaKey));
     return res;
 }
 
@@ -258,22 +253,32 @@ static bool ShouldCheckForUpdate(UpdateCheck updateCheckType) {
     return checkUpdate;
 }
 
-void StartInstallerAutoUpgrade(Str installerPath) {
-    TempStr expectedSigner = GetExecutableSignerTemp(GetSelfExePathTemp());
-    TempStr installerSigner = GetExecutableSignerTemp(installerPath);
-    if (len(expectedSigner) == 0 || len(installerSigner) == 0 || !str::Eq(expectedSigner, installerSigner) ||
-        !IsPEFileSigned(installerPath)) {
-        logf("StartInstallerAutoUpgrade: refusing an update with an untrusted signature\n");
-        return;
+// the download's SHA-256 must match the update file's (Swiftleaf builds aren't
+// code-signed, so there is no signer to compare)
+static bool IsUpdateHashValid(Str path, Str wantHex) {
+    if (len(wantHex) != 64) {
+        return false;
     }
+    Str data = file::ReadFile(path);
+    if (len(data) == 0) {
+        return false;
+    }
+    u8 digest[32];
+    CalcSHA2Digest(data, digest);
+    str::Free(data);
+    TempStr gotHex = str::MemToHexTemp(Str((char*)digest, (int)sizeof(digest)));
+    bool ok = str::EqI(gotHex, wantHex);
+    logf("IsUpdateHashValid: got %s, want %s\n", gotHex, wantHex);
+    return ok;
+}
+
+// the installer was checked against the update file's SHA-256 when downloaded
+void StartInstallerAutoUpgrade(Str installerPath) {
     str::Builder cmd;
     if (IsOurExeInstalled()) {
-        // no need for sleep because it shows the installer dialog anyway
-        if (gIsPreReleaseBuild) {
-            cmd.Append(StrL(" -fast-install"));
-        } else {
-            cmd.Append(StrL(" -install"));
-        }
+        // Swiftleaf: the user already said "Install and relaunch": install with
+        // just the progress bar, then start the new version
+        cmd.Append(StrL(" -fast-install"));
     } else {
         // we're asking to over-write over ourselves, so also wait 2 secs to allow
         // our process to exit
@@ -322,7 +327,7 @@ static void NotifyUserOfUpdate(UpdateInfo* updateInfo) {
 
     constexpr int kBtnIdDontInstall = 100;
     constexpr int kBtnIdInstall = 101;
-    auto title = Tr("SumatraPDF Update");
+    auto title = Tr("Swiftleaf Update");
     TASKDIALOGCONFIG dialogConfig{};
     TASKDIALOG_BUTTON buttons[2];
 
@@ -448,10 +453,7 @@ static void DownloadUpdateAsync(DownloadUpdateAsyncData* data) {
     constexpr i64 kMaxUpdateDownloadSize = 256LL * 1024 * 1024;
     bool ok = len(installerPath) > 0 && HttpGetToFile(updateInfo->dlURL, installerPath, cb, kMaxUpdateDownloadSize);
     logf("ShowAutoUpdateDialog: HttpGetToFile(): ok=%d, downloaded to '%s'\n", (int)ok, installerPath);
-    TempStr expectedSigner = GetExecutableSignerTemp(GetSelfExePathTemp());
-    TempStr installerSigner = ok ? GetExecutableSignerTemp(installerPath) : TempStr{};
-    ok = ok && expectedSigner && installerSigner && str::Eq(expectedSigner, installerSigner) &&
-         IsPEFileSigned(installerPath);
+    ok = ok && IsUpdateHashValid(installerPath, updateInfo->dlSha256);
     if (ok) {
         updateInfo->installerPath = str::Dup(installerPath);
     } else {
@@ -554,7 +556,7 @@ static HRESULT CALLBACK TaskDialogHyperlinkCallback(HWND /*hwnd*/, UINT msg, WPA
     return S_OK;
 }
 
-static const Str kExpectedDlHost = StrL("https://www.sumatrapdfreader.org/");
+static const Str kExpectedDlHost = StrL("https://github.com/TheFunzzies/swiftleaf-pdf/releases/download/");
 constexpr int kUrlHexHead = 40;
 
 static bool IsTrustedUpdateDlUrl(Str dlURL) {
@@ -574,8 +576,7 @@ static void NotifySuspiciousUpdate(HWND hwndParent, Str dlURL) {
     logf("  urlLen=%d hostLen=%d host='%s'\n", len(dlURL), len(kExpectedDlHost), kExpectedDlHost);
     logf("  url hex[0..%d]=%s\n", kUrlHexHead, HexHeadTemp(dlURL, kUrlHexHead));
     logf("  host hex[0..%d]=%s\n", kUrlHexHead, HexHeadTemp(kExpectedDlHost, kUrlHexHead));
-    ReportIf(true);
-    auto title = Tr("SumatraPDF Update");
+    auto title = Tr("Swiftleaf Update");
     auto content = fmt(R"(Suspicious update.
 
 Download link should come from <a href="%s">%s</a> but is %s.
@@ -618,7 +619,7 @@ Visit <a href="%s">%s</a> to download the latest version.)",
 // update manually (e.g. if TLS validation or the network failed).
 static void NotifyUpdateCheckFailed(HWND hwndParent, DWORD err) {
     logf("NotifyUpdateCheckFailed: err=%#x\n", (unsigned)err);
-    auto title = Tr("SumatraPDF Update");
+    auto title = Tr("Swiftleaf Update");
     auto mainInstr = Tr("Couldn't check for updates");
     TempStr msg = fmt(Tr("Couldn't download update information (error %#x).").s, err);
     TempStr content = fmt(R"(%s
@@ -785,13 +786,9 @@ void AppendClientInfoQuery(str::Builder& url) {
     url.Append(Str(LatestSupportedSIMD().s));
 }
 
-static void BuildUpdateURL(str::Builder& url, Str baseURL, UpdateCheck updateCheckType) {
+// Swiftleaf's update file is a static release asset: nothing to send with it
+static void BuildUpdateURL(str::Builder& url, Str baseURL, UpdateCheck) {
     url.Reset(baseURL);
-    AppendClientInfoQuery(url);
-    url.Append(StrL("&withPromo"));
-    if (UpdateCheck::UserInitiated == updateCheckType) {
-        url.Append(StrL("&force"));
-    }
 }
 
 struct UpdateCheckAsyncData {
@@ -860,15 +857,6 @@ static void UpdateCheckAsync(UpdateCheckAsyncData* data) {
 // if autoCheck is true, this is a check *not* triggered by explicit action
 // of the user and therefore will show less UI
 void StartAsyncUpdateCheck(MainWindow* win, UpdateCheck updateCheckType) {
-    // Swiftleaf: the update feeds above are SumatraPDF's, which would offer to
-    // replace Swiftleaf with SumatraPDF. Until Swiftleaf has a feed of its own,
-    // asking for an update opens the releases page and there is no auto check.
-    if (UpdateCheck::UserInitiated == updateCheckType) {
-        SumatraLaunchBrowser(Str(kReleasesURL));
-    }
-    if (kSwiftleafNoUpdateFeed) {
-        return;
-    }
     if (!ShouldCheckForUpdate(updateCheckType)) {
         return;
     }

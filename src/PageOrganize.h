@@ -11,6 +11,8 @@ void OrganizeRotatePage(MainWindow*, int degrees);
 void OrganizeInsertBlankPage(MainWindow*);
 void OrganizeInsertPagesFromFile(MainWindow*);
 void OrganizeMovePage(MainWindow*, int delta);
+void OrganizeMovePageTo(MainWindow*, int from, int before);
+bool OrganizeCanMovePages(MainWindow*);
 void OrganizeDeleteCurrentPage(MainWindow*);
 // writes <destBase without .pdf>-1.pdf, -2.pdf, ...; returns how many files
 int OrganizeSplitPdf(MainWindow*, Str destBase, int pagesPerFile);
