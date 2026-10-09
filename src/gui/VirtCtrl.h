@@ -453,6 +453,8 @@ struct VirtListBox : VirtCtrl {
     // Shift/Ctrl click, Shift+arrows and Ctrl+A; off by default so other
     // lists stay single-select
     bool multiSelect = false;
+    // dashed outline while focused; off for lists whose selection already shows it
+    bool showFocusRing = true;
 
     VirtListBox();
     ~VirtListBox() override;

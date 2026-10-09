@@ -231,6 +231,8 @@ PageThumbnailsCtrl::PageThumbnailsCtrl(MainWindow* win, PlatformFont* font, int 
     this->dpi = dpi;
     // the palette's edit box keeps the keyboard focus; the sidebar takes it
     SetFlag(vwfFocusable, host == ThumbnailsHost::Sidebar);
+    // Swiftleaf: the current page's Material outline is the focus cue
+    showFocusRing = false;
     SetColor(kColListText, ThemeWindowTextColor());
     SetColor(kColListBg, ThemeWindowControlBackgroundColor());
 
@@ -405,8 +407,8 @@ void PageThumbnailsCtrl::DrawRow(DrawItemEvent* ev) {
         }
         Rect box{boxX, boxY, boxDx, boxDy};
         // a pill: half the height rounds the short sides into semicircles
-        Color pillBg = isCurrent ? M3().primary : ThemeWindowBackgroundColor();
-        Color pillFg = isCurrent ? M3().onPrimary : ThemeWindowTextColor();
+        Color pillBg = isCurrent ? M3().primary : M3().surfaceContainerHighest;
+        Color pillFg = isCurrent ? M3().onPrimary : M3().onSurface;
         ev->gfx->FillRoundedRect(box, boxDy / 2, pillBg);
         ev->gfx->DrawText(label, box, gfxTextCenter | gfxTextVCenter, font, pillFg);
     }
