@@ -36,6 +36,7 @@ import {
   WM_KEYDOWN,
   WM_CONTEXTMENU,
   WM_COMMAND,
+  WM_CHAR,
   MK_LBUTTON,
   VK_RETURN,
   VK_TAB,
@@ -128,7 +129,7 @@ export async function killAndWait(proc: Bun.Subprocess): Promise<void> {
   await killAndWaitProcess(proc);
 }
 
-export const FRAME_CLASS = "SUMATRA_PDF_FRAME";
+export const FRAME_CLASS = "SWIFTLEAF_PDF_FRAME";
 export const CANVAS_CLASS = "SUMATRA_PDF_CANVAS";
 
 // -window-pos for the right half of the screen (see testWindowPos)
@@ -273,6 +274,13 @@ export function waitForFrame(pid: number, timeoutMs = 12000): Promise<number> {
 // the document canvas (child of the frame)
 export function findCanvas(frame: number): number {
   return findChildWindow(frame, CANVAS_CLASS);
+}
+
+export function acceptFreeTextDraft(canvas: number, text: string): void {
+  const edit = findVisibleChildWindow(canvas, "Edit");
+  if (!edit) throw new Error("No visible FreeText draft editor");
+  sendText(edit, text);
+  sendMessage(edit, WM_CHAR, 0x0a, 0);
 }
 
 export function findChildByClass(parent: number, className: string): number {

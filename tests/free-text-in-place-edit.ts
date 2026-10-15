@@ -12,6 +12,8 @@ import {
   enumChildWindows,
   findTopWindow,
   getClassName,
+  isWindowVisible,
+  setProcessDpiAware,
   getControlText,
   packCoords,
   sendMessage,
@@ -116,7 +118,7 @@ function doubleClickAt(canvas: number, x: number, y: number): void {
 function findBox(canvas: number, pred: (text: string) => boolean): number {
   let found = 0;
   enumChildWindows(canvas, (hwnd) => {
-    if (getClassName(hwnd) !== "Edit") {
+    if (getClassName(hwnd) !== "Edit" || !isWindowVisible(hwnd)) {
       return true;
     }
     if (pred(getControlText(hwnd))) {
@@ -140,6 +142,7 @@ function pressKey(hwnd: number, vk: number): void {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("free-text-in-place-edit");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -175,17 +178,10 @@ export async function testit(): Promise<void> {
     // creating a free text annotation opens the in-place editor on it
     sendMessage(frame, WM_COMMAND, cmdId("CmdCreateAnnotFreeText"), packCoords(120, 250));
     s = await waitForEdit(client, true);
-    if (!s.text.startsWith("This is a text")) {
-      throw new Error(`free-text-in-place-edit: box shows "${s.text}", want the annotation's text`);
+    if (s.text !== "" || !/annotations=0/.test(s.raw)) {
+      throw new Error(`free-text-in-place-edit: placement must start an empty draft\n${s.raw}`);
     }
-    const annotRect = await selectedRect(client);
-    if (Math.abs(s.rect.x - annotRect.x) > 3 || Math.abs(s.rect.y - annotRect.y) > 3) {
-      throw new Error(
-        `free-text-in-place-edit: box at ${s.rect.x},${s.rect.y} is not over the annotation ` +
-          `at ${annotRect.x},${annotRect.y}\n${s.raw}`,
-      );
-    }
-    const box = findBox(canvas, (t) => t.startsWith("This is a text"));
+    const box = findBox(canvas, (t) => t === "");
     if (!box) {
       throw new Error("free-text-in-place-edit: the edit control is not a child of the canvas");
     }

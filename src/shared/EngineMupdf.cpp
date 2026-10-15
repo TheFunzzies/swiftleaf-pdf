@@ -7036,7 +7036,7 @@ Pixmap* EngineMupdf::RenderPage(RenderPageArgs& args) {
 
     // The "View" rendering (no Print, no hideAnnotations) is what
     // fz_new_display_list_from_page produces; safe to cache and re-run lock-free.
-    bool useCache = (args.target == RenderTarget::View) && !hideAnnotations;
+    bool useCache = (args.target == RenderTarget::View) && !hideAnnotations && !args.excludeAnnot;
 
     fz_rect pRect;
     fz_matrix ctm;
@@ -7125,6 +7125,7 @@ Pixmap* EngineMupdf::RenderPage(RenderPageArgs& args) {
     // not what the cached display list captured), or display-list construction
     // failed. Run the page directly under per-page lock.
     ScopedMutex cs(&renderLock);
+    ScopedRecursiveMutex docScope(&docLock);
 
     page = pageInfo->page;
     if (!page) {
@@ -7147,6 +7148,15 @@ Pixmap* EngineMupdf::RenderPage(RenderPageArgs& args) {
             }
             if (hideAnnotations) {
                 pdf_run_page_contents_with_usage(ctx, pdfpage, dev, fz_identity, usageZ, fzcookie);
+                pdf_run_page_widgets_with_usage(ctx, pdfpage, dev, fz_identity, usageZ, fzcookie);
+            } else if (args.excludeAnnot && args.excludeAnnot->engine == this) {
+                // A UI draft replaces one appearance without changing PDF flags or history.
+                pdf_run_page_contents_with_usage(ctx, pdfpage, dev, fz_identity, usageZ, fzcookie);
+                for (pdf_annot* a = pdf_first_annot(ctx, pdfpage); a; a = pdf_next_annot(ctx, a)) {
+                    if (a != args.excludeAnnot->pdfannot) {
+                        pdf_run_annot(ctx, a, dev, fz_identity, fzcookie);
+                    }
+                }
                 pdf_run_page_widgets_with_usage(ctx, pdfpage, dev, fz_identity, usageZ, fzcookie);
             } else {
                 pdf_run_page_with_usage(ctx, pdfpage, dev, fz_identity, usageZ, fzcookie);
@@ -10346,6 +10356,9 @@ static bool EngineMupdfUndoRedo(EngineBase* engine, bool redo, Vec<Annotation*>&
             } else {
                 pdf_undo(ctx, e->pdfdoc);
             }
+            // Undo can remove newly allocated objects still held by resource caches.
+            pdf_drop_resource_tables(ctx, e->pdfdoc);
+            e->pdfdoc->resources = {};
             ok = true;
         }
         fz_catch(ctx) {

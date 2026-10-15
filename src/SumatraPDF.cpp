@@ -8185,11 +8185,10 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
         }
     }
 
-    HwndSlot* chromeSlots[] = {win->tabsSlot,          win->menuSlot,       win->toolbarTopSlot,
-                               win->toolbarBottomSlot, win->capMenuSlot,    win->capTabsRow1,
-                               win->capTabsRow2,       win->sidebarTopSlot, win->sidebarBottomSlot,
-                               win->favoritesTabSlot,  win->canvasSlot,     win->aiChatSlot,
-                               win->statusBarSlot,     win->navRailSlot};
+    HwndSlot* chromeSlots[] = {
+        win->tabsSlot,    win->menuSlot,    win->toolbarTopSlot, win->toolbarBottomSlot, win->capMenuSlot,
+        win->capTabsRow1, win->capTabsRow2, win->sidebarTopSlot, win->sidebarBottomSlot, win->favoritesTabSlot,
+        win->canvasSlot,  win->aiChatSlot,  win->statusBarSlot,  win->navRailSlot};
     for (HwndSlot* s : chromeSlots) {
         ClearSlotDefer(s);
     }
@@ -14052,6 +14051,18 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
                 }
                 ptOnPage = dm->CvtFromScreen(pt, pageNoUnderCursor);
             }
+            if (annotType == AnnotationType::FreeText && str::IsEmptyOrWhiteSpace(args.content)) {
+                if (!args.hasRect) {
+                    SizeF size = FreeTextPlacementPageSize(args);
+                    args.hasRect = true;
+                    args.rect = {ptOnPage.x, ptOnPage.y, size.dx, size.dy};
+                }
+                if (GetCommandBoolArg(cmd, kCmdArgOpenEdit, false)) {
+                    EnablePdfAnnotationsToolbar(win);
+                }
+                StartFreeTextDraft(win, pageNoUnderCursor, args);
+                return 0;
+            }
             pt = HwndMapWindowPoint(win->hwndCanvas, HWND_DESKTOP, pt);
             lastCreatedAnnot = EngineMupdfCreateAnnotation(engine, pageNoUnderCursor, ptOnPage, &args);
         } break;
@@ -14341,8 +14352,8 @@ struct QuickAccessDef {
 };
 
 static const QuickAccessDef gQuickAccess[] = {
-    {CB_QA_OPEN, CmdOpenFile, gIconFileOpen},  {CB_QA_SAVE, CmdSaveAnnotations, gIconSave},
-    {CB_QA_PRINT, CmdPrint, gIconPrint},       {CB_QA_UNDO, CmdUndo, gIconUndo},
+    {CB_QA_OPEN, CmdOpenFile, gIconFileOpen}, {CB_QA_SAVE, CmdSaveAnnotations, gIconSave},
+    {CB_QA_PRINT, CmdPrint, gIconPrint},      {CB_QA_UNDO, CmdUndo, gIconUndo},
     {CB_QA_REDO, CmdRedo, gIconRedo},
 };
 
@@ -16670,6 +16681,13 @@ static bool MaybeTranslateAccelerator(MSG& msg) {
     if (msg.message == WM_KEYDOWN && !IsCtrlPressed() && !IsAltPressed()) {
         MainWindow* win = FindMainWindowByHwnd(msg.hwnd);
         bool isFrameOrCanvas = win && (msg.hwnd == win->hwndFrame || msg.hwnd == win->hwndCanvas);
+        if (isFrameOrCanvas && msg.wParam == VK_RETURN) {
+            WindowTab* tab = win->CurrentTab();
+            Annotation* annot = tab ? tab->selectedAnnotation : nullptr;
+            if (annot && StartFreeTextInPlaceEdit(win, annot)) {
+                return true;
+            }
+        }
         if (isFrameOrCanvas && NudgeSelectedAnnotation(win, msg.wParam)) {
             return true;
         }

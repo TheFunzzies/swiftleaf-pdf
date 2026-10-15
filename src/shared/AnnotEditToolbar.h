@@ -9,6 +9,7 @@ struct El;
 struct MainWindow;
 struct WindowTab;
 struct Annotation;
+struct AnnotCreateArgs;
 struct Gfx;
 struct PlatformFont;
 struct StrVec;
@@ -29,6 +30,7 @@ void EndAnnotContentsEdit(bool accept);
 bool AnnotContentsEditJustEnded();
 // free text is edited on the page, in a text box over the annotation
 bool StartFreeTextInPlaceEdit(MainWindow*, Annotation*);
+bool StartFreeTextDraft(MainWindow*, int pageNo, const AnnotCreateArgs&);
 bool StartFreeTextInPlaceEditAt(MainWindow*, Point pt);
 bool IsEditingFreeTextInPlace(MainWindow*);
 void EndFreeTextInPlaceEdit(bool accept);

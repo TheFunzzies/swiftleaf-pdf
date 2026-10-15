@@ -89,9 +89,6 @@ static float FreeTextPadding(const AnnotCreateArgs& args) {
 }
 
 static Str FreeTextPlacementContent(const AnnotCreateArgs& args) {
-    if (str::IsEmptyOrWhiteSpace(args.content)) {
-        return StrL(kDefaultFreeTextContent);
-    }
     return args.content;
 }
 
@@ -113,6 +110,9 @@ SizeF FreeTextPlacementPageSize(const AnnotCreateArgs& args) {
     }
     ReleaseDC(nullptr, hdc);
     dx = (dx * kFreeTextWidthSlack) + (2 * pad) + 2.f;
+    if (str::IsEmptyOrWhiteSpace(args.content)) {
+        dx = std::max(dx, 6.f * fontSize);
+    }
     // a text snippet can have several lines
     Str content = FreeTextPlacementContent(args);
     int nLines = 1;
@@ -1193,9 +1193,7 @@ static Rect FreeTextPlacementScreenRect(MainWindow* win, DisplayModel* dm) {
     return PlacementPreviewScreenRect(dm, pageNo, p.pos, pagePt, RectF{pagePt.x, pagePt.y, p.rect.dx, p.rect.dy});
 }
 
-// White "paper" with the text drawn on it, the size of the annotation that a
-// click will create. An unset background is transparent in the PDF, but a box
-// reads better than floating text while positioning it.
+// Preview the annotation's actual fill; the outline is only a placement aid.
 static void PaintFreeTextPlacement(MainWindow* win, HDC hdc, DisplayModel* dm) {
     if (KindOf(win) != AnnotPlacementKind::FreeText) {
         return;
@@ -1212,12 +1210,13 @@ static void PaintFreeTextPlacement(MainWindow* win, HDC hdc, DisplayModel* dm) {
     float pad = FreeTextPadding(args) * scale;
     float fontDy = std::max((float)FreeTextFontSize(args) * scale, 4.f);
     Gdiplus::Color textCol = args.col.parsedOk ? GdiRgbFromColor(args.col.col) : Gdiplus::Color(255, 0, 0, 0);
-    Gdiplus::Color bgCol = args.bgCol.parsedOk ? GdiRgbFromColor(args.bgCol.col) : Gdiplus::Color(255, 255, 255, 255);
 
     Gdiplus::Graphics gs(hdc);
     gs.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-    Gdiplus::SolidBrush bg(bgCol);
-    gs.FillRectangle(&bg, r.x, r.y, r.dx, r.dy);
+    if (args.bgCol.parsedOk && args.bgCol.pdfCol != 0) {
+        Gdiplus::SolidBrush bg(GdiRgbFromColor(args.bgCol.col));
+        gs.FillRectangle(&bg, r.x, r.y, r.dx, r.dy);
+    }
     if (args.borderWidth > 0) {
         float bw = std::max((float)args.borderWidth * scale, 1.f);
         Gdiplus::Pen pen(textCol, bw);

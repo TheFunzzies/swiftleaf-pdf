@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.3 — 2026-10-15
+
+### Improved
+
+- Add Text starts an empty draft with transparent fill and no PDF border.
+  Placeholder text is no longer written into new annotations; existing text
+  is preserved. Empty or cancelled drafts leave no annotation or undo entry.
+- Accepted text stays selected and can be moved, reopened with a double-click
+  or Enter, and edited with contextual font, size, color, Move and Delete controls.
+- The native text editor previews the PDF beneath it, including rules and images.
+  Text sizing follows zoom and rotation; dark-page previews remain readable.
+
+### Fixed
+
+- Separate typing, selection and frame-drag transitions so moving text does not
+  resize its box. Enter inserts a newline, Ctrl+Enter accepts, and Escape cancels.
+- Preserve explicit annotation fill, opacity and border styling in the editor.
+- Retain drafts when creation fails and prevent stale font resources after
+  undoing creation and adding text again.
+
+### Validation and limitations
+
+- Focused native regression tests cover drafts, placement, editing, formatting,
+  transparency, custom styling and undo. Saved PDFs were independently rendered
+  and inspected; 29 editing-safety checks passed.
+- Real IME composition, physical multi-monitor DPI transitions, high-contrast
+  mode and screen-reader use remain unverified. Rotated editing stays upright;
+  saved text follows the PDF page axes. Full Unicode replacement of existing PDF
+  text remains unfinished. No performance improvement has been measured.
+
 ## 0.3.2 — 2026-10-15
 
 ### Improved

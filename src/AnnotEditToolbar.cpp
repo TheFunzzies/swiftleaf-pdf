@@ -33,6 +33,7 @@ extern "C" {
 #include "base/GuessFileType.h"
 #include "EngineAll.h"
 #include "EngineMupdf.h"
+#include "PdfDarkMode.h"
 #include "DisplayModel.h"
 #include "Theme.h"
 #include "Translations.h"
@@ -2283,16 +2284,16 @@ static AnnotEditToolbar* GetOrCreateToolbar(MainWindow* win) {
 
 //--- in-place free text editing
 
-// A plain edit control sits exactly over the free text annotation while you
-// type: same font and size, on a white background so the text stays readable
-// whatever is underneath. Enter makes a new line; Ctrl+Enter, Esc or clicking
-// away ends it and the rendered annotation comes back.
+// Keep Windows text input over a cached PDF crop, excluding the edited appearance.
 struct FreeTextInPlaceEdit {
     HWND hwnd = nullptr;
     HFONT font = nullptr;
     MainWindow* win = nullptr;
     WindowTab* tab = nullptr;
     Annotation* annot = nullptr;
+    EngineBase* engine = nullptr;
+    int draftPageNo = 0;
+    AnnotCreateArgs draftArgs;
     Size size;
     Size minSize;
     int padding = 0;
@@ -2301,8 +2302,22 @@ struct FreeTextInPlaceEdit {
     int borderWidth = 0;
     int fontPx = 0;
     float scale = 1.f;
-    // the annotation's text color, for the typed text and the box's border
+    // PDF text color; selection chrome uses the UI theme.
     Color textCol = kColBlack;
+    PdfColor fillCol = kColorUnset;
+    int opacity = 255;
+    HBRUSH backdrop = nullptr;
+    Rect backdropRect;
+    float backdropZoom = 0;
+    int backdropRotation = -1;
+    u32 backdropTheme = 0;
+    Rect backdropPage;
+    Str fontFamily;
+    int fontStyle = 0;
+    bool formatting = false;
+    bool styleChanged = false;
+    VirtHost* tools = nullptr;
+    Size toolsSize;
 };
 
 // MuPDF stacks free text lines 1.2 * the font size apart and wraps at the
@@ -2317,6 +2332,135 @@ static WNDPROC gInPlaceDefProc = nullptr;
 static bool gInPlaceEnding = false;
 // so the click that closes the box by taking focus away doesn't reopen it
 static u64 gInPlaceEndedAt = 0;
+
+static Color FreeTextViewColor(Color color) {
+    Color bg;
+    Color fg = ThemePageRenderColors(bg);
+    u8 data[] = {GetBValue(color), GetGValue(color), GetRValue(color), 255};
+    Pixmap pixel;
+    pixel.width = pixel.height = 1;
+    pixel.stride = 4;
+    pixel.data = data;
+    RecolorPixmap(&pixel, fg, bg);
+    return MkRgb(data[2], data[1], data[0]);
+}
+
+static void PositionFreeTextTools() {
+    auto& edit = gInPlace;
+    if (!edit.tools || !edit.win) {
+        return;
+    }
+    Rect canvas = HwndClientRect(edit.win->hwndCanvas);
+    Rect r = ChildPosWithinParent(edit.hwnd);
+    if (r.Intersect(canvas).IsEmpty()) {
+        edit.tools->Show(false);
+        return;
+    }
+    int x = std::clamp(r.x, 0, std::max(0, canvas.dx - edit.toolsSize.dx));
+    int y = r.y - edit.toolsSize.dy - DpiScale(6);
+    if (y < 0) {
+        y = r.y + r.dy + DpiScale(6);
+    }
+    y = std::clamp(y, 0, std::max(0, canvas.dy - edit.toolsSize.dy));
+    Point origin = HwndMapWindowPoint(edit.win->hwndCanvas, nullptr, {x, y});
+    edit.tools->SetPos({origin.x, origin.y, edit.toolsSize.dx, edit.toolsSize.dy}, true);
+}
+
+static bool CacheFreeTextBackdrop() {
+    auto& edit = gInPlace;
+    if (!edit.hwnd || !edit.win || edit.win->CurrentTab() != edit.tab) {
+        return false;
+    }
+    DisplayModel* dm = edit.win->AsFixed();
+    if (!dm || dm->GetEngine() != edit.engine || (edit.annot && !AnnotationIsLive(edit.annot))) {
+        return false;
+    }
+    int pageNo = edit.annot ? PageNo(edit.annot) : edit.draftPageNo;
+    Rect client = HwndClientRect(edit.hwnd);
+    Point origin = HwndMapWindowPoint(edit.hwnd, edit.win->hwndCanvas, {});
+    Rect canvas = HwndClientRect(edit.win->hwndCanvas);
+    Rect needed = Rect{origin.x, origin.y, client.dx, client.dy}.Intersect(canvas);
+    if (needed.IsEmpty()) {
+        return false;
+    }
+    float zoom = dm->GetZoomReal(pageNo);
+    int rotation = dm->GetRotation();
+    PageInfo* pi = dm->GetPageInfo(pageNo);
+    Rect page = pi ? pi->pageOnScreen : Rect{};
+    DarkModeProfile profile;
+    BuildViewDarkModeProfile(edit.engine, &profile);
+    Color pageBg;
+    Color textCol = ThemePageRenderColors(pageBg);
+    u32 theme = profile.hash ^ pageBg ^ textCol;
+    Rect cached = edit.backdropRect;
+    if (edit.backdrop && zoom == edit.backdropZoom && rotation == edit.backdropRotation &&
+        theme == edit.backdropTheme && page == edit.backdropPage && needed.x >= cached.x && needed.y >= cached.y &&
+        needed.x + needed.dx <= cached.x + cached.dx && needed.y + needed.dy <= cached.y + cached.dy) {
+        return true;
+    }
+    // Overscan avoids rerendering a PDF for every keystroke as the editor grows.
+    Rect tile{needed.x, needed.y, std::max(needed.dx, DpiScale(512)), std::max(needed.dy, DpiScale(128))};
+    tile = tile.Intersect(canvas);
+    HBITMAP bitmap = CreateMemoryBitmap(tile.Size());
+    if (!bitmap) {
+        return false;
+    }
+    HDC dc = CreateCompatibleDC(nullptr);
+    if (!dc) {
+        DeleteObject(bitmap);
+        return false;
+    }
+    HGDIOBJ previous = SelectObject(dc, bitmap);
+    HdcFillRect(dc, Rect{0, 0, tile.dx, tile.dy}, ThemeMainWindowBackgroundColor());
+    Rect onPage = tile.Intersect(page);
+    bool ok = onPage.IsEmpty();
+    if (!onPage.IsEmpty()) {
+        // Raster crops use pixel edges, not the half-pixel hit-test rounding.
+        RectF bounds = edit.engine->Transform(dm->PageMediaBoxForLayout(pageNo), pageNo, zoom, rotation);
+        RectF device{onPage.x - page.x + bounds.x, onPage.y - page.y + bounds.y, (float)onPage.dx, (float)onPage.dy};
+        RectF pageRect = edit.engine->Transform(device, pageNo, zoom, rotation, true);
+        RenderPageArgs args(pageNo, zoom, rotation, &pageRect);
+        args.excludeAnnot = edit.annot;
+        args.darkProfile = &profile;
+        Pixmap* pixels = edit.engine->RenderPage(args);
+        if (pixels) {
+            if (profile.mode == PageColorMode::Normal || DarkModeProfileUsesLegacyPostProcess(&profile)) {
+                Color fg = profile.mode == PageColorMode::Normal ? textCol : profile.foreground;
+                Color bg = profile.mode == PageColorMode::Normal ? pageBg : profile.pageBackground;
+                RecolorPixmap(pixels, fg, bg);
+            }
+            Rect dest{onPage.x - tile.x, onPage.y - tile.y, pixels->width, pixels->height};
+            ok = BlitPixmap(pixels, dc, dest);
+            FreePixmap(pixels);
+        }
+    }
+    if (ok && edit.fillCol != kColorUnset && edit.fillCol != 0) {
+        u8 r, g, b, alpha;
+        UnpackPdfColor(edit.fillCol, r, g, b, alpha);
+        Color color = FreeTextViewColor(MkRgb(r, g, b));
+        Gdiplus::Graphics gs(dc);
+        Gdiplus::SolidBrush fill(
+            Gdiplus::Color((BYTE)(alpha * edit.opacity / 255), GetRValue(color), GetGValue(color), GetBValue(color)));
+        gs.FillRectangle(&fill, 0, 0, tile.dx, tile.dy);
+    }
+    SelectObject(dc, previous);
+    DeleteDC(dc);
+    HBRUSH brush = ok ? CreatePatternBrush(bitmap) : nullptr;
+    DeleteObject(bitmap);
+    if (!brush) {
+        return false;
+    }
+    if (edit.backdrop) {
+        DeleteObject(edit.backdrop);
+    }
+    edit.backdrop = brush;
+    edit.backdropRect = tile;
+    edit.backdropZoom = zoom;
+    edit.backdropRotation = rotation;
+    edit.backdropTheme = theme;
+    edit.backdropPage = page;
+    return true;
+}
 
 static bool FreeTextInPlaceEditJustEnded() {
     return gInPlaceEndedAt != 0 && (GetTickCount64() - gInPlaceEndedAt) < kContentsEditJustEndedMs;
@@ -2383,10 +2527,47 @@ static void SizeInPlaceEditToText() {
     want.dx = std::min(want.dx, std::max(canvas.dx - cur.x, gInPlace.minSize.dx));
     want.dy = std::min(want.dy, std::max(canvas.dy - cur.y, gInPlace.minSize.dy));
     if (want == gInPlace.size) {
+        PositionFreeTextTools();
         return;
     }
     gInPlace.size = want;
     SetWindowPos(gInPlace.hwnd, nullptr, 0, 0, want.dx, want.dy, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    PositionFreeTextTools();
+}
+
+static void UpdateFreeTextFont() {
+    auto& edit = gInPlace;
+    int px = std::max(6, (int)lroundf(edit.textSize * edit.scale));
+    HFONT font = CreateFontW(-px, 0, 0, 0, (edit.fontStyle & kFreeTextBold) ? FW_BOLD : FW_NORMAL,
+                             !!(edit.fontStyle & kFreeTextItalic), !!(edit.fontStyle & kFreeTextUnderline), FALSE,
+                             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH,
+                             WinFontFamilyTemp(edit.fontFamily).s);
+    if (!font) {
+        return;
+    }
+    HFONT old = edit.font;
+    edit.font = font;
+    edit.fontPx = px;
+    SetWindowFont(edit.hwnd, font, TRUE);
+    DeleteObject(old);
+    SizeInPlaceEditToText();
+    InvalidateRect(edit.hwnd, nullptr, TRUE);
+}
+
+static Size FreeTextEditorSize(RectF rect, float scale) {
+    // The Windows editor stays upright; its dimensions remain in PDF text axes.
+    return {(int)ceilf(rect.dx * scale), (int)ceilf(rect.dy * scale)};
+}
+
+static RectF GrowFreeTextRect(RectF rect, Size editor, float scale) {
+    Size current = FreeTextEditorSize(rect, scale);
+    if (editor.dx > current.dx) {
+        rect.dx = editor.dx / scale;
+    }
+    if (editor.dy > current.dy) {
+        rect.dy = editor.dy / scale;
+    }
+    return rect;
 }
 
 // Scrolling and zooming move the annotation out from under the box.
@@ -2396,15 +2577,40 @@ void RepositionFreeTextInPlaceEdit(MainWindow* win) {
     }
     DisplayModel* dm = gInPlace.win->AsFixed();
     Annotation* annot = gInPlace.annot;
-    if (!dm || !AnnotationIsLive(annot) || !dm->PageVisible(PageNo(annot))) {
+    if (annot && !AnnotationIsLive(annot)) {
         return;
     }
-    Rect r = dm->CvtToScreen(PageNo(annot), GetRect(annot));
+    int pageNo = annot ? PageNo(annot) : gInPlace.draftPageNo;
+    if (!dm || dm->GetEngine() != gInPlace.engine || win->CurrentTab() != gInPlace.tab) {
+        EndFreeTextInPlaceEdit(false);
+        return;
+    }
+    bool visible = dm->PageVisible(pageNo);
+    ShowWindow(gInPlace.hwnd, visible ? SW_SHOWNOACTIVATE : SW_HIDE);
+    if (!visible) {
+        if (gInPlace.tools) {
+            gInPlace.tools->Show(false);
+        }
+        return;
+    }
+    RectF pageRect = annot ? GetRect(annot) : gInPlace.draftArgs.rect;
+    Rect r = dm->CvtToScreen(pageNo, pageRect);
     Rect cur = ChildPosWithinParent(gInPlace.hwnd);
-    if (cur.x == r.x && cur.y == r.y) {
-        return;
+    float scale = dm->GetZoomReal(pageNo);
+    Size minSize = FreeTextEditorSize(pageRect, scale);
+    bool resized = scale != gInPlace.scale || gInPlace.minSize != minSize;
+    if (resized) {
+        gInPlace.scale = scale;
+        gInPlace.minSize = minSize;
+        UpdateFreeTextFont();
     }
-    SetWindowPos(gInPlace.hwnd, nullptr, r.x, r.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    if (cur.x != r.x || cur.y != r.y) {
+        SetWindowPos(gInPlace.hwnd, nullptr, r.x, r.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+    if (resized || cur.x != r.x || cur.y != r.y) {
+        InvalidateRect(gInPlace.hwnd, nullptr, TRUE);
+    }
+    PositionFreeTextTools();
 }
 
 void EndFreeTextInPlaceEdit(bool accept) {
@@ -2414,9 +2620,19 @@ void EndFreeTextInPlaceEdit(bool accept) {
     gInPlaceEnding = true;
     HWND hwnd = gInPlace.hwnd;
     HFONT font = gInPlace.font;
+    HBRUSH backdrop = gInPlace.backdrop;
+    VirtHost* tools = gInPlace.tools;
+    Str fontFamily = gInPlace.fontFamily;
+    int fontStyle = gInPlace.fontStyle;
+    int textSize = gInPlace.textSize;
+    Color textColor = gInPlace.textCol;
+    bool styleChanged = gInPlace.styleChanged;
     MainWindow* win = gInPlace.win;
     WindowTab* tab = gInPlace.tab;
     Annotation* annot = gInPlace.annot;
+    EngineBase* engine = gInPlace.engine;
+    int draftPageNo = gInPlace.draftPageNo;
+    AnnotCreateArgs draftArgs = gInPlace.draftArgs;
     Rect editRect = ChildPosWithinParent(hwnd);
     TempStr text{};
     if (accept) {
@@ -2428,45 +2644,222 @@ void EndFreeTextInPlaceEdit(bool accept) {
     gInPlace = {};
     SetWindowLongPtrW(hwnd, GWLP_WNDPROC, (LONG_PTR)gInPlaceDefProc);
     DestroyWindow(hwnd);
+    delete tools;
     if (font) {
         DeleteObject(font);
+    }
+    if (backdrop) {
+        DeleteObject(backdrop);
     }
     bool winOk = win && IsMainWindowValidAndNotClosing(win);
     if (winOk) {
         HwndSetFocus(win->hwndCanvas);
     }
-    if (accept && AnnotationIsLive(annot)) {
+    DisplayModel* currentDm = winOk && win->CurrentTab() == tab ? win->AsFixed() : nullptr;
+    if (accept && !annot && currentDm && currentDm->GetEngine() == engine && !str::IsEmptyOrWhiteSpace(text)) {
+        draftArgs.content = text;
+        draftArgs.textSize = textSize;
+        draftArgs.col.parsedOk = true;
+        draftArgs.col.pdfCol = MkPdfColor(GetRValue(textColor), GetGValue(textColor), GetBValue(textColor), 255);
+        draftArgs.hasRect = true;
+        draftArgs.rect = GrowFreeTextRect(draftArgs.rect, editRect.Size(), currentDm->GetZoomReal(draftPageNo));
+        ScopedEngineOperation op(engine, "Add text");
+        annot = EngineMupdfCreateAnnotation(engine, draftPageNo, {draftArgs.rect.x, draftArgs.rect.y}, &draftArgs);
+        if (annot) {
+            if (styleChanged) {
+                SetFreeTextFont(annot, fontFamily, fontStyle);
+            }
+            RefreshAnnotationLists(tab);
+            SetSelectedAnnotation(tab, annot);
+            AnnotChanged(tab);
+        } else if (StartFreeTextDraft(win, draftPageNo, draftArgs)) {
+            HwndSetText(gInPlace.hwnd, text);
+            SizeInPlaceEditToText();
+            MessageBoxWarning(win->hwndFrame, Tr("Couldn't add the text. Your draft is still available."),
+                              Tr("Add text"));
+        }
+    } else if (accept && annot && currentDm && currentDm->GetEngine() == engine && AnnotationIsLive(annot)) {
         // the box may be enlarged and the text set: one undo step
         ScopedEngineOperation op(annot->engine, "Edit text");
         DisplayModel* dm = winOk ? win->AsFixed() : nullptr;
         int pageNo = PageNo(annot);
-        if (dm && dm->ValidPageNo(pageNo)) {
-            // the box was sized to the text while typing; keep that room so
-            // MuPDF doesn't clip what was just written. Compare in screen
-            // pixels: converting the box back to page coordinates biases it
-            // half a pixel up and to the left, so a page-space union always
-            // looks bigger and would grow the annotation on every edit.
+        if (dm && dm->ValidPageNo(pageNo) && (styleChanged || !str::Eq(Contents(annot), text))) {
+            // Grow in PDF text axes, preserving position and unchanged dimensions.
             RectF cur = GetRect(annot);
-            Rect curScreen = dm->CvtToScreen(pageNo, cur);
-            Rect wanted = curScreen.Union(editRect);
-            if (wanted != curScreen) {
-                SetRect(annot, cur.Union(dm->CvtFromScreen(wanted, pageNo)));
-            }
+            SetRect(annot, GrowFreeTextRect(cur, editRect.Size(), dm->GetZoomReal(pageNo)));
         }
         SetContents(annot, text);
+        if (styleChanged) {
+            SetFreeTextFont(annot, fontFamily, fontStyle);
+            SetDefaultAppearanceTextSize(annot, textSize);
+            SetDefaultAppearanceTextColor(
+                annot, MkPdfColor(GetRValue(textColor), GetGValue(textColor), GetBValue(textColor), 255));
+        }
         AnnotChanged(tab);
     } else if (winOk) {
         MainWindowRerender(win);
     }
+    str::Free(fontFamily);
     gInPlaceEnding = false;
+}
+
+constexpr UINT kFreeTextToolMsg = WM_APP + 0x381;
+enum class FreeTextTool {
+    Font,
+    Smaller,
+    Larger,
+    Color,
+    Move,
+    Delete,
+    Accept,
+    Cancel
+};
+
+static void OnFreeTextTool(VirtButton* button, VirtMouseEvent*) {
+    if (gInPlace.hwnd) {
+        PostMessageW(gInPlace.hwnd, kFreeTextToolMsg, (WPARAM)button->id, 0);
+    }
+}
+
+static void FreeTextToolsMsg(VirtHostNativeMsg* ev) {
+    if (ev->msg == WM_KEYDOWN && ev->wp == VK_ESCAPE) {
+        PostMessageW(gInPlace.hwnd, kFreeTextToolMsg, (WPARAM)FreeTextTool::Cancel, 0);
+        ev->didHandle = true;
+    } else if (ev->msg == WM_KEYDOWN && ev->wp == VK_F6) {
+        HwndSetFocus(gInPlace.hwnd);
+        ev->didHandle = true;
+    } else if (ev->msg == WM_KILLFOCUS && !gInPlace.formatting && (HWND)ev->wp != gInPlace.hwnd) {
+        PostMessageW(gInPlace.hwnd, kFreeTextToolMsg, (WPARAM)FreeTextTool::Accept, 0);
+    }
+}
+
+static void CreateFreeTextTools() {
+    auto& edit = gInPlace;
+    VirtHost::CreateArgs args;
+    args.parent = edit.win->hwndFrame;
+    args.className = WStrL(L"SwiftLeafFreeTextTools");
+    args.isPopup = true;
+    args.noActivate = true;
+    args.visible = false;
+    args.bgColor = ThemeWindowControlBackgroundColor();
+    edit.tools = VirtHost::Create(args);
+    if (!edit.tools) {
+        return;
+    }
+    edit.tools->onNativeMsg = MkFunc1Void(FreeTextToolsMsg);
+    auto* row = new HBox();
+    row->gap = DpiScale(2);
+    row->alignCross = CrossAxisAlign::CrossCenter;
+    Str labels[] = {Tr("Font"), StrL("A−"), StrL("A+"), Tr("Color"), Tr("Move"), Tr("Delete")};
+    Str tips[] = {Tr("Choose font"),
+                  Tr("Decrease font size"),
+                  Tr("Increase font size"),
+                  Tr("Text color"),
+                  Tr("Finish typing; drag the selected text to move it"),
+                  Tr("Delete text")};
+    for (int i = 0; i < dimof(labels); i++) {
+        auto* button = NewThemedButton(edit.tools->native, labels[i], GetDefaultGuiFont(), false);
+        button->SetTooltip(tips[i]);
+        button->id = i;
+        button->onClick = MkFunc1(OnFreeTextTool, button);
+        row->AddChild(button);
+    }
+    int pad = DpiScale(4);
+    edit.toolsSize = edit.tools->SetLayoutSizedToContent(new Padding(row, Insets{pad, pad, pad, pad}));
+    PositionFreeTextTools();
+}
+
+static void HandleFreeTextTool(FreeTextTool tool) {
+    auto& edit = gInPlace;
+    if (tool == FreeTextTool::Cancel) {
+        EndFreeTextInPlaceEdit(false);
+        return;
+    }
+    if (tool == FreeTextTool::Move || tool == FreeTextTool::Accept) {
+        EndFreeTextInPlaceEdit(true);
+        return;
+    }
+    if (tool == FreeTextTool::Delete) {
+        MainWindow* win = edit.win;
+        WindowTab* tab = edit.tab;
+        Annotation* annot = edit.annot;
+        EndFreeTextInPlaceEdit(false);
+        if (win && win->CurrentTab() == tab && AnnotationIsLive(annot)) {
+            DeleteAnnotationAndUpdateUI(tab, annot);
+        }
+        return;
+    }
+    edit.formatting = true;
+    bool changed = false;
+    if (tool == FreeTextTool::Font) {
+        Str family = edit.fontFamily;
+        int style = edit.fontStyle;
+        if (ChooseSystemFont(edit.hwnd, family, style)) {
+            Str copy = str::Dup(family);
+            str::Free(edit.fontFamily);
+            edit.fontFamily = copy;
+            edit.fontStyle = style;
+            changed = true;
+        }
+    } else if (tool == FreeTextTool::Color) {
+        static COLORREF custom[16]{};
+        CHOOSECOLORW cc{};
+        cc.lStructSize = sizeof(cc);
+        cc.hwndOwner = edit.hwnd;
+        cc.rgbResult = edit.textCol;
+        cc.lpCustColors = custom;
+        cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+        if (ChooseColorW(&cc)) {
+            edit.textCol = cc.rgbResult;
+            changed = true;
+        }
+    } else {
+        edit.textSize = std::clamp(edit.textSize + (tool == FreeTextTool::Smaller ? -1 : 1), 6, 72);
+        changed = true;
+    }
+    edit.formatting = false;
+    if (changed && edit.hwnd) {
+        edit.styleChanged = true;
+        UpdateFreeTextFont();
+    }
+    if (edit.hwnd) {
+        HwndSetFocus(edit.hwnd);
+    }
+}
+
+static void PaintFreeTextBorder(HDC dc) {
+    if (!dc || !gInPlace.hwnd || gInPlace.borderWidth <= 0) {
+        return;
+    }
+    Rect r = HwndClientRect(gInPlace.hwnd);
+    float width = gInPlace.borderWidth * gInPlace.scale;
+    Color color = FreeTextViewColor(gInPlace.textCol);
+    Gdiplus::Graphics gs(dc);
+    Gdiplus::Pen pen(Gdiplus::Color((BYTE)gInPlace.opacity, GetRValue(color), GetGValue(color), GetBValue(color)),
+                     width);
+    float inset = width / 2;
+    gs.DrawRectangle(&pen, inset, inset, std::max(0.f, r.dx - width), std::max(0.f, r.dy - width));
 }
 
 static LRESULT CALLBACK WndProcFreeTextInPlaceEdit(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
+        case kFreeTextToolMsg:
+            HandleFreeTextTool((FreeTextTool)wp);
+            return 0;
         case WM_GETDLGCODE:
             // Enter is a new line and Esc cancels, so we want every key
             return DLGC_WANTALLKEYS;
         case WM_KEYDOWN:
+            if ((wp == VK_TAB || wp == VK_F6) && gInPlace.tools) {
+                if (gInPlace.tools->vroot) {
+                    gInPlace.tools->vroot->SetFocus(nullptr);
+                }
+                SetHostNoActivate(gInPlace.tools, false);
+                SetActiveWindow(gInPlace.tools->native);
+                HwndSetFocus(gInPlace.tools->native);
+                SendMessageW(gInPlace.tools->native, WM_KEYDOWN, VK_TAB, 0);
+                return 0;
+            }
             if (wp == VK_ESCAPE) {
                 EndFreeTextInPlaceEdit(false);
                 return 0;
@@ -2484,7 +2877,7 @@ static LRESULT CALLBACK WndProcFreeTextInPlaceEdit(HWND hwnd, UINT msg, WPARAM w
                 return 0;
             }
             // Esc was handled on key down; don't also insert it
-            if (wp == VK_ESCAPE) {
+            if (wp == VK_ESCAPE || wp == VK_TAB) {
                 return 0;
             }
             break;
@@ -2497,15 +2890,43 @@ static LRESULT CALLBACK WndProcFreeTextInPlaceEdit(HWND hwnd, UINT msg, WPARAM w
             }
             return res;
         }
+        case WM_NCHITTEST: {
+            POINT pt{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
+            ScreenToClient(hwnd, &pt);
+            RECT client;
+            GetClientRect(hwnd, &client);
+            if (!PtInRect(&client, pt)) {
+                return HTBORDER;
+            }
+            break;
+        }
+        case WM_NCLBUTTONDOWN: {
+            // The frame moves the object; the client area selects typed text.
+            MainWindow* win = gInPlace.win;
+            HWND canvas = win ? win->hwndCanvas : nullptr;
+            POINT pt{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
+            EndFreeTextInPlaceEdit(true);
+            if (canvas && IsWindow(canvas)) {
+                ScreenToClient(canvas, &pt);
+                StartSelectedAnnotMove(win, {pt.x, pt.y});
+            }
+            return 0;
+        }
+        case WM_SETCURSOR:
+            if (LOWORD(lp) == HTBORDER) {
+                SetCursor(LoadCursorW(nullptr, IDC_SIZEALL));
+                return TRUE;
+            }
+            break;
         case WM_NCPAINT: {
-            // a frame in the annotation's text color
+            // Selection frame is UI-only, independent of the PDF text color.
             CallWindowProcW(gInPlaceDefProc, hwnd, msg, wp, lp);
             HDC hdc = GetWindowDC(hwnd);
             if (hdc) {
                 RECT wr;
                 GetWindowRect(hwnd, &wr);
                 RECT r = {0, 0, wr.right - wr.left, wr.bottom - wr.top};
-                HBRUSH br = CreateSolidBrush(gInPlace.textCol);
+                HBRUSH br = CreateSolidBrush(ThemeWindowLinkColor());
                 FrameRect(hdc, &r, br);
                 DeleteObject(br);
                 ReleaseDC(hwnd, hdc);
@@ -2513,7 +2934,13 @@ static LRESULT CALLBACK WndProcFreeTextInPlaceEdit(HWND hwnd, UINT msg, WPARAM w
             return 0;
         }
         case WM_KILLFOCUS: {
+            if (gInPlace.formatting) {
+                break;
+            }
             HWND next = (HWND)wp;
+            if (gInPlace.tools && (next == gInPlace.tools->native || IsChild(gInPlace.tools->native, next))) {
+                break;
+            }
             if (!next || HwndIsOnScreenKeyboard(next)) {
                 if (next && gInPlace.hwnd) {
                     PostMessageW(gInPlace.hwnd, WM_SETFOCUS, 0, 0);
@@ -2529,6 +2956,16 @@ static LRESULT CALLBACK WndProcFreeTextInPlaceEdit(HWND hwnd, UINT msg, WPARAM w
     }
     LRESULT res = CallWindowProcW(gInPlaceDefProc, hwnd, msg, wp, lp);
     switch (msg) {
+        case WM_PAINT: {
+            HDC dc = GetDC(hwnd);
+            PaintFreeTextBorder(dc);
+            ReleaseDC(hwnd, dc);
+            break;
+        }
+        case WM_PRINT:
+        case WM_PRINTCLIENT:
+            PaintFreeTextBorder((HDC)wp);
+            break;
         case WM_CHAR:
         case WM_KEYDOWN:
         case WM_PASTE:
@@ -2543,51 +2980,53 @@ static LRESULT CALLBACK WndProcFreeTextInPlaceEdit(HWND hwnd, UINT msg, WPARAM w
     return res;
 }
 
-bool StartFreeTextInPlaceEdit(MainWindow* win, Annotation* annot) {
-    if (!win || !win->hwndCanvas || !AnnotationIsLive(annot)) {
+static bool StartFreeTextEditor(MainWindow* win, Annotation* annot, int draftPageNo, const AnnotCreateArgs* draft) {
+    if (!win || !win->hwndCanvas || (!draft && !AnnotationIsLive(annot))) {
         return false;
     }
-    if (Type(annot) != AnnotationType::FreeText) {
+    if (annot && Type(annot) != AnnotationType::FreeText) {
         return false;
     }
-    if (gInPlace.annot == annot) {
+    if (gInPlace.hwnd && annot && gInPlace.annot == annot) {
         return true;
     }
     EndFreeTextInPlaceEdit(true);
     DisplayModel* dm = win->AsFixed();
-    int pageNo = PageNo(annot);
+    int pageNo = annot ? PageNo(annot) : draftPageNo;
     if (!dm || !dm->ValidPageNo(pageNo) || !dm->PageVisible(pageNo)) {
         return false;
     }
-    RectF pageRect = GetRect(annot);
+    RectF pageRect = annot ? GetRect(annot) : draft->rect;
     Rect rc = dm->CvtToScreen(pageNo, pageRect);
     if (rc.IsEmpty()) {
         return false;
     }
 
     // screen pixels per PDF point, so the box matches the rendered text
-    float scale = pageRect.dy > 0 ? ((float)rc.dy / pageRect.dy) : 1.f;
-    int textSize = DefaultAppearanceTextSize(annot);
+    float scale = dm->GetZoomReal(pageNo);
+    Size editorSize = FreeTextEditorSize(pageRect, scale);
+    rc.dx = editorSize.dx;
+    rc.dy = editorSize.dy;
+    int textSize = annot ? DefaultAppearanceTextSize(annot) : draft->textSize;
     if (textSize <= 0) {
         textSize = 12;
     }
-    int borderWidth = std::max(BorderWidth(annot), 0);
+    int borderWidth = std::max(annot ? BorderWidth(annot) : draft->borderWidth, 0);
     int fontPx = std::max(6, (int)lroundf((float)textSize * scale));
-    int fontStyle = FreeTextFontStyle(annot);
+    int fontStyle = annot ? FreeTextFontStyle(annot) : 0;
     int weight = (fontStyle & kFreeTextBold) ? FW_BOLD : FW_NORMAL;
     BOOL italic = (fontStyle & kFreeTextItalic) ? TRUE : FALSE;
     BOOL underline = (fontStyle & kFreeTextUnderline) ? TRUE : FALSE;
     HFONT font = CreateFontW(-fontPx, 0, 0, 0, weight, italic, underline, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
                              CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH,
-                             WinFontFamilyTemp(FreeTextFontFamily(annot)).s);
+                             WinFontFamilyTemp(annot ? FreeTextFontFamily(annot) : StrL("Helvetica")).s);
     if (!font) {
         return false;
     }
 
     // lines don't wrap: the box grows to fit them instead
-    // no WS_BORDER: the 1px frame comes from WM_NCCALCSIZE / WM_NCPAINT so it
-    // can be drawn in the text color
-    DWORD style = WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_WANTRETURN | ES_AUTOHSCROLL | ES_AUTOVSCROLL;
+    // The UI-only frame comes from WM_NCCALCSIZE / WM_NCPAINT.
+    DWORD style = WS_CHILD | ES_MULTILINE | ES_WANTRETURN | ES_AUTOHSCROLL | ES_AUTOVSCROLL;
     HMODULE hmod = GetModuleHandleW(nullptr);
     HWND hwnd =
         CreateWindowExW(0, WC_EDITW, L"", style, rc.x, rc.y, rc.dx, rc.dy, win->hwndCanvas, nullptr, hmod, nullptr);
@@ -2600,7 +3039,7 @@ bool StartFreeTextInPlaceEdit(MainWindow* win, Annotation* annot) {
     SetWindowFont(hwnd, font, TRUE);
     int pad = std::max(DpiScale(2), 1);
     SendMessageW(hwnd, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELPARAM(pad, pad));
-    TempStr text = str::DupTemp(Contents(annot));
+    TempStr text = str::DupTemp(annot ? Contents(annot) : StrL(""));
     str::NormalizeNewlinesToLFInPlace(text);
     text = str::LFToCRLFTemp(text);
     HwndSetText(hwnd, text);
@@ -2610,9 +3049,19 @@ bool StartFreeTextInPlaceEdit(MainWindow* win, Annotation* annot) {
 
     gInPlace.hwnd = hwnd;
     gInPlace.font = font;
+    gInPlace.fontFamily = str::Dup(annot ? FreeTextFontFamily(annot) : StrL("Helvetica"));
+    gInPlace.fontStyle = fontStyle;
     gInPlace.win = win;
     gInPlace.tab = win->CurrentTab();
     gInPlace.annot = annot;
+    gInPlace.engine = dm->GetEngine();
+    gInPlace.fillCol = annot ? GetColor(annot) : (draft->bgCol.parsedOk ? draft->bgCol.pdfCol : kColorUnset);
+    gInPlace.opacity = annot ? Opacity(annot) : MulDiv(draft->opacity, 255, 100);
+    if (draft) {
+        gInPlace.draftPageNo = pageNo;
+        gInPlace.draftArgs = *draft;
+        gInPlace.draftArgs.content = {};
+    }
     gInPlace.size = rc.Size();
     gInPlace.minSize = rc.Size();
     gInPlace.padding = pad;
@@ -2620,28 +3069,38 @@ bool StartFreeTextInPlaceEdit(MainWindow* win, Annotation* annot) {
     gInPlace.borderWidth = borderWidth;
     gInPlace.fontPx = fontPx;
     gInPlace.scale = scale;
-    PdfColor pdfTextCol = DefaultAppearanceTextColor(annot);
+    PdfColor pdfTextCol =
+        annot ? DefaultAppearanceTextColor(annot) : (draft->col.parsedOk ? draft->col.pdfCol : kColorUnset);
     if (pdfTextCol != kColorUnset) {
         u8 r, g, b, a;
         UnpackPdfColor(pdfTextCol, r, g, b, a);
         gInPlace.textCol = MkRgb(r, g, b);
     }
-    // the border was painted before we knew the color
     SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 
+    CacheFreeTextBackdrop();
+    ShowWindow(hwnd, SW_SHOWNOACTIVATE);
     HwndSetFocus(hwnd);
     // caret at the end, nothing selected: this is editing what is there, not
     // replacing it
     int end = (int)SendMessageW(hwnd, WM_GETTEXTLENGTH, 0, 0);
     EditSelectText(hwnd, end, end);
     SizeInPlaceEditToText();
+    CreateFreeTextTools();
     return true;
 }
 
-// Edit the free text annotation under `pt`, if there is one and we are in
-// Edit PDF mode.
+bool StartFreeTextInPlaceEdit(MainWindow* win, Annotation* annot) {
+    return StartFreeTextEditor(win, annot, 0, nullptr);
+}
+
+bool StartFreeTextDraft(MainWindow* win, int pageNo, const AnnotCreateArgs& args) {
+    return StartFreeTextEditor(win, nullptr, pageNo, &args);
+}
+
+// Edit FreeText under the pointer in Edit mode, or when already selected.
 bool StartFreeTextInPlaceEditAt(MainWindow* win, Point pt) {
-    if (!win || !win->pdfAnnotationsToolbarEnabled) {
+    if (!win) {
         return false;
     }
     WindowTab* tab = win->CurrentTab();
@@ -2650,21 +3109,26 @@ bool StartFreeTextInPlaceEditAt(MainWindow* win, Point pt) {
         return false;
     }
     Annotation* annot = dm->GetAnnotationAtPos(pt, nullptr);
-    if (!annot || Type(annot) != AnnotationType::FreeText) {
+    if (!annot || Type(annot) != AnnotationType::FreeText ||
+        (!win->pdfAnnotationsToolbarEnabled && tab->selectedAnnotation != annot)) {
         return false;
     }
     SetSelectedAnnotation(tab, annot);
     return StartFreeTextInPlaceEdit(win, annot);
 }
 
-// WM_CTLCOLOREDIT the canvas gets for the in-place box: the annotation's text
-// color on white. nullptr if `edit` isn't the box.
+// Composite the native editor over a cached page crop, excluding its old text.
 HBRUSH FreeTextInPlaceEditCtlColor(HWND edit, HDC hdc) {
     if (!gInPlace.hwnd || edit != gInPlace.hwnd) {
         return nullptr;
     }
-    SetTextColor(hdc, gInPlace.textCol);
-    SetBkColor(hdc, kColWhite);
+    SetTextColor(hdc, FreeTextViewColor(gInPlace.textCol));
+    SetBkMode(hdc, TRANSPARENT);
+    if (CacheFreeTextBackdrop()) {
+        Point origin = HwndMapWindowPoint(edit, gInPlace.win->hwndCanvas, {});
+        SetBrushOrgEx(hdc, gInPlace.backdropRect.x - origin.x, gInPlace.backdropRect.y - origin.y, nullptr);
+        return gInPlace.backdrop;
+    }
     return (HBRUSH)GetStockObject(WHITE_BRUSH);
 }
 

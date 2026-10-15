@@ -259,6 +259,9 @@ import { testit as issue6111 } from "./issue-6111.ts";
 import { testit as annotListPlacement } from "./annot-list-placement.ts";
 import { testit as exitEditPdfDeselects } from "./exit-edit-pdf-deselects.ts";
 import { testit as freeTextInPlaceEdit } from "./free-text-in-place-edit.ts";
+import { testit as freeTextDraft } from "./free-text-draft.ts";
+import { testit as freeTextTransparent } from "./free-text-transparent.ts";
+import { testit as freeTextCustomStyle } from "./free-text-custom-style.ts";
 import { testit as freeTextEditMatchesRender } from "./free-text-edit-matches-render.ts";
 import { testit as annotMoveableTypes } from "./annot-moveable-types.ts";
 import { testit as stampCaretAnnotationPlacement } from "./stamp-caret-annotation-placement.ts";
@@ -393,6 +396,9 @@ export const tests: NamedTest[] = [
   // first: it drives the home page, whose thumbnail selection follows the
   // mouse, so it is the one test that cares what the machine was doing before
   ["issue-5978", issue5978],
+  ["free-text-draft", freeTextDraft],
+  ["free-text-transparent", freeTextTransparent],
+  ["free-text-custom-style", freeTextCustomStyle],
   ["jpeg-xl-pdf", jpegXlPdf],
   ["annotation clipboard tests", annotationClipboardTests],
   ["issue-6276", issue6276],

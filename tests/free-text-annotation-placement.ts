@@ -1,6 +1,6 @@
 // Free text annotations from the PDF toolbar or Command Palette enter a
 // placement mode: a preview box the size of the annotation follows the cursor,
-// canvas-margin clicks do nothing, a page click creates it exactly where the
+// canvas-margin clicks do nothing, a page click opens an empty draft where the
 // preview was, and Esc cancels.
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -19,6 +19,7 @@ import {
   sendText,
   setCursorPos,
   sleep,
+  setProcessDpiAware,
   VK_DOWN,
   VK_RETURN,
   WM_COMMAND,
@@ -26,8 +27,8 @@ import {
   WM_MOUSEMOVE,
 } from "./winapi.ts";
 import {
+  acceptFreeTextDraft,
   clickAt,
-  findChildByClass,
   findCanvas,
   killAndWait,
   launchControlled,
@@ -109,18 +110,6 @@ async function selectedAnnotRect(client: ControlClient): Promise<Rect> {
   return { x: +m[1]!, y: +m[2]!, dx: +m[3]!, dy: +m[4]! };
 }
 
-function toolbarRect(dump: string): Rect {
-  const id = cmdId("CmdCreateAnnotFreeText");
-  const re = new RegExp(`annotation-idx=\\d+ cmd=${id} hidden=0 enabled=1 rect=(-?\\d+),(-?\\d+),(-?\\d+),(-?\\d+)`);
-  const m = re.exec(dump);
-  if (!m) {
-    throw new Error(`free-text-annotation-placement: Free Text toolbar button not found\n${dump}`);
-  }
-  const x = +m[1]!;
-  const y = +m[2]!;
-  return { x, y, dx: +m[3]! - x, dy: +m[4]! - y };
-}
-
 async function executeFromCommandPalette(client: ControlClient, frame: number): Promise<void> {
   sendCommand(frame, cmdId("CmdCommandPalette"));
   const openDeadline = Date.now() + 8_000;
@@ -174,6 +163,7 @@ async function executeFromCommandPalette(client: ControlClient, frame: number): 
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("free-text-annotation-placement");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -204,10 +194,8 @@ export async function testit(): Promise<void> {
     const pagePoint = { x: Math.floor(canvasRect.right / 2), y: Math.floor(canvasRect.bottom / 2) };
     const wantCmd = cmdId("CmdCreateAnnotFreeText");
 
-    const toolbarDump = String((await client.request(ControlCommand.TestToolbarButtons, []))[1] ?? "");
-    const button = toolbarRect(toolbarDump);
-    const toolbar = findChildByClass(frame, "SUMATRA_VIRT_TOOLBAR");
-    await clickAt(toolbar, button.x + Math.floor(button.dx / 2), button.y + Math.floor(button.dy / 2), 0);
+    // SwiftLeaf's ribbon routes this same command without a context point.
+    sendCommandSync(frame, wantCmd);
 
     let state = await waitForPlacement(client, true);
     if (!state.notification || state.annotations !== 0 || state.message !== kExpectedMessage) {
@@ -222,7 +210,7 @@ export async function testit(): Promise<void> {
       throw new Error(`free-text-annotation-placement: preview/cursor was not active\n${state.raw}`);
     }
     const preview = state.previewRect;
-    // sized to one line of the placeholder text, not MuPDF's 200x100 default
+    // A one-line draft target, rather than MuPDF's 200x100 default.
     if (preview.dx < 20 || preview.dy < 8 || preview.dy > preview.dx / 2) {
       throw new Error(`free-text-annotation-placement: preview box is not text sized: ${JSON.stringify(preview)}`);
     }
@@ -242,22 +230,25 @@ export async function testit(): Promise<void> {
     sendMessage(canvas, WM_MOUSEMOVE, 0, packCoords(pagePoint.x, pagePoint.y));
     await clickAt(canvas, pagePoint.x, pagePoint.y, 0);
     state = await waitForPlacement(client, false);
-    if (state.notification || state.annotations !== 1) {
-      throw new Error(`free-text-annotation-placement: page click did not place one annotation\n${state.raw}`);
+    if (state.notification || state.annotations !== 0 || !/freeTextEdit active=1/.test(state.raw)) {
+      throw new Error(`free-text-annotation-placement: page click did not start a draft\n${state.raw}`);
     }
+    acceptFreeTextDraft(canvas, "Text");
+    await client.waitForRenderIdle();
 
     // the annotation must land where the preview box was, at the same size
     const created = await selectedAnnotRect(client);
     const slack = 4;
-    const off = [created.x - preview.x, created.y - preview.y, created.dx - preview.dx, created.dy - preview.dy];
-    if (off.some((v) => Math.abs(v) > slack)) {
+    const off = [created.x - preview.x, created.y - preview.y];
+    if (off.some((v) => Math.abs(v) > slack) || created.dx < preview.dx - slack || created.dy < preview.dy - slack) {
       throw new Error(
         `free-text-annotation-placement: created ${JSON.stringify(created)} != preview ${JSON.stringify(preview)}`,
       );
     }
 
-    // the context-menu path passes a point and still creates immediately
+    // The context-menu path starts its draft at the supplied point.
     sendMessage(frame, WM_COMMAND, wantCmd, packCoords(pagePoint.x + 40, pagePoint.y + 40));
+    acceptFreeTextDraft(canvas, "Second text");
     state = await placementState(client);
     if (state.active || state.notification || state.annotations !== 2) {
       throw new Error(`free-text-annotation-placement: context point did not place immediately\n${state.raw}`);
