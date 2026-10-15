@@ -900,6 +900,15 @@ export function getWindowText(hwnd: number): string {
   return s;
 }
 
+export function getWindowFontHeight(hwnd: number): number {
+  const font = user32.symbols.SendMessageW(hwnd, 0x0031, 0, 0n); // WM_GETFONT
+  const lf = new Int32Array(23); // LOGFONTW
+  if (!font || !gdi32.symbols.GetObjectW(BigInt(font), lf.byteLength, ptr(lf))) {
+    throw new Error("Could not read the native window font");
+  }
+  return Math.abs(lf[0]!);
+}
+
 function readClipboardText(): string | null {
   const CF_UNICODETEXT = 13;
   if (!user32.symbols.OpenClipboard(null)) {

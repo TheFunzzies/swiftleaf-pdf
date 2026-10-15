@@ -5,6 +5,7 @@ struct fz_outline;
 struct fz_link;
 struct Pixmap;
 struct RenderedBitmap;
+struct Annotation;
 struct IPageDestination;
 struct TocItem;
 struct PropValue;
@@ -429,6 +430,7 @@ struct RenderPageArgs {
     // dark/recolor rendering profile for View renders (see PdfDarkMode.h);
     // owned by the caller, only valid for the duration of RenderPage()
     const DarkModeProfile* darkProfile = nullptr;
+    const Annotation* excludeAnnot = nullptr;
 
     RenderPageArgs(int pageNo, float zoom, int rotation, RectF* pageRect = nullptr,
                    RenderTarget target = RenderTarget::View, AbortCookie** cookie_out = nullptr);

@@ -1972,11 +1972,7 @@ Annotation* EngineMupdfCreateAnnotation(EngineBase* engine, int pageNo, PointF p
                     pdf_set_annot_quadding(ctx, annot, args->quadding);
                 }
                 const char* content = CStrTemp(args->content);
-                if (!str::IsEmptyOrWhiteSpace(Str(content))) {
-                    pdf_set_annot_contents(ctx, annot, content);
-                } else {
-                    pdf_set_annot_contents(ctx, annot, kDefaultFreeTextContent);
-                }
+                pdf_set_annot_contents(ctx, annot, content);
                 int fontSize = args->textSize;
                 if (fontSize <= 0) {
                     fontSize = 12;
@@ -1997,6 +1993,8 @@ Annotation* EngineMupdfCreateAnnotation(EngineBase* engine, int pageNo, PointF p
                     // give the annotation a black background instead
                     int nBgCol = (bgCol.pdfCol == 0) ? 0 : 3;
                     pdf_set_annot_color(ctx, annot, nBgCol, bgColor);
+                } else {
+                    pdf_set_annot_color(ctx, annot, 0, black);
                 }
                 // 100 is fuly opaque, the default
                 if (args->opacity < 100) {

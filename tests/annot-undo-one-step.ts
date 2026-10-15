@@ -11,7 +11,8 @@ import { assemblePdf, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from ".
 import {
   enumChildWindows,
   getClassName,
-  getControlText,
+  isWindowVisible,
+  setProcessDpiAware,
   packCoords,
   sendMessage,
   sendText,
@@ -167,7 +168,7 @@ async function stableSquare(client: ControlClient): Promise<Rect> {
 function findEditBox(canvas: number): number {
   let found = 0;
   enumChildWindows(canvas, (hwnd) => {
-    if (getClassName(hwnd) !== "Edit" || !getControlText(hwnd).startsWith("This is a text")) {
+    if (getClassName(hwnd) !== "Edit" || !isWindowVisible(hwnd)) {
       return true;
     }
     found = hwnd;
@@ -229,9 +230,7 @@ async function testFreeText(): Promise<void> {
     want(s, "the free text annotation is missing", s.annotations === 1 && s.canUndo);
 
     s = await undo(client, frame);
-    want(s, "the first undo takes back the text, not the annotation", s.annotations === 1 && s.canUndo);
-    s = await undo(client, frame);
-    want(s, "the second undo must take back the creation", s.annotations === 0 && !s.canUndo && !s.modified);
+    want(s, "one undo takes back the accepted draft", s.annotations === 0 && !s.canUndo && !s.modified);
   } finally {
     client.close();
     await killAndWait(proc);
@@ -271,6 +270,7 @@ async function testColorPick(): Promise<void> {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   // ANNOT_UNDO_ONLY=redact|freetext|color runs one part
   const only = process.env.ANNOT_UNDO_ONLY;
   if (!only || only === "redact") {

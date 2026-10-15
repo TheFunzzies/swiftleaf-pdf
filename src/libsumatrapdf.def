@@ -1921,6 +1921,8 @@ EXPORTS
 
 	pdf_redo
 
+	pdf_drop_resource_tables
+
 	pdf_first_widget
 
 	pdf_next_widget

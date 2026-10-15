@@ -14,13 +14,21 @@ import {
   sendMessage,
   setCursorPos,
   sleep,
+  setProcessDpiAware,
   MK_LBUTTON,
   WM_COMMAND,
   WM_LBUTTONDOWN,
   WM_LBUTTONUP,
   WM_MOUSEMOVE,
 } from "./winapi.ts";
-import { clickAt, findCanvas, killAndWait, launchControlled, sendCommandSync } from "./win-automation.ts";
+import {
+  acceptFreeTextDraft,
+  clickAt,
+  findCanvas,
+  killAndWait,
+  launchControlled,
+  sendCommandSync,
+} from "./win-automation.ts";
 
 type Rect = { x: number; y: number; dx: number; dy: number };
 
@@ -101,6 +109,7 @@ function sameRect(a: Rect, b: Rect, slack = 0): boolean {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("free-text-edit-toolbar");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -128,8 +137,9 @@ export async function testit(): Promise<void> {
     const canvas = findCanvas(frame);
     sendCommandSync(frame, cmdId("CmdToggleEditPDF"));
 
-    // the point form creates immediately and selects the annotation
+    // Accept the draft before exercising object resize.
     sendMessage(frame, WM_COMMAND, cmdId("CmdCreateAnnotFreeText"), packCoords(150, 300));
+    acceptFreeTextDraft(canvas, "Resize this text");
     await client.waitForRenderIdle();
 
     const before = await annotState(client);

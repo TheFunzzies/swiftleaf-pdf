@@ -2139,6 +2139,23 @@ static void StartAnnotationDrag(MainWindow* win, Annotation* annot, Point& pt) {
     DrawMovePattern(win, pt, win->annotationBeingMovedSize);
 }
 
+bool StartSelectedAnnotMove(MainWindow* win, Point pt) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    Annotation* annot = tab ? tab->selectedAnnotation : nullptr;
+    if (!win || !win->AsFixed() || !AnnotationIsLive(annot) || !AnnotationCanBeMoved(Type(annot)) ||
+        Type(annot) == AnnotationType::Widget) {
+        return false;
+    }
+    win->annotationBeingResized = false;
+    StartAnnotationDrag(win, annot, pt);
+    win->dragStartPending = true;
+    win->dragStart = pt;
+    win->textDragPending = false;
+    win->linkOnLastButtonDown = nullptr;
+    StartMouseDrag(win, pt.x, pt.y);
+    return true;
+}
+
 // Helper function to calculate new rectangle during resize
 static RectF CalculateResizedRect(MainWindow* win, int x, int y) {
     DisplayModel* dm = win->AsFixed();

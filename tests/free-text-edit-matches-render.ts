@@ -12,6 +12,8 @@ import {
   captureWindowPixels,
   enumChildWindows,
   getClassName,
+  isWindowVisible,
+  setProcessDpiAware,
   getControlText,
   packCoords,
   sendMessage,
@@ -62,7 +64,7 @@ async function waitForEdit(client: ControlClient, active: boolean): Promise<void
 function findBox(canvas: number, pred: (text: string) => boolean): number {
   let found = 0;
   enumChildWindows(canvas, (hwnd) => {
-    if (getClassName(hwnd) !== "Edit") {
+    if (getClassName(hwnd) !== "Edit" || !isWindowVisible(hwnd)) {
       return true;
     }
     if (pred(getControlText(hwnd))) {
@@ -113,6 +115,7 @@ function countTextLines(canvas: number, r: Rect): number {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("free-text-edit-matches-render");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -143,12 +146,12 @@ export async function testit(): Promise<void> {
     // creating a free text annotation opens the in-place editor on it
     sendMessage(frame, WM_COMMAND, cmdId("CmdCreateAnnotFreeText"), packCoords(120, 250));
     await waitForEdit(client, true);
-    const box = findBox(canvas, (t) => t.startsWith("This is a text"));
+    const box = findBox(canvas, (t) => t === "");
     if (!box) {
       throw new Error("free-text-edit-matches-render: placing a free text annotation did not open the editor");
     }
 
-    // replace the placeholder with one long line
+    // Fill the draft with one long line.
     sendText(box, TEXT);
     const deadline = Date.now() + 5_000 * SLOW_BUILD_FACTOR;
     while (getControlText(box) !== TEXT) {

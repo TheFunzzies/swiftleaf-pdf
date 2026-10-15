@@ -859,7 +859,7 @@ const annotations: Field[] = [
   // sizes are in PDF user space units (points), not screen pixels: they're
   // part of the document, so they must not be DPI-scaled
   field("FreeTextSize", Int, 12, "font size of free text annotations, in points").ver("3.5"),
-  field("FreeTextBorderWidth", Int, 1, "border width of free text annotations, in points").ver("3.5"),
+  field("FreeTextBorderWidth", Int, 0, "border width of free text annotations, in points").ver("3.5"),
   field(
     "FreeTextAlignment",
     Str,

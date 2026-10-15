@@ -338,7 +338,7 @@ static const FieldInfo gAnnotationsFields[] = {
     {offsetof(Annotations, freeTextBackgroundColor), SettingType::Color, (intptr_t)""},
     {offsetof(Annotations, freeTextOpacity), SettingType::Int, 100},
     {offsetof(Annotations, freeTextSize), SettingType::Int, 12},
-    {offsetof(Annotations, freeTextBorderWidth), SettingType::Int, 1},
+    {offsetof(Annotations, freeTextBorderWidth), SettingType::Int, 0},
     {offsetof(Annotations, freeTextAlignment), SettingType::String, (intptr_t)"left"},
     {offsetof(Annotations, presetColors), SettingType::String,
      (intptr_t)"#ffff00 #8bf05d #99defa #f199d2 #e24745 #ff0000 #0000ff #000000"},
