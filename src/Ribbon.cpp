@@ -21,7 +21,7 @@
 
 //--- icons the classic toolbar doesn't have (Tabler icons, MIT license)
 
-#define TABLER_SVG(body)                                                                                            \
+#define TABLER_SVG(body)                                                                                             \
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" stroke-width=\"1\" " \
     "stroke=\"currentColor\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\">" body "</svg>"
 
@@ -35,52 +35,51 @@ static const char* gIconThumbnails = TABLER_SVG(
     R"(<rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" />)"
     R"(<rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" />)");
 // file-plus
-static const char* gIconPageInsert = TABLER_SVG(
-    R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
-    R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
-    R"(<path d="M12 11l0 6" /><path d="M9 14l6 0" />)");
+static const char* gIconPageInsert =
+    TABLER_SVG(R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
+               R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
+               R"(<path d="M12 11l0 6" /><path d="M9 14l6 0" />)");
 // file-minus
-static const char* gIconPageDelete = TABLER_SVG(
-    R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
-    R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
-    R"(<path d="M9 14l6 0" />)");
+static const char* gIconPageDelete =
+    TABLER_SVG(R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
+               R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
+               R"(<path d="M9 14l6 0" />)");
 // files-off-ish: two pages with a minus
-static const char* gIconPageDeleteMany = TABLER_SVG(
-    R"(<path d="M15 3v4a1 1 0 0 0 1 1h4" />)"
-    R"(<path d="M18 17h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h4l5 5v7a2 2 0 0 1 -2 2z" />)"
-    R"(<path d="M16 17v2a2 2 0 0 1 -2 2h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h2" /><path d="M12 11h5" />)");
+static const char* gIconPageDeleteMany =
+    TABLER_SVG(R"(<path d="M15 3v4a1 1 0 0 0 1 1h4" />)"
+               R"(<path d="M18 17h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h4l5 5v7a2 2 0 0 1 -2 2z" />)"
+               R"(<path d="M16 17v2a2 2 0 0 1 -2 2h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h2" /><path d="M12 11h5" />)");
 // file-arrow-up-ish: a page with an arrow up
-static const char* gIconMoveUp = TABLER_SVG(
-    R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
-    R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
-    R"(<path d="M12 17v-6" /><path d="M9.5 13.5l2.5 -2.5l2.5 2.5" />)");
-static const char* gIconMoveDown = TABLER_SVG(
-    R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
-    R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
-    R"(<path d="M12 11v6" /><path d="M9.5 14.5l2.5 2.5l2.5 -2.5" />)");
+static const char* gIconMoveUp =
+    TABLER_SVG(R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
+               R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
+               R"(<path d="M12 17v-6" /><path d="M9.5 13.5l2.5 -2.5l2.5 2.5" />)");
+static const char* gIconMoveDown =
+    TABLER_SVG(R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
+               R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
+               R"(<path d="M12 11v6" /><path d="M9.5 14.5l2.5 2.5l2.5 -2.5" />)");
 // file-export
-static const char* gIconPageExtract = TABLER_SVG(
-    R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
-    R"(<path d="M11.5 21h-4.5a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v5m-5 6h7m-3 -3l3 3l-3 3" />)");
+static const char* gIconPageExtract =
+    TABLER_SVG(R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
+               R"(<path d="M11.5 21h-4.5a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v5m-5 6h7m-3 -3l3 3l-3 3" />)");
 // file-import
-static const char* gIconPageImport = TABLER_SVG(
-    R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
-    R"(<path d="M5 13v-8a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2h-5.5m-9.5 -2h7m-3 -3l3 3l-3 3" />)");
+static const char* gIconPageImport =
+    TABLER_SVG(R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
+               R"(<path d="M5 13v-8a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2h-5.5m-9.5 -2h7m-3 -3l3 3l-3 3" />)");
 // files
-static const char* gIconMerge = TABLER_SVG(
-    R"(<path d="M15 3v4a1 1 0 0 0 1 1h4" />)"
-    R"(<path d="M18 17h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h4l5 5v7a2 2 0 0 1 -2 2z" />)"
-    R"(<path d="M16 17v2a2 2 0 0 1 -2 2h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h2" />)");
+static const char* gIconMerge =
+    TABLER_SVG(R"(<path d="M15 3v4a1 1 0 0 0 1 1h4" />)"
+               R"(<path d="M18 17h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h4l5 5v7a2 2 0 0 1 -2 2z" />)"
+               R"(<path d="M16 17v2a2 2 0 0 1 -2 2h-7a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h2" />)");
 // arrows-split
-static const char* gIconSplit = TABLER_SVG(
-    R"(<path d="M21 17h-8l-3.5 -5h-6.5" /><path d="M21 7h-8l-3.495 5" />)"
-    R"(<path d="M18 10l3 -3l-3 -3" /><path d="M18 20l3 -3l-3 -3" />)");
+static const char* gIconSplit = TABLER_SVG(R"(<path d="M21 17h-8l-3.5 -5h-6.5" /><path d="M21 7h-8l-3.495 5" />)"
+                                           R"(<path d="M18 10l3 -3l-3 -3" /><path d="M18 20l3 -3l-3 -3" />)");
 // file-zip
-static const char* gIconCompress = TABLER_SVG(
-    R"(<path d="M6 20.735a2 2 0 0 1 -1 -1.735v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2h-1" />)"
-    R"(<path d="M11 17a2 2 0 0 1 2 2v2a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1v-2a2 2 0 0 1 2 -2z" />)"
-    R"(<path d="M11 5l-1 0" /><path d="M13 7l-1 0" /><path d="M11 9l-1 0" /><path d="M13 11l-1 0" />)"
-    R"(<path d="M11 13l-1 0" /><path d="M13 15l-1 0" />)");
+static const char* gIconCompress =
+    TABLER_SVG(R"(<path d="M6 20.735a2 2 0 0 1 -1 -1.735v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2h-1" />)"
+               R"(<path d="M11 17a2 2 0 0 1 2 2v2a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1v-2a2 2 0 0 1 2 -2z" />)"
+               R"(<path d="M11 5l-1 0" /><path d="M13 7l-1 0" /><path d="M11 9l-1 0" /><path d="M13 11l-1 0" />)"
+               R"(<path d="M11 13l-1 0" /><path d="M13 15l-1 0" />)");
 // photo
 static const char* gIconImage = TABLER_SVG(
     R"(<path d="M15 8h.01" />)"
@@ -92,21 +91,21 @@ static const char* gIconExportImages = TABLER_SVG(
     R"(<path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l4 4" /><path d="M14 14l1 -1c.653 -.629 1.413 -.815 2.13 -.559" />)"
     R"(<path d="M19 16v6" /><path d="M22 19l-3 3l-3 -3" />)");
 // clipboard
-static const char* gIconClipboard = TABLER_SVG(
-    R"(<path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" />)"
-    R"(<rect x="9" y="3" width="6" height="4" rx="2" />)");
+static const char* gIconClipboard =
+    TABLER_SVG(R"(<path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" />)"
+               R"(<rect x="9" y="3" width="6" height="4" rx="2" />)");
 // link
-static const char* gIconLink = TABLER_SVG(
-    R"(<path d="M9 15l6 -6" /><path d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464" />)"
-    R"(<path d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463" />)");
+static const char* gIconLink =
+    TABLER_SVG(R"(<path d="M9 15l6 -6" /><path d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464" />)"
+               R"(<path d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463" />)");
 // signature
 static const char* gIconSignature = TABLER_SVG(
     R"(<path d="M3 17c3.333 -3.333 5 -6 5 -8c0 -3 -1 -3 -2 -3s-2.032 1.085 -2 3c.034 2.048 1.658 4.877 2.5 6c1.5 2 2.5 2.5 3.5 1l2 -3c.333 2.667 1.333 4 3 4c.53 0 2.639 -2 3 -2c.517 0 1.517 .667 3 2" />)");
 // certificate
-static const char* gIconCertificate = TABLER_SVG(
-    R"(<path d="M12 15a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M13 17.5v4.5l2 -1.5l2 1.5v-4.5" />)"
-    R"(<path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -1 1.73" />)"
-    R"(<path d="M6 9l12 0" /><path d="M6 12l3 0" /><path d="M6 15l2 0" />)");
+static const char* gIconCertificate =
+    TABLER_SVG(R"(<path d="M12 15a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M13 17.5v4.5l2 -1.5l2 1.5v-4.5" />)"
+               R"(<path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -1 1.73" />)"
+               R"(<path d="M6 9l12 0" /><path d="M6 12l3 0" /><path d="M6 15l2 0" />)");
 // forms
 static const char* gIconForms = TABLER_SVG(
     R"(<path d="M12 3a3 3 0 0 0 -3 3v12a3 3 0 0 0 3 3" /><path d="M6 3a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3" />)"
@@ -116,25 +115,25 @@ static const char* gIconForms = TABLER_SVG(
 static const char* gIconFacing =
     TABLER_SVG(R"(<rect x="3" y="3" width="18" height="18" rx="2" /><path d="M12 3v18" />)");
 // book
-static const char* gIconBook = TABLER_SVG(
-    R"(<path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" />)"
-    R"(<path d="M3 6l0 13" /><path d="M12 6l0 13" /><path d="M21 6l0 13" />)");
+static const char* gIconBook =
+    TABLER_SVG(R"(<path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" />)"
+               R"(<path d="M3 6l0 13" /><path d="M12 6l0 13" /><path d="M21 6l0 13" />)");
 // presentation
-static const char* gIconPresentation = TABLER_SVG(
-    R"(<path d="M3 4l18 0" /><path d="M4 4v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-10" />)"
-    R"(<path d="M12 16l0 4" /><path d="M9 20l6 0" /><path d="M8 12l3 -3l2 2l3 -3" />)");
+static const char* gIconPresentation =
+    TABLER_SVG(R"(<path d="M3 4l18 0" /><path d="M4 4v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-10" />)"
+               R"(<path d="M12 16l0 4" /><path d="M9 20l6 0" /><path d="M8 12l3 -3l2 2l3 -3" />)");
 // maximize
-static const char* gIconFullscreen = TABLER_SVG(
-    R"(<path d="M4 8v-2a2 2 0 0 1 2 -2h2" /><path d="M4 16v2a2 2 0 0 0 2 2h2" />)"
-    R"(<path d="M16 4h2a2 2 0 0 1 2 2v2" /><path d="M16 20h2a2 2 0 0 0 2 -2v-2" />)");
+static const char* gIconFullscreen =
+    TABLER_SVG(R"(<path d="M4 8v-2a2 2 0 0 1 2 -2h2" /><path d="M4 16v2a2 2 0 0 0 2 2h2" />)"
+               R"(<path d="M16 4h2a2 2 0 0 1 2 2v2" /><path d="M16 20h2a2 2 0 0 0 2 -2v-2" />)");
 // arrow-autofit-width
-static const char* gIconFitWidth = TABLER_SVG(
-    R"(<path d="M4 12v-6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v6" /><path d="M10 18h-7" /><path d="M21 18h-7" />)"
-    R"(<path d="M6 15l-3 3l3 3" /><path d="M18 15l3 3l-3 3" />)");
+static const char* gIconFitWidth =
+    TABLER_SVG(R"(<path d="M4 12v-6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v6" /><path d="M10 18h-7" /><path d="M21 18h-7" />)"
+               R"(<path d="M6 15l-3 3l3 3" /><path d="M18 15l3 3l-3 3" />)");
 // arrow-autofit-height
-static const char* gIconFitPage = TABLER_SVG(
-    R"(<path d="M12 20h-6a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h6" /><path d="M18 4v17" />)"
-    R"(<path d="M15 18l3 3l3 -3" /><path d="M15 7l3 -3l3 3" />)");
+static const char* gIconFitPage =
+    TABLER_SVG(R"(<path d="M12 20h-6a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h6" /><path d="M18 4v17" />)"
+               R"(<path d="M15 18l3 3l3 -3" /><path d="M15 7l3 -3l3 3" />)");
 // a page with "1:1" on it
 static const char* gIconActualSize = TABLER_SVG(
     R"(<rect x="3" y="5" width="18" height="14" rx="2" /><path d="M7 10l1.5 -1v6" /><path d="M15 10l1.5 -1v6" />)"
@@ -146,38 +145,38 @@ static const char* gIconInvert =
 static const char* gIconInfo =
     TABLER_SVG(R"(<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 9h.01" /><path d="M11 12h1v4h1" />)");
 // eye
-static const char* gIconEye = TABLER_SVG(
-    R"(<path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />)"
-    R"(<path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" />)");
+static const char* gIconEye =
+    TABLER_SVG(R"(<path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />)"
+               R"(<path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" />)");
 // typography
 static const char* gIconTypewriter = TABLER_SVG(
     R"(<path d="M4 20l3 0" /><path d="M14 20l7 0" /><path d="M6.9 15l6.9 0" /><path d="M10.2 6.3l5.8 13.7" />)"
     R"(<path d="M5 20l6 -16l2 0l7 16" />)");
 // lock
-static const char* gIconLock = TABLER_SVG(
-    R"(<rect x="5" y="11" width="14" height="10" rx="2" /><path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0" />)"
-    R"(<path d="M8 11v-4a4 4 0 1 1 8 0v4" />)");
+static const char* gIconLock =
+    TABLER_SVG(R"(<rect x="5" y="11" width="14" height="10" rx="2" /><path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0" />)"
+               R"(<path d="M8 11v-4a4 4 0 1 1 8 0v4" />)");
 // lock-open
-static const char* gIconUnlock = TABLER_SVG(
-    R"(<rect x="5" y="11" width="14" height="10" rx="2" /><path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0" />)"
-    R"(<path d="M8 11v-5a4 4 0 0 1 8 0" />)");
+static const char* gIconUnlock =
+    TABLER_SVG(R"(<rect x="5" y="11" width="14" height="10" rx="2" /><path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0" />)"
+               R"(<path d="M8 11v-5a4 4 0 0 1 8 0" />)");
 // palette
 static const char* gIconTheme = TABLER_SVG(
     R"(<path d="M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25" />)"
     R"(<path d="M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />)"
     R"(<path d="M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />)");
 // file-text
-static const char* gIconExtractText = TABLER_SVG(
-    R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
-    R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
-    R"(<path d="M9 9l1 0" /><path d="M9 13l6 0" /><path d="M9 17l6 0" />)");
+static const char* gIconExtractText =
+    TABLER_SVG(R"(<path d="M14 3v4a1 1 0 0 0 1 1h4" />)"
+               R"(<path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />)"
+               R"(<path d="M9 9l1 0" /><path d="M9 13l6 0" /><path d="M9 17l6 0" />)");
 // list-details
-static const char* gIconCommentList = TABLER_SVG(
-    R"(<path d="M13 5h8" /><path d="M13 9h5" /><path d="M13 15h8" /><path d="M13 19h5" />)"
-    R"(<rect x="3" y="4" width="6" height="6" rx="1" /><rect x="3" y="14" width="6" height="6" rx="1" />)");
+static const char* gIconCommentList =
+    TABLER_SVG(R"(<path d="M13 5h8" /><path d="M13 9h5" /><path d="M13 15h8" /><path d="M13 19h5" />)"
+               R"(<rect x="3" y="4" width="6" height="6" rx="1" /><rect x="3" y="14" width="6" height="6" rx="1" />)");
 // layout-sidebar
-static const char* gIconBookmarks = TABLER_SVG(
-    R"(<rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 4l0 16" />)");
+static const char* gIconBookmarks =
+    TABLER_SVG(R"(<rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 4l0 16" />)");
 
 // pointer
 static const char* gIconPointer = TABLER_SVG(
@@ -187,33 +186,33 @@ static const char* gIconSnapshot = TABLER_SVG(
     R"(<path d="M5 7h1a2 2 0 0 0 2 -2a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />)"
     R"(<path d="M9 13a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />)");
 // help-circle
-static const char* gIconHelp = TABLER_SVG(
-    R"(<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 17l0 .01" />)"
-    R"(<path d="M12 13.5a1.5 1.5 0 0 1 1 -1.5a2.6 2.6 0 1 0 -3 -4" />)");
+static const char* gIconHelp =
+    TABLER_SVG(R"(<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 17l0 .01" />)"
+               R"(<path d="M12 13.5a1.5 1.5 0 0 1 1 -1.5a2.6 2.6 0 1 0 -3 -4" />)");
 // keyboard
-static const char* gIconKeyboard = TABLER_SVG(
-    R"(<path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" />)"
-    R"(<path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" />)"
-    R"(<path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" />)");
+static const char* gIconKeyboard =
+    TABLER_SVG(R"(<path d="M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" />)"
+               R"(<path d="M6 10l0 .01" /><path d="M10 10l0 .01" /><path d="M14 10l0 .01" /><path d="M18 10l0 .01" />)"
+               R"(<path d="M6 14l0 .01" /><path d="M18 14l0 .01" /><path d="M10 14l4 .01" />)");
 // world
-static const char* gIconWorld = TABLER_SVG(
-    R"(<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M3.6 9h16.8" /><path d="M3.6 15h16.8" />)"
-    R"(<path d="M11.5 3a17 17 0 0 0 0 18" /><path d="M12.5 3a17 17 0 0 1 0 18" />)");
+static const char* gIconWorld =
+    TABLER_SVG(R"(<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M3.6 9h16.8" /><path d="M3.6 15h16.8" />)"
+               R"(<path d="M11.5 3a17 17 0 0 0 0 18" /><path d="M12.5 3a17 17 0 0 1 0 18" />)");
 // cloud-download
-static const char* gIconUpdate = TABLER_SVG(
-    R"(<path d="M19 18a3.5 3.5 0 0 0 0 -7h-1a5 4.5 0 0 0 -11 -2a4.6 4.4 0 0 0 -2.1 8.4" />)"
-    R"(<path d="M12 13l0 9" /><path d="M9 19l3 3l3 -3" />)");
+static const char* gIconUpdate =
+    TABLER_SVG(R"(<path d="M19 18a3.5 3.5 0 0 0 0 -7h-1a5 4.5 0 0 0 -11 -2a4.6 4.4 0 0 0 -2.1 8.4" />)"
+               R"(<path d="M12 13l0 9" /><path d="M9 19l3 3l3 -3" />)");
 // settings
 static const char* gIconSettings = TABLER_SVG(
     R"(<path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" />)"
     R"(<path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />)");
 // logout
-static const char* gIconExit = TABLER_SVG(
-    R"(<path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" />)"
-    R"(<path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" />)");
+static const char* gIconExit =
+    TABLER_SVG(R"(<path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" />)"
+               R"(<path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" />)");
 // stack
-static const char* gIconFlatten = TABLER_SVG(
-    R"(<path d="M12 4l-8 4l8 4l8 -4l-8 -4" /><path d="M4 12l8 4l8 -4" /><path d="M4 16l8 4l8 -4" />)");
+static const char* gIconFlatten =
+    TABLER_SVG(R"(<path d="M12 4l-8 4l8 4l8 -4l-8 -4" /><path d="M4 12l8 4l8 -4" /><path d="M4 16l8 4l8 -4" />)");
 // writing-sign
 static const char* gIconCreateSignature = TABLER_SVG(
     R"(<path d="M3 19c3.333 -2 5 -4 5 -6c0 -3 -1 -3 -2 -3s-2.032 1.085 -2 3c.034 2.048 1.658 2.877 2.5 4c1.5 2 2.5 2.5 3.5 1c.667 -1 1.167 -1.833 1.5 -2.5c1 2.333 2.333 3.5 4 3.5h2.5" />)"
@@ -339,8 +338,8 @@ static const RibbonItemDef gFileItems[] = {
 // clang-format on
 
 static const Str gPageNames[] = {
-    TrN("Home"), TrN("Comment"), TrN("Edit"),    TrN("Organize"), TrN("Fill & Sign"),
-    TrN("View"), TrN("Protect"), TrN("Help"),    TrN("File"),
+    TrN("Home"), TrN("Comment"), TrN("Edit"), TrN("Organize"), TrN("Fill & Sign"),
+    TrN("View"), TrN("Protect"), TrN("Help"), TrN("File"),
 };
 static_assert(dimof(gPageNames) == (int)RibbonPage::Count);
 
@@ -577,14 +576,13 @@ Color RibbonAccentColor() {
     return M3().primary;
 }
 
-// the ribbon, navigation rail and status bar share one tonal surface, set off
-// from the document by outline-variant dividers
+// Separate the tab strip from the tools without tinting the document chrome.
 Color RibbonTabRowBgColor() {
     return M3().surfaceContainerLow;
 }
 
 Color RibbonPanelBgColor() {
-    return M3().surfaceContainerLow;
+    return M3IsDark() ? M3().surfaceContainerLow : M3().surfaceContainerLowest;
 }
 
 Color RibbonEdgeColor() {
@@ -618,10 +616,11 @@ Pixmap* RibbonIconPixmap(Str svg, int size, Color fg, Color bg) {
 
 //--- RibbonButton
 
-constexpr int kRibbonBtnPadX = 6;
-constexpr int kRibbonBtnPadY = 4;
-constexpr int kRibbonBtnIconGap = 3;
-constexpr int kRibbonBtnMinDx = 46;
+constexpr int kRibbonBtnPadX = 8;
+constexpr int kRibbonBtnPadY = 6;
+constexpr int kRibbonBtnIconGap = 5;
+constexpr int kRibbonBtnMinDx = 48;
+constexpr int kRibbonBtnMaxLabelDx = 120;
 
 RibbonButton::RibbonButton() {
     kind = kindVirtCtrlRibbonButton;
@@ -643,6 +642,7 @@ Size RibbonButton::GetIdealSize() {
         return {iconDx + DropdownDx() + padding.left + padding.right, dy};
     }
     int textDx = len(label) > 0 ? PlatformFontMeasureText(font, label).dx : 0;
+    textDx = std::min(textDx, DpiScale(kRibbonBtnMaxLabelDx));
     int dx = std::max(iconDx + DropdownDx(), textDx) + padding.left + padding.right;
     dx = std::max(dx, DpiScale(kRibbonBtnMinDx));
     return {dx, dy};
@@ -653,7 +653,7 @@ Size RibbonButton::GetIdealSize() {
 void RibbonButton::Paint(VirtPaintCtx& ctx) {
     bool enabled = IsEnabled();
     Rect r = ctx.bounds;
-    int radius = DpiScale(12);
+    int radius = DpiScale(8);
     const M3Scheme& m3 = M3();
     Color container = RibbonPanelBgColor();
     if (isSelected && enabled) {
@@ -673,13 +673,9 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
     }
 
     Pixmap* px = (!enabled && pixmapDisabled) ? pixmapDisabled : pixmap;
-    if (compact && px) {
-        int x = r.x + ((r.dx - DropdownDx() - px->width) / 2);
-        int yc = r.y + ((r.dy - px->height) / 2);
-        ctx.gfx->DrawPixmap(px, {x, yc, px->width, px->height});
-        return;
-    }
-    int y = r.y + padding.top;
+    int iconDy = px ? px->height : RibbonLargeIconSize();
+    int y = compact ? r.y + (r.dy - iconDy) / 2 : r.y + padding.top;
+    int iconY = y;
     if (px) {
         int x = r.x + ((r.dx - DropdownDx() - px->width) / 2);
         ctx.gfx->DrawPixmap(px, {x, y, px->width, px->height});
@@ -689,12 +685,12 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
     }
     y += DpiScale(kRibbonBtnIconGap);
 
-    if (len(label) > 0) {
+    if (!compact && len(label) > 0) {
         Color col = enabled ? (isSelected ? m3.onSecondaryContainer : m3.onSurface)
                             : M3StateLayer(RibbonPanelBgColor(), m3.onSurface, 38);
         int lineDy = PlatformFontLineHeight(font);
-        Rect rText{r.x, y, r.dx, lineDy};
-        ctx.gfx->DrawText(label, rText, gfxTextCenter | gfxTextSingleLine | gfxTextNoClip, font, col);
+        Rect rText{r.x + padding.left, y, std::max(0, r.dx - padding.left - padding.right), lineDy};
+        ctx.gfx->DrawText(label, rText, gfxTextCenter | gfxTextSingleLine | gfxTextEllipsis, font, col);
     }
 
     int dropDx = DropdownDx();
@@ -702,7 +698,7 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
         Color col = enabled ? textColor : textColorDisabled;
         float pt = 11.f * (float)DpiGet() / 96.f;
         PlatformFont* chevronFont = GetPlatformFont(StrL("Segoe UI"), pt, PlatformFontStyle::Regular);
-        Rect drop{r.Right() - dropDx, r.y + padding.top, dropDx, RibbonLargeIconSize()};
+        Rect drop{r.Right() - dropDx, iconY, dropDx, iconDy};
         ctx.gfx->DrawText(StrL("\xE2\x96\xBE"), drop, gfxTextCenter | gfxTextVCenter, chevronFont, col);
     }
 }
@@ -721,24 +717,49 @@ int RibbonButtonDy(PlatformFont* font) {
 
 //--- RibbonPanelFit
 
-RibbonPanelFit::RibbonPanelFit(ILayout* row) : Padding(row, Insets{}) {
-}
+RibbonPanelFit::RibbonPanelFit(ILayout* row) : Padding(row, Insets{}) {}
 
-static void SetRibbonButtonsCompact(ILayout* l, bool compact) {
+static void CollectRibbonButtons(ILayout* l, Vec<RibbonButton*>& buttons) {
+    if (IsCollapsed(l)) {
+        return;
+    }
     if (auto* b = AsRibbonButton(l)) {
-        b->compact = compact;
+        b->compact = false;
+        VecAppend(buttons, b);
         return;
     }
     int n = l->LayoutChildCount();
     for (int i = 0; i < n; i++) {
-        SetRibbonButtonsCompact(l->LayoutChildAt(i), compact);
+        CollectRibbonButtons(l->LayoutChildAt(i), buttons);
     }
 }
 
 Size RibbonPanelFit::Layout(Constraints bc) {
-    SetRibbonButtonsCompact(child, false);
-    if (bc.HasBoundedWidth() && child->MinIntrinsicWidth(bc.max.dy) > bc.max.dx) {
-        SetRibbonButtonsCompact(child, true);
+    Vec<RibbonButton*> buttons;
+    CollectRibbonButtons(child, buttons);
+    int width = child->MinIntrinsicWidth(bc.max.dy);
+    // Keep as many labels as possible; compact the widest labels first.
+    while (bc.HasBoundedWidth() && width > bc.max.dx) {
+        RibbonButton* candidate = nullptr;
+        int saving = 0;
+        for (RibbonButton* b : buttons) {
+            if (b->compact) {
+                continue;
+            }
+            int fullDx = b->GetIdealSize().dx;
+            b->compact = true;
+            int delta = fullDx - b->GetIdealSize().dx;
+            b->compact = false;
+            if (delta > saving) {
+                candidate = b;
+                saving = delta;
+            }
+        }
+        if (!candidate) {
+            break;
+        }
+        candidate->compact = true;
+        width -= saving;
     }
     return Padding::Layout(bc);
 }
@@ -748,6 +769,7 @@ Size RibbonPanelFit::Layout(Constraints bc) {
 static Kind kindRibbonTab = "ribbonTab";
 
 constexpr int kRibbonTabPadX = 14;
+constexpr int kRibbonTabMinPadX = 4;
 constexpr int kRibbonTabPadY = 7;
 constexpr int kRibbonTabUnderlineDy = 3;
 
@@ -755,6 +777,7 @@ RibbonTab::RibbonTab(Str s, PlatformFont* f) {
     kind = kindRibbonTab;
     label = str::Dup(s);
     font = f;
+    paddingDx = DpiScale(kRibbonTabPadX);
     cursor = CursorId::Hand;
     onMouseEnter = MkMethod0<RibbonTab, &RibbonTab::OnMouseEnter>(this);
     onMouseLeave = MkMethod0<RibbonTab, &RibbonTab::OnMouseLeave>(this);
@@ -770,21 +793,24 @@ int RibbonTabDy(PlatformFont* font) {
 
 Size RibbonTab::GetIdealSize() {
     Size sz = PlatformFontMeasureText(font, label);
-    int dx = sz.dx + 2 * DpiScale(kRibbonTabPadX);
+    int dx = sz.dx + 2 * paddingDx;
     return {dx, RibbonTabDy(font)};
 }
 
-// Material primary tabs: the active one in primary with a 3dp indicator as wide
-// as its label, rounded on top; the others in on-surface-variant
+// A surface-backed active tab connects the selected category to its tools.
 void RibbonTab::Paint(VirtPaintCtx& ctx) {
     Rect r = ctx.bounds;
     const M3Scheme& m3 = M3();
+    if (isActive) {
+        ctx.gfx->FillRect(r, RibbonPanelBgColor());
+    }
     if (HasFlag(vwfHovered) || HasFlag(vwfPressed)) {
         int layer = HasFlag(vwfPressed) ? kM3PressedOpacity : kM3HoverOpacity;
         Rect hi = r;
         hi.y += DpiScale(4);
         hi.dy -= DpiScale(4) + DpiScale(kRibbonTabUnderlineDy);
-        ctx.gfx->FillRoundedRect(hi, DpiScale(8), M3StateLayer(RibbonTabRowBgColor(), m3.onSurface, layer));
+        Color bg = isActive ? RibbonPanelBgColor() : RibbonTabRowBgColor();
+        ctx.gfx->FillRoundedRect(hi, DpiScale(6), M3StateLayer(bg, m3.onSurface, layer));
     }
     Color col = isActive ? m3.primary : m3.onSurfaceVariant;
     Rect rText = r;
@@ -816,4 +842,30 @@ RibbonTab* AsRibbonTab(ILayout* l) {
         return (RibbonTab*)l;
     }
     return nullptr;
+}
+
+Size RibbonTabRow::Layout(Constraints bc) {
+    int nTabs = 0;
+    int pad = DpiScale(kRibbonTabPadX);
+    for (auto& item : children) {
+        if (auto* tab = AsRibbonTab(item.layout)) {
+            tab->paddingDx = pad;
+            if (!IsCollapsed(tab)) {
+                nTabs++;
+            }
+        }
+    }
+    // Reclaim tab padding before page navigation is pushed outside the window.
+    int width = MinIntrinsicWidth(bc.max.dy);
+    if (nTabs > 0 && bc.HasBoundedWidth() && width > bc.max.dx) {
+        int sides = nTabs * 2;
+        int reduction = (width - bc.max.dx + sides - 1) / sides;
+        pad = std::max(DpiScale(kRibbonTabMinPadX), pad - reduction);
+        for (auto& item : children) {
+            if (auto* tab = AsRibbonTab(item.layout)) {
+                tab->paddingDx = pad;
+            }
+        }
+    }
+    return HBox::Layout(bc);
 }

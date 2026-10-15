@@ -6,10 +6,10 @@
 
 // CURR_VERSION can be over-written externally
 #ifndef CURR_VERSION
-#define CURR_VERSION 0.3.1
+#define CURR_VERSION 0.3.2
 #endif
 #ifndef CURR_VERSION_COMMA
-#define CURR_VERSION_COMMA 0, 3, 1
+#define CURR_VERSION_COMMA 0, 3, 2
 #endif
 
 // this is sth. like "3.5"

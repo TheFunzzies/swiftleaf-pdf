@@ -159,8 +159,8 @@ enum class TextRunScope {
     Paragraph,
 };
 bool EngineMupdfGetTextRun(EngineBase*, int pageNo, RectF area, TextRunScope, PdfTextRun* out);
-bool EngineMupdfReplaceText(EngineBase*, int pageNo, const PdfTextRun& run, Str newText,
-                            Vec<Annotation*>& deletedOut);
+bool EngineMupdfCanEditText(Str text);
+bool EngineMupdfReplaceText(EngineBase*, int pageNo, const PdfTextRun& run, Str newText, Vec<Annotation*>& deletedOut);
 
 bool EngineMupdfSupportsAnnotations(EngineBase*);
 bool EngineMupdfIsPdf(EngineBase* engine);

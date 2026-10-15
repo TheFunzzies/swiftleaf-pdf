@@ -9718,32 +9718,38 @@ static const char* Base14ForRun(const PdfTextRun& run) {
                         : (run.italic ? "Courier-Oblique" : "Courier");
     }
     if (run.serif) {
-        return run.bold ? (run.italic ? "Times-BoldItalic" : "Times-Bold") : (run.italic ? "Times-Italic" : "Times-Roman");
+        return run.bold ? (run.italic ? "Times-BoldItalic" : "Times-Bold")
+                        : (run.italic ? "Times-Italic" : "Times-Roman");
     }
     return run.bold ? (run.italic ? "Helvetica-BoldOblique" : "Helvetica-Bold")
                     : (run.italic ? "Helvetica-Oblique" : "Helvetica");
 }
 
 // UTF-8 to a PDF string literal in WinAnsi, the encoding of the base-14 font
+// Reject unsupported input before redaction; never silently substitute glyphs.
+bool EngineMupdfCanEditText(Str text) {
+    TempWStr ws = ToWStrTemp(text);
+    if (len(text) > 0 && ws.len == 0) {
+        return false;
+    }
+    for (int i = 0; i < ws.len; i++) {
+        int c = ws.s[i];
+        if (c == '\n' || (c == '\r' && i + 1 < ws.len && ws.s[i + 1] == '\n')) {
+            continue;
+        }
+        if (c < 0x20 || (c >= 0x7f && c < 0xa0) || fz_windows_1252_from_unicode(c) < 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static void AppendWinAnsiPdfString(str::Builder& b, Str utf8) {
     b.AppendChar('(');
     TempWStr ws = ToWStrTemp(utf8);
     for (int i = 0; i < ws.len; i++) {
-        int c = ws.s[i];
-        switch (c) {
-            case 0x2018: c = 0x91; break;
-            case 0x2019: c = 0x92; break;
-            case 0x201C: c = 0x93; break;
-            case 0x201D: c = 0x94; break;
-            case 0x2022: c = 0x95; break;
-            case 0x2013: c = 0x96; break;
-            case 0x2014: c = 0x97; break;
-            case 0x20AC: c = 0x80; break;
-            case 0x2026: c = 0x85; break;
-        }
-        if (c > 0xff) {
-            c = '?';
-        }
+        int c = fz_windows_1252_from_unicode(ws.s[i]);
+        ReportIf(c < 0); // EngineMupdfCanEditText validated the entire input.
         if (c == '(' || c == ')' || c == '\\') {
             b.AppendChar('\\');
             b.AppendChar((char)c);
@@ -9812,7 +9818,7 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
                             Vec<Annotation*>& deletedOut) {
     VecReset(deletedOut);
     EngineMupdf* e = AsEngineMupdf(engine);
-    if (!e || !e->pdfdoc || pageNo < 1 || pageNo > e->pageCount) {
+    if (!e || !e->pdfdoc || pageNo < 1 || pageNo > e->pageCount || !EngineMupdfCanEditText(newText)) {
         return false;
     }
     auto* ctx = e->Ctx();

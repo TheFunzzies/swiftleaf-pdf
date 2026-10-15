@@ -6,7 +6,7 @@
 #include "Theme.h"
 #include "Material.h"
 
-// generated from seed #0E7C66 with the Material Theme Builder tonal palettes
+// Neutral document chrome with Swiftleaf's green reserved for active controls.
 static const M3Scheme kLight = {
     .primary = MkRgb(0x00, 0x6b, 0x5a),
     .onPrimary = MkRgb(0xff, 0xff, 0xff),
@@ -14,16 +14,16 @@ static const M3Scheme kLight = {
     .onPrimaryContainer = MkRgb(0x00, 0x20, 0x1a),
     .secondaryContainer = MkRgb(0xcd, 0xe8, 0xe0),
     .onSecondaryContainer = MkRgb(0x06, 0x20, 0x1b),
-    .surface = MkRgb(0xf4, 0xfb, 0xf8),
+    .surface = MkRgb(0xf5, 0xf6, 0xf7),
     .onSurface = MkRgb(0x17, 0x1d, 0x1b),
     .onSurfaceVariant = MkRgb(0x3f, 0x49, 0x45),
     .surfaceContainerLowest = MkRgb(0xff, 0xff, 0xff),
-    .surfaceContainerLow = MkRgb(0xef, 0xf5, 0xf2),
-    .surfaceContainer = MkRgb(0xe9, 0xef, 0xec),
-    .surfaceContainerHigh = MkRgb(0xe3, 0xea, 0xe7),
-    .surfaceContainerHighest = MkRgb(0xdd, 0xe4, 0xe1),
+    .surfaceContainerLow = MkRgb(0xf5, 0xf6, 0xf7),
+    .surfaceContainer = MkRgb(0xee, 0xf0, 0xf2),
+    .surfaceContainerHigh = MkRgb(0xe6, 0xe8, 0xeb),
+    .surfaceContainerHighest = MkRgb(0xdc, 0xdf, 0xe3),
     .outline = MkRgb(0x6f, 0x79, 0x75),
-    .outlineVariant = MkRgb(0xbf, 0xc9, 0xc4),
+    .outlineVariant = MkRgb(0xd5, 0xda, 0xdf),
 };
 
 static const M3Scheme kDark = {
@@ -33,16 +33,16 @@ static const M3Scheme kDark = {
     .onPrimaryContainer = MkRgb(0x9f, 0xf2, 0xdb),
     .secondaryContainer = MkRgb(0x33, 0x4b, 0x45),
     .onSecondaryContainer = MkRgb(0xcd, 0xe8, 0xe0),
-    .surface = MkRgb(0x0e, 0x15, 0x13),
+    .surface = MkRgb(0x18, 0x1a, 0x1d),
     .onSurface = MkRgb(0xdd, 0xe4, 0xe1),
     .onSurfaceVariant = MkRgb(0xbf, 0xc9, 0xc4),
-    .surfaceContainerLowest = MkRgb(0x09, 0x0f, 0x0e),
-    .surfaceContainerLow = MkRgb(0x17, 0x1d, 0x1b),
-    .surfaceContainer = MkRgb(0x1b, 0x21, 0x1f),
-    .surfaceContainerHigh = MkRgb(0x25, 0x2b, 0x29),
-    .surfaceContainerHighest = MkRgb(0x30, 0x36, 0x34),
+    .surfaceContainerLowest = MkRgb(0x13, 0x15, 0x18),
+    .surfaceContainerLow = MkRgb(0x20, 0x23, 0x27),
+    .surfaceContainer = MkRgb(0x27, 0x2b, 0x30),
+    .surfaceContainerHigh = MkRgb(0x30, 0x35, 0x3b),
+    .surfaceContainerHighest = MkRgb(0x3a, 0x40, 0x47),
     .outline = MkRgb(0x89, 0x93, 0x8f),
-    .outlineVariant = MkRgb(0x3f, 0x49, 0x45),
+    .outlineVariant = MkRgb(0x3e, 0x44, 0x4c),
 };
 
 bool M3IsDark() {

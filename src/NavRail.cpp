@@ -32,7 +32,7 @@
 #include "Ribbon.h"
 #include "NavRail.h"
 
-#define TABLER_SVG(body)                                                                                            \
+#define TABLER_SVG(body)                                                                                             \
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" stroke-width=\"1\" " \
     "stroke=\"currentColor\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\">" body "</svg>"
 
@@ -86,7 +86,7 @@ static const NavItemDef gNavItems[] = {
 constexpr int kRailDx = 52;
 constexpr int kIndicatorDx = 40;
 constexpr int kIndicatorDy = 40;
-constexpr int kIndicatorRadius = 24; // FillRoundedRect wants the diameter
+constexpr int kIndicatorRadius = 10; // FillRoundedRect wants the diameter
 constexpr int kIconSize = 22;
 constexpr int kItemDy = 48;
 constexpr int kRailTopPad = 8;
@@ -108,13 +108,9 @@ struct NavRailItem : VirtCtrl {
         onMouseLeave = MkMethod0<NavRailItem, &NavRailItem::OnHoverChanged>(this);
     }
 
-    void OnHoverChanged() {
-        Invalidate();
-    }
+    void OnHoverChanged() { Invalidate(); }
 
-    Size GetIdealSize() override {
-        return {DpiScale(kRailDx), DpiScale(kItemDy)};
-    }
+    Size GetIdealSize() override { return {DpiScale(kRailDx), DpiScale(kItemDy)}; }
 
     void Paint(VirtPaintCtx& ctx) override {
         const M3Scheme& m3 = M3();
@@ -124,7 +120,7 @@ struct NavRailItem : VirtCtrl {
         int indDy = DpiScale(kIndicatorDy);
         Rect ind{r.x + (r.dx - indDx) / 2, r.y + (r.dy - indDy) / 2, indDx, indDy};
 
-        // the active item's pill, with hover / press as state layers on it
+        // A restrained rounded tile keeps the active panel easy to identify.
         Color base = RibbonPanelBgColor();
         Color fill = isActive ? m3.secondaryContainer : base;
         if (enabled && HasFlag(vwfPressed)) {
@@ -138,8 +134,8 @@ struct NavRailItem : VirtCtrl {
 
         Pixmap* px = !enabled ? iconDisabled : (isActive ? iconActive : icon);
         if (px) {
-            ctx.gfx->DrawPixmap(px, {ind.x + (ind.dx - px->width) / 2, ind.y + (ind.dy - px->height) / 2, px->width,
-                                     px->height});
+            ctx.gfx->DrawPixmap(
+                px, {ind.x + (ind.dx - px->width) / 2, ind.y + (ind.dy - px->height) / 2, px->width, px->height});
         }
     }
 };
@@ -183,8 +179,8 @@ static void SetItemIcons(NavRailItem* item) {
     Str svg = Str(item->def->icon ? item->def->icon : gIconSearch);
     item->icon = RibbonIconPixmap(svg, sz, m3.onSurfaceVariant, RibbonPanelBgColor());
     item->iconActive = RibbonIconPixmap(svg, sz, m3.onSecondaryContainer, m3.secondaryContainer);
-    item->iconDisabled = RibbonIconPixmap(svg, sz, M3StateLayer(RibbonPanelBgColor(), m3.onSurface, 38),
-                                          RibbonPanelBgColor());
+    item->iconDisabled =
+        RibbonIconPixmap(svg, sz, M3StateLayer(RibbonPanelBgColor(), m3.onSurface, 38), RibbonPanelBgColor());
 }
 
 static void BuildLayout(NavRailVirt* rail) {
