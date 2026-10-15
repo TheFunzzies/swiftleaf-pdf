@@ -65,7 +65,6 @@ static void CloseSession(bool commit) {
         return;
     }
     s->closing = true;
-    gSession = nullptr;
 
     TempStr text;
     if (commit && s->hwndEdit) {
@@ -73,6 +72,15 @@ static void CloseSession(bool commit) {
         text = str::ReplaceTemp(text, StrL("\r\n"), StrL("\n"));
     }
     bool changed = commit && !str::Eq(text, s->run.text);
+    if (changed && !EngineMupdfCanEditText(text)) {
+        s->closing = false;
+        ShowWarningNotification(s->win->hwndCanvas,
+                                Tr("This text contains characters Edit Text cannot write yet. Use Western European "
+                                   "text or press Esc to cancel."),
+                                kNotif5SecsTimeOut);
+        return; // Keep the draft available for correction or copying.
+    }
+    gSession = nullptr;
     MainWindow* win = s->win;
     WindowTab* tab = s->tab;
     int pageNo = s->pageNo;
@@ -151,6 +159,10 @@ static void OpenEditor(MainWindow* win, int pageNo, RectF area);
 
 void StartEditText(MainWindow* win) {
     CloseSession(true);
+    if (gSession) {
+        HwndSetFocus(gSession->hwndEdit);
+        return;
+    }
     WindowTab* tab = win ? win->CurrentTab() : nullptr;
     DisplayModel* dm = tab ? tab->AsFixed() : nullptr;
     EngineBase* engine = dm ? dm->GetEngine() : nullptr;
@@ -196,6 +208,9 @@ bool EditTextOnSetCursor(MainWindow* win) {
 }
 
 static void OpenEditor(MainWindow* win, int pageNo, RectF area) {
+    if (gSession) {
+        return;
+    }
     WindowTab* tab = win->CurrentTab();
     DisplayModel* dm = tab ? tab->AsFixed() : nullptr;
     EngineBase* engine = dm ? dm->GetEngine() : nullptr;

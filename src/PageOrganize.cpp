@@ -25,6 +25,8 @@
 #include "Translations.h"
 #include "Notifications.h"
 #include "AppTools.h"
+#include "Commands.h"
+#include "Toolbar.h"
 #include "PageOrganize.h"
 
 // one step Undo Page Change can take back: the file as it was before the change
@@ -52,12 +54,6 @@ static void ShowOrganizeError(MainWindow* win, Str msg) {
     ShowWarningNotification(win->hwndCanvas, msg, kNotifDefaultTimeOut * 2);
 }
 
-static TempStr UndoDirTemp() {
-    TempStr dir = path::JoinTemp(GetTempDirTemp(), StrL("Swiftleaf-undo"));
-    dir::CreateAll(dir);
-    return dir;
-}
-
 // Write the document's pages as listed in `pages` (extra PDFs are sources 1..),
 // replace the file with the result and reopen it on goToPage.
 static bool ApplyPageList(MainWindow* win, const Vec<PdfMergePage>& pages, const Vec<PdfMergeSource>* extra,
@@ -69,20 +65,23 @@ static bool ApplyPageList(MainWindow* win, const Vec<PdfMergePage>& pages, const
     TempStr path = str::DupTemp(tab->filePath);
     EngineBase* engine = tab->GetEngine();
 
-    // the document as shown, including annotations not yet saved
-    Str basePath = path;
-    TempStr unsavedCopy;
-    if (engine && EngineHasUnsavedAnnotations(engine)) {
-        unsavedCopy = GetTempFilePathTemp(StrL("swiftleaf-base"));
-        if (len(unsavedCopy) == 0 || !EngineMupdfSaveCopy(engine, unsavedCopy)) {
-            ShowOrganizeError(win, Tr("Couldn't save the document's changes"));
-            return false;
-        }
-        basePath = unsavedCopy;
+    // Reserve a unique snapshot before changing anything. It is both the merge
+    // source and the undo state, including annotations not yet saved to disk.
+    TempStr backup = GetTempFilePathTemp(StrL("slu"));
+    bool hadUnsaved = engine && EngineHasUnsavedAnnotations(engine);
+    bool haveBackup = false;
+    if (len(backup) > 0) {
+        haveBackup = hadUnsaved ? EngineMupdfSaveCopy(engine, backup)
+                                : CopyFileW(ToWStrTemp(path).s, ToWStrTemp(backup).s, FALSE) != 0;
+    }
+    if (!haveBackup) {
+        file::Delete(backup);
+        ShowOrganizeError(win, Tr("Couldn't create an undo copy. The pages were not changed."));
+        return false;
     }
 
     Vec<PdfMergeSource> srcs;
-    VecAppend(srcs, PdfMergeSource{basePath, EngineMupdfGetPassword(engine)});
+    VecAppend(srcs, PdfMergeSource{backup, EngineMupdfGetPassword(engine)});
     for (int i = 0; extra && i < len(*extra); i++) {
         const PdfMergeSource& src = (*extra)[i];
         VecAppend(srcs, src);
@@ -90,31 +89,31 @@ static bool ApplyPageList(MainWindow* win, const Vec<PdfMergePage>& pages, const
 
     TempStr outPath = GetTempFilePathTemp(StrL("swiftleaf-pages"));
     bool ok = len(outPath) > 0 && EngineMupdfMergePdfs(srcs, pages, outPath);
-    if (unsavedCopy) {
-        file::Delete(unsavedCopy);
-    }
     if (!ok) {
         file::Delete(outPath);
+        file::Delete(backup);
         ShowOrganizeError(win, Tr("Couldn't change the pages of this PDF"));
         return false;
     }
 
-    // keep the current file so the change can be undone
-    TempStr backup = path::JoinTemp(UndoDirTemp(), fmt("%d-%s", len(gUndoSteps), path::GetBaseNameTemp(path)));
-    bool haveBackup = CopyFileW(ToWStrTemp(path).s, ToWStrTemp(backup).s, FALSE);
     int fromPage = win->ctrl ? win->ctrl->CurrentPageNo() : 1;
 
     if (!ReplaceCurrentDocumentFile(win, outPath, goToPage)) {
         file::Delete(outPath);
-        if (haveBackup) {
-            file::Delete(backup);
+        if (hadUnsaved) {
+            // Replacement closes the live engine even when the file move fails.
+            // Keep its unsaved content recoverable from Undo Page Change.
+            VecAppend(gUndoSteps, OrganizeUndoStep{str::Dup(path), str::Dup(backup), fromPage});
+            ToolbarUpdateStateForWindow(win, true);
+            ShowOrganizeError(win, Tr("Couldn't write the PDF. Use Undo Page Change to recover your unsaved edits."));
+            return false;
         }
+        file::Delete(backup);
         ShowOrganizeError(win, Tr("Couldn't write the PDF. Is it read-only or open in another program?"));
         return false;
     }
-    if (haveBackup) {
-        VecAppend(gUndoSteps, OrganizeUndoStep{str::Dup(path), str::Dup(backup), fromPage});
-    }
+    VecAppend(gUndoSteps, OrganizeUndoStep{str::Dup(path), str::Dup(backup), fromPage});
+    ToolbarUpdateStateForWindow(win, true);
     if (len(doneMsg) > 0 && IsMainWindowValidAndNotClosing(win)) {
         ShowTemporaryNotification(win->hwndCanvas, doneMsg);
     }
@@ -330,10 +329,13 @@ void OrganizeUndo(MainWindow* win) {
         return;
     }
     OrganizeUndoStep step = gUndoSteps[idx];
-    VecRemoveAt(gUndoSteps, idx);
     if (!ReplaceCurrentDocumentFile(win, step.backupPath, step.pageNo)) {
         ShowOrganizeError(win, Tr("Couldn't undo the page change"));
-    } else if (IsMainWindowValidAndNotClosing(win)) {
+        return;
+    }
+    VecRemoveAt(gUndoSteps, idx);
+    ToolbarUpdateStateForWindow(win, true);
+    if (IsMainWindowValidAndNotClosing(win)) {
         ShowTemporaryNotification(win->hwndCanvas, Tr("Page change undone"));
     }
     str::Free(step.filePath);

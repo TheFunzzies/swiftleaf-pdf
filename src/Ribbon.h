@@ -78,8 +78,7 @@ struct RibbonButton : VirtIconButton {
 
 RibbonButton* AsRibbonButton(ILayout*);
 
-// Wraps a ribbon page's row of buttons. When the row doesn't fit the width it
-// is given, its buttons drop their labels (RibbonButton::compact).
+// Retains as many button labels as the available width allows.
 struct RibbonPanelFit : Padding {
     explicit RibbonPanelFit(ILayout* row);
     Size Layout(Constraints bc) override;
@@ -91,6 +90,7 @@ struct RibbonTab : VirtCtrl {
     PlatformFont* font = nullptr;
     bool isActive = false;
     Color textColor = kColorUnset;
+    int paddingDx = 0;
 
     RibbonTab(Str label, PlatformFont*);
     ~RibbonTab() override;
@@ -102,3 +102,7 @@ struct RibbonTab : VirtCtrl {
 };
 
 RibbonTab* AsRibbonTab(ILayout*);
+
+struct RibbonTabRow : HBox {
+    Size Layout(Constraints bc) override;
+};

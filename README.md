@@ -2,6 +2,8 @@
 
 A fast, lightweight PDF reader and editor for Windows with a modern ribbon interface.
 
+See the [changelog](CHANGELOG.md) for versioned changes and known limitations.
+
 Swiftleaf is a fork of [SumatraPDF](https://github.com/sumatrapdfreader/sumatrapdf)
 (small, instant-start, MuPDF-based) with a Foxit / Acrobat style ribbon UI and
 editing features inspired by [Okular](https://invent.kde.org/graphics/okular)
@@ -60,14 +62,14 @@ the installer published on the GitHub Releases page (built by CI).
 
 ## Project layout
 
-| Path | What |
-| --- | --- |
-| `src/Ribbon.*` | Swiftleaf ribbon: controls, colors, icons, page contents |
-| `src/Toolbar.cpp` | toolbar host; builds the ribbon and keeps button state current |
-| `src/` | the application (SumatraPDF code base) |
-| `ext/` | vendored libraries (MuPDF, FreeType, HarfBuzz, ...) |
-| `tools/swiftleaf/` | build, screenshot and sample-document scripts |
-| `docs/SumatraPDF-readme.md` | the upstream README |
+| Path                        | What                                                           |
+| --------------------------- | -------------------------------------------------------------- |
+| `src/Ribbon.*`              | Swiftleaf ribbon: controls, colors, icons, page contents       |
+| `src/Toolbar.cpp`           | toolbar host; builds the ribbon and keeps button state current |
+| `src/`                      | the application (SumatraPDF code base)                         |
+| `ext/`                      | vendored libraries (MuPDF, FreeType, HarfBuzz, ...)            |
+| `tools/swiftleaf/`          | build, screenshot and sample-document scripts                  |
+| `docs/SumatraPDF-readme.md` | the upstream README                                            |
 
 ## License
 

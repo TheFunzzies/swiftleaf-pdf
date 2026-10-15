@@ -6,6 +6,8 @@ LIBRARY libsumatrapdf
 
 EXPORTS
 
+	fz_windows_1252_from_unicode
+
 	gzwrite
 
 	fz_set_optind

@@ -3717,7 +3717,7 @@ static void BuildToolbarLayout(MainWindow* win) {
     int btnDy = RibbonButtonDy(tb->ribbonFont);
 
     // the tab row: a tab per page, then page navigation at the far end
-    auto* tabRow = new HBox();
+    auto* tabRow = new RibbonTabRow();
     tabRow->alignCross = CrossAxisAlign::CrossCenter;
     tabRow->rtl = rtl;
     // ribbonTabs is indexed by page; the row shows them in tab order
@@ -3934,7 +3934,7 @@ void CreateToolbar(MainWindow* win) {
     }
     tb->platformFont = GetUserGuiFont({}, newSize);
     // ribbon labels and tabs are a notch smaller than menu text, like Office / Foxit
-    tb->ribbonFont = GetScaledPlatformFont(GetAppFont(), 85);
+    tb->ribbonFont = GetScaledPlatformFont(GetAppFont(), 90);
     win->toolbarVirt = tb;
     win->hwndToolbar = host->native;
     host->SetFont(tb->platformFont);
