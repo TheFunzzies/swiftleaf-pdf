@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.4 - 2026-10-20
+
+### Security
+
+- The updater stages downloads in a protected per-user folder, keeps the file
+  locked against changes while its SHA-256 is checked, and rechecks it before
+  launch. The installer rechecks the hash and keeps the file locked until
+  installation or portable copy finishes. Altered or unsigned legacy payloads
+  are refused.
+
+### Validation and limitations
+
+- CI builds Release and Debug, runs the unit suite and 25 smoke tests. Six
+  smoke tests are tracked known failures carried from 0.3.3.
+- Release binaries are unsigned. The expected hash comes from the same GitHub
+  release as the payload: it detects corruption or local tampering, not a
+  compromised release. There is no automatic rollback.
+
 ## 0.3.3 — 2026-10-15
 
 ### Improved
