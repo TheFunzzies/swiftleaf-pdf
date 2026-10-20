@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: Product source ref for a baseline run; use the workflow ref's test harness
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -50,16 +55,42 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ inputs.baseline_ref || github.sha }}
+
+      - name: Check out baseline harness
+        if: inputs.baseline_ref != ''
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          path: .work/ci-harness
+
+      - name: Prepare baseline evidence
+        if: inputs.baseline_ref != ''
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceSha = git rev-parse HEAD
+          $harnessSha = git -C .work/ci-harness rev-parse HEAD
+          Copy-Item .work/ci-harness/cmd/* cmd -Recurse -Force
+          Copy-Item .work/ci-harness/tests/* tests -Recurse -Force
+          $changed = @(git diff --name-only; git ls-files --others --exclude-standard)
+          if ($changed | Where-Object { $_ -notmatch '^(cmd|tests)/' }) {
+            throw 'Baseline overlay changed files outside the test harness'
+          }
+          New-Item -ItemType Directory -Force .work/swiftleaf-ci | Out-Null
+          @("source_sha=$sourceSha", "harness_sha=$harnessSha", 'product_changes=none', 'harness_overlay:', $changed) |
+            Tee-Object .work/swiftleaf-ci/baseline.txt
 
       - uses: microsoft/setup-msbuild@v2
         with:
-          vs-version: '[17.0,18.0)'
+          vs-version: "[17.0,18.0)"
 
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Cache test builds
+        if: inputs.baseline_ref == ''
         uses: actions/cache@v4
         with:
           path: |
