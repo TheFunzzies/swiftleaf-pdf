@@ -8,6 +8,8 @@ const timeoutMs = 120_000;
 const screenshotTimeoutMs = 5000;
 const minBackgroundRatio = 0.25;
 const maxBackgroundRatio = 0.3;
+const dragBeforeRect = "477,277,60,14";
+const dragAfterRect = "477,284,60,7";
 const backgroundFailure = /Typing obscures page background: ([^\r\n]+)/;
 const dragFailure =
   /Accepted text did not move by the drag delta\r?\ntype=FreeText [^\r\n]*\bscreen=(-?\d+),(-?\d+),(\d+),(\d+)\r?\n/;
@@ -45,7 +47,7 @@ const knownFailures: Record<string, { reason: string; pattern: RegExp; check?: (
   "free-text-draft": {
     reason: "Accepted FreeText does not move by the drag delta at the runner's fit-page zoom.",
     pattern: dragFailure,
-    check: matchUnmovedText,
+    check: matchBaselineDrag,
   },
   "free-text-transparent": {
     reason: "Typing preserves less page background than the test requires at the runner's fit-page zoom.",
@@ -86,13 +88,11 @@ function matchBackground(output: string): boolean {
   }
 }
 
-function matchUnmovedText(output: string): boolean {
+function matchBaselineDrag(output: string): boolean {
   const after = dragFailure.exec(output);
   const before = /^beforeScreen=(-?\d+),(-?\d+),(\d+),(\d+)\r?$/m.exec(output);
   if (!after || !before || !/^annotations=1\r?$/m.test(output)) return false;
-  const rect = after.slice(1).map(Number);
-  if (rect[2]! <= 0 || rect[3]! <= 0) return false;
-  return rect.every((value, i) => Number.isSafeInteger(value) && value === Number(before[i + 1]));
+  return after.slice(1).join(",") === dragAfterRect && before.slice(1).join(",") === dragBeforeRect;
 }
 
 export function matchesKnown(name: string, output: string): boolean {
