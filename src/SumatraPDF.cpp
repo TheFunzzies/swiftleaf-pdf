@@ -6087,6 +6087,7 @@ void CloseTab(WindowTab* tab, bool quitIfLast) {
             return;
         }
         RemoveTab(tab);
+        OrganizeForgetClosed();
         // RemoveTab -> LoadModelIntoTab can pump messages, potentially destroying win
         // and its cbHandler. Since tab was already removed from win's tab list,
         // ~MainWindow won't delete it, so we must delete it here.
@@ -6270,6 +6271,7 @@ void CloseWindow(MainWindow* win, bool quitIfLast, bool forceClose) {
         }
     }
     TabsOnCloseWindow(win);
+    OrganizeForgetClosed();
 
     if (forceClose) {
         // WM_DESTROY has already been sent, so don't destroy win->hwndFrame again
@@ -6828,11 +6830,15 @@ static void GoToPageAfterReplace(ReplacedDocGoTo* data, bool ok) {
     uitask::Post(MkFunc0(GoToPageNowAfterReplace, data), "GoToPageAfterReplace");
 }
 
-// Swiftleaf page organizing: close the current document, move newFilePath over
-// its file and open it again in the same tab, on goToPage (0: where it was).
+// Swiftleaf page organizing: close the current document, put newFilePath's
+// content in its file (PublishPdfFile: atomic, the file is unchanged on failure)
+// and open it again in the same tab, on goToPage (0: where it was).
 // The document must be closed first: the engine keeps its file open.
 bool ReplaceCurrentDocumentFile(MainWindow* win, Str newFilePath, int goToPage) {
     if (!win || !win->IsDocLoaded() || !win->CurrentTab()) {
+        return false;
+    }
+    if (!CommitOpenEditors(win)) {
         return false;
     }
     TempStr path = str::DupTemp(win->ctrl->GetFilePath());
@@ -6840,13 +6846,7 @@ bool ReplaceCurrentDocumentFile(MainWindow* win, Str newFilePath, int goToPage) 
     CloseDocumentInCurrentTab(win, true, true);
     HwndSetFocus(win->hwndFrame);
 
-    TempWStr srcW = ToWStrTemp(newFilePath);
-    TempWStr dstW = ToWStrTemp(path);
-    DWORD flags = MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH;
-    BOOL moveOk = MoveFileExW(srcW.s, dstW.s, flags);
-    if (!moveOk) {
-        LogLastError();
-    }
+    bool moveOk = PublishPdfFile(path, newFilePath);
 
     LoadArgs args(path, win);
     args.forceReuse = true;
@@ -19289,6 +19289,7 @@ Exit:
     // fast ExitProcess never drains it. Flush while windows (and FileHistory)
     // are still alive. No-op if OnMenuExit already saved (gDontSaveSettings).
     FlushScheduledSaveSettings();
+    OrganizeClearUndo();
     if (fastExit) {
         // leave all the remaining clean-up to the OS
         // (as recommended for a quick exit)

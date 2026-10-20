@@ -95,6 +95,7 @@ static void BrowseForDest(HWND owner, Edit* edit, WStr filter, WStr defExt) {
 struct PdfToolDialog : WindowBase {
     Str srcPath; // owned
     MainWindow* win = nullptr;
+    EngineBase* srcEngine = nullptr;
     // what the "..." button's save dialog offers
     WStr browseFilter;
     WStr browseDefExt;
@@ -113,6 +114,8 @@ struct PdfToolDialog : WindowBase {
     ~PdfToolDialog() override;
 
     bool CreateToolDialog(MainWindow*, WindowTab*, Str title);
+    bool MakeSnapshot(PdfLiveSnapshot&);
+    bool PrepareExport(Str destPath, PdfLiveSnapshot& snapshot, PdfLiveSnapshot& output);
     HBox* AddRow();
     void AddPathRow();
     void AddDestRow(Str destPath, WStr filter, WStr defExt);
@@ -129,8 +132,62 @@ struct PdfToolDialog : WindowBase {
 
 PdfToolDialog::~PdfToolDialog() {
     str::FreePtr(&srcPath);
+    SafeEngineRelease(&srcEngine);
     // ~WindowBase deletes `layout`, which owns the whole tree - the virtual
     // controls and the edits alike
+}
+
+// Saves the document the dialog was opened for, with its unsaved edits, once
+// it is still open: the dialog is modeless and the current tab may differ.
+bool PdfToolDialog::MakeSnapshot(PdfLiveSnapshot& snapshot) {
+    if (!IsMainWindowValidAndNotClosing(win) || !CommitOpenEditors(win)) {
+        return false;
+    }
+    bool found = false;
+    for (int i = 0; i < win->TabCount(); i++) {
+        WindowTab* tab = win->GetTab(i);
+        if (tab && tab->GetEngine() == srcEngine && path::IsSame(tab->filePath, srcPath)) {
+            found = true;
+            break;
+        }
+    }
+    if (!found || !snapshot.Create(srcEngine)) {
+        MessageBoxWarning(hwnd, Tr("Couldn't save a copy of the open document. Nothing was exported."),
+                          Tr("Export PDF"));
+        return false;
+    }
+    return true;
+}
+
+// Checks the destination, snapshots the document and reserves the output
+// beside the destination, for PublishPdfFile.
+bool PdfToolDialog::PrepareExport(Str destPath, PdfLiveSnapshot& snapshot, PdfLiveSnapshot& output) {
+    if (path::IsSame(srcPath, destPath)) {
+        MessageBoxWarning(hwnd, Tr("Choose a different output file."), Tr("Export PDF"));
+        return false;
+    }
+    if (file::Exists(destPath) && !ConfirmWarning(hwnd, Tr("Replace the existing output file?"), Tr("Export PDF"))) {
+        return false;
+    }
+    if (!MakeSnapshot(snapshot)) {
+        return false;
+    }
+    output.path = str::Dup(PdfTempBeside(destPath));
+    if (len(output.path) == 0) {
+        MessageBoxWarning(hwnd, Tr("Couldn't write to the output folder."), Tr("Export PDF"));
+        return false;
+    }
+    return true;
+}
+
+// the snapshot keeps the source's encryption, so pdfclean needs its password
+static void AppendSourcePassword(Vec<char*>& argv, EngineBase* engine) {
+    Str pwd = EngineMupdfGetPassword(engine);
+    if (len(pwd) == 0) {
+        return;
+    }
+    VecAppend(argv, (char*)"-p");
+    VecAppend(argv, CStrTemp(pwd));
 }
 
 static void PdfToolDialogOnClose(WindowBase::CloseEvent* ev) {
@@ -160,6 +217,10 @@ VirtButton* PdfToolDialog::NewButton(Str text, bool isDefault) {
 bool PdfToolDialog::CreateToolDialog(MainWindow* w, WindowTab* tab, Str title) {
     win = w;
     srcPath = str::Dup(tab->filePath);
+    srcEngine = tab->GetEngine();
+    if (srcEngine) {
+        srcEngine->AddRef();
+    }
     PlatformFont* dialogFont = GetDefaultGuiFont();
     closeOnEsc = true;
     onClose = MkFunc1Void(PdfToolDialogOnClose);
@@ -298,34 +359,30 @@ void PdfBakeDialog::DoIt(VirtMouseEvent*) {
         return;
     }
 
-    Str inputPath = srcPath;
-    TempStr tmpPath;
-    WindowTab* tab = win ? win->CurrentTab() : nullptr;
-    EngineBase* engine = tab ? tab->GetEngine() : nullptr;
-    // pdfbake_main re-opens the file from disk, so unsaved session
-    // annotations would be missing unless we write them out first (issue #5977).
-    if (engine && EngineHasUnsavedAnnotations(engine)) {
-        tmpPath = GetTempFilePathTemp(StrL("bake"));
-        if (len(tmpPath) == 0 || !EngineMupdfSaveCopy(engine, tmpPath)) {
-            MessageBoxWarning(hwnd, StrL("Failed to bake PDF file."), Tr("Bake PDF"));
-            return;
-        }
-        inputPath = tmpPath;
-        logf("PdfBakeDoIt: unsaved annotations, baking from temp '%s'\n", tmpPath);
+    // baked marks look black but the content under them stays in the file
+    if (EngineMupdfHasRedactMarks(srcEngine) &&
+        !ConfirmWarning(hwnd,
+                        Tr("This PDF has redaction marks that were not applied. Flattening keeps the content under "
+                           "them. Continue?"),
+                        Tr("Bake PDF"))) {
+        return;
     }
+    PdfLiveSnapshot snapshot;
+    PdfLiveSnapshot output;
+    if (!PrepareExport(destPath, snapshot, output)) {
+        return;
+    }
+    Str inputPath = snapshot.path;
 
     logf("PdfBakeDoIt: baking '%s' to '%s'\n", inputPath, destPath);
 
     // build argv for pdfbake_main: "bake" input output
-    char* argv[] = {(char*)"bake", CStrTemp(inputPath), CStrTemp(destPath)};
+    char* argv[] = {(char*)"bake", CStrTemp(inputPath), CStrTemp(output.path)};
     int argc = 3;
 
     fz_set_optind(0);
     int res = pdfbake_main(argc, argv);
-    if (tmpPath) {
-        file::Delete(tmpPath);
-    }
-    if (res == 0) {
+    if (res == 0 && PublishPdfFile(destPath, output.path)) {
         logf("PdfBakeDoIt: baked successfully\n");
         MainWindow* w = win;
         TempStr path = str::DupTemp(destPath);
@@ -552,6 +609,12 @@ void PdfCompressDialog::DoIt(VirtMouseEvent*) {
         return;
     }
 
+    PdfLiveSnapshot snapshot;
+    PdfLiveSnapshot output;
+    if (!PrepareExport(destPath, snapshot, output)) {
+        return;
+    }
+
     logf("PdfCompressDoIt: compressing '%s' to '%s', level %d\n", srcPath, destPath, (int)level);
 
     // Light: clean -gggg -e 100 -f -i -t -Z input output
@@ -572,12 +635,13 @@ void PdfCompressDialog::DoIt(VirtMouseEvent*) {
         VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:50");
         VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
     }
-    VecAppend(argv, CStrTemp(srcPath));
-    VecAppend(argv, CStrTemp(destPath));
+    AppendSourcePassword(argv, srcEngine);
+    VecAppend(argv, CStrTemp(snapshot.path));
+    VecAppend(argv, CStrTemp(output.path));
 
     fz_set_optind(0);
     int res = pdfclean_main(len(argv), argv.els);
-    if (res == 0) {
+    if (res == 0 && PublishPdfFile(destPath, output.path)) {
         logf("PdfCompressDoIt: compressed successfully\n");
         MainWindow* w = win;
         TempStr path = str::DupTemp(destPath);
@@ -1127,9 +1191,13 @@ void PdfSplitDialog::DoIt(VirtMouseEvent*) {
     if (len(dest) == 0 || n < 1) {
         return;
     }
-    MainWindow* w = win;
-    Close();
-    OrganizeSplitPdf(w, dest, n);
+    PdfLiveSnapshot snapshot;
+    if (!MakeSnapshot(snapshot)) {
+        return;
+    }
+    if (OrganizeSplitPdf(win, srcEngine, snapshot.path, dest, n) > 0) {
+        Close();
+    }
 }
 
 bool PdfSplitDialog::Create(MainWindow* w, WindowTab* tab) {
@@ -1201,17 +1269,28 @@ void PdfEncryptDialog::DoIt(VirtMouseEvent*) {
         return;
     }
 
+    PdfLiveSnapshot snapshot;
+    PdfLiveSnapshot output;
+    if (!PrepareExport(destPath, snapshot, output)) {
+        return;
+    }
+
     logf("PdfEncryptDoIt: encrypting '%s' to '%s' with AES-256\n", srcPath, destPath);
 
     // equivalent of: clean -E aes-256 -U <pwd> -O <pwd> input output
     char* pwdZ = CStrTemp(pwd);
-    char* argv[] = {(char*)"clean", (char*)"-E", (char*)"aes-256",  (char*)"-U",       pwdZ,
-                    (char*)"-O",    pwdZ,        CStrTemp(srcPath), CStrTemp(destPath)};
-    int argc = 9;
+    Vec<char*> argv;
+    const char* base[] = {"clean", "-E", "aes-256", "-U", pwdZ, "-O", pwdZ};
+    for (const char* a : base) {
+        VecAppend(argv, (char*)a);
+    }
+    AppendSourcePassword(argv, srcEngine);
+    VecAppend(argv, CStrTemp(snapshot.path));
+    VecAppend(argv, CStrTemp(output.path));
 
     fz_set_optind(0);
-    int res = pdfclean_main(argc, argv);
-    if (res == 0) {
+    int res = pdfclean_main(len(argv), argv.els);
+    if (res == 0 && PublishPdfFile(destPath, output.path)) {
         logf("PdfEncryptDoIt: encrypted successfully\n");
         MainWindow* w = win;
         TempStr path = str::DupTemp(destPath);
@@ -1283,17 +1362,23 @@ void PdfDecryptDialog::DoIt(VirtMouseEvent*) {
         return;
     }
 
+    PdfLiveSnapshot snapshot;
+    PdfLiveSnapshot output;
+    if (!PrepareExport(destPath, snapshot, output)) {
+        return;
+    }
+
     logf("PdfDecryptDoIt: decrypting '%s' to '%s', password len: %d\n", srcPath, destPath, len(password));
 
     // equivalent of: clean -p <pwd> -D input output
     // -p provides the password to open the encrypted input, -D removes encryption from output
-    char* argv[] = {(char*)"clean", (char*)"-p",       CStrTemp(password),
-                    (char*)"-D",    CStrTemp(srcPath), CStrTemp(destPath)};
+    char* argv[] = {(char*)"clean",          (char*)"-p",          CStrTemp(password), (char*)"-D",
+                    CStrTemp(snapshot.path), CStrTemp(output.path)};
     int argc = 6;
 
     fz_set_optind(0);
     int res = pdfclean_main(argc, argv);
-    if (res == 0) {
+    if (res == 0 && PublishPdfFile(destPath, output.path)) {
         logf("PdfDecryptDoIt: decrypted successfully\n");
         MainWindow* w = win;
         TempStr path = str::DupTemp(destPath);
