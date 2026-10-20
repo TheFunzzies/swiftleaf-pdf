@@ -443,7 +443,7 @@ static void TestPostSwap() {
     Check(len(gUndoSteps) == 1 && gUndoSteps[0].recovery, "failed rollback retains a recovery undo step even when clean");
     TempStr recovery = len(gUndoSteps) ? str::DupTemp(gUndoSteps[0].backupPath) : TempStr{};
     Check(len(recovery) && ContentsEqual(recovery, StrL("original-before-swap")), "original PDF remains recoverable after failed rollback");
-    Check(len(recovery) && str::Find(warning, recovery), "failed rollback reports the original recovery path");
+    Check(len(recovery) && str::Contains(warning, recovery), "failed rollback reports the original recovery path");
     OrganizeClearUndo();
     Check(len(recovery) && file::Exists(recovery), "failed rollback recovery survives undo cleanup");
     Check(file::Exists(swappedBackup), "publication backup survives failed rollback cleanup");
@@ -471,8 +471,8 @@ static void TestPartialSplit() {
     Check(ContentsEqual(first, StrL("reorganized")) && ContentsEqual(second, StrL("existing-second")), "partial Split keeps completed output and untouched later target");
     TempStr recovery = FindCopy(dir, first, StrL("existing-first"));
     Check(len(recovery) > 0, "partial Split keeps the overwritten destination recoverable");
-    Check(str::Find(warning, StrL("Split stopped after 1 of 3 files")), "partial Split explicitly reports incomplete results");
-    Check(len(recovery) && str::Find(warning, recovery) && str::Find(warning, first), "partial Split reports destination and recovery mapping");
+    Check(str::Contains(warning, StrL("Split stopped after 1 of 3 files")), "partial Split explicitly reports incomplete results");
+    Check(len(recovery) && str::Contains(warning, recovery) && str::Contains(warning, first), "partial Split reports destination and recovery mapping");
     OrganizeClearUndo();
     Check(len(recovery) && file::Exists(recovery), "partial Split recovery survives cleanup");
     file::Delete(recovery);
