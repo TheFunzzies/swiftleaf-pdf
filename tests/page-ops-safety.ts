@@ -148,7 +148,11 @@ async function testPageChanges(): Promise<void> {
     sendCommandSync(frame, cmdId("CmdMovePageDown"));
     await waitOrder(client, pdf, words, [2, 1, 3], "Move Page Down");
 
-    // Delete Page asks; cancel keeps the file, OK deletes the current page (ALPHA, now page 2)
+    // Delete Page asks; cancel keeps the file, OK deletes the current page (ALPHA, page 2).
+    // Go there explicitly: the reload doesn't reliably leave the moved page current
+    sendCommandSync(frame, cmdId("CmdGoToFirstPage"));
+    sendCommandSync(frame, cmdId("CmdGoToNextPage"));
+    await client.waitForRenderIdle();
     const moved = readFileSync(pdf);
     await answerPrompt(pid, frame, "CmdDeleteCurrentPage", "Delete Page", IDCANCEL);
     await client.waitForRenderIdle();
@@ -163,6 +167,7 @@ async function testPageChanges(): Promise<void> {
     await until(() => readFileSync(pdf).equals(original), "second Undo Page Change did not restore the original");
     await client.waitForRenderIdle();
 
+    sendCommandSync(frame, cmdId("CmdGoToFirstPage"));
     sendCommandSync(frame, cmdId("CmdInsertBlankPage"));
     await waitOrder(client, pdf, words, [1, 3, 4], "Insert Blank Page");
     assert.ok(readFileSync(pdf, "latin1").includes("(kept)"), "Insert Blank Page lost the saved note");
