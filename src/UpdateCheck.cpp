@@ -1155,8 +1155,12 @@ void UpdateSelfTo(Str dstPath, int sleepMs) {
 
 void UpdateTempFileTests() {
     Flags cli;
-    ParseFlags(GetTempArena(), WStrL(L"Swiftleaf.exe -fast-install -update-no-elevate"), cli);
+    ParseFlags(GetTempArena(),
+               WStrL(L"Swiftleaf.exe -fast-install -update-no-elevate -update-sha256 "
+                     L"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+               cli);
     utassert(cli.fastInstall && cli.noUpdateElevation);
+    utassert(len(cli.fileNames) == 0);
 
     Str fixture = StrL(
         "[Swiftleaf]\n"
