@@ -21,6 +21,7 @@ import { inflateSync } from "node:zlib";
 import { ensureModifierKeysUp, enumWindows, getWindowPid, getWindowText, hasInteractiveDesktop } from "./winapi.ts";
 
 export const ROOT = join(import.meta.dir, "..");
+export const SETTINGS_FILE_NAME = "Swiftleaf-settings.txt";
 
 // `-exe <path>` runs the tests against an executable that is already built,
 // e.g. a release or an ASan one, or a build from another checkout. Validated
@@ -36,7 +37,7 @@ function exeFromArgv(argv: string[]): string {
   };
   const path = argv[i + 1];
   if (!path || path.startsWith("-")) {
-    bail("expected a path to SumatraPDF.exe");
+    bail("expected a path to Swiftleaf.exe or SumatraPDF.exe");
   }
   const full = resolve(path!);
   if (!existsSync(full) || !statSync(full).isFile()) {
@@ -47,11 +48,11 @@ function exeFromArgv(argv: string[]): string {
   }
   // the name can be anything (SumatraPDF-static.exe, a renamed copy), so ask
   // the file itself what it is
-  const ps = `(Get-Item -LiteralPath '${full}').VersionInfo.ProductName`;
+  const ps = `(Get-Item -LiteralPath '${full.replaceAll("'", "''")}').VersionInfo.ProductName`;
   const p = Bun.spawnSync(["powershell", "-NoProfile", "-Command", ps]);
   const product = p.stdout.toString().trim();
-  if (!/sumatrapdf/i.test(product)) {
-    bail(`not a SumatraPDF executable (ProductName is '${product}'): ${full}`);
+  if (!/^(Swiftleaf|SumatraPDF)$/i.test(product)) {
+    bail(`not a Swiftleaf or SumatraPDF executable (ProductName is '${product}'): ${full}`);
   }
   return full;
 }
@@ -61,7 +62,7 @@ function exeFromArgv(argv: string[]): string {
 // debug ASan build (out/dbg64_asan/SumatraPDF-static.exe), which is the same app
 // plus ASan. Both are read at import time, before any test runs.
 export const EXE_FROM_ARGV = exeFromArgv(process.argv);
-const SOURCE_EXE = EXE_FROM_ARGV || process.env.SUMATRA_TEST_EXE || join(ROOT, "out", "dbg64", "SumatraPDF.exe");
+const SOURCE_EXE = EXE_FROM_ARGV || process.env.SUMATRA_TEST_EXE || join(ROOT, "out", "dbg64", "Swiftleaf.exe");
 
 // Keep the executable and its portable settings file in a fresh directory for
 // every test run. This prevents a manual run, or an earlier test that saves
@@ -259,14 +260,14 @@ export function makeMinimalPdf(title: string): Buffer {
   );
 }
 
-// Fresh -appdata directory with SumatraPDF-settings.txt. Tests that need extra
+// Fresh -appdata directory with Swiftleaf-settings.txt. Tests that need extra
 // files write them into the returned path.
 export function writeAppdata(name: string, settings: string): string {
   const dir = tmpPath(name);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   const body = settings.endsWith("\n") ? settings : `${settings}\n`;
-  writeFileSync(join(dir, "SumatraPDF-settings.txt"), body);
+  writeFileSync(join(dir, SETTINGS_FILE_NAME), body);
   return dir;
 }
 

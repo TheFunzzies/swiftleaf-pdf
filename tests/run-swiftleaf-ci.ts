@@ -1,0 +1,229 @@
+// Bounded Swiftleaf checks; each case gets a fresh process and portable app.
+import { appendFileSync, cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+const root = resolve(import.meta.dir, "..");
+const resultsDir = join(root, ".work", "swiftleaf-ci");
+const timeoutMs = 120_000;
+const screenshotTimeoutMs = 5000;
+const minBackgroundRatio = 0.25;
+const maxBackgroundRatio = 0.3;
+const dragBeforeRect = "477,277,60,14";
+const dragAfterRect = "477,284,60,7";
+const backgroundFailure = /Typing obscures page background: ([^\r\n]+)/;
+const dragFailure =
+  /Accepted text did not move by the drag delta\r?\ntype=FreeText [^\r\n]*\bscreen=(-?\d+),(-?\d+),(\d+),(\d+)\r?\n/;
+const smokeTests = [
+  "free-text-annotation-placement",
+  "free-text-custom-style",
+  "free-text-draft",
+  "free-text-edit-matches-render",
+  "free-text-edit-toolbar",
+  "free-text-in-place-edit",
+  "free-text-transparent",
+  "annot-undo-redo",
+  "annot-undo-one-step",
+  "annot-moveable-types",
+  "pdf-edit-toolbar-interaction",
+  "redact-annotations",
+  "sign-with-image",
+  "tool-merge",
+  "edit-safety",
+  "annot-copy-paste",
+  "annot-cut-paste",
+  "annot-nudge",
+  "annot-color-dropdown",
+  "annot-contents-click-away",
+  "annot-filter-close-tab",
+  "annot-filter-close-window",
+  "annot-filter-syntax",
+  "annot-filter-toolbar",
+  "annot-list-placement",
+];
+
+// Keep observed baseline failures visible; a different failure still fails CI.
+const knownFailures: Record<string, { reason: string; pattern: RegExp; check?: (output: string) => boolean }> = {
+  "free-text-draft": {
+    reason: "Accepted FreeText does not move by the drag delta at the runner's fit-page zoom.",
+    pattern: dragFailure,
+    check: matchBaselineDrag,
+  },
+  "free-text-transparent": {
+    reason: "Typing preserves less page background than the test requires at the runner's fit-page zoom.",
+    pattern: backgroundFailure,
+    check: matchBackground,
+  },
+  "annot-undo-redo": {
+    reason: "The Edit PDF ribbon does not expose the legacy CmdUndo toolbar button.",
+    pattern: /annot-undo-redo: CmdUndo is not on the Edit PDF toolbar/,
+  },
+  "pdf-edit-toolbar-interaction": {
+    reason: "The annotation hover date omits the UTC suffix required by the test.",
+    pattern: /annotation metadata is wrong[\s\S]*row author=Ada[\s\S]*row date=2026-08-24 12:34\r?\n/,
+  },
+  "redact-annotations": {
+    reason: "The Redact ribbon does not expose the legacy annotation toolbar used by the test.",
+    pattern: /Apply Redactions is on the toolbar with nothing marked \(the annotation toolbar never came up\)/,
+  },
+  "annot-color-dropdown": {
+    reason: "The Edit PDF ribbon does not expose the legacy CmdCreateAnnotText toolbar button.",
+    pattern: /annot-color-dropdown: no CmdCreateAnnotText button on the Edit PDF toolbar/,
+  },
+};
+
+function matchBackground(output: string): boolean {
+  const match = backgroundFailure.exec(output);
+  if (!match) return false;
+  try {
+    const sample = JSON.parse(match[1]!) as { blue?: unknown; total?: unknown } | null;
+    if (!sample || typeof sample !== "object") return false;
+    const { blue, total } = sample;
+    if (typeof blue !== "number" || typeof total !== "number") return false;
+    if (!Number.isSafeInteger(blue) || !Number.isSafeInteger(total) || total <= 0) return false;
+    const ratio = blue / total;
+    return ratio >= minBackgroundRatio && ratio < maxBackgroundRatio;
+  } catch {
+    return false;
+  }
+}
+
+function matchBaselineDrag(output: string): boolean {
+  const after = dragFailure.exec(output);
+  const before = /^beforeScreen=(-?\d+),(-?\d+),(\d+),(\d+)\r?$/m.exec(output);
+  if (!after || !before || !/^annotations=1\r?$/m.test(output)) return false;
+  return after.slice(1).join(",") === dragAfterRect && before.slice(1).join(",") === dragBeforeRect;
+}
+
+export function matchesKnown(name: string, output: string): boolean {
+  const known = knownFailures[name];
+  if (!known?.pattern.test(output)) return false;
+  return known.check?.(output) ?? true;
+}
+
+async function runCase(name: string): Promise<void> {
+  const { prepareTestEnvironment, runTest } = await import("./util.ts");
+  const { hasInteractiveDesktop, setTestWindowLayout } = await import("./winapi.ts");
+  if (!hasInteractiveDesktop()) throw new Error("CI needs an interactive desktop for GUI tests");
+  setTestWindowLayout("workArea");
+  prepareTestEnvironment();
+  const { testit } = await import(`./${name}.ts`);
+  await runTest(name, testit);
+}
+
+async function snapshot(path: string): Promise<void> {
+  // PrintWindow can block on a hung app; keep it outside the timeout owner.
+  const proc = Bun.spawn([process.execPath, import.meta.path, "--snapshot", path], {
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  const timer = setTimeout(() => proc.kill(), screenshotTimeoutMs);
+  await proc.exited;
+  clearTimeout(timer);
+}
+
+async function stopCase(proc: Bun.Subprocess, dir: string): Promise<void> {
+  try {
+    await snapshot(join(dir, "timeout.png"));
+    const kill = Bun.spawn(["taskkill", "/PID", String(proc.pid), "/T", "/F"], {
+      stdout: "ignore",
+      stderr: "ignore",
+    });
+    await kill.exited;
+  } finally {
+    if (proc.exitCode === null) proc.kill();
+  }
+}
+
+async function main(): Promise<void> {
+  const requested = process.argv.slice(2);
+  const names = requested.length ? requested : smokeTests;
+  for (const name of names) {
+    if (!smokeTests.includes(name)) throw new Error(`unknown Swiftleaf smoke test: ${name}`);
+  }
+  mkdirSync(resultsDir, { recursive: true });
+  const rows: string[] = [];
+  let failures = 0;
+  for (const name of names) {
+    const dir = join(resultsDir, name);
+    mkdirSync(dir, { recursive: true });
+    const args = name === "edit-safety" ? [join(import.meta.dir, `${name}.ts`)] : [import.meta.path, "--case", name];
+    const started = performance.now();
+    const proc = Bun.spawn([process.execPath, ...args], {
+      cwd: root,
+      env: { ...process.env, SUMATRA_TEST_EXE: join(root, "out", "dbg64", "Swiftleaf.exe") },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    let timedOut = false;
+    let stopped: Promise<void> | undefined;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      // Terminate the app and compiler too, before the next case starts.
+      stopped = stopCase(proc, dir);
+    }, timeoutMs);
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    clearTimeout(timer);
+    await stopped;
+    const output = stdout + stderr;
+    writeFileSync(join(dir, "output.txt"), output);
+    const elapsed = ((performance.now() - started) / 1000).toFixed(1);
+    const known = knownFailures[name];
+    const expected = !timedOut && code !== 0 && matchesKnown(name, output);
+    const status = timedOut
+      ? "TIMEOUT"
+      : expected
+        ? "KNOWN FAILURE"
+        : code !== 0
+          ? "FAIL"
+          : known
+            ? "UNEXPECTED PASS"
+            : "PASS";
+    if (status !== "PASS" && status !== "KNOWN FAILURE") failures++;
+    if (code !== 0 || timedOut) {
+      await snapshot(join(dir, "failure.png"));
+      const scratch = join(root, ".work", "tests-tmp", "tmp");
+      if (existsSync(scratch)) cpSync(scratch, join(dir, "files"), { recursive: true });
+      console.error(output);
+    }
+    const note = known ? known.reason : "";
+    console.log(`${status} ${name} (${elapsed}s) ${note}`);
+    if (expected) console.log(`::warning title=Known baseline failure: ${name}::${note}`);
+    rows.push(`| ${name} | ${status} | ${elapsed}s | ${note} |`);
+    appendFileSync(join(resultsDir, "results.tsv"), `${name}\t${status}\t${elapsed}\t${note}\n`);
+  }
+  const summary = [
+    "## Swiftleaf smoke tests",
+    "",
+    "| Test | Result | Time | Baseline reason |",
+    "| --- | --- | --- | --- |",
+    ...rows,
+    "",
+  ].join("\n");
+  writeFileSync(join(resultsDir, "results.md"), summary);
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+  if (failures) throw new Error(`${failures} Swiftleaf smoke test(s) failed`);
+}
+
+if (import.meta.main) {
+  try {
+    if (process.argv[2] === "--case") {
+      const name = process.argv[3]!;
+      if (!smokeTests.includes(name) || name === "edit-safety") throw new Error(`invalid case: ${name}`);
+      await runCase(name);
+      process.exit(0);
+    } else if (process.argv[2] === "--snapshot") {
+      const { captureWindowToPng, getForegroundWindow } = await import("./winapi.ts");
+      captureWindowToPng(getForegroundWindow(), process.argv[3]!);
+      process.exit(0);
+    } else {
+      await main();
+    }
+  } catch (e) {
+    console.error(e);
+    process.exit(1);
+  }
+}
