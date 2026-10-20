@@ -36,7 +36,7 @@ function exeFromArgv(argv: string[]): string {
   };
   const path = argv[i + 1];
   if (!path || path.startsWith("-")) {
-    bail("expected a path to SumatraPDF.exe");
+    bail("expected a path to Swiftleaf.exe or SumatraPDF.exe");
   }
   const full = resolve(path!);
   if (!existsSync(full) || !statSync(full).isFile()) {
@@ -47,11 +47,11 @@ function exeFromArgv(argv: string[]): string {
   }
   // the name can be anything (SumatraPDF-static.exe, a renamed copy), so ask
   // the file itself what it is
-  const ps = `(Get-Item -LiteralPath '${full}').VersionInfo.ProductName`;
+  const ps = `(Get-Item -LiteralPath '${full.replaceAll("'", "''")}').VersionInfo.ProductName`;
   const p = Bun.spawnSync(["powershell", "-NoProfile", "-Command", ps]);
   const product = p.stdout.toString().trim();
-  if (!/sumatrapdf/i.test(product)) {
-    bail(`not a SumatraPDF executable (ProductName is '${product}'): ${full}`);
+  if (!/^(Swiftleaf|SumatraPDF)$/i.test(product)) {
+    bail(`not a Swiftleaf or SumatraPDF executable (ProductName is '${product}'): ${full}`);
   }
   return full;
 }
@@ -61,7 +61,7 @@ function exeFromArgv(argv: string[]): string {
 // debug ASan build (out/dbg64_asan/SumatraPDF-static.exe), which is the same app
 // plus ASan. Both are read at import time, before any test runs.
 export const EXE_FROM_ARGV = exeFromArgv(process.argv);
-const SOURCE_EXE = EXE_FROM_ARGV || process.env.SUMATRA_TEST_EXE || join(ROOT, "out", "dbg64", "SumatraPDF.exe");
+const SOURCE_EXE = EXE_FROM_ARGV || process.env.SUMATRA_TEST_EXE || join(ROOT, "out", "dbg64", "Swiftleaf.exe");
 
 // Keep the executable and its portable settings file in a fresh directory for
 // every test run. This prevents a manual run, or an earlier test that saves

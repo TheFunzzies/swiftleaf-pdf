@@ -45,7 +45,7 @@ jobs:
   test:
     name: Windows x64 tests
     runs-on: windows-2022
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,13 +73,16 @@ jobs:
 
       - name: Check test harness
         id: harness
-        run: bun test tests/ci-harness.test.ts
+        run: |
+          bun test tests/ci-harness.test.ts 2>&1 | Tee-Object harness-tests.log
+          exit $LASTEXITCODE
 
       - name: Run unit tests
         timeout-minutes: 5
         run: bun cmd/run-unit-tests.ts -dbg --no-build
 
       - name: Build edit-safety libraries
+        if: ${{ !cancelled() && steps.debug.outcome == 'success' && steps.harness.outcome == 'success' }}
         run: msbuild vs2022\SumatraPDF.sln "/t:base;mupdf;a-lcms2" "/p:Configuration=Release;Platform=x64" /m /v:minimal /nologo /fl /flp:logfile=edit-safety-build.log
 
       - name: Run Swiftleaf smoke tests
@@ -94,6 +97,7 @@ jobs:
           include-hidden-files: true
           path: |
             *-build.log
+            *-tests.log
             out/dbg64/unit-tests-*.txt
             .work/swiftleaf-ci/
             .work/test-times.txt
