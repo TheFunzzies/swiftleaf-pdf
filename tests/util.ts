@@ -21,6 +21,7 @@ import { inflateSync } from "node:zlib";
 import { ensureModifierKeysUp, enumWindows, getWindowPid, getWindowText, hasInteractiveDesktop } from "./winapi.ts";
 
 export const ROOT = join(import.meta.dir, "..");
+export const SETTINGS_FILE_NAME = "Swiftleaf-settings.txt";
 
 // `-exe <path>` runs the tests against an executable that is already built,
 // e.g. a release or an ASan one, or a build from another checkout. Validated
@@ -266,7 +267,7 @@ export function writeAppdata(name: string, settings: string): string {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   const body = settings.endsWith("\n") ? settings : `${settings}\n`;
-  writeFileSync(join(dir, "Swiftleaf-settings.txt"), body);
+  writeFileSync(join(dir, SETTINGS_FILE_NAME), body);
   return dir;
 }
 

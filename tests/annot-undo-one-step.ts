@@ -7,7 +7,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { openChipDropdown, pickSwatch } from "./annot-color-dropdown.ts";
 import { ControlClient, ControlCommand } from "./control.ts";
-import { assemblePdf, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
+import { SETTINGS_FILE_NAME, assemblePdf, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
 import {
   enumChildWindows,
   getClassName,
@@ -182,7 +182,7 @@ async function launch(name: string, pdfContent: string) {
   rmSync(dir, { recursive: true, force: true });
   const appdata = join(dir, "appdata");
   mkdirSync(appdata, { recursive: true });
-  writeFileSync(join(appdata, "Swiftleaf-settings.txt"), SETTINGS);
+  writeFileSync(join(appdata, SETTINGS_FILE_NAME), SETTINGS);
   const pdf = join(dir, `${name}.pdf`);
   writeFileSync(pdf, pdfContent, "latin1");
   const launched = await launchControlled(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", pdf]);

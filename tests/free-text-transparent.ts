@@ -2,7 +2,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ControlCommand } from "./control.ts";
-import { assemblePdf, cmdId, EXE, runStandalone, tmpPath } from "./util.ts";
+import { SETTINGS_FILE_NAME, assemblePdf, cmdId, EXE, runStandalone, tmpPath } from "./util.ts";
 import {
   captureWindowPixels,
   captureWindowToPng,
@@ -56,7 +56,7 @@ export async function testit(): Promise<void> {
   const appdata = join(dir, "appdata");
   mkdirSync(appdata, { recursive: true });
   writeFileSync(
-    join(appdata, "Swiftleaf-settings.txt"),
+    join(appdata, SETTINGS_FILE_NAME),
     `UiLanguage = en\nTheme = ${theme}\nDocumentColorsFollowTheme = ${colors}\nRestoreSession = false\nCheckForUpdates = false\n`,
   );
   writeFileSync(

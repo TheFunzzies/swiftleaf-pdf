@@ -7,7 +7,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control";
-import { assemblePdf, runStandalone, tmpPath } from "./util";
+import { SETTINGS_FILE_NAME, assemblePdf, runStandalone, tmpPath } from "./util";
 import {
   captureWindowToPng,
   clientToScreen,
@@ -136,7 +136,7 @@ export async function testit(): Promise<void> {
   mkdirSync(appdata, { recursive: true });
   writeFileSync(pdf, makePdf(), "latin1");
   writeFileSync(
-    join(appdata, "Swiftleaf-settings.txt"),
+    join(appdata, SETTINGS_FILE_NAME),
     "RestoreSession = false\nShowStartPage = false\nShowAnnotationNotification = true\n",
   );
 

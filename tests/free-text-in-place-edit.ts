@@ -6,7 +6,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control.ts";
-import { assemblePdf, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
+import { SETTINGS_FILE_NAME, assemblePdf, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
 import {
   clientToScreen,
   enumChildWindows,
@@ -151,7 +151,7 @@ export async function testit(): Promise<void> {
   mkdirSync(appdata, { recursive: true });
   writeFileSync(pdf, makeBlankPdf(), "latin1");
   writeFileSync(
-    join(appdata, "Swiftleaf-settings.txt"),
+    join(appdata, SETTINGS_FILE_NAME),
     "UiLanguage = en\nRestoreSession = false\nShowStartPage = false\nCheckForUpdates = false\n",
   );
 
