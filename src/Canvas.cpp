@@ -2249,8 +2249,6 @@ static RectF CalculateResizedRect(MainWindow* win, int x, int y) {
 
 static void StartAnnotationResize(MainWindow* win, Annotation* annot, Point& pt, ResizeHandle handle) {
     CancelAnnotationResizeRerender(win);
-    // the drag rewrites the annotation on every mouse move; one undo step
-    BeginPdfEditOperation(win, "Resize annotation");
     win->annotationBeingDragged = annot;
     win->annotationBeingResized = true;
     // A completed right-click leaves dragRightClick set. This is a new
@@ -2264,20 +2262,13 @@ static void StartAnnotationResize(MainWindow* win, Annotation* annot, Point& pt,
     win->annotationResizePreviewRect = r;
     // free text lays its text out again on every write; keep the drag to the
     // outline and write the annotation once, when the drag ends
-    win->annotationResizeOutlineOnly =
-        annot->type == AnnotationType::FreeText && !IsLineEndpointHandle(handle) && !IsVertexHandle(handle);
-    // Swiftleaf: an image stamp (a signature) follows the mouse as a picture
-    // drawn over the page; the annotation is hidden meanwhile and written once
-    // at the end, rather than re-rendered whenever the mouse rests
+    win->annotationResizeOutlineOnly = (annot->type == AnnotationType::FreeText || IsImageStamp(annot)) &&
+                                       !IsLineEndpointHandle(handle) && !IsVertexHandle(handle);
+    // Keep previews out of the PDF: cancelled stamps must not alter flags or undo.
     FreePixmap(win->annotationResizeImage);
     win->annotationResizeImage = nullptr;
-    if (IsImageStamp(annot)) {
-        win->annotationResizeImage = StampImagePixmap(annot);
-    }
-    if (win->annotationResizeImage) {
-        win->annotationResizeOutlineOnly = true;
-        SetAnnotationHidden(annot, true);
-        MainWindowRerender(win);
+    if (!win->annotationResizeOutlineOnly) {
+        BeginPdfEditOperation(win, "Resize annotation");
     }
     win->annotationOriginalLineStart = {};
     win->annotationOriginalLineEnd = {};
@@ -2322,10 +2313,6 @@ static bool StopAnnotationResize(MainWindow* win, bool aborted) {
     if (win->annotationResizeImage) {
         FreePixmap(win->annotationResizeImage);
         win->annotationResizeImage = nullptr;
-        SetAnnotationHidden(annot, false);
-        if (aborted) {
-            MainWindowRerender(win);
-        }
     }
 
     // Release mouse capture and reset cursor
@@ -2338,6 +2325,13 @@ static bool StopAnnotationResize(MainWindow* win, bool aborted) {
         EndPdfEditOperation(win);
         ScheduleRepaint(win, 0);
         return true;
+    }
+    if (outlineOnly && previewRect == win->annotationOriginalRect) {
+        ScheduleRepaint(win, 0);
+        return true;
+    }
+    if (outlineOnly) {
+        BeginPdfEditOperation(win, "Resize annotation");
     }
 
     if (IsLineEndpointHandle(handle)) {

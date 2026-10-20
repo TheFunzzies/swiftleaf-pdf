@@ -2951,6 +2951,19 @@ void ReloadDocument(MainWindow* win, bool autoRefresh, bool canAskForPassword) {
     if (tab->IsNonDocumentTab()) {
         return;
     }
+    if (!CommitOpenEditors(win)) {
+        return;
+    }
+    ClearMouseState(win);
+    if (EngineHasUnsavedAnnotations(tab->GetEngine())) {
+        if (autoRefresh) {
+            return;
+        }
+        u64 generation = tab->loadGeneration;
+        if (!MaybeSaveAnnotations(tab) || !IsWindowTabValid(tab) || tab->loadGeneration != generation) {
+            return;
+        }
+    }
 
     // tear down any in-place form-field edit before the engine is deleted below,
     // so the overlay's widget pointer can't dangle into freed memory
@@ -4989,6 +5002,13 @@ void LoadModelIntoTab(WindowTab* tab) {
     if (win->ctrl) {
         win->currentTabTemp = FindTabByController(win->ctrl);
     }
+    if (!CommitOpenEditors(win)) {
+        WindowTab* outgoing = win->currentTabTemp;
+        if (outgoing) {
+            TabsSelect(win, win->GetTabIdx(outgoing));
+        }
+        return;
+    }
     if (gSettings->lazyLoading && win->ctrl && !tab->ctrl && !tab->IsNonDocumentTab() &&
         tab->loadState == WindowTab::LoadState::None) {
         NotificationCreateArgs args;
@@ -5442,6 +5462,8 @@ void PostAppExit() {
 // into the tab right afterwards and ReplaceDocumentInCurrentTab would revert
 // the UI disabling afterwards anyway)
 static void CloseDocumentInCurrentTab(MainWindow* win, bool keepUIEnabled, bool deleteModel) {
+    CommitOpenEditors(win);
+    ClearDocumentEditors(win);
     // tear down any in-place form-field edit before the model/engine goes away,
     // so the overlay's widget pointer can't dangle (cancel: don't write/re-render
     // a document that's being closed or reloaded)
@@ -5894,6 +5916,9 @@ static SaveChoice ShouldSaveAnnotationsDialog(HWND hwndParent, Str filePath) {
 // if returns false, should cancel closing
 // false if the user canceled (don't proceed with closing/replacing the doc)
 bool MaybeSaveAnnotations(WindowTab* tab) {
+    if (tab && tab->win && tab == tab->win->CurrentTab() && !CommitOpenEditors(tab->win)) {
+        return false;
+    }
     if (!tab) {
         return true;
     }
@@ -12177,7 +12202,10 @@ bool ReplaceTextInTab(WindowTab* tab, int pageNo, const PdfTextRun& run, Str new
     ToolbarUpdateStateForWindow(win, true);
     MainWindowRerender(win);
     if (!ok) {
-        ShowWarningNotification(win->hwndCanvas, Tr("Couldn't change the text"), kNotif5SecsTimeOut);
+        ShowWarningNotification(win->hwndCanvas,
+                                Tr("Couldn't change the text. Use text that fits within the original lines; "
+                                   "links and notes must not overlap it."),
+                                kNotif5SecsTimeOut);
     }
     return ok;
 }

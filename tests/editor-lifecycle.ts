@@ -82,7 +82,7 @@ export async function testit(): Promise<void> {
     if (!/page1text=.*Changed document text/.test(String(result[1])))
       throw new Error(`Tab switch discarded Edit Text\n${result[1]}`);
   } finally {
-    await client.quit();
+    client.close();
     await killAndWait(proc);
   }
 }

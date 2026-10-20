@@ -261,6 +261,9 @@ MainWindow::~MainWindow() {
 }
 
 void ClearMouseState(MainWindow* win) {
+    if (win->annotationBeingResized) {
+        CancelDrag(win);
+    }
     CancelAnnotationResizeRerender(win);
     HideAnnotationHoverOverlay(win);
     win->dragStartPending = false;

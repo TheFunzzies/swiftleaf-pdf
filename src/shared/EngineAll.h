@@ -140,6 +140,15 @@ bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePag
 
 // Swiftleaf Edit Text: a run of text lines on a page and its style
 struct PdfTextRun {
+    enum class Error {
+        None,
+        Invisible,
+        Styles,
+        Encoding,
+        Overlap,
+    };
+    Error error = Error::None;
+    Vec<RectF> lines;
     RectF bbox;    // page coordinates, all the lines
     PointF origin; // baseline start of the first line
     Str text;      // owned, one line per line

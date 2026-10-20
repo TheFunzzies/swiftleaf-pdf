@@ -13,14 +13,22 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: msbuild vs2022\SumatraPDF.sln /t:SumatraPDF "/p:Configuration=Debug;Platform=x64" /m /v:minimal /nologo
       - name: Editor regression
+        timeout-minutes: 3
         env:
           SUMATRA_TEST_EXE: ${{ github.workspace }}\out\dbg64\Swiftleaf.exe
         run: bun tests/edit-text-roundtrip.ts --no-build
       - name: Editor lifecycle regression
+        timeout-minutes: 3
         if: ${{ !cancelled() }}
         env:
           SUMATRA_TEST_EXE: ${{ github.workspace }}\out\dbg64\Swiftleaf.exe
         run: bun tests/editor-lifecycle.ts --no-build
+      - name: Stamp resize regression
+        timeout-minutes: 3
+        if: ${{ !cancelled() }}
+        env:
+          SUMATRA_TEST_EXE: ${{ github.workspace }}\out\dbg64\Swiftleaf.exe
+        run: bun tests/stamp-resize-lifecycle.ts --no-build
       - uses: actions/upload-artifact@v4
         if: always()
         with:

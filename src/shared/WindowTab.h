@@ -75,6 +75,7 @@ struct WindowTab {
     };
     MainWindow* win = nullptr;
     DocController* ctrl = nullptr;
+    u64 loadGeneration = 0;
     u64 loadStartedAt = 0;
 #if !defined(SUMATRA_NG)
     // network-drive copy progress while loading (-1 = not in copy phase)

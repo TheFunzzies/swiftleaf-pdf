@@ -1,12 +1,6 @@
 /* Copyright 2026 the Swiftleaf PDF authors.
    License: GPLv3 */
 
-// Edit Text: select some text (or click it after Edit Text), and an editor
-// opens over the whole paragraph, in about the same font and size, wrapping
-// like the page does. Enter writes the new text into the page, re-flowed to
-// the paragraph's width (EngineMupdfReplaceText), Shift+Enter starts a new
-// paragraph, Esc leaves the page as it was.
-
 #include "base/Base.h"
 #include "base/UITask.h"
 #include "base/Win.h"
@@ -31,11 +25,16 @@
 #include "Selection.h"
 #include "Translations.h"
 #include "Notifications.h"
+#include "AnnotEditToolbar.h"
 #include "EditText.h"
 
 struct EditTextSession {
     MainWindow* win = nullptr;
     WindowTab* tab = nullptr;
+    DocController* ctrl = nullptr;
+    EngineBase* engine = nullptr;
+    u64 generation = 0;
+    UINT_PTR id = 0;
     int pageNo = 0;
     PdfTextRun run;
     HWND hwndEdit = nullptr;
@@ -44,6 +43,7 @@ struct EditTextSession {
 };
 
 static EditTextSession* gSession = nullptr;
+static UINT_PTR gSessionId = 0;
 static LRESULT CALLBACK EditTextWndProc(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
 constexpr UINT_PTR kEditTextSubclassId = 0x5f1e;
 
@@ -59,59 +59,62 @@ static void DestroySession(EditTextSession* s) {
     delete s;
 }
 
-static void CloseSession(bool commit) {
+static bool CloseSession(bool commit) {
     EditTextSession* s = gSession;
     if (!s || s->closing) {
-        return;
+        return !s;
     }
     s->closing = true;
+    bool valid = IsWindowTabValid(s->tab) && s->tab->ctrl == s->ctrl && s->tab->GetEngine() == s->engine &&
+                 s->tab->loadGeneration == s->generation;
+    commit = commit && valid;
 
     TempStr text;
     if (commit && s->hwndEdit) {
         text = HwndGetTextTemp(s->hwndEdit);
         text = str::ReplaceTemp(text, StrL("\r\n"), StrL("\n"));
+        text = str::ReplaceTemp(text, StrL("\t"), StrL(" "));
     }
     bool changed = commit && !str::Eq(text, s->run.text);
     if (changed && !EngineMupdfCanEditText(text)) {
         s->closing = false;
         ShowWarningNotification(s->win->hwndCanvas,
                                 Tr("This text contains characters Edit Text cannot write yet. Use Western European "
-                                   "text or press Esc to cancel."),
+                                   "text without replacement characters (�), or press Esc to cancel."),
                                 kNotif5SecsTimeOut);
-        return; // Keep the draft available for correction or copying.
+        return false;
+    }
+    if (changed && !ReplaceTextInTab(s->tab, s->pageNo, s->run, text)) {
+        s->closing = false;
+        return false;
     }
     gSession = nullptr;
     MainWindow* win = s->win;
-    WindowTab* tab = s->tab;
-    int pageNo = s->pageNo;
-    PdfTextRun run = s->run;
-    s->run.text = {};
-    // the edit is gone before the page repaints under it
     DestroySession(s);
-    if (changed && IsMainWindowValidAndNotClosing(win) && win->CurrentTab() == tab) {
-        ReplaceTextInTab(tab, pageNo, run, text);
-    }
-    str::Free(run.text);
     if (IsMainWindowValidAndNotClosing(win)) {
         HwndSetFocus(win->hwndCanvas);
     }
+    return true;
 }
 
-static void PostedCloseSession(void* commit) {
-    CloseSession(commit != nullptr);
+static void PostedCloseSession(void* token) {
+    UINT_PTR id = (UINT_PTR)token;
+    if (gSession && gSession->id == (id >> 1)) {
+        CloseSession((id & 1) != 0);
+    }
 }
 
-static LRESULT CALLBACK EditTextWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR) {
+static LRESULT CALLBACK EditTextWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR id) {
     switch (msg) {
         case WM_GETDLGCODE:
             return DLGC_WANTALLKEYS;
         case WM_KEYDOWN:
             if (wp == VK_ESCAPE) {
-                uitask::Post(MkFunc0(PostedCloseSession, (void*)nullptr), "EditTextCancel");
+                uitask::Post(MkFunc0(PostedCloseSession, (void*)(id << 1)), "EditTextCancel");
                 return 0;
             }
             if (wp == VK_RETURN && !IsShiftPressed()) {
-                uitask::Post(MkFunc0(PostedCloseSession, (void*)1), "EditTextCommit");
+                uitask::Post(MkFunc0(PostedCloseSession, (void*)((id << 1) | 1)), "EditTextCommit");
                 return 0;
             }
             break;
@@ -123,7 +126,7 @@ static LRESULT CALLBACK EditTextWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
             break;
         case WM_KILLFOCUS:
             // clicking elsewhere keeps the edit, like Foxit
-            uitask::Post(MkFunc0(PostedCloseSession, (void*)1), "EditTextBlur");
+            uitask::Post(MkFunc0(PostedCloseSession, (void*)((id << 1) | 1)), "EditTextBlur");
             break;
     }
     return DefSubclassProc(hwnd, msg, wp, lp);
@@ -219,12 +222,34 @@ static void OpenEditor(MainWindow* win, int pageNo, RectF area) {
     }
     auto* s = new EditTextSession();
     if (!EngineMupdfGetTextRun(engine, pageNo, area, TextRunScope::Paragraph, &s->run) || len(s->run.text) == 0) {
+        Str message = Tr("There is no text there that can be edited");
+        switch (s->run.error) {
+            case PdfTextRun::Error::Invisible:
+                message = Tr("Invisible or clipped text cannot be edited. This text may be part of an image.");
+                break;
+            case PdfTextRun::Error::Styles:
+                message = Tr("Edit Text supports one font, size and color at a time. Select a single-style paragraph.");
+                break;
+            case PdfTextRun::Error::Encoding:
+                message = Tr("This text contains unsupported or replacement characters (�) and cannot be edited.");
+                break;
+            case PdfTextRun::Error::Overlap:
+                message =
+                    Tr("Editing this text could remove a link, note or overlapping text. The page was left unchanged.");
+                break;
+            default:
+                break;
+        }
         DestroySession(s);
-        ShowTemporaryNotification(win->hwndCanvas, Tr("There is no text there that can be edited"));
+        ShowWarningNotification(win->hwndCanvas, message, kNotif5SecsTimeOut);
         return;
     }
     s->win = win;
     s->tab = tab;
+    s->ctrl = tab->ctrl;
+    s->engine = engine;
+    s->generation = tab->loadGeneration;
+    s->id = ++gSessionId;
     s->pageNo = pageNo;
     DeleteOldSelectionInfo(win, true);
     ScheduleRepaint(win, 0);
@@ -253,11 +278,40 @@ static void OpenEditor(MainWindow* win, int pageNo, RectF area) {
     TempStr shown = str::ReplaceTemp(s->run.text, StrL("\n"), StrL("\r\n"));
     HwndSetText(s->hwndEdit, shown);
     SendMessageW(s->hwndEdit, EM_SETSEL, 0, -1);
-    SetWindowSubclass(s->hwndEdit, EditTextWndProc, kEditTextSubclassId, 0);
+    SetWindowSubclass(s->hwndEdit, EditTextWndProc, kEditTextSubclassId, s->id);
     gSession = s;
     SetFocus(s->hwndEdit);
 }
 
 void CancelEditText() {
     CloseSession(false);
+}
+
+bool CommitOpenEditors(MainWindow* win) {
+    if (gPickingWin == win) {
+        gPickingWin = nullptr;
+    }
+    if (gSession && gSession->win == win && !CloseSession(true)) {
+        return false;
+    }
+    if (IsEditingFreeTextInPlace(win)) {
+        EndFreeTextInPlaceEdit(true);
+    }
+    return !IsEditingFreeTextInPlace(win);
+}
+
+void ClearDocumentEditors(MainWindow* win) {
+    if (gPickingWin == win) {
+        gPickingWin = nullptr;
+    }
+    if (gSession && gSession->win == win) {
+        CloseSession(false);
+    }
+    if (IsEditingFreeTextInPlace(win)) {
+        EndFreeTextInPlaceEdit(false);
+    }
+    WindowTab* tab = win->CurrentTab();
+    if (tab) {
+        tab->loadGeneration++;
+    }
 }

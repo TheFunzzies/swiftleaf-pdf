@@ -298,6 +298,7 @@ Annotation* MakeAnnotationWrapper(EngineMupdf* engine, pdf_annot* annot, int pag
 int EngineMupdfUndoPos(EngineMupdf* e, int* stepsOut);
 void EngineMupdfBeginOperation(EngineBase*, const char* name);
 void EngineMupdfEndOperation(EngineBase*);
+void EngineMupdfAbandonOperation(EngineBase*);
 
 // Everything changed while this is alive becomes one undo step. Use it for a
 // gesture that makes several changes (creating an annotation sets its geometry,
@@ -307,4 +308,8 @@ struct ScopedEngineOperation {
 
     ScopedEngineOperation(EngineBase* e, const char* name) : engine(e) { EngineMupdfBeginOperation(e, name); }
     ~ScopedEngineOperation() { EngineMupdfEndOperation(engine); }
+    void Abandon() {
+        EngineMupdfAbandonOperation(engine);
+        engine = nullptr;
+    }
 };

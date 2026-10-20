@@ -2292,6 +2292,8 @@ struct FreeTextInPlaceEdit {
     WindowTab* tab = nullptr;
     Annotation* annot = nullptr;
     EngineBase* engine = nullptr;
+    DocController* ctrl = nullptr;
+    u64 generation = 0;
     int draftPageNo = 0;
     AnnotCreateArgs draftArgs;
     Size size;
@@ -2575,14 +2577,20 @@ void RepositionFreeTextInPlaceEdit(MainWindow* win) {
     if (!IsEditingFreeTextInPlace(win)) {
         return;
     }
-    DisplayModel* dm = gInPlace.win->AsFixed();
+    bool valid = IsWindowTabValid(gInPlace.tab) && gInPlace.tab->loadGeneration == gInPlace.generation &&
+                 gInPlace.tab->ctrl == gInPlace.ctrl && gInPlace.tab->GetEngine() == gInPlace.engine;
+    if (!valid) {
+        EndFreeTextInPlaceEdit(false);
+        return;
+    }
+    DisplayModel* dm = gInPlace.tab->AsFixed();
     Annotation* annot = gInPlace.annot;
     if (annot && !AnnotationIsLive(annot)) {
         return;
     }
     int pageNo = annot ? PageNo(annot) : gInPlace.draftPageNo;
-    if (!dm || dm->GetEngine() != gInPlace.engine || win->CurrentTab() != gInPlace.tab) {
-        EndFreeTextInPlaceEdit(false);
+    if (!dm || win->CurrentTab() != gInPlace.tab) {
+        EndFreeTextInPlaceEdit(true);
         return;
     }
     bool visible = dm->PageVisible(pageNo);
@@ -2631,6 +2639,8 @@ void EndFreeTextInPlaceEdit(bool accept) {
     WindowTab* tab = gInPlace.tab;
     Annotation* annot = gInPlace.annot;
     EngineBase* engine = gInPlace.engine;
+    DocController* ctrl = gInPlace.ctrl;
+    u64 generation = gInPlace.generation;
     int draftPageNo = gInPlace.draftPageNo;
     AnnotCreateArgs draftArgs = gInPlace.draftArgs;
     Rect editRect = ChildPosWithinParent(hwnd);
@@ -2655,7 +2665,9 @@ void EndFreeTextInPlaceEdit(bool accept) {
     if (winOk) {
         HwndSetFocus(win->hwndCanvas);
     }
-    DisplayModel* currentDm = winOk && win->CurrentTab() == tab ? win->AsFixed() : nullptr;
+    bool ownerValid =
+        IsWindowTabValid(tab) && tab->loadGeneration == generation && tab->ctrl == ctrl && tab->GetEngine() == engine;
+    DisplayModel* currentDm = ownerValid ? tab->AsFixed() : nullptr;
     if (accept && !annot && currentDm && currentDm->GetEngine() == engine && !str::IsEmptyOrWhiteSpace(text)) {
         draftArgs.content = text;
         draftArgs.textSize = textSize;
@@ -2681,7 +2693,7 @@ void EndFreeTextInPlaceEdit(bool accept) {
     } else if (accept && annot && currentDm && currentDm->GetEngine() == engine && AnnotationIsLive(annot)) {
         // the box may be enlarged and the text set: one undo step
         ScopedEngineOperation op(annot->engine, "Edit text");
-        DisplayModel* dm = winOk ? win->AsFixed() : nullptr;
+        DisplayModel* dm = currentDm;
         int pageNo = PageNo(annot);
         if (dm && dm->ValidPageNo(pageNo) && (styleChanged || !str::Eq(Contents(annot), text))) {
             // Grow in PDF text axes, preserving position and unchanged dimensions.
@@ -3055,6 +3067,8 @@ static bool StartFreeTextEditor(MainWindow* win, Annotation* annot, int draftPag
     gInPlace.tab = win->CurrentTab();
     gInPlace.annot = annot;
     gInPlace.engine = dm->GetEngine();
+    gInPlace.ctrl = gInPlace.tab->ctrl;
+    gInPlace.generation = gInPlace.tab->loadGeneration;
     gInPlace.fillCol = annot ? GetColor(annot) : (draft->bgCol.parsedOk ? draft->bgCol.pdfCol : kColorUnset);
     gInPlace.opacity = annot ? Opacity(annot) : MulDiv(draft->opacity, 255, 100);
     if (draft) {

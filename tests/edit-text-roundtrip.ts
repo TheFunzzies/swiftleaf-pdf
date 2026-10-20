@@ -38,7 +38,16 @@ export async function testit(): Promise<void> {
       unchanged: true,
     },
     { name: "invisible", content: "BT /F1 12 Tf 3 Tr 72 700 Td (OCR text) Tj ET", reject: true },
+    { name: "clip", content: "BT /F1 12 Tf 7 Tr 72 700 Td (Clipping text) Tj ET", reject: true },
     { name: "mixed", content: "BT /F1 12 Tf 72 700 Td (Plain ) Tj /F2 12 Tf (bold) Tj ET", reject: true },
+    {
+      name: "rollback",
+      content: "BT /F1 12 Tf 72 700 Td (Original text) Tj ET",
+      replacement: "New text",
+      reject: false,
+      unchanged: true,
+      fault: true,
+    },
     {
       name: "link",
       content: "BT /F1 12 Tf 72 700 Td (Linked text) Tj ET",
@@ -67,11 +76,27 @@ export async function testit(): Promise<void> {
       reject: false,
       expected: "New text",
     },
+    {
+      name: "ligature",
+      content: "BT /F1 12 Tf 72 700 Td (Original text) Tj ET",
+      replacement: "ﬁle",
+      reject: false,
+      expected: "file",
+    },
+    {
+      name: "replacement-character",
+      content: "BT /F1 12 Tf 72 700 Td (Original text) Tj ET",
+      replacement: "�",
+      reject: false,
+      unchanged: true,
+    },
   ];
   for (const c of cases) {
     const pdf = join(dir, `${c.name}.pdf`);
     writeFileSync(pdf, fixture(c.content, c.annots), "latin1");
-    const { proc, client, frame } = await launchControlled([pdf]);
+    const { proc, client, frame } = await launchControlled([pdf], {
+      env: { SWIFTLEAF_TEST_EDIT_TEXT_FAIL: c.fault ? "after-redaction" : "" },
+    });
     try {
       await client.waitForRenderIdle();
       await client.setNotificationsEnabled(false);
@@ -99,6 +124,8 @@ export async function testit(): Promise<void> {
       if ((c.reject || c.unchanged) && !/undo canUndo=0 canRedo=0 modified=0/.test(raw)) {
         throw new Error(`${c.name}: rejected/cancelled edit changed the document\n${raw}`);
       }
+      if (c.unchanged && !raw.includes("page1text=Original text"))
+        throw new Error(`${c.name}: original text was lost\n${raw}`);
       if (c.expected) {
         if (editor()) throw new Error(`${c.name}: supported text was rejected`);
         sendCommandSync(frame, cmdId("CmdSaveAnnotations"));
@@ -118,7 +145,7 @@ export async function testit(): Promise<void> {
           throw new Error(`${c.name}: saved text did not survive reopening`);
       }
     } finally {
-      await client.quit();
+      client.close();
       await killAndWait(proc);
     }
   }

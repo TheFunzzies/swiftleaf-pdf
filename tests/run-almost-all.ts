@@ -18,6 +18,9 @@
 
 import { runNamedTests, runSuiteMain, startSuiteProgress, type NamedTest, type SuiteOptions } from "./util.ts";
 import { setTestWindowLayout } from "./winapi.ts";
+import { testit as editTextRoundtrip } from "./edit-text-roundtrip.ts";
+import { testit as editorLifecycle } from "./editor-lifecycle.ts";
+import { testit as stampResizeLifecycle } from "./stamp-resize-lifecycle.ts";
 import { beginSharedControlledSession, endSharedControlledSession } from "./win-automation.ts";
 import { testit as lintCommandIds } from "./lint-command-ids.ts";
 import { testit as jpegXlPdf } from "./jpeg-xl-pdf.ts";
@@ -396,6 +399,9 @@ export const tests: NamedTest[] = [
   // first: it drives the home page, whose thumbnail selection follows the
   // mouse, so it is the one test that cares what the machine was doing before
   ["issue-5978", issue5978],
+  ["edit-text-roundtrip", editTextRoundtrip],
+  ["editor-lifecycle", editorLifecycle],
+  ["stamp-resize-lifecycle", stampResizeLifecycle],
   ["free-text-draft", freeTextDraft],
   ["free-text-transparent", freeTextTransparent],
   ["free-text-custom-style", freeTextCustomStyle],
