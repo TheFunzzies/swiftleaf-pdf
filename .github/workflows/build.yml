@@ -42,6 +42,63 @@ jobs:
           name: swiftleaf-x64
           path: dist/
 
+  test:
+    name: Windows x64 tests
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: microsoft/setup-msbuild@v2
+        with:
+          vs-version: '[17.0,18.0)'
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache test builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            out/dbg64
+            out/rel64/obj-s
+          key: windows-2022-tests-${{ hashFiles('src/**', 'ext/**', 'vs2022/**', 'bin/**', 'cmd/pack-embedded-prebuild.cmd') }}
+
+      - name: Build Debug x64
+        id: debug
+        run: msbuild vs2022\SumatraPDF.sln /t:SumatraPDF "/p:Configuration=Debug;Platform=x64" /m /v:minimal /nologo /fl /flp:logfile=debug-build.log
+
+      - name: Check test harness
+        id: harness
+        run: bun test tests/ci-harness.test.ts
+
+      - name: Run unit tests
+        timeout-minutes: 5
+        run: bun cmd/run-unit-tests.ts -dbg --no-build
+
+      - name: Build edit-safety libraries
+        run: msbuild vs2022\SumatraPDF.sln "/t:base;mupdf;a-lcms2" "/p:Configuration=Release;Platform=x64" /m /v:minimal /nologo /fl /flp:logfile=edit-safety-build.log
+
+      - name: Run Swiftleaf smoke tests
+        if: ${{ !cancelled() && steps.debug.outcome == 'success' && steps.harness.outcome == 'success' }}
+        run: bun tests/run-swiftleaf-ci.ts
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swiftleaf-test-results
+          include-hidden-files: true
+          path: |
+            *-build.log
+            out/dbg64/unit-tests-*.txt
+            .work/swiftleaf-ci/
+            .work/test-times.txt
+          if-no-files-found: warn
+
   release:
     name: Publish release
     needs: build
