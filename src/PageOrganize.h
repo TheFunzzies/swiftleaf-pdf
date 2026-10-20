@@ -36,6 +36,6 @@ struct PdfLiveSnapshot {
     bool Create(EngineBase*);
 };
 
-TempStr PdfTempBeside(Str target);
+TempStr PdfTempBeside(Str target, Str ext = {});
 bool PublishPdfFile(Str target, Str source);
 bool ConfirmWarning(HWND, Str msg, Str title);
