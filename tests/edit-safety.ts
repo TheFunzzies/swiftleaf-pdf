@@ -22,6 +22,7 @@ if (!organize.includes(cleanup)) throw new Error(`Source boundary changed: ${cle
 writeFileSync(
   `${dest}/organize-under-test.inc`,
   slice(organize, "// one step Undo", "// pages 1..n") +
+    slice(organize, "int OrganizeSplitPdf(", "static int LastUndoStepFor") +
     slice(organize, "static int LastUndoStepFor", "// thumbnails can be dragged") +
     organize.slice(organize.indexOf(cleanup)),
 );

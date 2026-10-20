@@ -18,6 +18,9 @@ void _uploadDebugReport(Str a, Str b, bool) {
 struct EngineBase {
     bool dirty = false;
     bool signedPdf = false;
+    Str path;
+    int PageCount() { return 3; }
+    Str FilePath() { return path; }
 };
 struct EngineMupdf : EngineBase {
     void* pdfdoc = this;
@@ -88,10 +91,15 @@ static Str Tr(const char* s) {
 constexpr int kNotifDefaultTimeOut = 1;
 constexpr int kNotif5SecsTimeOut = 5;
 constexpr int kNotifNoTimeout = 0;
+static Str warning;
 static void ShowWarningNotification(HWND, Str msg, int) {
+    str::Free(warning);
+    warning = str::Dup(msg);
     fprintf(stderr, "%.*s (error %lu)\n", msg.len, msg.s, GetLastError());
 }
 static void ShowPlainWarningNotification(HWND, Str msg, int) {
+    str::Free(warning);
+    warning = str::Dup(msg);
     fprintf(stderr, "%.*s\n", msg.len, msg.s);
 }
 static void ShowTemporaryNotification(HWND, Str) {}
@@ -121,12 +129,16 @@ static Str EngineMupdfGetPassword(EngineBase*) {
     return {};
 }
 static bool failSave = false, failMerge = false, failReplace = false, failCopy = false;
+static int mergeCalls = 0, failMergeAt = 0;
+static bool corruptSwap = false, failRollback = false;
+static Str swappedBackup;
 static int replacements = 0, failures = 0, checks = 0;
 static Str liveContent = StrL("unsaved-annotations");
 static bool EngineMupdfSaveCopy(EngineBase*, Str p) {
     return !failSave && file::WriteFile(p, liveContent);
 }
 static bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& src, const Vec<PdfMergePage>&, Str out) {
+    if (++mergeCalls == failMergeAt) return false;
     if (failMerge || !file::Exists(src[0].path)) return false;
     return file::WriteFile(out, StrL("reorganized"));
 }
@@ -139,7 +151,20 @@ static bool ReplaceCurrentDocumentFile(MainWindow* win, Str from, int) {
 static BOOL TestCopyFileW(LPCWSTR from, LPCWSTR to, BOOL exclusive) {
     return !failCopy && CopyFileW(from, to, exclusive);
 }
+static BOOL TestReplaceFileW(LPCWSTR target, LPCWSTR source, LPCWSTR backup, DWORD flags, LPVOID a, LPVOID b) {
+    if (failRollback && !corruptSwap) return FALSE;
+    BOOL ok = ReplaceFileW(target, source, backup, flags, a, b);
+    if (ok && corruptSwap) {
+        corruptSwap = false;
+        str::Free(swappedBackup);
+        swappedBackup = str::Dup(ToUtf8Temp(WStr(backup)));
+        file::WriteFile(ToUtf8Temp(WStr(target)), StrL("damaged"));
+    }
+    return ok;
+}
+#define ReplaceFileW TestReplaceFileW
 #include "publish-under-test.inc"
+#undef ReplaceFileW
 #define CopyFileW TestCopyFileW
 #include "organize-under-test.inc"
 #undef CopyFileW
@@ -161,6 +186,9 @@ static void ResetUndo() {
     failSave = failMerge = failReplace = failCopy = false;
     confirmAnswer = true;
     replacements = prompts = 0;
+    mergeCalls = failMergeAt = 0;
+    corruptSwap = failRollback = false;
+    str::FreePtr(&warning);
 }
 static bool ContentsEqual(Str p, Str expected) {
     Str data = file::ReadFile(p);
@@ -382,6 +410,79 @@ static void TestPublish() {
     RemoveDirectoryW(CWStrTemp(other));
 }
 
+static TempStr FindCopy(Str dir, Str target, Str content) {
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW(CWStrTemp(path::JoinTemp(dir, StrL("*"))), &fd);
+    if (h == INVALID_HANDLE_VALUE) return {};
+    TempStr result;
+    do {
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+        TempStr p = path::JoinTemp(dir, ToUtf8Temp(WStr(fd.cFileName)));
+        if (!path::IsSame(p, target) && ContentsEqual(p, content)) {
+            result = str::DupTemp(p);
+            break;
+        }
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    return result;
+}
+
+static void TestPostSwap() {
+    TempStr dir = NewDir(StrL("verify"));
+    MainWindow w;
+    w.tab.filePath = path::JoinTemp(dir, StrL("doc.pdf"));
+    file::WriteFile(w.tab.filePath, StrL("original-before-swap"));
+    corruptSwap = true;
+    Check(!Apply(w), "post-swap verification failure is not success");
+    Check(ContentsEqual(w.tab.filePath, StrL("original-before-swap")), "post-swap failure restores original atomically");
+    ResetUndo();
+
+    file::WriteFile(w.tab.filePath, StrL("original-before-swap"));
+    corruptSwap = failRollback = true;
+    Check(!Apply(w), "failed rollback is not a completed page change");
+    Check(len(gUndoSteps) == 1 && gUndoSteps[0].recovery, "failed rollback retains a recovery undo step even when clean");
+    TempStr recovery = len(gUndoSteps) ? str::DupTemp(gUndoSteps[0].backupPath) : TempStr{};
+    Check(len(recovery) && ContentsEqual(recovery, StrL("original-before-swap")), "original PDF remains recoverable after failed rollback");
+    Check(len(recovery) && str::Find(warning, recovery), "failed rollback reports the original recovery path");
+    OrganizeClearUndo();
+    Check(len(recovery) && file::Exists(recovery), "failed rollback recovery survives undo cleanup");
+    Check(file::Exists(swappedBackup), "publication backup survives failed rollback cleanup");
+    file::Delete(recovery);
+    file::Delete(swappedBackup);
+    str::FreePtr(&swappedBackup);
+    ResetUndo();
+    file::Delete(w.tab.filePath);
+    RemoveDirectoryW(CWStrTemp(dir));
+}
+
+static void TestPartialSplit() {
+    TempStr dir = NewDir(StrL("split"));
+    TempStr source = path::JoinTemp(dir, StrL("source.pdf"));
+    TempStr base = path::JoinTemp(dir, StrL("part.pdf"));
+    TempStr first = path::JoinTemp(dir, StrL("part-1.pdf"));
+    TempStr second = path::JoinTemp(dir, StrL("part-2.pdf"));
+    file::WriteFile(source, StrL("source"));
+    file::WriteFile(first, StrL("existing-first"));
+    file::WriteFile(second, StrL("existing-second"));
+    MainWindow w;
+    w.tab.engine.path = source;
+    failMergeAt = 2;
+    Check(OrganizeSplitPdf(&w, &w.tab.engine, source, base, 1) == 1, "partial Split reports one completed file");
+    Check(ContentsEqual(first, StrL("reorganized")) && ContentsEqual(second, StrL("existing-second")), "partial Split keeps completed output and untouched later target");
+    TempStr recovery = FindCopy(dir, first, StrL("existing-first"));
+    Check(len(recovery) > 0, "partial Split keeps the overwritten destination recoverable");
+    Check(str::Find(warning, StrL("Split stopped after 1 of 3 files")), "partial Split explicitly reports incomplete results");
+    Check(len(recovery) && str::Find(warning, recovery) && str::Find(warning, first), "partial Split reports destination and recovery mapping");
+    OrganizeClearUndo();
+    Check(len(recovery) && file::Exists(recovery), "partial Split recovery survives cleanup");
+    file::Delete(recovery);
+    file::Delete(source);
+    file::Delete(first);
+    file::Delete(second);
+    RemoveDirectoryW(CWStrTemp(dir));
+    ResetUndo();
+}
+
 static bool Preflight(Str text) {
     EngineMupdf engine;
     PdfTextRun run;
@@ -410,6 +511,8 @@ int main() {
     TestUndo();
     TestPagePrompts();
     TestPublish();
+    TestPostSwap();
+    TestPartialSplit();
     TestText();
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
