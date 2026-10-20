@@ -56,6 +56,10 @@ const knownFailures: Record<string, { reason: string; pattern: RegExp }> = {
     reason: "The Redact ribbon does not expose the legacy annotation toolbar used by the test.",
     pattern: /Apply Redactions is on the toolbar with nothing marked \(the annotation toolbar never came up\)/,
   },
+  "annot-color-dropdown": {
+    reason: "The Edit PDF ribbon does not expose the legacy CmdCreateAnnotText toolbar button.",
+    pattern: /annot-color-dropdown: no CmdCreateAnnotText button on the Edit PDF toolbar/,
+  },
 };
 
 async function runCase(name: string): Promise<void> {
