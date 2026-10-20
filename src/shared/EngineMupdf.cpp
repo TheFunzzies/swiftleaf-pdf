@@ -10003,7 +10003,7 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
             ropts.line_art = PDF_REDACT_LINE_ART_NONE;
             ropts.text = PDF_REDACT_TEXT_REMOVE;
             pdf_apply_redaction(ctx, redact, &ropts);
-#if OS_WIN && defined(_DEBUG)
+#if OS_WIN && IS_DEBUG
             if (str::Eq(GetEnvVariableTemp(StrL("SWIFTLEAF_TEST_EDIT_TEXT_FAIL")), StrL("after-redaction"))) {
                 fz_throw(ctx, FZ_ERROR_GENERIC, "injected text replacement failure");
             }

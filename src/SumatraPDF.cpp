@@ -13954,7 +13954,6 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             // revert to the on-disk version, discarding unsaved changes (same as
             // the tab context menu); makes it work from the command palette too
             if (tab && win->IsDocLoaded()) {
-                ClearDocumentEditors(win);
                 ReloadDocument(win, false);
             }
             return 0;

@@ -1,11 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlCommand } from "./control.ts";
-import { assemblePdf, cmdId, runStandalone, tmpPath } from "./util.ts";
+import { assemblePdf, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
 import {
   MK_LBUTTON,
   packCoords,
+  postMessage,
   sendMessage,
+  sleep,
   VK_ESCAPE,
   WM_KEYDOWN,
   WM_LBUTTONDOWN,
@@ -26,7 +28,7 @@ export async function testit(): Promise<void> {
     ),
   );
   writeFileSync(
-    join(dir, "SumatraPDF-settings.txt"),
+    join(dir, "Swiftleaf-settings.txt"),
     `RestoreSession = false\nCheckForUpdates = false\nAnnotations [\n SignatureImage = ${png}\n]\n`,
   );
   const pdf = assemblePdf([
@@ -38,7 +40,7 @@ export async function testit(): Promise<void> {
   const b = join(dir, "b.pdf");
   writeFileSync(a, pdf, "latin1");
   writeFileSync(b, pdf, "latin1");
-  const { proc, client, frame } = await launchControlled(["-appdata", dir, a, b], { saveSettings: true });
+  const { proc, client, frame } = await launchControlled(["-appdata", dir, a, b]);
   try {
     await client.waitForRenderIdle();
     await client.setNotificationsEnabled(false);
@@ -48,15 +50,23 @@ export async function testit(): Promise<void> {
       await client.request(ControlCommand.TestInvokeCommand, ["CmdSignWithImage"]);
       await client.waitForRenderIdle();
       const dump = async () => String((await client.request(ControlCommand.TestMarkupAnnots, []))[1]);
-      const raw = await dump();
-      const rect = /type=Stamp[^\n]*screen=(-?\d+),(-?\d+),(\d+),(\d+)/.exec(raw);
+      const deadline = Date.now() + 5000 * SLOW_BUILD_FACTOR;
+      let raw = "";
+      let rect: RegExpExecArray | null = null;
+      while (Date.now() < deadline) {
+        raw = await dump();
+        rect = /type=Stamp[^\n]*screen=(-?\d+),(-?\d+),(\d+),(\d+)/.exec(raw);
+        if (rect) break;
+        await sleep(40);
+      }
       if (!rect) throw new Error(`Missing stamp\n${raw}`);
       const x = +rect[1]! + +rect[3]!;
       const y = +rect[2]! + +rect[4]!;
       sendMessage(canvas, WM_LBUTTONDOWN, MK_LBUTTON, packCoords(x, y));
       sendMessage(canvas, WM_MOUSEMOVE, MK_LBUTTON, packCoords(x + 30, y + 30));
       if (interruption === "escape") {
-        sendMessage(frame, WM_KEYDOWN, VK_ESCAPE, 0);
+        postMessage(frame, WM_KEYDOWN, VK_ESCAPE, 0);
+        await dump();
       } else {
         sendCommandSync(frame, cmdId("CmdPrevTab"));
         await client.waitForRenderIdle();

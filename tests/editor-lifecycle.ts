@@ -11,7 +11,9 @@ import {
   sendMessage,
   sendText,
   sleep,
+  VK_ESCAPE,
   WM_COMMAND,
+  WM_KEYDOWN,
 } from "./winapi.ts";
 import { findCanvas, killAndWait, launchControlled, sendCommandSync } from "./win-automation.ts";
 
@@ -81,6 +83,22 @@ export async function testit(): Promise<void> {
     result = await client.request(ControlCommand.TestMarkupAnnots, []);
     if (!/page1text=.*Edited text/.test(String(result[1])))
       throw new Error(`Tab switch discarded Edit Text\n${result[1]}`);
+
+    await client.seedTextSelection(1);
+    sendCommandSync(frame, cmdId("CmdEditText"));
+    editor = 0;
+    enumChildWindows(canvas, (hwnd) => {
+      if (getClassName(hwnd) === "Edit" && isWindowVisible(hwnd)) editor = hwnd;
+      return true;
+    });
+    if (!editor) throw new Error("Second Edit Text session did not open");
+    sendText(editor, "�");
+    sendCommandSync(frame, cmdId("CmdPrevTab"));
+    result = await client.request(ControlCommand.TestMarkupAnnots, []);
+    if (!isWindowVisible(editor) || !/page1text=.*Edited text/.test(String(result[1]))) {
+      throw new Error(`Rejected draft did not abort the tab switch\n${result[1]}`);
+    }
+    sendMessage(editor, WM_KEYDOWN, VK_ESCAPE, 0);
   } finally {
     client.close();
     await killAndWait(proc);
