@@ -10,7 +10,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control.ts";
-import { assemblePdf, cmdId, pollUntil, runStandalone, tmpPath } from "./util.ts";
+import { SETTINGS_FILE_NAME, assemblePdf, cmdId, pollUntil, runStandalone, tmpPath } from "./util.ts";
 import {
   clientToScreen,
   enumWindows,
@@ -71,7 +71,7 @@ function parseRect(m: RegExpExecArray | null): Rect {
 function writeSettings(appdata: string): void {
   const nl = String.fromCharCode(10);
   writeFileSync(
-    join(appdata, "SumatraPDF-settings.txt"),
+    join(appdata, SETTINGS_FILE_NAME),
     [
       "UiLanguage = en",
       "RestoreSession = false",
@@ -594,7 +594,7 @@ async function testCurrentColorAdded(): Promise<void> {
   mkdirSync(appdata, { recursive: true });
   const nl = String.fromCharCode(10);
   writeFileSync(
-    join(appdata, "SumatraPDF-settings.txt"),
+    join(appdata, SETTINGS_FILE_NAME),
     [
       "UiLanguage = en",
       "RestoreSession = false",

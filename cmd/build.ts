@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import { $ } from "bun";
 import { clearDirPreserveSettings } from "./clean";
 import { ensureNinja, ninjaDir, ninjaToRoot } from "./ninja";
-import { detectVisualStudio2026, runLogged } from "./util";
+import { detectVisualStudio, runLogged } from "./util";
 
 type BuildMode = "windows" | "all" | "smoke" | "ci" | "daily" | "codeql" | "build-no";
 type Config = "debug" | "release" | "profile";
@@ -23,7 +23,7 @@ interface BuildOptions {
 const usage = `Usage: bun cmd/build.ts <mode> [options]
 
 Windows builds:
-  -dbg | -rel             Build SumatraPDF.exe for x64
+  -dbg | -rel             Build Swiftleaf.exe for x64
   -profile                Build a function-timing profile variant (out/prf64)
   -rel -32                Build the 32-bit release
   -asan [-dbg|-rel]       Build SumatraPDF-static.exe with MSVC ASan
@@ -196,10 +196,10 @@ async function buildWindows(config: Config, win32: boolean, clean: boolean, ninj
   if (ninja) {
     await buildNinja([join(ninjaToRoot, outDir, "SumatraPDF.exe")]);
   } else {
-    const { msbuildPath } = detectVisualStudio2026();
+    const { msbuildPath } = detectVisualStudio();
     await buildApp(msbuildPath, configName, platform, "SumatraPDF");
   }
-  printBinaries(outDir, new Set(["SumatraPDF.exe"]));
+  printBinaries(outDir, new Set(["Swiftleaf.exe"]));
 }
 
 async function buildNinja(targets: string[]): Promise<void> {
@@ -211,7 +211,7 @@ async function buildNinja(targets: string[]): Promise<void> {
 function printBinaries(dir: string, targets: Set<string>): void {
   const paths: string[] = [];
   const dynamicFiles = new Set([
-    "SumatraPDF.exe",
+    "Swiftleaf.exe",
     "libsumatrapdf.dll",
     "PdfFilter.dll",
     "PdfPreview.dll",
@@ -225,7 +225,7 @@ function printBinaries(dir: string, targets: Set<string>): void {
         continue;
       }
       const relPath = relative(dir, entryPath).replaceAll("\\", "/");
-      const isDynamic = targets.has("SumatraPDF.exe") && dynamicFiles.has(relPath);
+      const isDynamic = targets.has("Swiftleaf.exe") && dynamicFiles.has(relPath);
       if (entry.isFile() && (targets.has(entry.name) || isDynamic)) {
         paths.push(entryPath);
       }
@@ -269,7 +269,7 @@ async function buildWindowsAsan(config: Config, clean: boolean, ninja: boolean):
   const outDir = join("out", config === "release" ? "rel64_asan" : "dbg64_asan");
   console.log(`${configName} ASan build (SumatraPDF-static.exe, x64_asan)`);
   if (clean) clearDirPreserveSettings(outDir);
-  const { msbuildPath, vsRoot } = detectVisualStudio2026();
+  const { msbuildPath, vsRoot } = detectVisualStudio();
   if (ninja) {
     await buildNinja([join(ninjaToRoot, outDir, "SumatraPDF-static.exe")]);
   } else {
@@ -292,7 +292,7 @@ async function buildAll(clean: boolean, ninja: boolean): Promise<void> {
   if (ninja) {
     await buildNinja([join(ninjaToRoot, outDir, "SumatraPDF.exe"), join(ninjaToRoot, outDir, "SumatraPDF-static.exe")]);
   } else {
-    const { msbuildPath } = detectVisualStudio2026();
+    const { msbuildPath } = detectVisualStudio();
     await buildApp(msbuildPath, "Release", "x64", "SumatraPDF");
     await runLogged(msbuildPath, [
       String.raw`vs2022\SumatraPDF.sln`,
@@ -301,7 +301,7 @@ async function buildAll(clean: boolean, ninja: boolean): Promise<void> {
       "/m",
     ]);
   }
-  printBinaries(outDir, new Set(["SumatraPDF.exe", "SumatraPDF-static.exe"]));
+  printBinaries(outDir, new Set(["Swiftleaf.exe", "SumatraPDF-static.exe"]));
 }
 
 async function buildSmoke(ninja: boolean): Promise<void> {
@@ -311,10 +311,10 @@ async function buildSmoke(ninja: boolean): Promise<void> {
   if (ninja) {
     await buildNinja([join(ninjaToRoot, outDir, "SumatraPDF.exe")]);
   } else {
-    const { msbuildPath } = detectVisualStudio2026();
+    const { msbuildPath } = detectVisualStudio();
     await buildApp(msbuildPath, "Release", "x64", "SumatraPDF:Rebuild");
   }
-  printBinaries(outDir, new Set(["SumatraPDF.exe"]));
+  printBinaries(outDir, new Set(["Swiftleaf.exe"]));
   // unit tests are compiled into the debug SumatraPDF only
   await runLogged("bun", [join("cmd", "run-unit-tests.ts"), "-dbg"]);
 }

@@ -129,7 +129,9 @@ export async function testit(): Promise<void> {
     raw = await dump();
     const moved = /type=FreeText[^\n]*screen=(-?\d+),(-?\d+),(\d+),(\d+)/.exec(raw);
     if (!moved || Math.abs(+moved[1]! - +rect[1]! - 40) > 2 || Math.abs(+moved[2]! - +rect[2]! - 30) > 2) {
-      throw new Error(`Accepted text did not move by the drag delta\n${raw}`);
+      throw new Error(
+        `Accepted text did not move by the drag delta\n${raw}\nbeforeScreen=${rect.slice(1, 5).join(",")}`,
+      );
     }
     sendCommandSync(frame, cmdId("CmdUndo"));
     raw = await dump();

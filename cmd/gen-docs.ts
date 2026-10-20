@@ -5,7 +5,6 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { commands as commandsDef } from "./gen-commands";
-import { checkCdnImages } from "./r2";
 import { copyFileNormalized, websiteDocsDir } from "./util.js";
 
 const docsDir = "docs";
@@ -268,6 +267,7 @@ export async function main(opts: GenDocsOptions = {}) {
   const pages = collectPages();
   writeManualPakFiles(pages);
   if (!opts.forBuild) {
+    const { checkCdnImages } = await import("./r2");
     await checkCdnImages([mdDir]);
   }
 

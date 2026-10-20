@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: Product source ref for a baseline run; use the workflow ref's test harness
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -41,6 +46,102 @@ jobs:
         with:
           name: swiftleaf-x64
           path: dist/
+
+  test:
+    name: Windows x64 tests
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.baseline_ref || github.sha }}
+
+      - name: Check out baseline harness
+        if: inputs.baseline_ref != ''
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          path: .work/ci-harness
+
+      - name: Prepare baseline evidence
+        if: inputs.baseline_ref != ''
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceSha = git rev-parse HEAD
+          $harnessSha = git -C .work/ci-harness rev-parse HEAD
+          Copy-Item .work/ci-harness/cmd/* cmd -Recurse -Force
+          Copy-Item .work/ci-harness/tests/* tests -Recurse -Force
+          $changed = @(git diff --name-only; git ls-files --others --exclude-standard)
+          if ($changed | Where-Object { $_ -notmatch '^(cmd|tests)/' }) {
+            throw 'Baseline overlay changed files outside the test harness'
+          }
+          New-Item -ItemType Directory -Force .work/swiftleaf-ci | Out-Null
+          @("source_sha=$sourceSha", "harness_sha=$harnessSha", 'product_changes=none', 'harness_overlay:', $changed) |
+            Tee-Object .work/swiftleaf-ci/baseline.txt
+
+      - uses: microsoft/setup-msbuild@v2
+        with:
+          vs-version: "[17.0,18.0)"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Check known-failure matchers
+        run: |
+          bun test tests/ci-known-failures.test.ts 2>&1 | Tee-Object known-failures-tests.log
+          exit $LASTEXITCODE
+
+      - name: Cache test builds
+        if: inputs.baseline_ref == ''
+        uses: actions/cache@v4
+        with:
+          path: |
+            out/dbg64
+            out/rel64/obj-s
+          key: windows-2022-tests-${{ hashFiles('src/**', 'ext/**', 'vs2022/**', 'bin/**', 'cmd/pack-embedded-prebuild.cmd') }}
+
+      - name: Build Debug x64
+        id: debug
+        run: msbuild vs2022\SumatraPDF.sln /t:SumatraPDF "/p:Configuration=Debug;Platform=x64" /m /v:minimal /nologo /fl /flp:logfile=debug-build.log
+
+      - name: Check test harness
+        id: harness
+        run: |
+          bun test tests/ci-harness.test.ts 2>&1 | Tee-Object harness-tests.log
+          exit $LASTEXITCODE
+
+      - name: Run unit tests
+        timeout-minutes: 5
+        run: bun cmd/run-unit-tests.ts -dbg --no-build
+
+      - name: Build edit-safety libraries
+        if: ${{ !cancelled() && steps.debug.outcome == 'success' && steps.harness.outcome == 'success' }}
+        run: |
+          foreach ($target in 'base', 'mupdf', 'a-lcms2') {
+            msbuild "vs2022\$target.vcxproj" "/p:Configuration=Release;Platform=x64" /m /v:minimal /nologo /fl "/flp:logfile=$target-build.log"
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+
+      - name: Run Swiftleaf smoke tests
+        if: ${{ !cancelled() && steps.debug.outcome == 'success' && steps.harness.outcome == 'success' }}
+        run: bun tests/run-swiftleaf-ci.ts
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swiftleaf-test-results
+          include-hidden-files: true
+          path: |
+            *-build.log
+            *-tests.log
+            out/dbg64/unit-tests-*.txt
+            .work/swiftleaf-ci/
+            .work/test-times.txt
+          if-no-files-found: warn
 
   release:
     name: Publish release

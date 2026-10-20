@@ -1,19 +1,20 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { detectVisualStudio2026, runLogged } from "./util";
+import { detectVisualStudio, runLogged } from "./util";
 
 const asanDllName = "clang_rt.asan_dynamic-x86_64.dll";
 
 type BuildKind = "dbg" | "dbg32" | "asan";
 
 function usage(): never {
-  throw new Error("usage: bun cmd/run-unit-tests.ts [-dbg | -32 | -asan]");
+  throw new Error("usage: bun cmd/run-unit-tests.ts [-dbg | -32 | -asan] [--no-build]");
 }
 
 function parseArgs(): BuildKind {
   let kind: BuildKind = "dbg";
   let seen = false;
   for (const arg of process.argv.slice(2)) {
+    if (arg === "--no-build") continue;
     if (arg === "-dbg") {
       if (seen) usage();
       kind = "dbg";
@@ -76,7 +77,7 @@ function configFor(kind: BuildKind): UnitTestConfig {
     return {
       platform: "Win32",
       target: "SumatraPDF",
-      exeName: "SumatraPDF.exe",
+      exeName: "Swiftleaf.exe",
       outDir: join("out", "dbg32"),
       logName: "unit-tests-dbg32.txt",
     };
@@ -93,7 +94,7 @@ function configFor(kind: BuildKind): UnitTestConfig {
   return {
     platform: "x64",
     target: "SumatraPDF",
-    exeName: "SumatraPDF.exe",
+    exeName: "Swiftleaf.exe",
     outDir: join("out", "dbg64"),
     logName: "unit-tests-dbg.txt",
   };
@@ -105,7 +106,7 @@ function tail(s: string, maxLines: number): string {
 }
 
 async function runAndCapture(exe: string, cwd: string, logPath: string): Promise<{ exitCode: number; output: string }> {
-  const proc = Bun.spawn([exe, "-unit-tests", "-for-ai"], {
+  const proc = Bun.spawn([exe, "-unit-tests", "-for-ai", "-for-testing"], {
     cwd,
     stdout: "pipe",
     stderr: "pipe",
@@ -124,18 +125,20 @@ async function runAndCapture(exe: string, cwd: string, logPath: string): Promise
 async function main() {
   const kind = parseArgs();
   const { platform, target, exeName, outDir, logName } = configFor(kind);
-  const { msbuildPath, vsRoot } = detectVisualStudio2026();
-
-  const { genDocsForBuild } = await import("./gen-docs");
-  await genDocsForBuild();
-  await runLogged(join("bin", "premake5.exe"), ["vs2022"]);
-  await runLogged(msbuildPath, [
-    String.raw`vs2022\SumatraPDF.sln`,
-    `/t:${target}`,
-    `/p:Configuration=Debug;Platform=${platform}`,
-    "/m",
-  ]);
+  if (!process.argv.includes("--no-build")) {
+    const { msbuildPath } = detectVisualStudio();
+    const { genDocsForBuild } = await import("./gen-docs");
+    await genDocsForBuild();
+    await runLogged(join("bin", "premake5.exe"), ["vs2022"]);
+    await runLogged(msbuildPath, [
+      String.raw`vs2022\SumatraPDF.sln`,
+      `/t:${target}`,
+      `/p:Configuration=Debug;Platform=${platform}`,
+      "/m",
+    ]);
+  }
   if (kind === "asan") {
+    const { vsRoot } = detectVisualStudio();
     copyAsanRuntime(vsRoot, outDir);
   }
 

@@ -6,7 +6,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlCommand } from "./control.ts";
-import { assemblePdf, runStandalone, tmpPath } from "./util.ts";
+import { SETTINGS_FILE_NAME, assemblePdf, runStandalone, tmpPath } from "./util.ts";
 import { sleep } from "./winapi.ts";
 import { killAndWait, launchControlled } from "./win-automation.ts";
 
@@ -31,7 +31,7 @@ export async function testit(): Promise<void> {
     "]",
     "",
   ].join("\n");
-  writeFileSync(join(dir, "SumatraPDF-settings.txt"), settings);
+  writeFileSync(join(dir, SETTINGS_FILE_NAME), settings);
   const pdf = join(dir, "blank.pdf");
   writeFileSync(
     pdf,
