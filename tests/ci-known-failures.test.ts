@@ -6,7 +6,8 @@ function background(blue: unknown, total: unknown): string {
 }
 
 const baselineRect = "477,284,60,7";
-function drag(rect: string, before = baselineRect): string {
+const beforeRect = "477,277,60,14";
+function drag(rect: string, before = beforeRect): string {
   return `Accepted text did not move by the drag delta\ntype=FreeText page=1 screen=${rect}\nannotations=1\nbeforeScreen=${before}\n`;
 }
 
@@ -30,7 +31,7 @@ test("rejects invalid or non-failing background samples", () => {
   }
 });
 
-test("accepts an unchanged FreeText rectangle", () => {
+test("accepts the observed FreeText rectangle transition", () => {
   expect(matchesKnown("free-text-draft", drag(baselineRect))).toBe(true);
   expect(matchesKnown("free-text-draft", drag(baselineRect).replaceAll("\n", "\r\n"))).toBe(true);
 });
@@ -45,4 +46,5 @@ test("rejects changed positions, sizes and annotation counts", () => {
     expect(matchesKnown("free-text-draft", drag(rect))).toBe(false);
   }
   expect(matchesKnown("free-text-draft", drag(baselineRect).replace("annotations=1", "annotations=0"))).toBe(false);
+  expect(matchesKnown("free-text-draft", drag(baselineRect, baselineRect))).toBe(false);
 });
