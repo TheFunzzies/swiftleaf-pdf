@@ -1,6 +1,12 @@
 /* Copyright 2026 the Swiftleaf PDF authors.
    License: GPLv3 */
 
+// Edit Text: select some text (or click it after Edit Text), and an editor
+// opens over the whole paragraph, in about the same font and size, wrapping
+// like the page does. Enter writes the new text into the page, re-flowed to
+// the paragraph's width (EngineMupdfReplaceText), Shift+Enter starts a new
+// paragraph, Esc leaves the page as it was.
+
 #include "base/Base.h"
 #include "base/UITask.h"
 #include "base/Win.h"

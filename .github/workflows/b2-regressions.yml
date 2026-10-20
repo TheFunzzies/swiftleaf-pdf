@@ -2,6 +2,10 @@ name: B2 editor regressions
 on:
   workflow_dispatch:
     inputs:
+      source_ref:
+        description: Product and test ref to validate
+        required: false
+        type: string
       baseline_run:
         description: Optional unfixed run containing b2-editor-results
         required: false
@@ -17,6 +21,10 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+      - name: Record tested source
+        run: git rev-parse HEAD
       - uses: microsoft/setup-msbuild@v2
       - uses: oven-sh/setup-bun@v2
       - id: build

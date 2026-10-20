@@ -2952,14 +2952,13 @@ void ReloadDocument(MainWindow* win, bool autoRefresh, bool canAskForPassword) {
         return;
     }
     bool hadEditors = HasOpenTextEditors(win);
+    if (autoRefresh && hadEditors) {
+        return;
+    }
     if (!CommitOpenEditors(win)) {
         return;
     }
-    ClearMouseState(win);
     if (hadEditors && EngineHasUnsavedAnnotations(tab->GetEngine())) {
-        if (autoRefresh) {
-            return;
-        }
         u64 generation = tab->loadGeneration;
         if (!MaybeSaveAnnotations(tab) || !IsWindowTabValid(tab) || tab->loadGeneration != generation) {
             return;
@@ -3028,6 +3027,7 @@ void ReloadDocument(MainWindow* win, bool autoRefresh, bool canAskForPassword) {
         DeleteFileState(fs);
         return;
     }
+    ClearMouseState(win);
     // Set the windows state based on the actual window's placement
     int wstate = WIN_STATE_NORMAL;
     if (win->isFullScreen) {
@@ -4070,6 +4070,10 @@ MainWindow* LoadDocumentFinish(LoadArgs* args) {
         // there's no tab to reuse at this point
         args->forceReuse = false;
     } else {
+        if (!CommitOpenEditors(win)) {
+            DeleteOrphanedController(win, args->ctrl);
+            return nullptr;
+        }
         if (openNewTab) {
             SaveCurrentWindowTab(args->win);
         }
@@ -4687,6 +4691,10 @@ void StartLoadDocument(LoadArgs* argsIn) {
         argsIn->onFinished.Call(false);
         return;
     }
+    if (!argsIn->targetTab && !CommitOpenEditors(win)) {
+        argsIn->onFinished.Call(false);
+        return;
+    }
 
     MaybeDetachEphemeralHostFile(argsIn);
     path = argsIn->FilePath();
@@ -5005,9 +5013,10 @@ void LoadModelIntoTab(WindowTab* tab) {
     }
     if (!CommitOpenEditors(win)) {
         WindowTab* outgoing = win->currentTabTemp;
-        if (outgoing) {
-            TabsSelect(win, win->GetTabIdx(outgoing));
+        if (outgoing && win->tabsCtrl) {
+            win->tabsCtrl->SetSelected(win->GetTabIdx(outgoing));
         }
+        win->currentTabTemp = nullptr;
         return;
     }
     if (gSettings->lazyLoading && win->ctrl && !tab->ctrl && !tab->IsNonDocumentTab() &&
