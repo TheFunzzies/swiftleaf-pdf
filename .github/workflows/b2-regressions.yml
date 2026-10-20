@@ -52,6 +52,18 @@ jobs:
           Write-Output $output
           if ($code -eq 0 -or $output -notmatch 'resize left a no-op undo step') { exit 1 }
           exit 0
+      - name: Prove overlapping text regression fails before fix
+        timeout-minutes: 3
+        if: ${{ !cancelled() }}
+        env:
+          SUMATRA_TEST_EXE: ${{ github.workspace }}\.work\b2-baseline\Swiftleaf.exe
+          SWIFTLEAF_TEXT_CASE: overlap
+        run: |
+          $output = bun tests/edit-text-roundtrip.ts --no-build 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $output
+          if ($code -eq 0 -or $output -notmatch 'overlap: unsafe text was editable') { exit 1 }
+          exit 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:

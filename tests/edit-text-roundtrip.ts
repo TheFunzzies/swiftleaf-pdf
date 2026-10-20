@@ -6,11 +6,15 @@ import {
   enumChildWindows,
   getClassName,
   isWindowVisible,
+  MK_LBUTTON,
+  packCoords,
   sendMessage,
   sendText,
   sleep,
   VK_ESCAPE,
   WM_KEYDOWN,
+  WM_LBUTTONDOWN,
+  WM_LBUTTONUP,
 } from "./winapi.ts";
 import { findCanvas, killAndWait, launchControlled, sendCommandSync } from "./win-automation.ts";
 
@@ -30,6 +34,26 @@ export async function testit(): Promise<void> {
   const dir = tmpPath("edit-text-roundtrip");
   mkdirSync(dir, { recursive: true });
   const cases = [
+    {
+      name: "clicked-plain",
+      content: "BT /F1 12 Tf 72 700 Td (Original paragraph with a long first line) Tj 0 -15 Td (Second line) Tj ET",
+      annots: "<< /Type /Annot /Subtype /Square /Rect [0 0 612 792] /C [] /BS << /W 0 >> >>",
+      click: true,
+      replacement: "Cancelled",
+      cancel: true,
+      reject: false,
+      unchanged: true,
+      original: "Original paragraph",
+    },
+    {
+      name: "overlap",
+      content:
+        "BT /F1 12 Tf 72 700 Td (Original paragraph with a long first line) Tj 0 -15 Td (Second line) Tj ET BT /F2 20 Tf 0 1 -1 0 210 700 Tm (X) Tj ET",
+      annots: "<< /Type /Annot /Subtype /Square /Rect [0 0 612 792] /C [] /BS << /W 0 >> >>",
+      click: true,
+      reject: true,
+      keep: "X",
+    },
     {
       name: "overflow",
       content: "BT /F1 12 Tf 72 700 Td (Original text) Tj ET",
@@ -125,8 +149,19 @@ export async function testit(): Promise<void> {
     try {
       await client.waitForRenderIdle();
       await client.setNotificationsEnabled(false);
-      await client.seedTextSelection(1);
-      sendCommandSync(frame, cmdId("CmdEditText"));
+      if (c.click) {
+        const before = String((await client.request(ControlCommand.TestMarkupAnnots, []))[1]);
+        const page = /type=Square[^\n]*screen=(-?\d+),(-?\d+),(\d+),(\d+)/.exec(before);
+        if (!page) throw new Error(`${c.name}: missing page coordinate marker\n${before}`);
+        const x = Math.round(+page[1]! + (+page[3]! * 80) / 612);
+        const y = Math.round(+page[2]! + (+page[4]! * 88) / 792);
+        sendCommandSync(frame, cmdId("CmdEditText"));
+        sendMessage(findCanvas(frame), WM_LBUTTONDOWN, MK_LBUTTON, packCoords(x, y));
+        sendMessage(findCanvas(frame), WM_LBUTTONUP, 0, packCoords(x, y));
+      } else {
+        await client.seedTextSelection(1);
+        sendCommandSync(frame, cmdId("CmdEditText"));
+      }
       const editor = () => {
         let found = 0;
         enumChildWindows(findCanvas(frame), (hwnd) => {
@@ -149,8 +184,9 @@ export async function testit(): Promise<void> {
       if ((c.reject || c.unchanged) && !/undo canUndo=0 canRedo=0 modified=0/.test(raw)) {
         throw new Error(`${c.name}: rejected/cancelled edit changed the document\n${raw}`);
       }
-      if (c.unchanged && !raw.includes("page1text=Original text"))
+      if (c.unchanged && !raw.includes(`page1text=${c.original ?? "Original text"}`))
         throw new Error(`${c.name}: original text was lost\n${raw}`);
+      if (c.keep && !raw.includes(c.keep)) throw new Error(`${c.name}: unselected text was lost\n${raw}`);
       if (c.expected) {
         if (editor()) throw new Error(`${c.name}: supported text was rejected`);
         sendCommandSync(frame, cmdId("CmdSaveAnnotations"));
