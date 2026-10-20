@@ -1,6 +1,11 @@
 name: B2 editor regressions
 on:
   workflow_dispatch:
+    inputs:
+      baseline_run:
+        description: Optional unfixed run containing b2-editor-results
+        required: false
+        type: string
   push:
     branches: [review/b2-edit-text]
 jobs:
@@ -34,16 +39,16 @@ jobs:
           SUMATRA_TEST_EXE: ${{ github.workspace }}\out\dbg64\Swiftleaf.exe
         run: bun tests/stamp-resize-lifecycle.ts --no-build
       - name: Download unfixed editor build
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && inputs.baseline_run != '' }}
         uses: actions/download-artifact@v4
         with:
           name: b2-editor-results
-          run-id: 39351709731
+          run-id: ${{ inputs.baseline_run }}
           github-token: ${{ github.token }}
           path: .work/b2-baseline
       - name: Prove stamp regression fails before fix
         timeout-minutes: 3
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && inputs.baseline_run != '' }}
         env:
           SUMATRA_TEST_EXE: ${{ github.workspace }}\.work\b2-baseline\Swiftleaf.exe
         run: |
@@ -54,7 +59,7 @@ jobs:
           exit 0
       - name: Prove overlapping text regression fails before fix
         timeout-minutes: 3
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && inputs.baseline_run != '' }}
         env:
           SUMATRA_TEST_EXE: ${{ github.workspace }}\.work\b2-baseline\Swiftleaf.exe
           SWIFTLEAF_TEXT_CASE: overlap
