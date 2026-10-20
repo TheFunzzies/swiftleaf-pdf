@@ -116,6 +116,7 @@ export async function testit(): Promise<void> {
     want(raw, /freeTextEdit active=1[^\n]*text=A movable draft/, "Accepted text can be reopened outside Edit mode");
     sendText(box(), "Discard this edit");
     sendMessage(box(), WM_KEYDOWN, VK_ESCAPE, 0);
+    const beforeDrag = /type=FreeText[^\n]*screen=(-?\d+),(-?\d+),(\d+),(\d+)/.exec(await dump());
     // Move the selected object in Read mode, using the existing canvas drag path.
     const start = { x: +rect[1]! + Math.floor(+rect[3]! / 2), y: +rect[2]! + Math.floor(+rect[4]! / 2) };
     const end = { x: start.x + 40, y: start.y + 30 };
@@ -129,9 +130,8 @@ export async function testit(): Promise<void> {
     raw = await dump();
     const moved = /type=FreeText[^\n]*screen=(-?\d+),(-?\d+),(\d+),(\d+)/.exec(raw);
     if (!moved || Math.abs(+moved[1]! - +rect[1]! - 40) > 2 || Math.abs(+moved[2]! - +rect[2]! - 30) > 2) {
-      throw new Error(
-        `Accepted text did not move by the drag delta\n${raw}\nbeforeScreen=${rect.slice(1, 5).join(",")}`,
-      );
+      const beforeScreen = beforeDrag?.slice(1, 5).join(",") ?? "missing";
+      throw new Error(`Accepted text did not move by the drag delta\n${raw}\nbeforeScreen=${beforeScreen}`);
     }
     sendCommandSync(frame, cmdId("CmdUndo"));
     raw = await dump();
