@@ -14,9 +14,16 @@ function slice(s: string, start: string, end: string) {
 }
 const organize = readFileSync("src/PageOrganize.cpp", "utf8");
 writeFileSync(
+  `${dest}/publish-under-test.inc`,
+  slice(organize, "PdfLiveSnapshot::~PdfLiveSnapshot", "// one step Undo"),
+);
+const cleanup = "// a recovery step's file";
+if (!organize.includes(cleanup)) throw new Error(`Source boundary changed: ${cleanup}`);
+writeFileSync(
   `${dest}/organize-under-test.inc`,
   slice(organize, "// one step Undo", "// pages 1..n") +
-    slice(organize, "static int LastUndoStepFor", "// thumbnails can be dragged"),
+    slice(organize, "static int LastUndoStepFor", "// thumbnails can be dragged") +
+    organize.slice(organize.indexOf(cleanup)),
 );
 const engine = readFileSync("src/shared/EngineMupdf.cpp", "utf8");
 writeFileSync(`${dest}/encoding-under-test.inc`, slice(engine, "// UTF-8 to a PDF string", "static float TextWidth"));

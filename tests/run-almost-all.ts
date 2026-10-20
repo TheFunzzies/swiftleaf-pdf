@@ -19,6 +19,7 @@
 import { runNamedTests, runSuiteMain, startSuiteProgress, type NamedTest, type SuiteOptions } from "./util.ts";
 import { setTestWindowLayout } from "./winapi.ts";
 import { beginSharedControlledSession, endSharedControlledSession } from "./win-automation.ts";
+import { testit as pageOpsSafety } from "./page-ops-safety.ts";
 import { testit as lintCommandIds } from "./lint-command-ids.ts";
 import { testit as jpegXlPdf } from "./jpeg-xl-pdf.ts";
 import { testit as buildCli } from "./build-cli.ts";
@@ -396,6 +397,7 @@ export const tests: NamedTest[] = [
   // first: it drives the home page, whose thumbnail selection follows the
   // mouse, so it is the one test that cares what the machine was doing before
   ["issue-5978", issue5978],
+  ["page-ops-safety", pageOpsSafety],
   ["free-text-draft", freeTextDraft],
   ["free-text-transparent", freeTextTransparent],
   ["free-text-custom-style", freeTextCustomStyle],
