@@ -14,13 +14,13 @@ import {
 } from "./winapi.ts";
 import { findCanvas, killAndWait, launchControlled, sendCommandSync } from "./win-automation.ts";
 
-function fixture(content: string, annots = ""): string {
+function fixture(content: string, annots = "", font = "Helvetica"): string {
   return assemblePdf([
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R ${annots ? "/Annots [7 0 R]" : ""} >>`,
     `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Type /Font /Subtype /Type1 /BaseFont /${font} >>`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
     ...(annots ? [annots] : []),
   ]);
@@ -90,10 +90,35 @@ export async function testit(): Promise<void> {
       reject: false,
       unchanged: true,
     },
+    {
+      name: "serif",
+      font: "Times-Roman",
+      content: "BT /F1 14 Tf 72 700 Td (Original serif text) Tj ET",
+      replacement: "New serif text",
+      reject: false,
+      expected: "New serif text",
+    },
+    {
+      name: "mono",
+      font: "Courier",
+      content: "BT /F1 10 Tf 72 700 Td (Original mono text) Tj ET",
+      replacement: "New mono text",
+      reject: false,
+      expected: "New mono text",
+    },
+    {
+      name: "reflow",
+      content: "BT /F1 12 Tf 72 700 Td (Original first line) Tj 0 -15 Td (Original next line) Tj ET",
+      replacement: "New text goes on two lines",
+      reject: false,
+      expected: "New text goes on two lines",
+    },
   ];
+  const selectedCase = process.env.SWIFTLEAF_TEXT_CASE;
   for (const c of cases) {
+    if (selectedCase && c.name !== selectedCase) continue;
     const pdf = join(dir, `${c.name}.pdf`);
-    writeFileSync(pdf, fixture(c.content, c.annots), "latin1");
+    writeFileSync(pdf, fixture(c.content, c.annots, c.font), "latin1");
     const { proc, client, frame } = await launchControlled([pdf], {
       env: { SWIFTLEAF_TEST_EDIT_TEXT_FAIL: c.fault ? "after-redaction" : "" },
     });
@@ -141,7 +166,7 @@ export async function testit(): Promise<void> {
           pdf,
           "1",
         ]);
-        if (!extract.success || !readFileSync(output, "utf8").includes(c.expected))
+        if (!extract.success || !readFileSync(output, "utf8").replace(/\s+/g, " ").includes(c.expected))
           throw new Error(`${c.name}: saved text did not survive reopening`);
       }
     } finally {

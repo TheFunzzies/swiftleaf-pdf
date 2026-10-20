@@ -1915,6 +1915,8 @@ EXPORTS
 
 	pdf_abandon_operation
 
+	pdf_sync_open_pages
+
 	pdf_undoredo_state
 
 	pdf_undo

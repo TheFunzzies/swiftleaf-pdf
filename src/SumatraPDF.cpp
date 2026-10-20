@@ -2951,11 +2951,12 @@ void ReloadDocument(MainWindow* win, bool autoRefresh, bool canAskForPassword) {
     if (tab->IsNonDocumentTab()) {
         return;
     }
+    bool hadEditors = HasOpenTextEditors(win);
     if (!CommitOpenEditors(win)) {
         return;
     }
     ClearMouseState(win);
-    if (EngineHasUnsavedAnnotations(tab->GetEngine())) {
+    if (hadEditors && EngineHasUnsavedAnnotations(tab->GetEngine())) {
         if (autoRefresh) {
             return;
         }
@@ -5916,8 +5917,10 @@ static SaveChoice ShouldSaveAnnotationsDialog(HWND hwndParent, Str filePath) {
 // if returns false, should cancel closing
 // false if the user canceled (don't proceed with closing/replacing the doc)
 bool MaybeSaveAnnotations(WindowTab* tab) {
-    if (tab && tab->win && tab == tab->win->CurrentTab() && !CommitOpenEditors(tab->win)) {
-        return false;
+    if (tab && tab->win && tab == tab->win->CurrentTab()) {
+        if (!CommitOpenEditors(tab->win)) {
+            return false;
+        }
     }
     if (!tab) {
         return true;
@@ -13951,6 +13954,7 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             // revert to the on-disk version, discarding unsaved changes (same as
             // the tab context menu); makes it work from the command palette too
             if (tab && win->IsDocLoaded()) {
+                ClearDocumentEditors(win);
                 ReloadDocument(win, false);
             }
             return 0;

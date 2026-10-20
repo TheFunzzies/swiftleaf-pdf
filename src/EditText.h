@@ -6,6 +6,7 @@ struct MainWindow;
 void StartEditText(MainWindow*);
 void CancelEditText();
 bool CommitOpenEditors(MainWindow*);
+bool HasOpenTextEditors(MainWindow*);
 void ClearDocumentEditors(MainWindow*);
 // the canvas asks first: while Edit Text waits for a click on a line
 bool EditTextOnLeftDown(MainWindow*, Point pt);

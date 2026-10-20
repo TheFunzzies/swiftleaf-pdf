@@ -297,7 +297,11 @@ bool CommitOpenEditors(MainWindow* win) {
     if (IsEditingFreeTextInPlace(win)) {
         EndFreeTextInPlaceEdit(true);
     }
-    return !IsEditingFreeTextInPlace(win);
+    return !HasOpenTextEditors(win);
+}
+
+bool HasOpenTextEditors(MainWindow* win) {
+    return (gSession && gSession->win == win) || IsEditingFreeTextInPlace(win);
 }
 
 void ClearDocumentEditors(MainWindow* win) {

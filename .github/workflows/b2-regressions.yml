@@ -7,11 +7,15 @@ jobs:
   editors:
     runs-on: windows-2022
     timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: microsoft/setup-msbuild@v2
       - uses: oven-sh/setup-bun@v2
-      - run: msbuild vs2022\SumatraPDF.sln /t:SumatraPDF "/p:Configuration=Debug;Platform=x64" /m /v:minimal /nologo
+      - id: build
+        run: msbuild vs2022\SumatraPDF.sln /t:SumatraPDF "/p:Configuration=Debug;Platform=x64" /m /v:minimal /nologo
       - name: Editor regression
         timeout-minutes: 3
         env:
@@ -19,16 +23,35 @@ jobs:
         run: bun tests/edit-text-roundtrip.ts --no-build
       - name: Editor lifecycle regression
         timeout-minutes: 3
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         env:
           SUMATRA_TEST_EXE: ${{ github.workspace }}\out\dbg64\Swiftleaf.exe
         run: bun tests/editor-lifecycle.ts --no-build
       - name: Stamp resize regression
         timeout-minutes: 3
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         env:
           SUMATRA_TEST_EXE: ${{ github.workspace }}\out\dbg64\Swiftleaf.exe
         run: bun tests/stamp-resize-lifecycle.ts --no-build
+      - name: Download unfixed editor build
+        if: ${{ !cancelled() }}
+        uses: actions/download-artifact@v4
+        with:
+          name: b2-editor-results
+          run-id: 39351709731
+          github-token: ${{ github.token }}
+          path: .work/b2-baseline
+      - name: Prove stamp regression fails before fix
+        timeout-minutes: 3
+        if: ${{ !cancelled() }}
+        env:
+          SUMATRA_TEST_EXE: ${{ github.workspace }}\.work\b2-baseline\Swiftleaf.exe
+        run: |
+          $output = bun tests/stamp-resize-lifecycle.ts --no-build 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Output $output
+          if ($code -eq 0 -or $output -notmatch 'resize left a no-op undo step') { exit 1 }
+          exit 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:

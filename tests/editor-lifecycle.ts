@@ -68,7 +68,7 @@ export async function testit(): Promise<void> {
       return true;
     });
     if (!editor) throw new Error("Edit Text did not open");
-    sendText(editor, "Changed document text");
+    sendText(editor, "Edited text");
     sendCommandSync(frame, cmdId("CmdPrevTab"));
     await client.waitForRenderIdle();
     await sleep(50);
@@ -79,7 +79,7 @@ export async function testit(): Promise<void> {
     sendCommandSync(frame, cmdId("CmdNextTab"));
     await client.waitForRenderIdle();
     result = await client.request(ControlCommand.TestMarkupAnnots, []);
-    if (!/page1text=.*Changed document text/.test(String(result[1])))
+    if (!/page1text=.*Edited text/.test(String(result[1])))
       throw new Error(`Tab switch discarded Edit Text\n${result[1]}`);
   } finally {
     client.close();
