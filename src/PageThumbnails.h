@@ -70,6 +70,7 @@ struct PageThumbnailsCtrl : VirtListBox {
     int DropSlotAt(Point ptLocal);
     void DrawDropMarker(Gfx*, Rect pageRect, int pageNo);
     void EndDrag();
+    void OnThumbCaptureLost();
     void OpenSelectedPage();
     void ResetCache();
 };

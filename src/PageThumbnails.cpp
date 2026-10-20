@@ -243,6 +243,7 @@ PageThumbnailsCtrl::PageThumbnailsCtrl(MainWindow* win, PlatformFont* font, int 
     onDrawItem = MkMethod1<PageThumbnailsCtrl, DrawItemEvent*, &PageThumbnailsCtrl::DrawRow>(this);
     VirtCtrl::onMouseDown = MkMethod1<PageThumbnailsCtrl, VirtMouseEvent*, &PageThumbnailsCtrl::OnThumbMouseDown>(this);
     VirtCtrl::onMouseMove = MkMethod1<PageThumbnailsCtrl, VirtMouseEvent*, &PageThumbnailsCtrl::OnThumbMouseMove>(this);
+    VirtCtrl::onCaptureLost = MkMethod0<PageThumbnailsCtrl, &PageThumbnailsCtrl::OnThumbCaptureLost>(this);
     VirtCtrl::onMouseUp = MkMethod1<PageThumbnailsCtrl, VirtMouseEvent*, &PageThumbnailsCtrl::OnThumbMouseUp>(this);
     VirtCtrl::onMouseWheel =
         MkMethod1<PageThumbnailsCtrl, VirtMouseEvent*, &PageThumbnailsCtrl::OnThumbMouseWheel>(this);
@@ -261,6 +262,7 @@ PageThumbnailsCtrl::~PageThumbnailsCtrl() {
 // (Re)start from the tab's document: its pages, the current page and the dpi.
 // Rendered thumbnails are dropped; also called after the pages changed
 void PageThumbnailsCtrl::SetTab(WindowTab* newTab) {
+    EndDrag();
     tab = newTab;
     thumbDx = DpiScaleByDpi(dpi, kThumbnailDx);
     thumbDy = DpiScaleByDpi(dpi, kThumbnailDy);
@@ -486,10 +488,15 @@ struct MovePageData {
     MainWindow* win = nullptr;
     int from = 0;
     int before = 0;
+    WindowTab* tab = nullptr;
+    EngineBase* engine = nullptr;
 };
 
 static void MovePageLater(MovePageData* d) {
-    if (IsMainWindowValidAndNotClosing(d->win)) {
+    bool valid =
+        IsMainWindowValidAndNotClosing(d->win) && d->win->CurrentTab() == d->tab && d->tab->GetEngine() == d->engine;
+    d->engine->Release();
+    if (valid) {
         OrganizeMovePageTo(d->win, d->from, d->before);
     }
     delete d;
@@ -499,12 +506,19 @@ void PageThumbnailsCtrl::EndDrag() {
     bool wasDragging = dragging;
     dragPending = false;
     dragging = false;
+    dropBefore = 0;
     if (root && root->captured == this) {
         root->ReleaseCapture();
     }
     if (wasDragging) {
         Invalidate();
     }
+}
+
+// Alt+Tab or a dialog took the mouse: a stale drag must not move a page on a later click
+void PageThumbnailsCtrl::OnThumbCaptureLost() {
+    EndDrag();
+    VirtListBox::OnCaptureLost();
 }
 
 int PageThumbnailsCtrl::PageAtPoint(Point pt) {
@@ -570,6 +584,7 @@ void PageThumbnailsCtrl::OpenSelectedPage() {
 }
 
 void PageThumbnailsCtrl::OnThumbMouseDown(VirtMouseEvent* ev) {
+    EndDrag();
     int pageNo = PageAtPoint(ev->pt);
     if (pageNo > 0 && host == ThumbnailsHost::Palette) {
         SelectPage(pageNo);
@@ -656,12 +671,14 @@ void PageThumbnailsCtrl::OnThumbMouseUp(VirtMouseEvent* ev) {
     int before = dropBefore;
     EndDrag();
     ev->didHandle = true;
-    if (!drop || before < 1 || before == from || before == from + 1) {
+    EngineBase* engine = tab ? tab->GetEngine() : nullptr;
+    if (!drop || !engine || before < 1 || before == from || before == from + 1) {
         return;
     }
     // reorganizing reloads the document, which rebuilds this control: not
-    // from inside its own mouse handler
-    auto* d = new MovePageData{win, from, before};
+    // from inside its own mouse handler. The engine ref tells a reload apart
+    engine->AddRef();
+    auto* d = new MovePageData{win, from, before, tab, engine};
     uitask::Post(MkFunc0<MovePageData>(MovePageLater, d), "TaskMovePage");
 }
 
