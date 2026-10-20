@@ -6,6 +6,11 @@ const root = resolve(import.meta.dir, "..");
 const resultsDir = join(root, ".work", "swiftleaf-ci");
 const timeoutMs = 120_000;
 const screenshotTimeoutMs = 5000;
+const minBackgroundRatio = 0.25;
+const maxBackgroundRatio = 0.3;
+const backgroundFailure = /Typing obscures page background: ([^\r\n]+)/;
+const dragFailure =
+  /Accepted text did not move by the drag delta\r?\ntype=FreeText [^\r\n]*\bscreen=(-?\d+),(-?\d+),(\d+),(\d+)\r?\n/;
 const smokeTests = [
   "free-text-annotation-placement",
   "free-text-custom-style",
@@ -35,14 +40,16 @@ const smokeTests = [
 ];
 
 // Keep observed baseline failures visible; a different failure still fails CI.
-const knownFailures: Record<string, { reason: string; pattern: RegExp }> = {
+const knownFailures: Record<string, { reason: string; pattern: RegExp; check?: (output: string) => boolean }> = {
   "free-text-draft": {
     reason: "Accepted FreeText does not move by the drag delta at the runner's fit-page zoom.",
-    pattern: /Accepted text did not move by the drag delta/,
+    pattern: dragFailure,
+    check: matchUnmovedText,
   },
   "free-text-transparent": {
     reason: "Typing preserves less page background than the test requires at the runner's fit-page zoom.",
-    pattern: /Typing obscures page background:/,
+    pattern: backgroundFailure,
+    check: matchBackground,
   },
   "annot-undo-redo": {
     reason: "The Edit PDF ribbon does not expose the legacy CmdUndo toolbar button.",
@@ -62,8 +69,35 @@ const knownFailures: Record<string, { reason: string; pattern: RegExp }> = {
   },
 };
 
+function matchBackground(output: string): boolean {
+  const match = backgroundFailure.exec(output);
+  if (!match) return false;
+  try {
+    const sample = JSON.parse(match[1]!) as { blue?: unknown; total?: unknown } | null;
+    if (!sample || typeof sample !== "object") return false;
+    const { blue, total } = sample;
+    if (typeof blue !== "number" || typeof total !== "number") return false;
+    if (!Number.isSafeInteger(blue) || !Number.isSafeInteger(total) || total <= 0) return false;
+    const ratio = blue / total;
+    return ratio >= minBackgroundRatio && ratio < maxBackgroundRatio;
+  } catch {
+    return false;
+  }
+}
+
+function matchUnmovedText(output: string): boolean {
+  const after = dragFailure.exec(output);
+  const before = /^beforeScreen=(-?\d+),(-?\d+),(\d+),(\d+)\r?$/m.exec(output);
+  if (!after || !before || !/^annotations=1\r?$/m.test(output)) return false;
+  const rect = after.slice(1).map(Number);
+  if (rect[2]! <= 0 || rect[3]! <= 0) return false;
+  return rect.every((value, i) => Number.isSafeInteger(value) && value === Number(before[i + 1]));
+}
+
 export function matchesKnown(name: string, output: string): boolean {
-  return knownFailures[name]?.pattern.test(output) ?? false;
+  const known = knownFailures[name];
+  if (!known?.pattern.test(output)) return false;
+  return known.check?.(output) ?? true;
 }
 
 async function runCase(name: string): Promise<void> {
