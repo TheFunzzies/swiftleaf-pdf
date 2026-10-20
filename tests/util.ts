@@ -259,14 +259,14 @@ export function makeMinimalPdf(title: string): Buffer {
   );
 }
 
-// Fresh -appdata directory with SumatraPDF-settings.txt. Tests that need extra
+// Fresh -appdata directory with Swiftleaf-settings.txt. Tests that need extra
 // files write them into the returned path.
 export function writeAppdata(name: string, settings: string): string {
   const dir = tmpPath(name);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   const body = settings.endsWith("\n") ? settings : `${settings}\n`;
-  writeFileSync(join(dir, "SumatraPDF-settings.txt"), body);
+  writeFileSync(join(dir, "Swiftleaf-settings.txt"), body);
   return dir;
 }
 

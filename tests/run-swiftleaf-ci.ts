@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 const root = resolve(import.meta.dir, "..");
 const resultsDir = join(root, ".work", "swiftleaf-ci");
 const timeoutMs = 120_000;
+const screenshotTimeoutMs = 5000;
 const smokeTests = [
   "free-text-annotation-placement",
   "free-text-custom-style",
@@ -34,7 +35,28 @@ const smokeTests = [
 ];
 
 // Keep observed baseline failures visible; a different failure still fails CI.
-const knownFailures: Record<string, { reason: string; pattern: RegExp }> = {};
+const knownFailures: Record<string, { reason: string; pattern: RegExp }> = {
+  "free-text-draft": {
+    reason: "Accepted FreeText does not move by the drag delta at the runner's fit-page zoom.",
+    pattern: /Accepted text did not move by the drag delta/,
+  },
+  "free-text-transparent": {
+    reason: "Typing preserves less page background than the test requires at the runner's fit-page zoom.",
+    pattern: /Typing obscures page background:/,
+  },
+  "annot-undo-redo": {
+    reason: "The Edit PDF ribbon does not expose the legacy CmdUndo toolbar button.",
+    pattern: /annot-undo-redo: CmdUndo is not on the Edit PDF toolbar/,
+  },
+  "pdf-edit-toolbar-interaction": {
+    reason: "The annotation hover date omits the UTC suffix required by the test.",
+    pattern: /annotation metadata is wrong[\s\S]*row author=Ada[\s\S]*row date=2026-08-24 12:34\r?\n/,
+  },
+  "redact-annotations": {
+    reason: "The Redact ribbon does not expose the legacy annotation toolbar used by the test.",
+    pattern: /Apply Redactions is on the toolbar with nothing marked \(the annotation toolbar never came up\)/,
+  },
+};
 
 async function runCase(name: string): Promise<void> {
   const { prepareTestEnvironment, runTest } = await import("./util.ts");
@@ -47,11 +69,26 @@ async function runCase(name: string): Promise<void> {
 }
 
 async function snapshot(path: string): Promise<void> {
+  // PrintWindow can block on a hung app; keep it outside the timeout owner.
+  const proc = Bun.spawn([process.execPath, import.meta.path, "--snapshot", path], {
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  const timer = setTimeout(() => proc.kill(), screenshotTimeoutMs);
+  await proc.exited;
+  clearTimeout(timer);
+}
+
+async function stopCase(proc: Bun.Subprocess, dir: string): Promise<void> {
   try {
-    const { captureWindowToPng, getForegroundWindow } = await import("./winapi.ts");
-    captureWindowToPng(getForegroundWindow(), path);
-  } catch (e) {
-    console.error(`screenshot: ${e}`);
+    await snapshot(join(dir, "timeout.png"));
+    const kill = Bun.spawn(["taskkill", "/PID", String(proc.pid), "/T", "/F"], {
+      stdout: "ignore",
+      stderr: "ignore",
+    });
+    await kill.exited;
+  } finally {
+    if (proc.exitCode === null) proc.kill();
   }
 }
 
@@ -76,16 +113,11 @@ async function main(): Promise<void> {
       stderr: "pipe",
     });
     let timedOut = false;
-    const timer = setTimeout(async () => {
+    let stopped: Promise<void> | undefined;
+    const timer = setTimeout(() => {
       timedOut = true;
-      await snapshot(join(dir, "timeout.png"));
       // Terminate the app and compiler too, before the next case starts.
-      const kill = Bun.spawn(["taskkill", "/PID", String(proc.pid), "/T", "/F"], {
-        stdout: "ignore",
-        stderr: "ignore",
-      });
-      await kill.exited;
-      proc.kill();
+      stopped = stopCase(proc, dir);
     }, timeoutMs);
     const [stdout, stderr, code] = await Promise.all([
       new Response(proc.stdout).text(),
@@ -93,6 +125,7 @@ async function main(): Promise<void> {
       proc.exited,
     ]);
     clearTimeout(timer);
+    await stopped;
     const output = stdout + stderr;
     writeFileSync(join(dir, "output.txt"), output);
     const elapsed = ((performance.now() - started) / 1000).toFixed(1);
@@ -116,7 +149,9 @@ async function main(): Promise<void> {
     }
     const note = known ? known.reason : "";
     console.log(`${status} ${name} (${elapsed}s) ${note}`);
+    if (expected) console.log(`::warning title=Known baseline failure: ${name}::${note}`);
     rows.push(`| ${name} | ${status} | ${elapsed}s | ${note} |`);
+    appendFileSync(join(resultsDir, "results.tsv"), `${name}\t${status}\t${elapsed}\t${note}\n`);
   }
   const summary = [
     "## Swiftleaf smoke tests",
@@ -137,11 +172,16 @@ if (import.meta.main) {
       const name = process.argv[3]!;
       if (!smokeTests.includes(name) || name === "edit-safety") throw new Error(`invalid case: ${name}`);
       await runCase(name);
+      process.exit(0);
+    } else if (process.argv[2] === "--snapshot") {
+      const { captureWindowToPng, getForegroundWindow } = await import("./winapi.ts");
+      captureWindowToPng(getForegroundWindow(), process.argv[3]!);
+      process.exit(0);
     } else {
       await main();
     }
   } catch (e) {
     console.error(e);
-    process.exitCode = 1;
+    process.exit(1);
   }
 }

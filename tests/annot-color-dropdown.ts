@@ -71,7 +71,7 @@ function parseRect(m: RegExpExecArray | null): Rect {
 function writeSettings(appdata: string): void {
   const nl = String.fromCharCode(10);
   writeFileSync(
-    join(appdata, "SumatraPDF-settings.txt"),
+    join(appdata, "Swiftleaf-settings.txt"),
     [
       "UiLanguage = en",
       "RestoreSession = false",
@@ -594,7 +594,7 @@ async function testCurrentColorAdded(): Promise<void> {
   mkdirSync(appdata, { recursive: true });
   const nl = String.fromCharCode(10);
   writeFileSync(
-    join(appdata, "SumatraPDF-settings.txt"),
+    join(appdata, "Swiftleaf-settings.txt"),
     [
       "UiLanguage = en",
       "RestoreSession = false",

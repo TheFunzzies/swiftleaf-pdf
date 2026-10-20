@@ -168,7 +168,7 @@ export async function testit(): Promise<void> {
   mkdirSync(appdata, { recursive: true });
   writeFileSync(pdf, makeTextPdf());
   writeFileSync(
-    join(appdata, "SumatraPDF-settings.txt"),
+    join(appdata, "Swiftleaf-settings.txt"),
     "UiLanguage = en\nRestoreSession = false\nShowStartPage = false\nCheckForUpdates = false\n",
   );
 

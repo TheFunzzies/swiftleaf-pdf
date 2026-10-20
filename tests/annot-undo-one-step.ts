@@ -182,7 +182,7 @@ async function launch(name: string, pdfContent: string) {
   rmSync(dir, { recursive: true, force: true });
   const appdata = join(dir, "appdata");
   mkdirSync(appdata, { recursive: true });
-  writeFileSync(join(appdata, "SumatraPDF-settings.txt"), SETTINGS);
+  writeFileSync(join(appdata, "Swiftleaf-settings.txt"), SETTINGS);
   const pdf = join(dir, `${name}.pdf`);
   writeFileSync(pdf, pdfContent, "latin1");
   const launched = await launchControlled(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", pdf]);

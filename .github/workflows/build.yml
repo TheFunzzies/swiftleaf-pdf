@@ -83,7 +83,11 @@ jobs:
 
       - name: Build edit-safety libraries
         if: ${{ !cancelled() && steps.debug.outcome == 'success' && steps.harness.outcome == 'success' }}
-        run: msbuild vs2022\SumatraPDF.sln "/t:base;mupdf;a-lcms2" "/p:Configuration=Release;Platform=x64" /m /v:minimal /nologo /fl /flp:logfile=edit-safety-build.log
+        run: |
+          foreach ($target in 'base', 'mupdf', 'a-lcms2') {
+            msbuild "vs2022\$target.vcxproj" "/p:Configuration=Release;Platform=x64" /m /v:minimal /nologo /fl "/flp:logfile=$target-build.log"
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
 
       - name: Run Swiftleaf smoke tests
         if: ${{ !cancelled() && steps.debug.outcome == 'success' && steps.harness.outcome == 'success' }}
