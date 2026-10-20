@@ -213,6 +213,7 @@ struct PdfSigCert {
     Str der;
     ~PdfSigCert();
 };
+bool EngineMupdfHasSignatures(EngineBase*);
 PdfSigCert* EngineMupdfGetSignatureCerts(EngineBase*);
 void FreePdfSigCerts(PdfSigCert*);
 #endif

@@ -8339,6 +8339,37 @@ PdfSigCert::~PdfSigCert() {
     str::Free(der);
 }
 
+bool EngineMupdfHasSignatures(EngineBase* engine) {
+    EngineMupdf* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc) {
+        return false;
+    }
+    fz_context* ctx = e->Ctx();
+    ScopedRecursiveMutex scope(&e->docLock);
+    Vec<pdf_obj*> fields;
+    bool signedPdf = false;
+    fz_var(signedPdf);
+    fz_try(ctx) {
+        CollectSignatureFields(ctx, e->pdfdoc, fields);
+        for (pdf_obj* field : fields) {
+            if (pdf_signature_is_signed(ctx, e->pdfdoc, field)) {
+                signedPdf = true;
+                break;
+            }
+        }
+    }
+    fz_always(ctx) {
+        for (pdf_obj* field : fields) {
+            pdf_drop_obj(ctx, field);
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        signedPdf = true;
+    }
+    return signedPdf;
+}
+
 PdfSigCert* EngineMupdfGetSignatureCerts(EngineBase* engine) {
     PdfSigCert* head = nullptr;
     EngineMupdf* e = AsEngineMupdf(engine);
@@ -9030,6 +9061,7 @@ bool EngineMupdfSaveCopy(EngineBase* engine, Str path) {
     save_opts = gPdfDefaultWriteOptions;
     save_opts.do_incremental = 0;
     save_opts.do_compress = 1;
+    save_opts.do_garbage = 3;
     bool ok = false;
     fz_try(ctx) {
         pdf_save_document(ctx, epdf->pdfdoc, CStrTemp(path), &save_opts);
