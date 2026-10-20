@@ -173,6 +173,21 @@ constexpr const int kBufSize = 256 * 1024;
 // Download content of a url to a file
 bool HttpGetToFile(Str urlA, Str destFilePath, const Func1<HttpProgress*>& cbProgress, i64 maxSize) {
     logf("HttpGetToFile: url: '%s', file: '%s'\n", urlA, destFilePath);
+    HANDLE file = CreateFileW(CWStrTemp(destFilePath), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
+                              FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    bool ok = HttpGetToHandle(urlA, file, cbProgress, maxSize);
+    CloseHandle(file);
+    if (!ok) {
+        file::Delete(destFilePath);
+    }
+    return ok;
+}
+
+// The caller reserves the file and owns its lifetime, including failure cleanup.
+bool HttpGetToHandle(Str urlA, HANDLE hf, const Func1<HttpProgress*>& cbProgress, i64 maxSize) {
     bool ok = false;
     HINTERNET hReq = nullptr, hInet = nullptr;
     DWORD dwRead = 0;
@@ -180,15 +195,6 @@ bool HttpGetToFile(Str urlA, Str destFilePath, const Func1<HttpProgress*>& cbPro
     char* buf = nullptr;
 
     HttpProgress progress{};
-
-    WCHAR* pathW = CWStrTemp(destFilePath);
-    HANDLE hf =
-        CreateFileW(pathW, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (INVALID_HANDLE_VALUE == hf) {
-        logf("HttpGetToFile: CreateFileW('%s') failed\n", destFilePath);
-        LogLastError();
-        goto Exit;
-    }
 
     buf = AllocArray<char>(kBufSize);
     if (!buf) {
@@ -224,15 +230,11 @@ bool HttpGetToFile(Str urlA, Str destFilePath, const Func1<HttpProgress*>& cbPro
 
     ok = true;
 Exit:
-    CloseHandle(hf);
     if (hReq) {
         InternetCloseHandle(hReq);
     }
     if (hInet) {
         InternetCloseHandle(hInet);
-    }
-    if (!ok) {
-        file::Delete(destFilePath);
     }
     free(buf);
     return ok;

@@ -2,12 +2,15 @@
    License: GPLv3 */
 
 #include "base/Base.h"
+#include <sddl.h>
+#include <wincrypt.h>
 #include "base/UITask.h"
 #include "base/SquareTreeParser.h"
 #include "base/Http.h"
 #include "base/Win.h"
 #include "base/File.h"
 #include "base/Crypto.h"
+#include "base/ScopedWin.h"
 
 #include "gui/Layout.h"
 #include "gui/UIModels.h"
@@ -50,10 +53,13 @@ static bool gUpdateCheckInProgress = false;
 // update notification)
 static bool gUpdateAutoInstall = false;
 
+constexpr i64 kMaxUpdateDownloadSize = 256LL * 1024 * 1024;
+constexpr int kUpdateDigestSize = 32;
+
 // the bottom-left "update available" notification (with the download link)
 static Kind kNotifUpdateAvailable = StrL("notifUpdateAvailable").s;
 
-struct UpdateInfo {
+struct UpdateInfo : NonCopyable {
     HWND hwndParent = nullptr;
     Str latestVer;
 
@@ -71,10 +77,26 @@ struct UpdateInfo {
     // so this is what a download is checked against
     Str dlSha256;
     Str installerPath;
+    Str stagingDir;
+    HANDLE stagingLock = INVALID_HANDLE_VALUE;
+    HANDLE payloadLock = INVALID_HANDLE_VALUE;
+    bool launched = false;
     Str builtOn; // optional "yyyy-mm-dd" from the update-check file
 
     UpdateInfo() = default;
     ~UpdateInfo() {
+        if (payloadLock != INVALID_HANDLE_VALUE) {
+            CloseHandle(payloadLock);
+        }
+        if (stagingLock != INVALID_HANDLE_VALUE) {
+            CloseHandle(stagingLock);
+        }
+        if (!launched && stagingDir) {
+            if (installerPath) {
+                file::Delete(installerPath);
+            }
+            RemoveDirectoryW(CWStrTemp(stagingDir));
+        }
         str::Free(latestVer);
         str::Free(installer64);
         str::Free(portable64);
@@ -85,6 +107,7 @@ struct UpdateInfo {
         str::Free(dlURL);
         str::Free(dlSha256);
         str::Free(installerPath);
+        str::Free(stagingDir);
         str::Free(builtOn);
     }
 };
@@ -253,39 +276,303 @@ static bool ShouldCheckForUpdate(UpdateCheck updateCheckType) {
     return checkUpdate;
 }
 
-// the download's SHA-256 must match the update file's (Swiftleaf builds aren't
-// code-signed, so there is no signer to compare)
-static bool IsUpdateHashValid(Str path, Str wantHex) {
-    if (len(wantHex) != 64) {
+static HANDLE OpenUpdateDir(Str dir) {
+    HANDLE handle = CreateFileW(CWStrTemp(dir), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return handle;
+    }
+
+    BY_HANDLE_FILE_INFORMATION attrs{};
+    if (!GetFileInformationByHandle(handle, &attrs) || !(attrs.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attrs.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        CloseHandle(handle);
+        return INVALID_HANDLE_VALUE;
+    }
+    return handle;
+}
+
+// Use a protected DACL rather than trusting the ACL inherited from TEMP.
+static bool CreateUpdateStage(UpdateInfo* info) {
+    AutoCloseHandle token;
+    HANDLE rawToken = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &rawToken)) {
         return false;
     }
-    Str data = file::ReadFile(path);
-    if (len(data) == 0) {
+    token = rawToken;
+    DWORD size = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &size);
+    if (!size) {
         return false;
     }
-    u8 digest[32];
-    CalcSHA2Digest(data, digest);
-    str::Free(data);
-    TempStr gotHex = str::MemToHexTemp(Str((char*)digest, (int)sizeof(digest)));
+    auto* user = (TOKEN_USER*)AllocArrayTemp<u8>(size);
+    if (!GetTokenInformation(token, TokenUser, user, size, &size)) {
+        return false;
+    }
+    WCHAR* sid = nullptr;
+    if (!ConvertSidToStringSidW(user->User.Sid, &sid)) {
+        return false;
+    }
+    defer {
+        LocalFree(sid);
+    };
+    TempStr acl = fmt("D:P(A;OICI;FA;;;%s)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)", WStr(sid));
+    PSECURITY_DESCRIPTOR sd = nullptr;
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(CWStrTemp(acl), SDDL_REVISION_1, &sd, nullptr)) {
+        return false;
+    }
+    defer {
+        LocalFree(sd);
+    };
+
+    TempStr parent = GetSpecialFolderTemp(CSIDL_LOCAL_APPDATA);
+    GUID id{};
+    constexpr int kGuidTextSize = 39;
+    WCHAR name[kGuidTextSize]{};
+    if (len(parent) == 0 || FAILED(CoCreateGuid(&id)) || !StringFromGUID2(id, name, dimof(name))) {
+        return false;
+    }
+    TempStr dir = path::JoinTemp(parent, fmt("Swiftleaf-update-%s", WStr(name)));
+    SECURITY_ATTRIBUTES sa{sizeof(sa), sd, FALSE};
+    if (!CreateDirectoryW(CWStrTemp(dir), &sa)) {
+        return false;
+    }
+    info->stagingDir = str::Dup(dir);
+    info->stagingLock = OpenUpdateDir(dir);
+    if (info->stagingLock == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    info->installerPath = str::Dup(path::JoinTemp(dir, StrL("Swiftleaf-update.exe")));
+    return true;
+}
+
+static HANDLE CreateUpdatePayload(Str path) {
+    return CreateFileW(CWStrTemp(path), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+}
+
+static HANDLE OpenUpdatePayload(Str path) {
+    return CreateFileW(CWStrTemp(path), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                       FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+}
+
+static i64 UpdatePayloadSize(HANDLE payload) {
+    BY_HANDLE_FILE_INFORMATION attrs{};
+    LARGE_INTEGER size{};
+    if (!GetFileInformationByHandle(payload, &attrs) ||
+        (attrs.dwFileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY)) ||
+        attrs.nNumberOfLinks != 1 || !GetFileSizeEx(payload, &size) || size.QuadPart <= 0 ||
+        size.QuadPart > kMaxUpdateDownloadSize) {
+        return -1;
+    }
+    return size.QuadPart;
+}
+
+static bool CopyUpdatePayload(HANDLE source, HANDLE dest) {
+    i64 size = UpdatePayloadSize(source);
+    LARGE_INTEGER start{};
+    if (size <= 0 || !SetFilePointerEx(source, start, nullptr, FILE_BEGIN)) {
+        return false;
+    }
+    constexpr int kCopyReadSize = 64 * 1024;
+    char buf[kCopyReadSize];
+    i64 total = 0;
+    for (;;) {
+        DWORD n = 0;
+        if (!ReadFile(source, buf, sizeof(buf), &n, nullptr)) {
+            return false;
+        }
+        if (!n) {
+            return total == size && FlushFileBuffers(dest);
+        }
+        total += n;
+        if (total > size || !file::WriteAll(dest, Str(buf, (int)n))) {
+            return false;
+        }
+    }
+}
+
+static TempStr UpdateHashTemp(HANDLE payload) {
+    i64 size = UpdatePayloadSize(payload);
+    LARGE_INTEGER start{};
+    if (size <= 0 || !SetFilePointerEx(payload, start, nullptr, FILE_BEGIN)) {
+        return {};
+    }
+    HCRYPTPROV provider = 0;
+    if (!CryptAcquireContextW(&provider, nullptr, MS_ENH_RSA_AES_PROV, PROV_RSA_AES, CRYPT_VERIFYCONTEXT)) {
+        return {};
+    }
+    defer {
+        CryptReleaseContext(provider, 0);
+    };
+    HCRYPTHASH hash = 0;
+    if (!CryptCreateHash(provider, CALG_SHA_256, 0, 0, &hash)) {
+        return {};
+    }
+    defer {
+        CryptDestroyHash(hash);
+    };
+    constexpr int kHashReadSize = 64 * 1024;
+    char buf[kHashReadSize];
+    i64 total = 0;
+    for (;;) {
+        DWORD n = 0;
+        if (!ReadFile(payload, buf, sizeof(buf), &n, nullptr)) {
+            return {};
+        }
+        if (!n) {
+            break;
+        }
+        total += n;
+        if (total > kMaxUpdateDownloadSize || !CryptHashData(hash, (BYTE*)buf, n, 0)) {
+            return {};
+        }
+    }
+    u8 digest[kUpdateDigestSize];
+    DWORD digestSize = sizeof(digest);
+    if (total != size || !CryptGetHashParam(hash, HP_HASHVAL, digest, &digestSize, 0) || digestSize != sizeof(digest)) {
+        return {};
+    }
+    return str::MemToHexTemp(Str((char*)digest, (int)sizeof(digest)));
+}
+
+// Hash the locked file, including a fresh check before an elevation handoff.
+static bool IsUpdateHashValid(HANDLE payload, Str wantHex) {
+    if (len(wantHex) != kUpdateDigestSize * 2) {
+        return false;
+    }
+    TempStr gotHex = UpdateHashTemp(payload);
     bool ok = str::EqI(gotHex, wantHex);
     logf("IsUpdateHashValid: got %s, want %s\n", gotHex, wantHex);
     return ok;
 }
 
-// the installer was checked against the update file's SHA-256 when downloaded
-void StartInstallerAutoUpgrade(Str installerPath) {
+static bool LockUpdateStage(UpdateInfo* info, Str path, Str hash) {
+    info->launched = true;
+    info->installerPath = str::Dup(path);
+    info->stagingDir = str::Dup(path::GetDirTemp(path));
+    info->stagingLock = OpenUpdateDir(info->stagingDir);
+    if (info->stagingLock == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    info->payloadLock = OpenUpdatePayload(path);
+    return IsUpdateHashValid(info->payloadLock, hash);
+}
+
+// Keep the child's source pathname locked until its copy/install process exits.
+bool LockUpdateSelf(Str expectedHash) {
+    if (len(expectedHash) == 0) {
+        return true;
+    }
+
+    static AutoDelete<UpdateInfo> running;
+    if (running.o) {
+        return IsUpdateHashValid(running->payloadLock, expectedHash);
+    }
+
+    auto* info = new UpdateInfo();
+    if (!LockUpdateStage(info, GetSelfExePathTemp(), expectedHash)) {
+        delete info;
+        return false;
+    }
+    running.o = info;
+    return true;
+}
+
+enum class UpdateTrust {
+    ManifestHash,
+    Publisher
+};
+
+static bool IsUpdateSignerValid(Str path, UpdateTrust trust) {
+    TempStr expected = GetExecutableSignerTemp(GetSelfExePathTemp());
+    // Unsigned releases trust GitHub's manifest; require a signer once we ship one.
+    if (len(expected) == 0 && trust == UpdateTrust::ManifestHash) {
+        return true;
+    }
+    TempStr signer = GetExecutableSignerTemp(path);
+    return expected && signer && str::Eq(expected, signer) && IsPEFileSigned(path);
+}
+
+static bool LaunchLockedUpdate(UpdateInfo* info) {
+    if (info->stagingLock == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    TempStr digest = UpdateHashTemp(info->payloadLock);
+    if (len(digest) == 0 || (len(info->dlSha256) > 0 && !str::EqI(digest, info->dlSha256))) {
+        return false;
+    }
+    Str installerPath = info->installerPath;
+    bool installed = IsOurExeInstalled();
+    bool elevate = false;
     str::Builder cmd;
-    if (IsOurExeInstalled()) {
-        // Swiftleaf: the user already said "Install and relaunch": install with
-        // just the progress bar, then start the new version
-        cmd.Append(StrL(" -fast-install"));
+    if (installed) {
+        PreviousInstallationInfo previous;
+        GetPreviousInstallInfo(&previous);
+        Str dir = GetSelfExeDirTemp();
+        cmd.Append(fmt(R"( -fast-install -update-no-elevate -install-dir "%s")", dir));
+        if (previous.allUsers) {
+            cmd.Append(StrL(" -all-users"));
+        }
+        elevate = !IsProcessRunningElevated() && InstallNeedsElevation(dir, previous.allUsers);
     } else {
         // we're asking to over-write over ourselves, so also wait 2 secs to allow
         // our process to exit
         cmd.Append(fmt(R"( -sleep-ms 2000 -exit-when-done -update-self-to "%s")", GetSelfExePathTemp()));
     }
+    cmd.Append(fmt(" -update-sha256 %s", digest));
     logf("StartInstallerAutoUpgrade: installer cmd: '%s'\n", ToStr(cmd));
-    CreateProcessHelper(installerPath, ToStr(cmd));
+    if (!elevate) {
+        return CreateProcessHelper(installerPath, ToStr(cmd));
+    }
+
+    // Finish UAC while the verified payload and its directory are still locked.
+    SHELLEXECUTEINFOW sei{};
+    sei.cbSize = sizeof(sei);
+    sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
+    sei.lpVerb = L"runas";
+    sei.lpFile = CWStrTemp(installerPath);
+    sei.lpParameters = CWStrTemp(ToStr(cmd));
+    sei.nShow = SW_SHOWNORMAL;
+    if (!ShellExecuteExW(&sei)) {
+        LogLastError();
+        return false;
+    }
+    AutoCloseHandle process(sei.hProcess);
+    return process.IsValid();
+}
+
+static bool LaunchVerifiedUpdate(UpdateInfo* info) {
+    if (info->payloadLock == INVALID_HANDLE_VALUE || !IsUpdateHashValid(info->payloadLock, info->dlSha256) ||
+        !IsUpdateSignerValid(info->installerPath, UpdateTrust::ManifestHash)) {
+        return false;
+    }
+    info->launched = LaunchLockedUpdate(info);
+    return info->launched;
+}
+
+// Legacy -upgrade-from has no manifest hash, so it must authenticate the publisher.
+void StartInstallerAutoUpgrade(Str installerPath) {
+    if (len(GetExecutableSignerTemp(GetSelfExePathTemp())) == 0) {
+        logf("StartInstallerAutoUpgrade: refusing an unauthenticated update\n");
+        return;
+    }
+    AutoCloseHandle source(OpenUpdatePayload(installerPath));
+    UpdateInfo staged;
+    if (!source.IsValid() || !CreateUpdateStage(&staged)) {
+        return;
+    }
+    {
+        AutoCloseHandle writer(CreateUpdatePayload(staged.installerPath));
+        if (!writer.IsValid() || !CopyUpdatePayload(source, writer)) {
+            return;
+        }
+    }
+    staged.payloadLock = OpenUpdatePayload(staged.installerPath);
+    if (staged.payloadLock == INVALID_HANDLE_VALUE ||
+        !IsUpdateSignerValid(staged.installerPath, UpdateTrust::Publisher)) {
+        return;
+    }
+    staged.launched = LaunchLockedUpdate(&staged);
 }
 
 static void ExitAfterStartingUpdater() {
@@ -309,8 +596,9 @@ static void NotifyUserOfUpdate(UpdateInfo* updateInfo) {
         ScheduleSaveSettings();
         FlushScheduledSaveSettings();
         if (installerPathAuto && file::Exists(installerPathAuto)) {
-            StartInstallerAutoUpgrade(installerPathAuto);
-            ExitAfterStartingUpdater();
+            if (LaunchVerifiedUpdate(updateInfo)) {
+                ExitAfterStartingUpdater();
+            }
         } else {
             logf("NotifyUserOfUpdate: auto-install requested but installer not downloaded\n");
         }
@@ -371,7 +659,6 @@ static void NotifyUserOfUpdate(UpdateInfo* updateInfo) {
     ScheduleSaveSettings();
     FlushScheduledSaveSettings();
     if (!doInstall) {
-        file::Delete(installerPath);
         return;
     }
 
@@ -381,8 +668,9 @@ static void NotifyUserOfUpdate(UpdateInfo* updateInfo) {
         return;
     }
 
-    StartInstallerAutoUpgrade(installerPath);
-    ExitAfterStartingUpdater();
+    if (LaunchVerifiedUpdate(updateInfo)) {
+        ExitAfterStartingUpdater();
+    }
 }
 
 struct UpdateProgressData {
@@ -440,24 +728,31 @@ static void DownloadUpdateAsync(DownloadUpdateAsyncData* data) {
     constexpr int kStaleUpdateExeSec = 24 * 60 * 60;
     DeleteStaleUpdateTemps(GetTempDirTemp(), {}, kStaleUpdateExeSec);
 
-    TempStr stub = GetTempFilePathTemp(StrL("sumatra-installer"));
-    // the installer must be named .exe or it won't be able to self-elevate with "runas"
-    TempStr installerPath;
-    if (len(stub) > 0) {
-        file::Delete(stub);
-        installerPath = str::JoinTemp(stub, StrL(".exe"));
-    }
     UpdateProgressData pd;
     pd.hwndForNotif = hwndForNotif;
     auto cb = MkFunc1<UpdateProgressData, HttpProgress*>(UpdateProgressCb, &pd);
-    constexpr i64 kMaxUpdateDownloadSize = 256LL * 1024 * 1024;
-    bool ok = len(installerPath) > 0 && HttpGetToFile(updateInfo->dlURL, installerPath, cb, kMaxUpdateDownloadSize);
-    logf("ShowAutoUpdateDialog: HttpGetToFile(): ok=%d, downloaded to '%s'\n", (int)ok, installerPath);
-    ok = ok && IsUpdateHashValid(installerPath, updateInfo->dlSha256);
+    bool ok = CreateUpdateStage(updateInfo);
     if (ok) {
-        updateInfo->installerPath = str::Dup(installerPath);
-    } else {
-        file::Delete(installerPath);
+        AutoCloseHandle writer(CreateUpdatePayload(updateInfo->installerPath));
+        ok = writer.IsValid() && HttpGetToHandle(updateInfo->dlURL, writer, cb, kMaxUpdateDownloadSize) &&
+             FlushFileBuffers(writer);
+    }
+    if (ok) {
+        updateInfo->payloadLock = OpenUpdatePayload(updateInfo->installerPath);
+        ok = IsUpdateHashValid(updateInfo->payloadLock, updateInfo->dlSha256) &&
+             IsUpdateSignerValid(updateInfo->installerPath, UpdateTrust::ManifestHash);
+    }
+    logf("DownloadUpdateAsync: verified=%d, path='%s'\n", (int)ok, updateInfo->installerPath);
+    if (!ok) {
+        if (updateInfo->payloadLock != INVALID_HANDLE_VALUE) {
+            CloseHandle(updateInfo->payloadLock);
+            updateInfo->payloadLock = INVALID_HANDLE_VALUE;
+        }
+        if (updateInfo->installerPath) {
+            file::Delete(updateInfo->installerPath);
+        }
+        str::Free(updateInfo->installerPath);
+        updateInfo->installerPath = {};
     }
 
     // process the rest on ui thread to avoid threading issues
@@ -886,6 +1181,10 @@ void StartAsyncUpdateCheck(MainWindow* win, UpdateCheck updateCheckType) {
 // we should copy ourselves over the existing file, launch ourselves and
 // tell our new copy to delete ourselves
 void UpdateSelfTo(Str dstPath, int sleepMs) {
+    if (!LockUpdateSelf(gCli->updateSha256)) {
+        logf("UpdateSelfTo: update verification failed\n");
+        return;
+    }
     ReportIf(len(dstPath) == 0);
     if (!file::Exists(dstPath)) {
         logf("UpdateSelfTo: failed because destination doesn't exist\n");
@@ -914,6 +1213,132 @@ void UpdateSelfTo(Str dstPath, int sleepMs) {
 #include "base/tests/UtAssert.h"
 
 void UpdateTempFileTests() {
+    Flags cli;
+    ParseFlags(GetTempArena(),
+               WStrL(L"Swiftleaf.exe -fast-install -update-no-elevate -update-sha256 "
+                     L"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+               cli);
+    utassert(cli.fastInstall && cli.noUpdateElevation);
+    utassert(len(cli.fileNames) == 0);
+    utassert(LockUpdateSelf({}));
+    utassert(!LockUpdateSelf(StrL("bad")));
+
+    Str fixture = StrL(
+        "[Swiftleaf]\n"
+        "Latest: 0.3.4\n"
+        "BuiltOn: 2026-10-19\n"
+        "Installer64: https://github.com/TheFunzzies/swiftleaf-pdf/releases/download/v0.3.4/Swiftleaf-install.exe\n"
+        "Sha256Installer64: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n"
+        "PortableExe64: https://github.com/TheFunzzies/swiftleaf-pdf/releases/download/v0.3.4/Swiftleaf.exe\n"
+        "Sha256PortableExe64: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad\n");
+    AutoDelete info(ParseUpdateInfo(fixture));
+    utassert(info != nullptr);
+    utassert(ParseUpdateInfo(StrL("[Swiftleaf]\nLatest: nope\n")) == nullptr);
+    utassert(ParseUpdateInfo(StrL("[SumatraPDF]\nLatest: 0.3.4\n")) == nullptr);
+    utassert(str::Eq(info->latestVer, StrL("0.3.4")));
+    utassert(str::Eq(info->builtOn, StrL("2026-10-19")));
+    utassert(str::Eq(path::GetBaseNameTemp(info->installer64), StrL("Swiftleaf-install.exe")));
+    utassert(str::Eq(path::GetBaseNameTemp(info->portable64), StrL("Swiftleaf.exe")));
+    if (IsProcess64() && !IsArmBuild()) {
+        utassert(str::Eq(info->dlURL, IsDllBuild() ? info->installer64 : info->portable64));
+        utassert(IsTrustedUpdateDlUrl(info->dlURL));
+    }
+
+    Str hash = StrL("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    utassert(str::Eq(cli.updateSha256, hash));
+    if (IsProcess64() && !IsArmBuild()) {
+        utassert(str::Eq(info->dlSha256, hash));
+    }
+    Str stage;
+    Str payload;
+    defer {
+        str::Free(stage);
+        str::Free(payload);
+    };
+    {
+        UpdateInfo download;
+        utassert(CreateUpdateStage(&download));
+        stage = str::Dup(download.stagingDir);
+        payload = str::Dup(download.installerPath);
+        utassert(!LaunchVerifiedUpdate(&download));
+        {
+            AutoCloseHandle writer(CreateUpdatePayload(payload));
+            utassert(writer.IsValid());
+            DWORD written = 0;
+            utassert(WriteFile(writer, "abc", 3, &written, nullptr) && written == 3);
+            AutoCloseHandle duplicate(CreateUpdatePayload(payload));
+            utassert(!duplicate.IsValid());
+        }
+        TempStr link = path::JoinTemp(stage, StrL("link.exe"));
+        utassert(!CreateHardLinkW(CWStrTemp(link), CWStrTemp(payload), nullptr));
+        utassert(file::WriteFile(payload, StrL("abd")));
+        {
+            AutoCloseHandle altered(OpenUpdatePayload(payload));
+            utassert(!IsUpdateHashValid(altered, hash));
+        }
+        utassert(file::WriteFile(payload, StrL("abc")));
+        download.payloadLock = OpenUpdatePayload(payload);
+        utassert(download.payloadLock != INVALID_HANDLE_VALUE);
+        utassert(!IsUpdateHashValid(download.payloadLock, StrL("bad")));
+        utassert(!IsUpdateHashValid(download.payloadLock,
+                                    StrL("0000000000000000000000000000000000000000000000000000000000000000")));
+        utassert(IsUpdateHashValid(download.payloadLock, hash));
+        utassert(IsUpdateHashValid(download.payloadLock, hash));
+        {
+            UpdateInfo copied;
+            utassert(CreateUpdateStage(&copied));
+            {
+                AutoCloseHandle writer(CreateUpdatePayload(copied.installerPath));
+                utassert(writer.IsValid() && CopyUpdatePayload(download.payloadLock, writer));
+            }
+            copied.payloadLock = OpenUpdatePayload(copied.installerPath);
+            utassert(IsUpdateHashValid(copied.payloadLock, hash));
+            utassert(!IsUpdateSignerValid(copied.installerPath, UpdateTrust::Publisher));
+        }
+        UpdateInfo child;
+        utassert(LockUpdateStage(&child, payload, hash));
+        {
+            UpdateInfo wrongHash;
+            utassert(!LockUpdateStage(&wrongHash, payload,
+                                      StrL("0000000000000000000000000000000000000000000000000000000000000000")));
+        }
+        CloseHandle(download.payloadLock);
+        download.payloadLock = INVALID_HANDLE_VALUE;
+        CloseHandle(download.stagingLock);
+        download.stagingLock = INVALID_HANDLE_VALUE;
+
+        utassert(!file::WriteFile(payload, StrL("altered")));
+        utassert(!file::Delete(payload));
+        utassert(!MoveFileExW(CWStrTemp(payload), CWStrTemp(str::JoinTemp(payload, StrL(".bak"))), 0));
+        utassert(!MoveFileExW(CWStrTemp(stage), CWStrTemp(str::JoinTemp(stage, StrL(".bak"))), 0));
+        utassert(!LaunchVerifiedUpdate(&download));
+        utassert(!IsUpdateSignerValid(payload, UpdateTrust::Publisher));
+
+        DWORD size = 0;
+        GetFileSecurityW(CWStrTemp(stage), DACL_SECURITY_INFORMATION, nullptr, 0, &size);
+        auto* sd = (PSECURITY_DESCRIPTOR)AllocArrayTemp<u8>(size);
+        utassert(GetFileSecurityW(CWStrTemp(stage), DACL_SECURITY_INFORMATION, sd, size, &size));
+        SECURITY_DESCRIPTOR_CONTROL control = 0;
+        DWORD revision = 0;
+        utassert(GetSecurityDescriptorControl(sd, &control, &revision));
+        utassert((control & SE_DACL_PROTECTED) != 0);
+    }
+    utassert(!file::Exists(payload));
+    utassert(!dir::Exists(stage));
+
+    TempStr linkedFile = GetTempFilePathTemp(StrL("upd"));
+    TempStr hardLink = str::JoinTemp(linkedFile, StrL(".link"));
+    defer {
+        file::Delete(hardLink);
+        file::Delete(linkedFile);
+    };
+    utassert(file::WriteFile(linkedFile, StrL("abc")));
+    utassert(CreateHardLinkW(CWStrTemp(hardLink), CWStrTemp(linkedFile), nullptr));
+    {
+        AutoCloseHandle linked(OpenUpdatePayload(linkedFile));
+        utassert(!IsUpdateHashValid(linked, hash));
+    }
+
     utassert(IsUpdateTempFileName(StrL("sum17E3.tmp")));
     utassert(IsUpdateTempFileName(StrL("sum17E3.tmp.exe")));
     utassert(IsUpdateTempFileName(StrL("SUM17e3.TMP.EXE")));

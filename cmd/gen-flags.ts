@@ -99,6 +99,8 @@ const args = [
     "NoDesktopShortcut", "no-desktop-shortcut",
     "StartPerfLog", "start-perf-log",
     "LogPerfFile", "log-perf-file",
+    "NoUpdateElevation", "update-no-elevate",
+    "UpdateSha256", "update-sha256",
 ];
 
 function generateCode(): string {

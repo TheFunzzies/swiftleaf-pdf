@@ -1314,7 +1314,12 @@ Exit:
     }
 }
 
-static void RestartElevatedForAllUsers(Flags* cli) {
+static bool RestartElevatedForAllUsers(Flags* cli) {
+    // The updater must finish UAC while it still holds the verified payload lock.
+    if (cli->noUpdateElevation) {
+        NotifyFailed(Tr("Update installation requires administrator access. Check for updates again."));
+        return false;
+    }
     TempStr exePath = GetSelfExePathTemp();
     TempStr cmdLine = StrL("-run-install-now");
     bool allUsersChecked = gWnd && gWnd->checkboxForAllUsers && gWnd->checkboxForAllUsers->IsChecked();
@@ -1354,6 +1359,7 @@ static void RestartElevatedForAllUsers(Flags* cli) {
         logf("LaunchElevated() ok!\n");
         NoteTempInstallerRelaunch();
     }
+    return ok;
 }
 
 // in pre-release the window is wider to accommodate bigger version number
@@ -1474,7 +1480,10 @@ static void OnButtonInstall(InstallerWnd* wnd) {
     logf("OnButtonInstall: needsElevation=%d elevated=%d allUsers=%d dir='%s'\n", (int)needsElevation,
          (int)IsProcessRunningElevated(), (int)cli->allUsers, cli->installDir);
     if (needsElevation && !IsProcessRunningElevated()) {
-        RestartElevatedForAllUsers(cli);
+        if (!RestartElevatedForAllUsers(cli)) {
+            wnd->btnInstall->SetIsEnabled(true);
+            return;
+        }
         ScheduleDeleteTempInstaller();
         ::ExitProcess(0);
     }
@@ -2411,6 +2420,11 @@ static bool ShouldInstallMismatchedArch(HWND hwndParent) {
 }
 
 int RunInstaller() {
+    if ((gCli->noUpdateElevation && len(gCli->updateSha256) == 0) || !LockUpdateSelf(gCli->updateSha256)) {
+        NotifyFailed(Tr("Update verification failed."));
+        return 1;
+    }
+
     gLogRegistryCalls = true;
     trans::SetCurrentLangByCode(trans::DetectUserLang());
 
@@ -2424,6 +2438,7 @@ int RunInstaller() {
     gCliNew.silent = gCli->silent;
     gCliNew.runInstallNow = gCli->runInstallNow;
     gCliNew.fastInstall = gCli->fastInstall;
+    gCliNew.noUpdateElevation = gCli->noUpdateElevation;
     if (gCli->log) {
         installerLogPath = GetInstallerLogPath();
         bool removeLog = !gCli->runInstallNow;
@@ -2490,7 +2505,9 @@ int RunInstaller() {
                 "prevInstall.needsElevation: %d\n",
                 (int)gCli->silent, (int)gCli->fastInstall, (int)isElevated, (int)gCli->allUsers,
                 (int)gPrevInstall.allUsers);
-            RestartElevatedForAllUsers(&gCliNew);
+            if (!RestartElevatedForAllUsers(&gCliNew)) {
+                return 1;
+            }
             ScheduleDeleteTempInstaller();
             ::ExitProcess(0);
         }
