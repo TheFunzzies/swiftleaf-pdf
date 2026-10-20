@@ -13,6 +13,7 @@ void AppendClientInfoQuery(str::Builder& url);
 bool HasPendingPreReleaseUpdate();
 void DownloadAndInstallPendingUpdate(MainWindow* win);
 void StartInstallerAutoUpgrade(Str installerPath);
+bool LockUpdateSelf(Str expectedHash);
 void UpdateSelfTo(Str dstPath, int sleepMs);
 bool IsUpdateTempFileName(Str name);
 void DeleteStaleUpdateTemps(Str dir, Str skip, int minAgeSec);

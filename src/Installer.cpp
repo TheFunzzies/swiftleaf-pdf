@@ -2420,6 +2420,11 @@ static bool ShouldInstallMismatchedArch(HWND hwndParent) {
 }
 
 int RunInstaller() {
+    if ((gCli->noUpdateElevation && len(gCli->updateSha256) == 0) || !LockUpdateSelf(gCli->updateSha256)) {
+        NotifyFailed(Tr("Update verification failed."));
+        return 1;
+    }
+
     gLogRegistryCalls = true;
     trans::SetCurrentLangByCode(trans::DetectUserLang());
 

@@ -51,6 +51,7 @@ struct Flags {
     Str installDir;
     Str logFile;
     Str updateSelfTo;
+    Str updateSha256;
     Str deleteFile;
     StrVec fileNames;
     // pathsToBenchmark contain 2 strings per each file to benchmark:
