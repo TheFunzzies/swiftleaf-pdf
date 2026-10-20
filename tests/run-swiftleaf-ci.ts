@@ -62,6 +62,10 @@ const knownFailures: Record<string, { reason: string; pattern: RegExp }> = {
   },
 };
 
+export function matchesKnown(name: string, output: string): boolean {
+  return knownFailures[name]?.pattern.test(output) ?? false;
+}
+
 async function runCase(name: string): Promise<void> {
   const { prepareTestEnvironment, runTest } = await import("./util.ts");
   const { hasInteractiveDesktop, setTestWindowLayout } = await import("./winapi.ts");
@@ -134,7 +138,7 @@ async function main(): Promise<void> {
     writeFileSync(join(dir, "output.txt"), output);
     const elapsed = ((performance.now() - started) / 1000).toFixed(1);
     const known = knownFailures[name];
-    const expected = !timedOut && code !== 0 && known?.pattern.test(output);
+    const expected = !timedOut && code !== 0 && matchesKnown(name, output);
     const status = timedOut
       ? "TIMEOUT"
       : expected
