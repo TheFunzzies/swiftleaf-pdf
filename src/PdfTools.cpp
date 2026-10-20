@@ -172,7 +172,7 @@ bool PdfToolDialog::PrepareExport(Str destPath, PdfLiveSnapshot& snapshot, PdfLi
     if (!MakeSnapshot(snapshot)) {
         return false;
     }
-    output.path = str::Dup(PdfTempBeside(destPath));
+    output.path = str::Dup(PdfTempBeside(destPath, StrL(".pdf")));
     if (len(output.path) == 0) {
         MessageBoxWarning(hwnd, Tr("Couldn't write to the output folder."), Tr("Export PDF"));
         return false;

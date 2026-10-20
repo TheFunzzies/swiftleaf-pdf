@@ -64,7 +64,7 @@ struct PdfLiveSnapshot {
     ~PdfLiveSnapshot();
     bool Create(EngineBase*);
 };
-TempStr PdfTempBeside(Str target);
+TempStr PdfTempBeside(Str target, Str ext = {});
 bool PublishPdfFile(Str target, Str source);
 static Vec<MainWindow*> gWindows;
 static bool gPluginMode = false;
@@ -342,6 +342,12 @@ static void TestPublish() {
     Check(PublishPdfFile(target, source) && ContentsEqual(target, StrL("new content")) && file::Exists(source),
           "publish from another folder copies, swaps and keeps the source");
     Check(OtherFiles(dir, target) == 0, "publish leaves no staging or backup file");
+
+    // pdfclean only writes to an output named *.pdf
+    TempStr pdfOut = PdfTempBeside(target, StrL(".pdf"));
+    Check(str::EndsWithI(pdfOut, StrL(".pdf")) && file::Exists(pdfOut) && OtherFiles(dir, target) == 1,
+          "an output reserved with an extension leaves no .tmp behind");
+    file::Delete(pdfOut);
 
     TempStr beside = PdfTempBeside(target);
     file::WriteFile(beside, StrL("beside content"));

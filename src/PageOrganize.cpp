@@ -60,13 +60,24 @@ bool PdfLiveSnapshot::Create(EngineBase* engine) {
     return EngineMupdfSaveCopy(engine, path);
 }
 
-// a new empty file in target's directory, so a rename onto target stays on one volume
-TempStr PdfTempBeside(Str target) {
+// A new empty file in target's directory, so a rename onto target stays on one
+// volume. ext (e.g. ".pdf", which pdfclean needs to see an output) is added by
+// renaming the reserved name, which keeps it unique.
+TempStr PdfTempBeside(Str target, Str ext) {
     WCHAR name[MAX_PATH]{};
     if (!GetTempFileNameW(CWStrTemp(path::GetDirTemp(target)), L"slf", 0, name)) {
         return {};
     }
-    return ToUtf8Temp(WStr(name));
+    TempStr res = ToUtf8Temp(WStr(name));
+    if (len(ext) == 0) {
+        return res;
+    }
+    TempStr withExt = str::JoinTemp(res, ext);
+    if (!MoveFileExW(name, CWStrTemp(withExt), 0)) {
+        file::Delete(res);
+        return {};
+    }
+    return withExt;
 }
 
 static bool FlushFile(Str path) {
