@@ -88,6 +88,7 @@ struct Flags {
     bool silent = false;
     // installer: starts the install immediately and launches the app at end
     bool fastInstall = false;
+    bool noUpdateElevation = false;
     bool invertColors = false;
     bool regress = false;
     bool tester = false;

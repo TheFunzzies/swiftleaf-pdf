@@ -20,6 +20,9 @@ bool IsHttpRspOk(const HttpRsp*);
 bool HttpPost(Str server, int port, Str url, str::Builder* headers, str::Builder* data);
 bool HttpGet(Str url, HttpRsp* rspOut);
 bool HttpGetToFile(Str url, Str destFilePath, const Func1<HttpProgress*>& cbProgress, i64 maxSize = -1);
+#if OS_WIN
+bool HttpGetToHandle(Str url, HANDLE file, const Func1<HttpProgress*>& cbProgress, i64 maxSize = -1);
+#endif
 
 bool HttpPostUrl(Str url, Str contentType, Str extraHeaders, Str body, HttpRsp* rspOut);
 TempStr HttpNormalizeHeadersTemp(Str headers);
