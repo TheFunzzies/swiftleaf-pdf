@@ -616,8 +616,9 @@ Pixmap* RibbonIconPixmap(Str svg, int size, Color fg, Color bg) {
 
 //--- RibbonButton
 
-constexpr int kRibbonBtnPadX = 8;
-constexpr int kRibbonBtnPadY = 6;
+// PDFCraft: button padding 10 × 5 px, widget spacing 8 × 6 px
+constexpr int kRibbonBtnPadX = 10;
+constexpr int kRibbonBtnPadY = 5;
 constexpr int kRibbonBtnIconGap = 5;
 constexpr int kRibbonBtnMinDx = 48;
 constexpr int kRibbonBtnMaxLabelDx = 120;
