@@ -59,7 +59,7 @@ int RibbonTabDy(PlatformFont*);
 // an SVG icon drawn with a heavier stroke, which reads better at ribbon size
 Pixmap* RibbonIconPixmap(Str svg, int size, Color fg, Color bg);
 
-// a large button: icon on top, short label underneath
+// a tool button: icon with a short label beside it
 struct RibbonButton : VirtIconButton {
     Str label; // owned
     PlatformFont* font = nullptr;
@@ -67,6 +67,7 @@ struct RibbonButton : VirtIconButton {
     Color textColorDisabled = kColorUnset;
     // too little room for the page: icon only (the label is in the tooltip)
     bool compact = false;
+    bool isRtl = false;
 
     RibbonButton();
     ~RibbonButton() override;

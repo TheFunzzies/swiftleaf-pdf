@@ -1499,7 +1499,7 @@ static void ApplyToolbarItemColors(VirtCtrl* w) {
     }
 }
 
-// colors and icon of a large ribbon button, for its command
+// colors and icon of a ribbon button, for its command
 static void ApplyRibbonButtonStyle(RibbonButton* b, Str svg, int cmdId) {
     ApplyToolbarItemColors(b);
     b->SetColor(kColIconBtnBgSelected, RibbonSelectedBgColor());
@@ -3619,6 +3619,7 @@ static void SetRibbonPage(MainWindow* win, int page, bool userAction) {
 static RibbonButton* NewRibbonButton(MainWindow* win, Str svg, int cmdId, Str label) {
     auto* b = new RibbonButton();
     b->font = win->toolbarVirt->ribbonFont;
+    b->isRtl = IsUIRtl();
     b->id = cmdId;
     b->SetLabel(label);
     ApplyRibbonButtonStyle(b, svg, cmdId);

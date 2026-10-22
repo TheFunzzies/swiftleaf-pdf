@@ -599,7 +599,7 @@ Color RibbonIconColor(int) {
 }
 
 int RibbonLargeIconSize() {
-    return DpiScale(24);
+    return DpiScale(20);
 }
 
 int RibbonSmallIconSize() {
@@ -616,11 +616,12 @@ Pixmap* RibbonIconPixmap(Str svg, int size, Color fg, Color bg) {
 
 //--- RibbonButton
 
-// PDFCraft: button padding 10 × 5 px, widget spacing 8 × 6 px
+// a tool is a short pill: icon and label side by side. PDFCraft: button
+// padding 10 x 5 px
 constexpr int kRibbonBtnPadX = 10;
 constexpr int kRibbonBtnPadY = 5;
-constexpr int kRibbonBtnIconGap = 5;
-constexpr int kRibbonBtnMinDx = 48;
+constexpr int kRibbonBtnIconGap = 6;
+constexpr int kRibbonBtnMinDx = 36;
 constexpr int kRibbonBtnMaxLabelDx = 120;
 
 RibbonButton::RibbonButton() {
@@ -639,69 +640,78 @@ void RibbonButton::SetLabel(Str s) {
 Size RibbonButton::GetIdealSize() {
     int iconDx = pixmap ? pixmap->width : RibbonLargeIconSize();
     int dy = RibbonButtonDy(font);
-    if (compact) {
-        return {iconDx + DropdownDx() + padding.left + padding.right, dy};
+    int contentDx = iconDx + DropdownDx();
+    if (!compact && len(label) > 0) {
+        int textDx = std::min(PlatformFontMeasureText(font, label).dx, DpiScale(kRibbonBtnMaxLabelDx));
+        contentDx += DpiScale(kRibbonBtnIconGap) + textDx;
     }
-    int textDx = len(label) > 0 ? PlatformFontMeasureText(font, label).dx : 0;
-    textDx = std::min(textDx, DpiScale(kRibbonBtnMaxLabelDx));
-    int dx = std::max(iconDx + DropdownDx(), textDx) + padding.left + padding.right;
-    dx = std::max(dx, DpiScale(kRibbonBtnMinDx));
+    int dx = std::max(contentDx + padding.left + padding.right, DpiScale(kRibbonBtnMinDx));
     return {dx, dy};
 }
 
-// Material: a toggled-on button sits on a secondary-container shape; hover and
-// press lay the content color over it at 8% / 12% (state layers)
+// A toggled-on button sits on the selection color; hover and press lay the
+// neutral hover color, then the content color, over it. The icon and label
+// share one centered run, mirrored in right-to-left UIs.
 void RibbonButton::Paint(VirtPaintCtx& ctx) {
     bool enabled = IsEnabled();
     Rect r = ctx.bounds;
-    int radius = DpiScale(8);
+    int diameter = DpiScale(kChromeCornerDiameter);
     const M3Scheme& m3 = M3();
     Color container = RibbonPanelBgColor();
-    // PDFCraft: blue accent for active controls
     if (isSelected && enabled) {
-        container = M3StateLayer(RibbonPanelBgColor(), m3.primary, 12);
+        container = m3.secondaryContainer;
     }
-    int layer = 0;
     if (enabled && HasFlag(vwfPressed)) {
-        layer = kM3PressedOpacity;
+        container = M3StateLayer(container, m3.onSurface, kM3PressedOpacity);
     } else if (enabled && HasFlag(vwfHovered)) {
-        layer = kM3HoverOpacity;
-    }
-    if (layer > 0) {
-        container = M3StateLayer(container, m3.onSurface, layer);
+        container = isSelected ? M3StateLayer(container, m3.onSurface, kM3HoverOpacity) : m3.surfaceContainerHigh;
     }
     if (container != RibbonPanelBgColor()) {
-        ctx.gfx->FillRoundedRect(r, radius, container);
+        ctx.gfx->FillRoundedRect(r, diameter, container);
     }
 
     Pixmap* px = (!enabled && pixmapDisabled) ? pixmapDisabled : pixmap;
+    int iconDx = px ? px->width : RibbonLargeIconSize();
     int iconDy = px ? px->height : RibbonLargeIconSize();
-    int y = compact ? r.y + (r.dy - iconDy) / 2 : r.y + padding.top;
-    int iconY = y;
-    if (px) {
-        int x = r.x + ((r.dx - DropdownDx() - px->width) / 2);
-        ctx.gfx->DrawPixmap(px, {x, y, px->width, px->height});
-        y += px->height;
-    } else {
-        y += RibbonLargeIconSize();
+    int dropDx = DropdownDx();
+    bool showLabel = !compact && len(label) > 0;
+    int gap = DpiScale(kRibbonBtnIconGap);
+    int lineDy = PlatformFontLineHeight(font);
+    int textDx = 0;
+    if (showLabel) {
+        textDx = std::min(PlatformFontMeasureText(font, label).dx, DpiScale(kRibbonBtnMaxLabelDx));
+        textDx = std::min(textDx, std::max(0, r.dx - padding.left - padding.right - dropDx - iconDx - gap));
     }
-    y += DpiScale(kRibbonBtnIconGap);
+    int runDx = iconDx + (showLabel ? gap + textDx : 0);
+    // the split chevron stays at the right edge, where the hit test expects it
+    int x = r.x + (r.dx - dropDx - runDx) / 2;
+    int iconY = r.y + (r.dy - iconDy) / 2;
+    int cursor = isRtl ? x + runDx : x;
+    // advance the cursor by dx; in RTL it walks leftward
+    auto place = [&](int dx) {
+        int left = isRtl ? cursor - dx : cursor;
+        cursor = isRtl ? cursor - dx : cursor + dx;
+        return left;
+    };
 
-    if (!compact && len(label) > 0) {
+    if (px) {
+        ctx.gfx->DrawPixmap(px, {place(iconDx), iconY, px->width, px->height});
+    } else {
+        place(iconDx);
+    }
+    if (showLabel) {
+        place(gap);
         Color col = enabled ? (isSelected ? m3.onSecondaryContainer : m3.onSurface)
                             : M3StateLayer(RibbonPanelBgColor(), m3.onSurface, 38);
-        int lineDy = PlatformFontLineHeight(font);
-        Rect rText{r.x + padding.left, y, std::max(0, r.dx - padding.left - padding.right), lineDy};
-        ctx.gfx->DrawText(label, rText, gfxTextCenter | gfxTextSingleLine | gfxTextEllipsis, font, col);
+        Rect rText{place(textDx), r.y + (r.dy - lineDy) / 2, textDx, lineDy};
+        ctx.gfx->DrawText(label, rText, gfxTextLeft | gfxTextSingleLine | gfxTextEllipsis, font, col);
     }
-
-    int dropDx = DropdownDx();
     if (dropDx > 0) {
         Color col = enabled ? textColor : textColorDisabled;
         float pt = 11.f * (float)DpiGet() / 96.f;
         PlatformFont* chevronFont = GetPlatformFont(StrL("Segoe UI"), pt, PlatformFontStyle::Regular);
         Rect drop{r.Right() - dropDx, iconY, dropDx, iconDy};
-        ctx.gfx->DrawText(StrL("\xE2\x96\xBE"), drop, gfxTextCenter | gfxTextVCenter, chevronFont, col);
+        ctx.gfx->DrawText(StrL("â¾"), drop, gfxTextCenter | gfxTextVCenter, chevronFont, col);
     }
 }
 
@@ -714,7 +724,7 @@ RibbonButton* AsRibbonButton(ILayout* l) {
 
 int RibbonButtonDy(PlatformFont* font) {
     int pad = DpiScale(kRibbonBtnPadY);
-    return pad + RibbonLargeIconSize() + DpiScale(kRibbonBtnIconGap) + PlatformFontLineHeight(font) + pad;
+    return pad + std::max(RibbonLargeIconSize(), PlatformFontLineHeight(font)) + pad;
 }
 
 //--- RibbonPanelFit
