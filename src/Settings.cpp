@@ -106,6 +106,25 @@ static const StructInfo gFixedPageUIInfo = {
     "files\0measurement grid overlay (View > Page Grid). Spacing and style are saved; showing the grid is session-only",
     false};
 
+static const FieldInfo gMarkdownConversionFields[] = {
+    {offsetof(MarkdownConversion, detectHeadings), SettingType::Bool, true},
+    {offsetof(MarkdownConversion, detectLists), SettingType::Bool, true},
+    {offsetof(MarkdownConversion, detectTables), SettingType::Bool, true},
+    {offsetof(MarkdownConversion, joinLines), SettingType::Bool, true},
+    {offsetof(MarkdownConversion, removePageEdges), SettingType::Bool, true},
+    {offsetof(MarkdownConversion, pageBreaks), SettingType::Bool, false},
+    {offsetof(MarkdownConversion, includeImages), SettingType::Bool, false},
+};
+static const StructInfo gMarkdownConversionInfo = {
+    sizeof(MarkdownConversion),
+    7,
+    gMarkdownConversionFields,
+    "DetectHeadings\0DetectLists\0DetectTables\0JoinLines\0RemovePageEdges\0PageBreaks\0IncludeImages",
+    "infer Markdown headings from font sizes\0recognize bullet and numbered lists\0recognize aligned or pipe-delimited "
+    "tables\0join wrapped lines and repair line-end hyphenation\0remove repeated text in page margins\0insert "
+    "horizontal rules between pages\0embed images as PNG data URLs in Markdown",
+    false};
+
 static const FieldInfo gEBookUIFields[] = {
     {offsetof(EBookUI, fontName), SettingType::String, (intptr_t)""},
     {offsetof(EBookUI, fontSize), SettingType::Float, (intptr_t)"0"},
@@ -873,7 +892,7 @@ static const StructInfo gPointInfo = {
 
 static const FieldInfo gSettingsFields[] = {
     {(size_t)-1, SettingType::Comment,
-     (intptr_t)"For documentation, see https://www.sumatrapdfreader.org/settings/settings3-7.html"},
+     (intptr_t)"For documentation, see https://www.sumatrapdfreader.org/settings/settings0-3-4.html"},
     {(size_t)-1, SettingType::Comment, 0},
     {offsetof(Settings, defaultDisplayMode), SettingType::String, (intptr_t)"automatic"},
     {offsetof(Settings, defaultZoom), SettingType::String, (intptr_t)"fit page"},
@@ -971,6 +990,9 @@ static const FieldInfo gSettingsFields[] = {
     {(size_t)-1, SettingType::Comment, 0},
     {offsetof(Settings, fixedPageUI), SettingType::Struct, (intptr_t)&gFixedPageUIInfo},
     {(size_t)-1, SettingType::Comment, 0},
+    {offsetof(Settings, conversionFormat), SettingType::Int, 0, true},
+    {offsetof(Settings, markdownConversion), SettingType::Struct, (intptr_t)&gMarkdownConversionInfo},
+    {(size_t)-1, SettingType::Comment, 0},
     {offsetof(Settings, eBookUI), SettingType::Struct, (intptr_t)&gEBookUIInfo},
     {(size_t)-1, SettingType::Comment, 0},
     {offsetof(Settings, comicBookUI), SettingType::Struct, (intptr_t)&gComicBookUIInfo},
@@ -1039,7 +1061,7 @@ static const FieldInfo gSettingsFields[] = {
 };
 const StructInfo gSettingsInfo = {
     sizeof(Settings),
-    163,
+    166,
     gSettingsFields,
     "\0\0DefaultDisplayMode\0DefaultZoom\0DisableJavaScript\0AllowExternalImages\0EnableTeXEnhancements\0EscToExit\0Ful"
     "lPathInTitle\0InverseSearchCmdLine\0LazyLoading\0MainWindowBackground\0NoHomeTab\0HomePageSortByFrequentlyRead\0Ho"
@@ -1055,12 +1077,13 @@ const StructInfo gSettingsInfo = {
     "llOverScrollbar\0PreventSleepInFullscreen\0TabWidth\0Theme\0HelpTheme\0LastLightTheme\0LastDarkTheme\0DocumentColo"
     "rsFollowTheme\0TocDy\0ToolbarCustomLayout\0ToolbarShowReadAloud\0ToolbarSize\0TreeFontName\0TreeFontSize\0UIFontSi"
     "ze\0DisableAntiAlias\0EngineeringDrawingEnhance\0DisableAutoLinks\0UseSysColors\0UseTabs\0SelectionToolbar\0Select"
-    "ionToolbarLayout\0TabsMru\0CtrlTabSimple\0ZoomLevels\0ZoomIncrement\0\0FixedPageUI\0\0EBookUI\0\0ComicBookUI\0\0Im"
-    "ageUI\0\0ChmUI\0\0MarkdownUI\0\0HtmlUI\0\0ClaudeCode\0\0GrokBuild\0\0CodexBuild\0\0AntiGravity\0\0AIChatSidebarDx"
-    "\0\0TranslateToLang\0TranslateFromLang\0TranslateEngine\0\0Annotations\0\0ExternalViewers\0\0ForwardSearch\0\0Prin"
-    "terDefaults\0\0Fullscreen\0\0SelectionHandlers\0\0TextSnippets\0\0Shortcuts\0\0Themes\0\0TabGroups\0\0CustomScreen"
-    "DPI\0\0\0DefaultPasswords\0UiLanguage\0VersionToSkip\0WindowState\0WindowPos\0SearchUIWindowPos\0HelpWindowPos\0Fi"
-    "leStates\0SessionData\0ReopenOnce\0TimeOfLastUpdateCheck\0OpenCountWeek\0PropWinPos\0CheckForUpdates\0\0",
+    "ionToolbarLayout\0TabsMru\0CtrlTabSimple\0ZoomLevels\0ZoomIncrement\0\0FixedPageUI\0\0ConversionFormat\0MarkdownCo"
+    "nversion\0\0EBookUI\0\0ComicBookUI\0\0ImageUI\0\0ChmUI\0\0MarkdownUI\0\0HtmlUI\0\0ClaudeCode\0\0GrokBuild\0\0Codex"
+    "Build\0\0AntiGravity\0\0AIChatSidebarDx\0\0TranslateToLang\0TranslateFromLang\0TranslateEngine\0\0Annotations\0\0E"
+    "xternalViewers\0\0ForwardSearch\0\0PrinterDefaults\0\0Fullscreen\0\0SelectionHandlers\0\0TextSnippets\0\0Shortcuts"
+    "\0\0Themes\0\0TabGroups\0\0CustomScreenDPI\0\0\0DefaultPasswords\0UiLanguage\0VersionToSkip\0WindowState\0WindowPo"
+    "s\0SearchUIWindowPos\0HelpWindowPos\0FileStates\0SessionData\0ReopenOnce\0TimeOfLastUpdateCheck\0OpenCountWeek\0Pr"
+    "opWinPos\0CheckForUpdates\0\0",
     "\0\0default layout of pages. valid values: automatic, single page, facing, book view, continuous, continuous "
     "facing, continuous book view, page aspect. page aspect (3.7+): first open of a PDF, XPS, DjVu or PostScript file "
     "uses page 1 — taller than wide is continuous + fit width, wider than tall is single page + fit page; a remembered "
@@ -1178,12 +1201,13 @@ const StructInfo gSettingsInfo = {
     "switcher\0sequence of zoom levels when zooming in/out; values must lie between 8.33 and 1000000 (the largest one "
     "becomes the maximum zoom, which is 6400 by default)\0how much a single zoom in / zoom out step changes the zoom, "
     "as a percentage of the current zoom level. If 0 or negative, zooming steps through ZoomLevels "
-    "instead\0\0customization options for PDF, XPS, DjVu and PostScript UI\0\0customization options for the ebook UI "
-    "(EPUB, MOBI, FB2, PDB and plain text)\0\0customization options for Comic Book UI\0\0customization options for "
-    "image files UI\0\0customization options for CHM UI. UseFixedPageUI switches to the PDF-style view; FontName "
-    "applies to that view\0\0customization options for Markdown UI. If UseFixedPageUI is true, MuPDF is used; "
-    "otherwise WebView2 browser view is used when available\0\0customization options for HTML UI. If UseFixedPageUI is "
-    "true, MuPDF is used; otherwise WebView2 browser view is used when available\0\0settings for the Claude Code chat "
+    "instead\0\0customization options for PDF, XPS, DjVu and PostScript UI\0\0last PDF conversion format: 0 PNG, 1 "
+    "JPEG, 2 BMP, 3 Markdown\0PDF to Markdown conversion options\0\0customization options for the ebook UI (EPUB, "
+    "MOBI, FB2, PDB and plain text)\0\0customization options for Comic Book UI\0\0customization options for image "
+    "files UI\0\0customization options for CHM UI. UseFixedPageUI switches to the PDF-style view; FontName applies to "
+    "that view\0\0customization options for Markdown UI. If UseFixedPageUI is true, MuPDF is used; otherwise WebView2 "
+    "browser view is used when available\0\0customization options for HTML UI. If UseFixedPageUI is true, MuPDF is "
+    "used; otherwise WebView2 browser view is used when available\0\0settings for the Claude Code chat "
     "sidebar\0\0settings for the Grok Build chat sidebar\0\0settings for the OpenAI Codex chat sidebar\0\0settings for "
     "the Antigravity chat sidebar\0\0width of the AI chat sidebar (0 = use default); shared by Claude Code, Grok "
     "Build, and OpenAI Codex (internal)\0\0remembered destination language for selection translation; empty uses OS UI "

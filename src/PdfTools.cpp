@@ -16,6 +16,7 @@
 #include "gui/VirtCtrl.h"
 
 #include "Settings.h"
+#include "AppSettings.h"
 #include "DocController.h"
 #include "EngineBase.h"
 #include "base/GuessFileType.h"
@@ -42,6 +43,7 @@
 #include "Material.h"
 #include "Commands.h"
 #include "PageOrganize.h"
+#include "PdfMarkdown.h"
 #include "PdfTools.h"
 
 extern "C" int pdfbake_main(int argc, char** argv);
@@ -1861,6 +1863,13 @@ struct ConvertPdfToImagesDialog : PdfToolDialog {
     DropDown* dropDpi = nullptr;
     int dpi = kConvertPdfToImagesDpi; // 0 if what's typed is not a DPI
     bool syncingFormat = false;
+    Checkbox* mdHeadings = nullptr;
+    Checkbox* mdLists = nullptr;
+    Checkbox* mdTables = nullptr;
+    Checkbox* mdJoin = nullptr;
+    Checkbox* mdEdges = nullptr;
+    Checkbox* mdBreaks = nullptr;
+    Checkbox* mdImages = nullptr;
 
     bool Create(MainWindow* win, WindowTab* tab);
     void DoIt(VirtMouseEvent* ev = nullptr) override;
@@ -1873,7 +1882,45 @@ struct ConvertPdfToImagesDialog : PdfToolDialog {
     void SetDestExtFromFormat();
     void SyncFormatFromPath(Str path);
     int SelectedFormatIdx() const;
+    void UpdateFormatOptions();
+    MarkdownConversion MarkdownOptions() const;
+    Checkbox* AddMarkdownOption(Str label, bool checked);
 };
+
+static int MarkdownFormatIdx() {
+    return ConvertImageFormatCount();
+}
+
+Checkbox* ConvertPdfToImagesDialog::AddMarkdownOption(Str label, bool checked) {
+    Checkbox::CreateArgs args;
+    args.parent = hwnd;
+    args.font = font;
+    args.text = label;
+    args.initialState = checked ? Checkbox::State::Checked : Checkbox::State::Unchecked;
+    auto* checkbox = new Checkbox();
+    checkbox->Create(args);
+    checkbox->SetColors(ThemeWindowTextColor(), DarkModeDialogBgColor());
+    lastRow->AddChild(checkbox);
+    return checkbox;
+}
+
+MarkdownConversion ConvertPdfToImagesDialog::MarkdownOptions() const {
+    return {mdHeadings->IsChecked(), mdLists->IsChecked(),  mdTables->IsChecked(), mdJoin->IsChecked(),
+            mdEdges->IsChecked(),    mdBreaks->IsChecked(), mdImages->IsChecked()};
+}
+
+void ConvertPdfToImagesDialog::UpdateFormatOptions() {
+    bool markdown = SelectedFormatIdx() == MarkdownFormatIdx();
+    if (dropDpi) {
+        dropDpi->SetIsEnabled(!markdown);
+    }
+    for (auto* option : {mdHeadings, mdLists, mdTables, mdJoin, mdEdges, mdBreaks, mdImages}) {
+        if (option) {
+            option->SetIsEnabled(markdown);
+        }
+    }
+    UpdateButton();
+}
 
 static Checkbox* NewPagesRadio(HWND parent, PlatformFont* font, Str text, bool groupStart, bool checked) {
     Checkbox::CreateArgs args;
@@ -1895,7 +1942,7 @@ int ConvertPdfToImagesDialog::SelectedFormatIdx() const {
         return 0;
     }
     int idx = CbGetCurrentSelection(dropFormat);
-    if (idx < 0 || idx >= ConvertImageFormatCount()) {
+    if (idx < 0 || idx > MarkdownFormatIdx()) {
         return 0;
     }
     return idx;
@@ -1909,8 +1956,15 @@ void ConvertPdfToImagesDialog::SetDestExtFromFormat() {
     if (len(dest) == 0) {
         return;
     }
-    Str ext = kConvertImageFormats[SelectedFormatIdx()].ext;
+    bool markdown = SelectedFormatIdx() == MarkdownFormatIdx();
+    Str ext = markdown ? StrL(".md") : kConvertImageFormats[SelectedFormatIdx()].ext;
     TempStr noExt = path::GetPathNoExtTemp(dest);
+    if (markdown) {
+        noExt = str::ReplaceTemp(noExt, StrL("-<N>"), StrL(""));
+        noExt = str::ReplaceTemp(noExt, StrL("<N>"), StrL(""));
+    } else if (!PathHasPagePlaceholder(noExt)) {
+        noExt = str::JoinTemp(noExt, StrL("-<N>"));
+    }
     TempStr newDest = str::JoinTemp(noExt, ext);
     if (str::EqI(dest, newDest)) {
         return;
@@ -1922,13 +1976,14 @@ void ConvertPdfToImagesDialog::SyncFormatFromPath(Str path) {
     if (!dropFormat) {
         return;
     }
-    int idx = ConvertImageFormatIdxFromPath(path);
+    int idx = str::EndsWithI(path, StrL(".md")) ? MarkdownFormatIdx() : ConvertImageFormatIdxFromPath(path);
     if (idx == CbGetCurrentSelection(dropFormat)) {
         return;
     }
     syncingFormat = true;
     CbSetCurrentSelection(dropFormat, idx);
     syncingFormat = false;
+    UpdateFormatOptions();
 }
 
 void ConvertPdfToImagesDialog::OnFormatChanged() {
@@ -1936,6 +1991,7 @@ void ConvertPdfToImagesDialog::OnFormatChanged() {
         return;
     }
     SetDestExtFromFormat();
+    UpdateFormatOptions();
 }
 
 void ConvertPdfToImagesDialog::OnDpiPicked() {
@@ -1968,7 +2024,7 @@ void ConvertPdfToImagesDialog::UpdateButton() {
         Vec<int> parsed;
         pagesOk = ParseDeletePages(pages, pageCount, parsed);
     }
-    bool valid = destOk && pagesOk && dpi > 0;
+    bool valid = destOk && pagesOk && (SelectedFormatIdx() == MarkdownFormatIdx() || dpi > 0);
     if (valid == actionBtn->HasFlag(vwfEnabled)) {
         return;
     }
@@ -1977,6 +2033,10 @@ void ConvertPdfToImagesDialog::UpdateButton() {
 }
 
 void ConvertPdfToImagesDialog::OnBrowseTemplate(VirtMouseEvent*) {
+    if (SelectedFormatIdx() == MarkdownFormatIdx()) {
+        BrowseForDest(hwnd, destEdit, WStrL(L"Markdown\0*.md\0All Files\0*.*\0"), WStrL(L"md"));
+        return;
+    }
     WCHAR dstFileName[MAX_PATH + 1]{};
     TempStr current = destEdit->GetTextTemp();
     // < and > are illegal in Windows filenames; show {N} in the save dialog
@@ -2013,6 +2073,7 @@ void ConvertPdfToImagesDialog::OnBrowseTemplate(VirtMouseEvent*) {
         CbSetCurrentSelection(dropFormat, filterIdx);
         syncingFormat = false;
         SetDestExtFromFormat();
+        UpdateFormatOptions();
     } else {
         SyncFormatFromPath(picked);
     }
@@ -2046,6 +2107,33 @@ void ConvertPdfToImagesDialog::DoIt(VirtMouseEvent*) {
         }
     }
 
+    if (SelectedFormatIdx() == MarkdownFormatIdx()) {
+        if (path::IsSame(srcPath, destPath)) {
+            MessageBoxWarning(hwnd, Tr("Choose a different output file."), Tr("Convert PDF"));
+            return;
+        }
+        HCURSOR prev = SetCursor(LoadCursor(nullptr, IDC_WAIT));
+        MarkdownConversion options = MarkdownOptions();
+        Str error;
+        Str markdown = EngineMupdfToMarkdown(engine, pages, options, error);
+        bool ok = len(markdown) > 0 && file::WriteFile(destPath, markdown);
+        str::Free(markdown);
+        SetCursor(prev);
+        if (!ok) {
+            MessageBoxWarning(hwnd, len(error) ? error : Tr("Failed to save a file"), Tr("Convert PDF"));
+            return;
+        }
+        if (gSettings) {
+            gSettings->conversionFormat = MarkdownFormatIdx();
+            gSettings->markdownConversion = options;
+            ScheduleSaveSettings();
+        }
+        TempStr openPath = str::DupTemp(destPath);
+        Close();
+        OpenPathInDefaultFileManager(openPath);
+        return;
+    }
+
     // the box may have been filled without a change notification
     dpi = DpiFromComboText(dropDpi);
     if (dpi < 1) {
@@ -2069,6 +2157,10 @@ void ConvertPdfToImagesDialog::DoIt(VirtMouseEvent*) {
         return;
     }
     logf("ConvertPdfToImages: wrote %d of %d file(s)\n", nOk, len(pages));
+    if (gSettings) {
+        gSettings->conversionFormat = SelectedFormatIdx();
+        ScheduleSaveSettings();
+    }
     TempStr openPath = str::DupTemp(firstPath);
     str::Free(firstPath);
     Close();
@@ -2076,7 +2168,7 @@ void ConvertPdfToImagesDialog::DoIt(VirtMouseEvent*) {
 }
 
 bool ConvertPdfToImagesDialog::Create(MainWindow* w, WindowTab* tab) {
-    if (!CreateToolDialog(w, tab, Tr("Convert PDF to Images"))) {
+    if (!CreateToolDialog(w, tab, Tr("Convert PDF"))) {
         return false;
     }
     pageCount = w->ctrl ? w->ctrl->PageCount() : 1;
@@ -2109,8 +2201,10 @@ bool ConvertPdfToImagesDialog::Create(MainWindow* w, WindowTab* tab) {
         for (int i = 0; i < ConvertImageFormatCount(); i++) {
             items.Append(kConvertImageFormats[i].label);
         }
+        items.Append(StrL("Markdown (.md)"));
         dd->SetItems(items);
-        CbSetCurrentSelection(dd, 0);
+        int format = gSettings ? gSettings->conversionFormat : 0;
+        CbSetCurrentSelection(dd, limitValue(format, 0, MarkdownFormatIdx()));
         dd->SetColors(ThemeWindowTextColor(), ThemeWindowControlBackgroundColor());
         dd->onSelectionChanged = MkMethod0<ConvertPdfToImagesDialog, &ConvertPdfToImagesDialog::OnFormatChanged>(this);
         dropFormat = dd;
@@ -2164,12 +2258,26 @@ bool ConvertPdfToImagesDialog::Create(MainWindow* w, WindowTab* tab) {
     dropDpi->onTextChanged = MkMethod0<ConvertPdfToImagesDialog, &ConvertPdfToImagesDialog::OnDpiTyped>(this);
     dpiRow->AddChild(dropDpi);
 
-    AddButtonsRow(Tr("Convert"), Tr("Use <N> for the page number"));
+    MarkdownConversion options =
+        gSettings ? gSettings->markdownConversion : MarkdownConversion{true, true, true, true, true};
+    AddRow()->gap = gap;
+    mdHeadings = AddMarkdownOption(Tr("Headings"), options.detectHeadings);
+    mdLists = AddMarkdownOption(Tr("Lists"), options.detectLists);
+    mdTables = AddMarkdownOption(Tr("Tables"), options.detectTables);
+    mdJoin = AddMarkdownOption(Tr("Join wrapped lines"), options.joinLines);
+    AddRow()->gap = gap;
+    mdEdges = AddMarkdownOption(Tr("Remove repeated margins"), options.removePageEdges);
+    mdBreaks = AddMarkdownOption(Tr("Page separators"), options.pageBreaks);
+    mdImages = AddMarkdownOption(Tr("Embed images"), options.includeImages);
+    AddRow()->AddChild(
+        NewVirtText({.s = Tr("Markdown: one file; embedded images use PNG. OCR is not included."), .font = font}));
+    AddButtonsRow(Tr("Convert"), Tr("Images: <N> is the page number"));
+    SetDestExtFromFormat();
     FinishDialog(destEdit);
 
     destEdit->onTextChanged = MkMethod0<ConvertPdfToImagesDialog, &ConvertPdfToImagesDialog::UpdateButton>(this);
     pagesEdit->onTextChanged = MkMethod0<ConvertPdfToImagesDialog, &ConvertPdfToImagesDialog::UpdateButton>(this);
-    UpdateButton();
+    UpdateFormatOptions();
     return true;
 }
 
