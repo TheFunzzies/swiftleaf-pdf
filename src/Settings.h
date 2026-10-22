@@ -698,6 +698,24 @@ struct FixedPageUI {
     PageGrid pageGrid;
 };
 
+// PDF to Markdown conversion options
+struct MarkdownConversion {
+    // infer Markdown headings from font sizes
+    bool detectHeadings;
+    // recognize bullet and numbered lists
+    bool detectLists;
+    // recognize aligned or pipe-delimited tables
+    bool detectTables;
+    // join wrapped lines and repair line-end hyphenation
+    bool joinLines;
+    // remove repeated text in page margins
+    bool removePageEdges;
+    // insert horizontal rules between pages
+    bool pageBreaks;
+    // embed images as PNG data URLs in Markdown
+    bool includeImages;
+};
+
 // default values for annotations in PDF documents
 struct Annotations {
     // color of newly created highlight annotations. Use an #aarrggbb value
@@ -989,6 +1007,10 @@ struct Settings {
     ComicBookUI comicBookUI;
     // customization options for PDF, XPS, DjVu and PostScript UI
     FixedPageUI fixedPageUI;
+    // last PDF conversion format: 0 PNG, 1 JPEG, 2 BMP, 3 Markdown
+    int conversionFormat;
+    // PDF to Markdown conversion options
+    MarkdownConversion markdownConversion;
     // default values for annotations in PDF documents
     Annotations annotations;
     // width of the favorites / bookmarks sidebar in screen pixels, as last

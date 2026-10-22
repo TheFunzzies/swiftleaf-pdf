@@ -1245,6 +1245,16 @@ const sessionData: Field[] = [
   field("SidebarDx", Int, 0, "width of the favorites / bookmarks sidebar in screen pixels (0 if it wasn't shown)"),
 ];
 
+const markdownConversion: Field[] = [
+  field("DetectHeadings", Bool, true, "infer Markdown headings from font sizes"),
+  field("DetectLists", Bool, true, "recognize bullet and numbered lists"),
+  field("DetectTables", Bool, true, "recognize aligned or pipe-delimited tables"),
+  field("JoinLines", Bool, true, "join wrapped lines and repair line-end hyphenation"),
+  field("RemovePageEdges", Bool, true, "remove repeated text in page margins"),
+  field("PageBreaks", Bool, false, "insert horizontal rules between pages"),
+  field("IncludeImages", Bool, false, "embed images as PNG data URLs in Markdown"),
+];
+
 const globalPrefs: Field[] = [
   comment(""),
   emptyLine(),
@@ -1856,6 +1866,9 @@ const globalPrefs: Field[] = [
 
   struct("FixedPageUI", fixedPageUI, "customization options for PDF, XPS, DjVu and PostScript UI"),
   emptyLine(),
+  field("ConversionFormat", Int, 0, "last PDF conversion format: 0 PNG, 1 JPEG, 2 BMP, 3 Markdown").internal(),
+  struct("MarkdownConversion", markdownConversion, "PDF to Markdown conversion options"),
+  emptyLine(),
   struct("EBookUI", ebookUI, "customization options for the ebook UI (EPUB, MOBI, FB2, PDB and plain text)"),
   emptyLine(),
   struct("ComicBookUI", comicBookUI, "customization options for Comic Book UI"),
@@ -2087,6 +2100,8 @@ const globalPrefsLayout = [
   "EBookUI",
   "ComicBookUI",
   "FixedPageUI",
+  "ConversionFormat",
+  "MarkdownConversion",
   "Annotations",
   "SidebarDx",
   "ScrollLineAmount",

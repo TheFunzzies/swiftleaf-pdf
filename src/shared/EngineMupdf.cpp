@@ -43,7 +43,517 @@ extern "C" {
 #include "EbookBase.h"
 #include "EbookDoc.h"
 #include "Settings.h"
+#include "PdfMarkdown.h"
 #include "EngineMupdf.h"
+
+struct MdLine {
+    Str text;
+    float size = 0;
+    fz_rect box{};
+    int block = 0;
+    bool image = false;
+};
+
+struct MdPage {
+    Vec<MdLine> lines;
+    fz_rect bounds{};
+    i64 bytes = 0;
+    bool tooLarge = false;
+
+    ~MdPage() {
+        for (MdLine& line : lines) {
+            str::Free(line.text);
+        }
+    }
+};
+
+constexpr float kMdHeadingRatio = 1.2f;
+constexpr float kMdMarginRatio = 0.08f;
+constexpr int kMdMaxHeading = 160;
+constexpr int kMdMaxOutput = 128 * 1024 * 1024;
+constexpr i64 kMdMaxImagePixels = 20LL * 1000 * 1000;
+constexpr int kMdMaxEdgeText = 200;
+constexpr int kMdMaxEdges = 200000;
+constexpr int kMdMaxRepeated = 64;
+
+// Cap on the Markdown output, and on the text and images kept for one page.
+static int gMdMaxOutput = kMdMaxOutput;
+
+static Str MdTrim(Str s) {
+    str::TrimWSInPlace(s, str::TrimOpt::Both);
+    return s;
+}
+
+static void MdEscape(str::Builder& out, Str text) {
+    for (int i = 0; i < len(text); i++) {
+        char c = text.s[i];
+        if (strchr("\\`*_{}[]<>!#|", c) || (i == 0 && strchr("-+>", c)) ||
+            (i > 0 && (c == '.' || c == ')') && str::IsDigit(text.s[0]) && str::IsDigit(text.s[i - 1]))) {
+            out.AppendChar('\\');
+        }
+        out.AppendChar(c);
+    }
+}
+
+static int MdListPrefix(Str text) {
+    if (str::StartsWith(text, StrL("- ")) || str::StartsWith(text, StrL("* ")) || str::StartsWith(text, StrL("+ "))) {
+        return 2;
+    }
+    if (str::StartsWith(text, StrL("\xE2\x80\xA2 ")) || str::StartsWith(text, StrL("\xE2\x97\xA6 "))) {
+        return 4;
+    }
+    int i = 0;
+    while (i < len(text) && str::IsDigit(text.s[i])) {
+        i++;
+    }
+    if (i > 0 && i + 1 < len(text) && (text.s[i] == '.' || text.s[i] == ')') && text.s[i + 1] == ' ') {
+        return i + 2;
+    }
+    return 0;
+}
+
+// Require matching columns on adjacent rows; isolated gaps remain prose.
+static int MdCells(Str text, StrVec& cells) {
+    if (MdListPrefix(text)) {
+        return 0;
+    }
+    if (str::Contains(text, StrL("|"))) {
+        Split(&cells, text, StrL("|"));
+    } else {
+        Split(&cells, text, StrL("  "), true);
+    }
+    for (int i = len(cells) - 1; i >= 0; i--) {
+        Str cell = MdTrim(cells[i]);
+        if (len(cell) == 0) {
+            cells.RemoveAt(i);
+        } else {
+            cells.SetAt(i, cell);
+        }
+    }
+    return len(cells) >= 2 ? len(cells) : 0;
+}
+
+static void MdTableRow(str::Builder& out, const StrVec& cells) {
+    out.AppendChar('|');
+    for (Str cell : cells) {
+        out.AppendChar(' ');
+        MdEscape(out, cell);
+        out.Append(StrL(" |"));
+    }
+    out.AppendChar('\n');
+}
+
+static bool MdMargin(const MdPage* page, const MdLine& line) {
+    float margin = (page->bounds.y1 - page->bounds.y0) * kMdMarginRatio;
+    return line.box.y1 < page->bounds.y0 + margin || line.box.y0 > page->bounds.y1 - margin;
+}
+
+// What a first pass over all pages learns: the usual font size and the margin
+// lines (headers, footers) that repeat on at least half of the pages. Keeps
+// only these, so pages need not stay in memory.
+struct MdStats {
+    struct SizeCount {
+        int size;
+        int count;
+    };
+    Vec<SizeCount> sizes;
+    int bestCount = 0;
+    float body = 12;
+    StrVec edges;
+    StrVec repeated;
+};
+
+static void MdStatsAdd(MdStats& stats, const MdPage* page) {
+    int first = len(stats.edges);
+    for (const MdLine& line : page->lines) {
+        if (line.image || len(line.text) == 0) {
+            continue;
+        }
+        int size = (int)roundf(line.size * 10);
+        int idx = 0;
+        while (idx < len(stats.sizes) && stats.sizes[idx].size != size) {
+            idx++;
+        }
+        if (idx == len(stats.sizes)) {
+            VecAppend(stats.sizes, MdStats::SizeCount{size, 0});
+        }
+        stats.sizes[idx].count += len(line.text);
+        if (stats.sizes[idx].count > stats.bestCount) {
+            stats.bestCount = stats.sizes[idx].count;
+            stats.body = size / 10.f;
+        }
+
+        if (!MdMargin(page, line) || len(line.text) > kMdMaxEdgeText || len(stats.edges) >= kMdMaxEdges) {
+            continue;
+        }
+        bool seen = false;
+        for (int i = first; i < len(stats.edges) && !seen; i++) {
+            seen = str::EqI(stats.edges[i], line.text);
+        }
+        if (!seen) {
+            stats.edges.Append(line.text);
+        }
+    }
+}
+
+static void MdStatsFinish(MdStats& stats, int nPages) {
+    if (nPages < 2) {
+        return;
+    }
+    StrVec sorted;
+    for (Str edge : stats.edges) {
+        sorted.Append(edge);
+    }
+    SortNoCase(&sorted);
+    int n = len(sorted);
+    for (int i = 0; i < n && len(stats.repeated) < kMdMaxRepeated;) {
+        int j = i + 1;
+        while (j < n && str::EqI(sorted[i], sorted[j])) {
+            j++;
+        }
+        if (j - i >= 2 && (j - i) * 2 > nPages) {
+            stats.repeated.Append(sorted[i]);
+        }
+        i = j;
+    }
+}
+
+static bool MdRepeated(const MdStats& stats, const MdPage* page, const MdLine& line) {
+    if (line.image || len(stats.repeated) == 0 || !MdMargin(page, line)) {
+        return false;
+    }
+    for (Str edge : stats.repeated) {
+        if (str::EqI(edge, line.text)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool MdOver(const str::Builder& out, i64 extra = 0) {
+    return (i64)len(out) + extra > gMdMaxOutput;
+}
+
+// Starts a new block; a pending page break becomes a horizontal rule.
+static void MdBlockStart(str::Builder& out, bool& pageBreak) {
+    bool rule = pageBreak && len(out) > 0;
+    pageBreak = false;
+    if (len(out) == 0) {
+        return;
+    }
+    out.Append(rule ? StrL("\n\n---\n\n") : StrL("\n\n"));
+}
+
+// Appends one page; false once the output would pass the cap.
+static bool MdRenderPage(str::Builder& out, bool& pageBreak, const MdPage* page, const MdStats& stats,
+                         const MarkdownConversion& opts, int pageIdx) {
+    float body = stats.body;
+    pageBreak = pageBreak || (pageIdx > 0 && opts.pageBreaks);
+    {
+        int previousBlock = -1;
+        bool previousList = false;
+        bool previousHeading = false;
+        for (int i = 0; i < len(page->lines); i++) {
+            const MdLine& line = page->lines[i];
+            Str text = line.text;
+            if (len(text) == 0 || (opts.removePageEdges && MdRepeated(stats, page, line))) {
+                continue;
+            }
+            if (line.image) {
+                if (MdOver(out, len(text) + 64)) {
+                    return false;
+                }
+                MdBlockStart(out, pageBreak);
+                out.Append(StrL("![Image](data:image/png;base64,"));
+                out.Append(text);
+                out.AppendChar(')');
+                previousBlock = -1;
+                previousList = false;
+                previousHeading = false;
+                continue;
+            }
+            StrVec cells;
+            int columns = opts.detectTables ? MdCells(text, cells) : 0;
+            StrVec nextCells;
+            if (columns > 0 && i + 1 < len(page->lines) && !page->lines[i + 1].image &&
+                MdCells(page->lines[i + 1].text, nextCells) == columns) {
+                MdBlockStart(out, pageBreak);
+                MdTableRow(out, cells);
+                out.AppendChar('|');
+                for (int c = 0; c < columns; c++) {
+                    out.Append(StrL(" --- |"));
+                }
+                out.AppendChar('\n');
+                while (i + 1 < len(page->lines)) {
+                    StrVec row;
+                    if (page->lines[i + 1].image || MdCells(page->lines[i + 1].text, row) != columns) {
+                        break;
+                    }
+                    MdTableRow(out, row);
+                    i++;
+                    if (MdOver(out)) {
+                        return false;
+                    }
+                }
+                out.RemoveLast();
+                previousBlock = -1;
+                previousList = false;
+                previousHeading = false;
+                continue;
+            }
+            text = str::ReplaceTemp(text, StrL("  "), StrL(" "));
+            int listPrefix = opts.detectLists ? MdListPrefix(text) : 0;
+            int heading = 0;
+            if (opts.detectHeadings && !listPrefix && len(text) <= kMdMaxHeading &&
+                line.size >= body * kMdHeadingRatio) {
+                heading = line.size >= body * 1.8f ? 1 : (line.size >= body * 1.4f ? 2 : 3);
+            }
+            bool join = opts.joinLines && MdListPrefix(text) == 0 && !heading && !previousHeading &&
+                        previousBlock == line.block;
+            if (join) {
+                if (out.LastChar() == '-' && len(text) > 0 && text.s[0] >= 'a' && text.s[0] <= 'z') {
+                    out.RemoveLast();
+                } else {
+                    out.AppendChar(' ');
+                }
+            } else if (listPrefix && previousList && !pageBreak) {
+                out.AppendChar('\n');
+            } else {
+                MdBlockStart(out, pageBreak);
+            }
+            for (int h = 0; h < heading; h++) {
+                out.AppendChar('#');
+            }
+            if (heading) {
+                out.AppendChar(' ');
+            }
+            if (listPrefix) {
+                if (str::IsDigit(text.s[0])) {
+                    int n = 0;
+                    while (n < len(text) && str::IsDigit(text.s[n])) {
+                        out.AppendChar(text.s[n++]);
+                    }
+                    out.Append(StrL(". "));
+                } else {
+                    out.Append(StrL("- "));
+                }
+                text = Str(text.s + listPrefix, len(text) - listPrefix);
+            }
+            MdEscape(out, text);
+            previousBlock = line.block;
+            previousList = listPrefix != 0;
+            previousHeading = heading != 0;
+            if (MdOver(out)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static bool MdImage(fz_context* ctx, fz_image* image, MdPage* page) {
+    if ((i64)image->w * image->h > kMdMaxImagePixels) {
+        return false;
+    }
+    fz_buffer* png = nullptr;
+    fz_buffer* base64 = nullptr;
+    bool ok = false;
+    fz_var(png);
+    fz_var(base64);
+    fz_var(ok);
+    fz_try(ctx) {
+        png = fz_new_buffer_from_image_as_png(ctx, image, fz_default_color_params);
+        unsigned char* data = nullptr;
+        i64 pngSize = (i64)fz_buffer_storage(ctx, png, &data);
+        // base64 grows the PNG by 4/3; refuse before allocating it
+        if (page->bytes + pngSize / 3 * 4 + 4 <= gMdMaxOutput) {
+            base64 = fz_new_buffer(ctx, 0);
+            fz_append_base64_buffer(ctx, base64, png, 0);
+            i64 size = (i64)fz_buffer_storage(ctx, base64, &data);
+            Str text = str::Dup(Str((char*)data, (int)size));
+            VecAppend(page->lines, MdLine{text, 0, {}, 0, true});
+            page->bytes += size;
+            ok = true;
+        } else {
+            page->tooLarge = true;
+        }
+    }
+    fz_always(ctx) {
+        fz_drop_buffer(ctx, base64);
+        fz_drop_buffer(ctx, png);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    return ok;
+}
+
+// mupdf puts widely spaced cells on separate lines; rejoin lines sharing a baseline (table rows).
+static bool MdSameRow(const MdLine& a, const MdLine& b) {
+    if (a.image || b.image || a.size <= 0 || b.size <= 0) {
+        return false;
+    }
+    float tolerance = fminf(a.size, b.size) * 0.5f;
+    float dy = (a.box.y0 + a.box.y1) / 2 - (b.box.y0 + b.box.y1) / 2;
+    return fabsf(dy) < tolerance && b.box.x0 >= a.box.x1;
+}
+
+static void MdMergeRows(MdPage* page) {
+    Vec<MdLine>& lines = page->lines;
+    int n = 0;
+    for (int i = 0; i < len(lines); i++) {
+        MdLine cur = lines[i];
+        if (n == 0 || !MdSameRow(lines[n - 1], cur)) {
+            lines[n++] = cur;
+            continue;
+        }
+        MdLine& prev = lines[n - 1];
+        str::Builder joined;
+        joined.Append(prev.text);
+        joined.Append(StrL("  "));
+        joined.Append(cur.text);
+        str::Free(prev.text);
+        str::Free(cur.text);
+        prev.text = str::Dup(ToStrTemp(joined));
+        prev.box.x1 = cur.box.x1;
+        prev.box.y0 = fminf(prev.box.y0, cur.box.y0);
+        prev.box.y1 = fmaxf(prev.box.y1, cur.box.y1);
+    }
+    lines.len = n;
+}
+
+static bool MdExtract(fz_context* ctx, fz_stext_page* stext, MdPage* page) {
+    page->bounds = stext->mediabox;
+    int blockId = 0;
+    for (fz_stext_block* block = stext->first_block; block; block = block->next) {
+        blockId++;
+        if (block->type == FZ_STEXT_BLOCK_IMAGE) {
+            if (!MdImage(ctx, block->u.i.image, page)) {
+                return false;
+            }
+            continue;
+        }
+        if (block->type != FZ_STEXT_BLOCK_TEXT) {
+            continue;
+        }
+        for (fz_stext_line* line = block->u.t.first_line; line; line = line->next) {
+            str::Builder text;
+            float size = 0;
+            int chars = 0;
+            fz_stext_char* prev = nullptr;
+            for (fz_stext_char* ch = line->first_char; ch; ch = ch->next) {
+                if (prev && line->wmode == 0 && line->dir.x > 0.9f &&
+                    ch->origin.x - prev->quad.lr.x > ch->size * 1.5f) {
+                    text.Append(StrL("  "));
+                }
+                char utf8[8];
+                int n = fz_runetochar(utf8, ch->c);
+                text.Append(Str(utf8, n));
+                if (ch->c > ' ') {
+                    size += ch->size;
+                    chars++;
+                }
+                prev = ch;
+            }
+            Str value = MdTrim(ToStrTemp(text));
+            if (len(value) == 0) {
+                continue;
+            }
+            page->bytes += len(value);
+            if (page->bytes > gMdMaxOutput) {
+                page->tooLarge = true;
+                return false;
+            }
+            VecAppend(page->lines, MdLine{str::Dup(value), chars ? size / chars : 0, line->bbox, blockId});
+        }
+    }
+    MdMergeRows(page);
+    return true;
+}
+
+constexpr const char* kMdTooLarge = "The Markdown output is too large. Try fewer pages or exclude images.";
+
+// Extracts one page of the live document, so password access and unsaved edits match the viewer.
+static bool MdLoadPage(EngineMupdf* e, int pageNo, bool images, MdPage* page, Str& error) {
+    if (pageNo < 1 || pageNo > e->PageCount()) {
+        error = StrL("Invalid page range.");
+        return false;
+    }
+    auto* ctx = e->Ctx();
+    ScopedRecursiveMutex csPages(&e->pagesLock);
+    FzPageInfo* info = e->GetFzPageInfo(pageNo, true);
+    if (!info || !info->page) {
+        error = StrL("Failed to load a page.");
+        return false;
+    }
+    ScopedMutex csRender(&e->renderLock);
+    ScopedRecursiveMutex csDoc(&e->docLock);
+    fz_stext_page* stext = nullptr;
+    fz_var(stext);
+    fz_stext_options extraction{};
+    extraction.flags = FZ_STEXT_PRESERVE_WHITESPACE;
+    if (images) {
+        extraction.flags |= FZ_STEXT_PRESERVE_IMAGES;
+    }
+    fz_try(ctx) {
+        stext = fz_new_stext_page_from_page(ctx, info->page, &extraction);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    if (!stext) {
+        error = StrL("Failed to extract a page.");
+        return false;
+    }
+    bool ok = MdExtract(ctx, stext, page);
+    fz_drop_stext_page(ctx, stext);
+    if (!ok) {
+        error = page->tooLarge ? Str(kMdTooLarge) : StrL("An image could not be exported. Try excluding images.");
+    }
+    return ok;
+}
+
+// Pass 1 (only if headings or margin removal need it) reads text of every page for statistics;
+// pass 2 renders page by page, so memory stays bounded by one page and the output cap.
+Str EngineMupdfToMarkdown(EngineBase* engine, const Vec<int>& pageNumbers, const MarkdownConversion& opts, Str& error) {
+    error = {};
+    EngineMupdf* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc || !engine->allowsCopyingText || len(pageNumbers) == 0) {
+        error = StrL("This document does not allow text extraction.");
+        return {};
+    }
+    int nPages = len(pageNumbers);
+    MdStats stats;
+    if (opts.detectHeadings || (opts.removePageEdges && nPages > 1)) {
+        for (int pageNo : pageNumbers) {
+            MdPage page;
+            if (!MdLoadPage(e, pageNo, false, &page, error)) {
+                return {};
+            }
+            MdStatsAdd(stats, &page);
+        }
+        MdStatsFinish(stats, nPages);
+    }
+
+    str::Builder out;
+    bool pageBreak = false;
+    for (int p = 0; p < nPages; p++) {
+        MdPage page;
+        if (!MdLoadPage(e, pageNumbers[p], opts.includeImages, &page, error)) {
+            return {};
+        }
+        if (!MdRenderPage(out, pageBreak, &page, stats, opts, p)) {
+            error = Str(kMdTooLarge);
+            return {};
+        }
+    }
+    if (len(out) == 0) {
+        error = StrL("No extractable text or images. Scanned text needs OCR.");
+        return {};
+    }
+    out.AppendChar('\n');
+    return out.TakeStr();
+}
 
 // A5
 static float layoutA5DxPt = 420.F;
@@ -4159,6 +4669,160 @@ bool EngineMupdf_UnitTestPageLabels() {
     ok = ok && engine->GetPageByLabel(StrL("i")) == 1;
     ok = ok && engine->GetPageByLabel(StrL("1")) == 4;
     ok = ok && engine->GetPageByLabel(StrL("2")) == 5;
+    SafeEngineRelease(&engine);
+    return ok;
+}
+
+static TempStr MdTestStreamTemp(Str content) {
+    return fmt("<< /Length %d >>\nstream\n%s\nendstream", len(content), content);
+}
+
+bool EngineMupdf_UnitTestMarkdown() {
+    TempStr page1 = StrL(
+        "BT /F1 10 Tf 72 30 Td (Running Header) Tj ET\n"
+        "BT /F1 24 Tf 72 700 Td (Main Title) Tj ET\n"
+        "BT /F1 12 Tf 72 660 Td (Body text line one) Tj ET\n"
+        "BT /F1 12 Tf 72 646 Td (continues here.) Tj ET\n"
+        "BT /F1 12 Tf 72 610 Td (- first item) Tj ET\n"
+        "BT /F1 12 Tf 72 596 Td (- second item) Tj ET\n"
+        "BT /F1 12 Tf 72 540 Td (Name) Tj 230 0 Td (Qty) Tj ET\n"
+        "BT /F1 12 Tf 72 526 Td (Apple) Tj 230 0 Td (3) Tj ET\n");
+    TempStr page2 = StrL(
+        "BT /F1 10 Tf 72 30 Td (Running Header) Tj ET\n"
+        "BT /F1 12 Tf 72 660 Td (Second page) Tj ET\n");
+    const char* objs[] = {
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 7 0 R >> >> "
+        ">>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> "
+        ">>",
+        CStrTemp(MdTestStreamTemp(page1)),
+        CStrTemp(MdTestStreamTemp(page2)),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    };
+    TempStr pdf = AssemblePdfTemp(objs, dimof(objs));
+    EngineBase* engine = CreateEngineMupdfFromData(pdf, StrL("markdown.pdf"), nullptr);
+    if (!engine) {
+        return false;
+    }
+    Vec<int> pages;
+    VecAppend(pages, 1);
+    VecAppend(pages, 2);
+
+    MarkdownConversion all{true, true, true, true, true, true, false};
+    Str error;
+    Str md = EngineMupdfToMarkdown(engine, pages, all, error);
+    bool ok = len(md) > 0 && len(error) == 0;
+    ok = ok && str::Contains(md, StrL("# Main Title\n"));
+    ok = ok && str::Contains(md, StrL("Body text line one continues here."));
+    ok = ok && str::Contains(md, StrL("- first item\n- second item"));
+    ok = ok && str::Contains(md, StrL("| Name | Qty |\n| --- | --- |\n| Apple | 3 |"));
+    ok = ok && str::Contains(md, StrL("\n---\n\nSecond page"));
+    ok = ok && !str::Contains(md, StrL("Running Header"));
+    if (!ok) {
+        logf("markdown test (all options) failed, error '%s':\n%s\n", error, md);
+    }
+    str::Free(md);
+
+    MarkdownConversion none{false, false, false, false, false, false, false};
+    md = EngineMupdfToMarkdown(engine, pages, none, error);
+    ok = ok && len(md) > 0;
+    ok = ok && !str::Contains(md, StrL("# "));
+    ok = ok && !str::Contains(md, StrL("| --- |"));
+    ok = ok && !str::Contains(md, StrL("\n---\n"));
+    ok = ok && str::Contains(md, StrL("Running Header"));
+    ok = ok && str::Contains(md, StrL("Body text line one"));
+    if (!ok) {
+        logf("markdown test (no options) failed:\n%s\n", md);
+    }
+    str::Free(md);
+
+    // bullets stay separate paragraphs when only line joining is on
+    MarkdownConversion joinOnly{false, false, false, true, false, false, false};
+    md = EngineMupdfToMarkdown(engine, pages, joinOnly, error);
+    ok = ok && str::Contains(md, StrL("Body text line one continues here."));
+    ok = ok && str::Contains(md, StrL("\\- first item\n\n\\- second item"));
+    str::Free(md);
+
+    SafeEngineRelease(&engine);
+    return ok;
+}
+
+static int MdTestCount(Str s, Str needle) {
+    int n = 0;
+    for (int i = 0; i + len(needle) <= len(s); i++) {
+        n += memcmp(s.s + i, needle.s, len(needle)) == 0 ? 1 : 0;
+    }
+    return n;
+}
+
+// one-page PDF holding `content`, plus a 2x2 gray image /Im1 for it to draw
+static EngineBase* MdTestEngine(Str content) {
+    TempStr stream = MdTestStreamTemp(content);
+    const char* objs[] = {
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> "
+        "/XObject << /Im1 6 0 R >> >> >>",
+        CStrTemp(stream),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        "<< /Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 4 "
+        ">>\nstream\nABCD\nendstream",
+    };
+    return CreateEngineMupdfFromData(AssemblePdfTemp(objs, dimof(objs)), StrL("limit.pdf"), nullptr);
+}
+
+// the output cap must stop image-heavy and table-heavy output, not just plain text
+bool EngineMupdf_UnitTestMarkdownLimit() {
+    struct RestoreLimit {
+        int saved = gMdMaxOutput;
+        ~RestoreLimit() { gMdMaxOutput = saved; }
+    } restore;
+    Vec<int> pages;
+    VecAppend(pages, 1);
+    Str error;
+    bool ok = true;
+
+    str::Builder imageContent;
+    for (int i = 0; i < 5; i++) {
+        imageContent.Append(fmt("q 50 0 0 50 72 %d cm /Im1 Do Q\n", 700 - 60 * i));
+    }
+    EngineBase* engine = MdTestEngine(ToStrTemp(imageContent));
+    if (!engine) {
+        return false;
+    }
+    MarkdownConversion images{false, false, false, false, false, false, true};
+    Str md = EngineMupdfToMarkdown(engine, pages, images, error);
+    ok = ok && len(md) > 0 && MdTestCount(md, StrL("![Image](data:image/png;base64,")) == 5;
+    str::Free(md);
+    gMdMaxOutput = 300;
+    md = EngineMupdfToMarkdown(engine, pages, images, error);
+    ok = ok && len(md) == 0 && str::Contains(error, StrL("too large"));
+    str::Free(md);
+    gMdMaxOutput = 100;
+    md = EngineMupdfToMarkdown(engine, pages, images, error);
+    ok = ok && len(md) == 0 && str::Contains(error, StrL("too large"));
+    str::Free(md);
+    SafeEngineRelease(&engine);
+    gMdMaxOutput = restore.saved;
+
+    str::Builder rowContent;
+    for (int i = 1; i <= 40; i++) {
+        rowContent.Append(fmt("BT /F1 12 Tf 72 %d Td (R%d) Tj 230 0 Td (%d) Tj ET\n", 740 - 14 * i, i, i));
+    }
+    engine = MdTestEngine(ToStrTemp(rowContent));
+    if (!engine) {
+        return false;
+    }
+    MarkdownConversion tables{false, false, true, false, false, false, false};
+    md = EngineMupdfToMarkdown(engine, pages, tables, error);
+    ok = ok && len(md) > 0 && MdTestCount(md, StrL("| R")) == 40;
+    str::Free(md);
+    gMdMaxOutput = 400;
+    md = EngineMupdfToMarkdown(engine, pages, tables, error);
+    ok = ok && len(md) == 0 && str::Contains(error, StrL("too large"));
+    str::Free(md);
     SafeEngineRelease(&engine);
     return ok;
 }

@@ -2115,3 +2115,5 @@ EXPORTS
 	fz_font_is_serif
 	fz_font_is_monospaced
 	fz_font_name
+	fz_new_buffer_from_image_as_png
+	fz_append_base64_buffer
