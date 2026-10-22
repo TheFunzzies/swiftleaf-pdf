@@ -15,6 +15,8 @@
 #include "gui/VirtCtrl.h"
 #include "gui/win/TabsCtrl.h"
 
+#include "Material.h"
+
 // Forward declaration - defined in MainWindow.cpp
 struct MainWindow;
 MainWindow* FindMainWindowByHwnd(HWND hwnd);
@@ -221,7 +223,9 @@ void TabCtrl::Paint(VirtPaintCtx& ctx) {
         textColor = IsLightColor(tabBgCol) ? MkRgb(0xC4, 0x1E, 0x1E) : MkRgb(0xFF, 0x6A, 0x6A);
     }
 
-    gfx->FillRect(r, tabBgCol);
+    // PDFCraft-style rounded tabs
+    int radius = DpiScale(kChromeCornerDiameter);
+    gfx->FillRoundedRect(r, radius, tabBgCol);
 
     bool isRtl = IsTabsRtl(hwnd);
     PlatformFont* font = tabsCtrl->GetFont();
