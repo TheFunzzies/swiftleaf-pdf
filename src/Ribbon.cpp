@@ -657,8 +657,9 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
     int radius = DpiScale(8);
     const M3Scheme& m3 = M3();
     Color container = RibbonPanelBgColor();
+    // PDFCraft: blue accent for active controls
     if (isSelected && enabled) {
-        container = m3.secondaryContainer;
+        container = M3StateLayer(RibbonPanelBgColor(), m3.primary, 12);
     }
     int layer = 0;
     if (enabled && HasFlag(vwfPressed)) {
