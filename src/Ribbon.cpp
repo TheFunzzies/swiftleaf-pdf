@@ -812,7 +812,8 @@ void RibbonTab::Paint(VirtPaintCtx& ctx) {
         Color bg = isActive ? RibbonPanelBgColor() : RibbonTabRowBgColor();
         ctx.gfx->FillRoundedRect(hi, DpiScale(6), M3StateLayer(bg, m3.onSurface, layer));
     }
-    Color col = isActive ? m3.primary : m3.onSurfaceVariant;
+    // PDFCraft: neutral active text for underlined mode bar
+    Color col = isActive ? m3.onSurface : m3.onSurfaceVariant;
     Rect rText = r;
     rText.dy -= DpiScale(kRibbonTabUnderlineDy);
     ctx.gfx->DrawText(label, rText, gfxTextCenter | gfxTextVCenter | gfxTextSingleLine, font, col);
