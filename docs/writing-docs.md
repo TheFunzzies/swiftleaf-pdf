@@ -36,7 +36,7 @@ A video goes on its own line, e.g. right after the title:
 `:video <youtube link> <r2 link>` (the R2 link is the web version under
 `https://files.sumatrapdfreader.org/assets/sumatrapdf/docs/video/`). The website and the
 in-app manual (`gen_docs.render.js`) render it as an embedded YouTube player. How to record
-and upload one: "Doc videos" in the website's `agents.md`.
+and upload one: "Doc videos" in the website's `docs/development.md`.
 
 ## Index
 

@@ -1,4 +1,4 @@
-// Shared helpers for tests/. See agents.md "Writing tests".
+// Shared helpers for tests/. See docs/development.md "Writing tests".
 //
 // Each tests/issue-<n>.ts exports `async function testit()` that runs the test
 // and THROWS on failure (returns normally on success). It does NOT build the app

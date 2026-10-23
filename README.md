@@ -1,13 +1,17 @@
-# Swiftleaf PDF
+# SwiftLeaf PDF
 
-A fast, lightweight PDF reader and editor for Windows with a modern ribbon interface.
+A fast, lightweight PDF reader and editor for Windows.
+
+[![Download](https://img.shields.io/github/v/release/TheFunzzies/swiftleaf-pdf?label=Download&style=for-the-badge)](https://github.com/TheFunzzies/swiftleaf-pdf/releases/latest)
+
+**[Download the latest release](https://github.com/TheFunzzies/swiftleaf-pdf/releases/latest)**
+
+| File                   | Use                                                    |
+| ---------------------- | ------------------------------------------------------ |
+| `Swiftleaf.exe`        | portable: download and run, nothing to install         |
+| `Swiftleaf-install.exe`| installer: adds Start menu entry and file associations |
 
 See the [changelog](CHANGELOG.md) for versioned changes and known limitations.
-
-Swiftleaf is a fork of [SumatraPDF](https://github.com/sumatrapdfreader/sumatrapdf)
-(small, instant-start, MuPDF-based) with a Foxit / Acrobat style ribbon UI and
-editing features inspired by [Okular](https://invent.kde.org/graphics/okular)
-(annotation review tools, forms, signatures, page organization).
 
 ## Features
 
@@ -48,31 +52,26 @@ powershell -File tools/swiftleaf/build.ps1 -Config Debug
 
 Or open `vs2022/SumatraPDF.sln` in Visual Studio. After adding or removing
 source files, regenerate the projects with `bin/premake5.exe vs2022`.
-
-To try a build without touching your settings:
-
-```powershell
-out/rel64/Swiftleaf.exe -for-testing docs/test/swiftleaf-sample.pdf
-```
-
-## Installing
-
-The executable carries its own installer: run it and choose **Install**, or use
-the installer published on the GitHub Releases page (built by CI).
+Every tagged release is built by CI and published on the Releases page.
 
 ## Project layout
 
-| Path                        | What                                                           |
-| --------------------------- | -------------------------------------------------------------- |
-| `src/Ribbon.*`              | Swiftleaf ribbon: controls, colors, icons, page contents       |
-| `src/Toolbar.cpp`           | toolbar host; builds the ribbon and keeps button state current |
-| `src/`                      | the application (SumatraPDF code base)                         |
-| `ext/`                      | vendored libraries (MuPDF, FreeType, HarfBuzz, ...)            |
-| `tools/swiftleaf/`          | build, screenshot and sample-document scripts                  |
-| `docs/SumatraPDF-readme.md` | the upstream README                                            |
+| Path                | What                                                    |
+| ------------------- | ------------------------------------------------------- |
+| `src/`              | the application                                         |
+| `ext/`              | vendored libraries (MuPDF, FreeType, HarfBuzz, ...)     |
+| `vs2022/`, `premake5*.lua`, `bin/` | build system and build tools            |
+| `cmd/`, `tests/`    | build scripts and test suites                           |
+| `tools/swiftleaf/`  | build, screenshot and sample-document scripts           |
+| `docs/`             | user docs and `development.md`; old notes in `archive/` |
 
-## License
+## Credits and license
+
+SwiftLeaf is a fork of [SumatraPDF](https://github.com/sumatrapdfreader/sumatrapdf)
+by Krzysztof Kowalczyk and contributors (see `AUTHORS`; the upstream readme is
+kept in `docs/upstream-readme.md`). Its interface is inspired by
+[PDFCraft](https://github.com/PDFCraftTool/pdfcraft) and its editing features
+by [Okular](https://invent.kde.org/graphics/okular).
 
 GPLv3 (see `COPYING`), with parts under BSD (`COPYING.BSD`) and MuPDF under
-AGPLv3. Swiftleaf is based on SumatraPDF by Krzysztof Kowalczyk and contributors
-(see `AUTHORS`). Icons are [Tabler Icons](https://tabler.io/icons) (MIT).
+AGPLv3. Icons are [Tabler Icons](https://tabler.io/icons) (MIT).
