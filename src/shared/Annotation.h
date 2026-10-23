@@ -131,6 +131,8 @@ Vec<RectF> GetQuadPointsAsRect(Annotation*);
 Str Author(Annotation*);
 time_t ModificationDate(Annotation*);
 void SetModificationDateToNow(Annotation*);
+int AnnotationId(Annotation*);
+int AnnotationReplyTo(Annotation*);
 int PopupId(Annotation*); // -1 if not exist
 Str AnnotationReadableNameTemp(AnnotationType tp);
 AnnotationType Type(Annotation*);

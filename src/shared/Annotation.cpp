@@ -759,6 +759,16 @@ void DeleteAnnotation(Annotation* annot) {
     delete annot;
 }
 
+int AnnotationId(Annotation* annot) {
+    return ReadAnnot(annot, 0, [](fz_context* ctx, pdf_annot* a) { return pdf_to_num(ctx, pdf_annot_obj(ctx, a)); });
+}
+
+int AnnotationReplyTo(Annotation* annot) {
+    return ReadAnnot(annot, 0, [](fz_context* ctx, pdf_annot* a) {
+        return pdf_to_num(ctx, pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(IRT)));
+    });
+}
+
 // -1 if not exist
 int PopupId(Annotation* annot) {
     return ReadAnnot(annot, -1, [](fz_context* ctx, pdf_annot* a) {
