@@ -11,6 +11,12 @@
 - Page stamps unit tests asserting text extraction on the right pages.
 - Documentation for page marks and stamps in docs/page-stamps.md.
 
+### Security
+
+- Releases publish SHA-256 checksums; the updater refuses downloads whose
+  checksum is missing or does not match. Authenticode signing is available
+  through repository secrets.
+
 ## 0.4.1 - 2026-10-23
 
 ### Changed
