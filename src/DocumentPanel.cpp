@@ -212,6 +212,13 @@ static TempStr AttachmentFileName(Str name) {
     TempStr ext = path::GetExtTemp(name);
     if (len(ext) > 0) name = Str(name.s, name.len - len(ext));
     while (len(name) > 0 && (name.s[name.len - 1] == '.' || name.s[name.len - 1] == ' ')) name.len--;
+    bool hasExtraExtension = false;
+    for (int i = 0; i < len(name); i++) {
+        if (name.s[i] == '.') {
+            hasExtraExtension = true;
+            break;
+        }
+    }
     str::Builder safe;
     safe.Append(StrL("attachment-"));
     for (int i = 0; i < std::min(len(name), 96); i++) {
@@ -220,17 +227,18 @@ static TempStr AttachmentFileName(Str name) {
                        c == '_' || c == '.';
         safe.AppendChar(allowed ? c : '_');
     }
-    if (len(ext) > 1 && len(ext) <= 16) {
-        bool valid = true;
-        for (int i = 0; i < len(ext); i++) {
-            char c = ext.s[i];
-            bool alnum = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
-            if (!alnum && !(i == 0 && c == '.')) valid = false;
-        }
-        if (valid) {
-            safe.Append(ext);
+    // Only common passive document/image types keep an association. Every
+    // other payload gets a non-associated suffix before it is revealed.
+    static const char* safeExts[] = {".pdf", ".png",  ".jpg",  ".jpeg", ".gif", ".bmp",
+                                     ".tif", ".tiff", ".webp", ".txt",  ".csv"};
+    bool keepExt = false;
+    for (const char* safeExt : safeExts) {
+        if (str::EqI(ext, Str(safeExt))) {
+            keepExt = true;
+            break;
         }
     }
+    safe.Append(keepExt && !hasExtraExtension ? ext : StrL(".extracted"));
     return ToStrTemp(safe);
 }
 
@@ -312,6 +320,7 @@ static void OnAttachmentRowClick(MainWindow* win, VirtMouseEvent* ev) {
             DocumentPanelTrackExtractedFile(win, dest);
             // Embedded data must never be executed by its file association.
             OpenPathInDefaultFileManager(dest);
+            str::Free(dest);
         }
     }
     str::Free(name);
@@ -796,7 +805,7 @@ static void StyleBanner(MainWindow* win) {
 static void PaintBanner(FormBannerVirt*, VirtHostPaintEvent* ev) {
     const M3Scheme& m3 = M3();
     Rect r = ev->clientRect;
-    ev->gfx->FillRoundedRect(r, DpiScale(12), m3.surfaceContainerHigh, m3.outline);
+    ev->gfx->FillRoundedRect(r, DpiScale(12), m3.surfaceContainerHigh, m3.outlineVariant);
 }
 
 void CreateFormBanner(MainWindow* win) {
@@ -937,7 +946,12 @@ void DocumentPanel_UnitTests() {
             utassert(!path::IsSame(first, second));
             utassert(!path::IsSame(path::GetDirTemp(first), path::GetDirTemp(second)));
             utassert(path::IsInDir(first, GetTempDirTemp()));
-            if (str::EndsWithI(name, StrL(".html"))) utassert(str::EndsWithI(first, StrL(".html")));
+            if (str::EndsWithI(name, StrL(".pdf")))
+                utassert(str::EndsWithI(first, StrL(".pdf")));
+            else if (str::EndsWithI(name, StrL(".txt")))
+                utassert(str::EndsWithI(first, StrL(".txt")));
+            else
+                utassert(str::EndsWithI(first, StrL(".extracted")));
             utassert(!str::EndsWith(first, StrL(".")) && !str::EndsWith(first, StrL(" ")));
             Str data = file::ReadFile(first);
             utassert(str::Eq(data, StrL("first")));
@@ -953,6 +967,15 @@ void DocumentPanel_UnitTests() {
         str::Free(first);
         str::Free(second);
     }
+    const Str unsafeNames[] = {StrL("x.exe"), StrL("x.Js"),      StrL("x.hta"),     StrL("x.bat"),  StrL("x.lnk"),
+                               StrL("x.url"), StrL("x.pdf.exe"), StrL("x.exe.pdf"), StrL("x.exe."), StrL("x.exe ")};
+    for (Str name : unsafeNames) {
+        utassert(str::EndsWithI(AttachmentFileName(name), StrL(".extracted")));
+    }
+    utassert(str::EndsWithI(AttachmentFileName(StrL("x.PNG")), StrL(".PNG")));
+    utassert(str::EndsWithI(AttachmentFileName(StrL("x.pdf")), StrL(".pdf")));
+    utassert(str::EndsWithI(AttachmentFileName(StrL("no-extension")), StrL(".extracted")));
+
     TempStr sentinel = GetTempFilePathTemp(StrL("swiftleaf-review"));
     utassert(file::WriteFile(sentinel, StrL("keep")));
     Str extracted = DocumentPanelExtractAttachment(path::GetBaseNameTemp(sentinel), StrL("replace"));

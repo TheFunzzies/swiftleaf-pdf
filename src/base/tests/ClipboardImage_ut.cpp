@@ -32,7 +32,17 @@ static Pixmap* MakeHalfTransparent(int w, int h) {
 }
 
 static Str ReadClipboardFormat(UINT fmt) {
-    if (!OpenClipboard(GetClipboardOwnerWnd())) {
+    constexpr int kTries = 10;
+    constexpr int kPauseMs = 20;
+    bool opened = false;
+    for (int i = 0; i < kTries; i++) {
+        if (OpenClipboard(GetClipboardOwnerWnd())) {
+            opened = true;
+            break;
+        }
+        Sleep(kPauseMs);
+    }
+    if (!opened) {
         logf("ReadClipboardFormat: OpenClipboard failed error=%lu sequence=%lu\n", GetLastError(),
              GetClipboardSequenceNumber());
         return {};

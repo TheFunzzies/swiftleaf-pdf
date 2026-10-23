@@ -188,19 +188,16 @@ static void LaunchEmbeddedDestination(MainWindow* win, PageDestination* pd) {
         str::Free(data);
         return;
     }
-    TempStr tmpDir = GetTempDirPathTemp();
-    TempStr tmpPath = path::JoinTemp(tmpDir, path::GetBaseNameTemp(fileName));
-    if (len(tmpDir) == 0 || !file::WriteFile(tmpPath, data)) {
+    // Reserve a unique file atomically; never trust the embedded basename or
+    // let attachment bytes replace an existing file. Reveal only, don't launch.
+    TempStr tmpPath = GetTempFilePathTemp(StrL("swiftleaf-attachment-"));
+    if (len(tmpPath) == 0 || !file::WriteFile(tmpPath, data)) {
+        if (tmpPath) file::Delete(tmpPath);
         str::Free(data);
         return;
     }
-    // a type the shell isn't allowed to open is shown in the file manager instead
-    if (OpenFileExternally(tmpPath)) {
-        logf("LaunchEmbeddedDestination: opened '%s'\n", tmpPath);
-    } else {
-        logf("LaunchEmbeddedDestination: showing '%s' in the file manager\n", tmpPath);
-        OpenPathInDefaultFileManager(tmpPath);
-    }
+    OpenPathInDefaultFileManager(tmpPath);
+    logf("LaunchEmbeddedDestination: showing '%s' in the file manager\n", tmpPath);
     str::Free(data);
 }
 
