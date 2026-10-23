@@ -51,6 +51,8 @@ tools/swiftleaf/branding-allowlist.txt
 @token SumatraPDF_ThumbnailNavigation
 @token SumatraPDF-prerel
 @token /t:SumatraPDF
+@token -Target SumatraPDF
+@token = "SumatraPDF"
 @token libsumatrapdf
 @token sumatrapdf-tool
 @token SUMATRA_
