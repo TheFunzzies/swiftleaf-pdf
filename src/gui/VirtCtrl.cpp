@@ -3416,8 +3416,12 @@ void RefreshVirtTops(HWND hwnd, ILayout* layout, Rect bounds, VirtRoot** rootInO
         *rootInOut = root;
     }
     root->bounds = bounds;
+    VirtCtrl* focused = root->focused;
     root->SetTops(tops);
     SetLayoutRoots(layout, root);
+    Vec<VirtCtrl*> focusable;
+    CollectFocusLayout(layout, focusable);
+    if (focused && VecContains(focusable, focused)) root->SetFocus(focused);
     // A top-level control's `bounds` is relative to the root's origin, but
     // SetBounds() computed it against whatever origin the root had *then* -
     // for a first layout that's no root at all, and for a caller that lays out

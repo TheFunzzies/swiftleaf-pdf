@@ -1,3 +1,4 @@
+import { panelButton, TOOLS_PANEL_CLASS } from "./contextual-panel.ts";
 // The color chips of a selected annotation open the same color drop-down the
 // Edit PDF toolbar's markup buttons have, and the color they apply carries its
 // own opacity, so an annotation with a color chip has no opacity chip.
@@ -47,7 +48,7 @@ import {
 } from "./win-automation.ts";
 
 const TOOLBAR_CLASS = "SumatraAnnotEditToolbar";
-const MAIN_TOOLBAR_CLASS = "SUMATRA_VIRT_TOOLBAR";
+const MAIN_TOOLBAR_CLASS = TOOLS_PANEL_CLASS;
 const HOVER_MENU_CLASS = "SumatraToolbarHoverMenu";
 const POPUP_CLASS = "SumatraAnnotColorPopup";
 // the two preset colors the test picks from: translucent red, opaque green
@@ -398,18 +399,9 @@ const DEFAULT_COLORS: Record<string, string> = {
 
 // the visible annotation button for a command, in toolbar client coords
 async function annotButtonRect(client: ControlClient, cmd: number): Promise<Rect | null> {
-  const raw = String((await client.request(ControlCommand.TestToolbarButtons, []))[1] ?? "");
-  const re = /annotation-idx=\d+ cmd=(\d+) hidden=(\d) enabled=\d rect=(-?\d+),(-?\d+),(-?\d+),(-?\d+)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(raw)) !== null) {
-    if (+m[1]! === cmd && m[2] === "0") {
-      const x = +m[3]!;
-      const y = +m[4]!;
-      return { x, y, dx: +m[5]! - x, dy: +m[6]! - y };
-    }
-  }
-  return null;
+  return panelButton(client, toolsFrame, cmd);
 }
+let toolsFrame = 0;
 
 // the colors the open drop-down lists, the one in use marked with a *. The ink
 // button's drop-down also has a thickness slider (tests/ink-thickness.ts),
@@ -480,6 +472,7 @@ async function testToolbarButtons(): Promise<void> {
     await client.waitForRenderIdle();
     await client.setNotificationsEnabled(false);
     sendCommandSync(frame, cmdId("CmdToggleEditPDF"));
+    toolsFrame = frame;
     const toolbar = findChildByClass(frame, MAIN_TOOLBAR_CLASS);
 
     // none of them has a color set, so each one's default is marked as the one
@@ -627,6 +620,7 @@ async function testCurrentColorAdded(): Promise<void> {
     await client.waitForRenderIdle();
     await client.setNotificationsEnabled(false);
     sendCommandSync(frame, cmdId("CmdToggleEditPDF"));
+    toolsFrame = frame;
     const toolbar = findChildByClass(frame, MAIN_TOOLBAR_CLASS);
 
     for (const [name, want] of [

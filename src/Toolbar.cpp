@@ -1725,7 +1725,7 @@ TempStr ToolbarButtonsResultTemp(int* exitCodeOut) {
     for (int i = 0; i < n; i++) {
         VirtCtrl* w = tb->items[i];
         Rect r = w ? w->BoundsInWindow() : Rect{};
-        bool hidden = !w || w->GetVisibility() != Visibility::Visible;
+        bool hidden = !w || w->GetVisibility() != Visibility::Visible || !IsOnShownRibbonPage(win, w);
         // Match the old Win32 dump: TBIF_TEXT. Built-in buttons store the
         // tooltip (with accelerator); custom ones stored the raw name.
         Str text{};

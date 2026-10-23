@@ -13,7 +13,7 @@ test("resolved FreeText failures must fail normally if they recur", () => {
   );
 });
 
-test("only the documented legacy ribbon failures are accepted", () => {
+test("resolved contextual panel failures must fail normally", () => {
   for (const [name, message] of [
     ["annot-undo-redo", "annot-undo-redo: CmdUndo is not on the Edit PDF toolbar"],
     ["annot-color-dropdown", "annot-color-dropdown: no CmdCreateAnnotText button on the Edit PDF toolbar"],
@@ -22,7 +22,7 @@ test("only the documented legacy ribbon failures are accepted", () => {
       "Apply Redactions is on the toolbar with nothing marked (the annotation toolbar never came up)",
     ],
   ]) {
-    expect(matchesKnown(name!, message!)).toBe(true);
+    expect(matchesKnown(name!, message!)).toBe(false);
     expect(matchesKnown(name!, "app crashed")).toBe(false);
   }
 });

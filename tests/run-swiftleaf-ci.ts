@@ -7,6 +7,7 @@ const resultsDir = join(root, ".work", "swiftleaf-ci");
 const timeoutMs = 120_000;
 const screenshotTimeoutMs = 5000;
 const smokeTests = [
+  "contextual-panel",
   "free-text-annotation-placement",
   "free-text-custom-style",
   "free-text-draft",
@@ -36,21 +37,9 @@ const smokeTests = [
 
 // Keep observed baseline failures visible; a different failure still fails CI.
 const knownFailures: Record<string, { reason: string; pattern: RegExp }> = {
-  "annot-undo-redo": {
-    reason: "The Edit PDF ribbon does not expose the legacy CmdUndo toolbar button.",
-    pattern: /annot-undo-redo: CmdUndo is not on the Edit PDF toolbar/,
-  },
   "pdf-edit-toolbar-interaction": {
     reason: "The annotation hover date omits the UTC suffix required by the test.",
     pattern: /annotation metadata is wrong[\s\S]*row author=Ada[\s\S]*row date=2026-08-24 12:34\r?\n/,
-  },
-  "redact-annotations": {
-    reason: "The Redact ribbon does not expose the legacy annotation toolbar used by the test.",
-    pattern: /Apply Redactions is on the toolbar with nothing marked \(the annotation toolbar never came up\)/,
-  },
-  "annot-color-dropdown": {
-    reason: "The Edit PDF ribbon does not expose the legacy CmdCreateAnnotText toolbar button.",
-    pattern: /annot-color-dropdown: no CmdCreateAnnotText button on the Edit PDF toolbar/,
   },
 };
 

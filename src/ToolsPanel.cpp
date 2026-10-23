@@ -149,6 +149,7 @@ void ToolsPanelAfterThemeChange(MainWindow* win) {
         panel->strip->Invalidate(true);
     }
     panel->host->Invalidate(true);
+    ToolsPanelUpdate(win);
 }
 
 void ToolsPanelUpdate(MainWindow* win) {

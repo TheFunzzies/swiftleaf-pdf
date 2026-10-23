@@ -1,3 +1,4 @@
+import { panelRows } from "./contextual-panel.ts";
 // Redact marks selected text or a dragged rectangle; Apply Redactions
 // permanently removes the marked content from the file. Its toolbar button is
 // only there while something is marked.
@@ -135,9 +136,7 @@ function annotBtnHidden(dump: string, cmd: number): string | null {
   return m ? m[1]! : null;
 }
 
-// The Apply Redactions button is added to / removed from the annotation
-// toolbar as marks come and go, so poll rather than read once. Redact is the
-// reference: while the whole row is down every button in it reads as hidden.
+// Contextual rows remain visible while unavailable; Apply follows the document state.
 async function waitApplyButton(client: ControlClient, want: boolean, what: string): Promise<void> {
   const apply = cmdId("CmdApplyRedactions");
   const redact = cmdId("CmdCreateAnnotRedact");
@@ -145,12 +144,11 @@ async function waitApplyButton(client: ControlClient, want: boolean, what: strin
   let why = "the annotation toolbar never came up";
   for (;;) {
     const raw = String((await client.request(ControlCommand.TestToolbarButtons, []))[1] ?? "");
-    if (annotBtnHidden(raw, redact) === "0") {
-      const h = annotBtnHidden(raw, apply);
-      if (h !== null && (h === "0") === want) {
-        return;
-      }
-      why = h === null ? "no Apply Redactions button in the dump" : `hidden=${h}`;
+    const rows = panelRows(raw);
+    if (rows.some((row) => row.cmd === redact)) {
+      const row = rows.find((row) => row.cmd === apply);
+      if (row && row.enabled === want) return;
+      why = row ? `enabled=${row.enabled}` : "no Apply Redactions row";
     }
     if (Date.now() > deadline) {
       throw new Error(`redact-annotations: ${what} (${why})`);
