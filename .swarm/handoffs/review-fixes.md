@@ -1,6 +1,6 @@
 # Review fixes v041
 
-Base: `13e917a`; local branch `t3/cef61dad`.
+Base: `13e917a`; local branch initially `t3/cef61dad` (T3 may rename it).
 Push target: `origin/t3/review-fixes-v041`. PR context: #10.
 Existing edits in three `ext/darkmodelib` resource files are excluded.
 
@@ -11,8 +11,8 @@ Existing edits in three `ext/darkmodelib` resource files are excluded.
 | 3 | CONFIRMED, pending | A tick callback can remove another animation and invalidate the reverse loop's index. | pending |
 | 4 | CONFIRMED, pending | Width animations invalidate the entire frame every tick. | pending |
 | 5 | CONFIRMED, pending | Layout creates inactive tabs and creation never selects the saved page. | pending |
-| 6 | CONFIRMED, pending | Replacing the page deletes its focused row without restoring panel focus. | pending |
-| 7 | CONFIRMED + FIXED | Clamp loaded preferences with the shared panel bounds (Win32 only). Layout already clamps effective widths. | Clamp saved panel widths (this commit) |
+| 6 | CONFIRMED + FIXED | Restore the first enabled row after page replacement; fall back to the close control when all rows are disabled (from `1c588b4`). | Restore focus after panel page changes (this commit) |
+| 7 | CONFIRMED + FIXED | Clamp loaded preferences with the shared panel bounds (Win32 only). Layout already clamps effective widths. | `a6c948b` |
 | 8 | CONFIRMED, pending | SPI is queried on every animation eligibility check. | pending |
 | 9 | CONFIRMED, pending | Control/Count rebuild vectors repeatedly; focus/hit testing becomes quadratic. | pending |
 | 10 | CONFIRMED, pending | Empty ribbon labels bypass tooltip fallback. | pending |

@@ -298,9 +298,23 @@ static void PaintPageFade(ToolsPanelVirt* panel, VirtHostPaintEvent* ev) {
     ev->gfx->DrawPixmap(dst, {0, 0, dst->width, dst->height});
 }
 
+static void FocusPanelRow(ToolsPanelVirt* panel) {
+    auto* root = panel->host->vroot;
+    if (!root) return;
+    for (auto* row : panel->rows) {
+        if (!row->IsEnabled()) continue;
+        root->SetFocus(row);
+        if (root->focused) return;
+    }
+    Vec<TabStop> stops;
+    CollectTabStops(panel->scroll->child, stops);
+    if (len(stops)) root->SetFocus(stops[0].vwnd);
+}
+
 void ToolsPanelShowPage(MainWindow* win) {
     auto* panel = win->toolsPanel;
     if (!panel || panel->page == win->ribbonPage) return;
+    bool hadFocus = panel->host->HasFocus();
     CapturePage(panel);
     panel->page = win->ribbonPage;
     VecReset(panel->rows);
@@ -372,6 +386,7 @@ void ToolsPanelShowPage(MainWindow* win) {
     ToolsPanelSetRail(win, rail);
     ToolsPanelAfterThemeChange(win);
     ToolsPanelUpdate(win);
+    if (hadFocus) FocusPanelRow(panel);
 }
 
 void ToolsPanelSetRail(MainWindow* win, bool rail) {
@@ -394,12 +409,8 @@ static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
     auto* panel = win->toolsPanel;
     auto* root = panel->host->vroot;
     if (!root) return;
-    if (ev->msg == WM_SETFOCUS && !root->focused && len(panel->rows)) {
-        for (auto* row : panel->rows)
-            if (row->IsEnabled()) {
-                root->SetFocus(row);
-                break;
-            }
+    if (ev->msg == WM_SETFOCUS && !root->focused) {
+        FocusPanelRow(panel);
     } else if (ev->msg == WM_KEYDOWN && ev->wp == VK_TAB) {
         Vec<TabStop> stops;
         CollectTabStops(panel->scroll->child, stops);
