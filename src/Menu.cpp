@@ -1259,6 +1259,18 @@ static MenuDef menuDefDocumentOperations[] = {
         CmdPdfBake,
     },
     {
+        TrN("Add Watermark..."),
+        CmdAddWatermark,
+    },
+    {
+        TrN("Add Header/Footer..."),
+        CmdAddHeaderFooter,
+    },
+    {
+        TrN("Bates Numbering..."),
+        CmdBatesNumbering,
+    },
+    {
         TrN("Insert Image..."),
         CmdInsertImage,
     },

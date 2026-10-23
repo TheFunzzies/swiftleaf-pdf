@@ -30,6 +30,67 @@ void ShowSaveSelectionAsImageDialog(MainWindow* win);
 TempStr SaveSelectionAsImageResultTemp(Str destPath, int dpi, int pageNo, int x, int y, int dx, int dy,
                                        int* exitCodeOut);
 
+enum class PdfWatermarkPos {
+    Center,
+    TopLeft,
+    TopCenter,
+    TopRight,
+    CenterLeft,
+    CenterRight,
+    BottomLeft,
+    BottomCenter,
+    BottomRight,
+};
+
+struct PdfWatermarkParams {
+    Str text;
+    float opacity = 0.5f;
+    float angle = 45.0f;
+    PdfWatermarkPos position = PdfWatermarkPos::Center;
+    float fontSize = 48.0f;
+    COLORREF color = RGB(128, 128, 128);
+    Str pagesSpec;
+};
+
+struct PdfHeaderFooterParams {
+    Str headerLeft;
+    Str headerCenter;
+    Str headerRight;
+    Str footerLeft;
+    Str footerCenter;
+    Str footerRight;
+    float fontSize = 10.0f;
+    COLORREF color = RGB(0, 0, 0);
+    Str pagesSpec;
+};
+
+enum class PdfBatesPos {
+    BottomRight,
+    BottomCenter,
+    BottomLeft,
+    TopRight,
+    TopCenter,
+    TopLeft,
+};
+
+struct PdfBatesParams {
+    Str prefix;
+    int startNumber = 1;
+    int digitCount = 6;
+    PdfBatesPos position = PdfBatesPos::BottomRight;
+    float fontSize = 10.0f;
+    COLORREF color = RGB(0, 0, 0);
+    Str pagesSpec;
+};
+
+void ShowPdfAddWatermarkDialog(MainWindow* win);
+void ShowPdfAddHeaderFooterDialog(MainWindow* win);
+void ShowPdfBatesNumberingDialog(MainWindow* win);
+
+bool PdfApplyWatermark(Str srcPath, Str destPath, const PdfWatermarkParams& params);
+bool PdfApplyHeaderFooter(Str srcPath, Str destPath, const PdfHeaderFooterParams& params);
+bool PdfApplyBatesNumbering(Str srcPath, Str destPath, const PdfBatesParams& params);
+
 // ng: orig's tool dialogs are windows of their own; here each one is a gpui
 // dialog the shell asks for once a frame, so they share one Show / Close /
 // IsVisible / Build quadruple (only one can be up at a time)

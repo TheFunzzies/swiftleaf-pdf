@@ -55,6 +55,9 @@ static const ToolDef tools[] = {
     {gLucideTextCursorInput, TrN("Prepare a form"), CmdPrepareForm},
     {gLucideStamp, TrN("Add a stamp"), CmdCreateAnnotStamp},
     {gLucideBadgeCheck, TrN("Use a certificate"), CmdSignDocument},
+    {gLucideStamp, TrN("Add watermark"), CmdAddWatermark},
+    {gLucideType, TrN("Add header/footer"), CmdAddHeaderFooter},
+    {gLucideTextCursorInput, TrN("Bates numbering"), CmdBatesNumbering},
 };
 
 static const ToolDef stripTools[] = {

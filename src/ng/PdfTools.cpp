@@ -4367,3 +4367,7 @@ gp::El* PdfToolDialogBuild(MainWindow* win, gp::Ctx* cx) {
     ToolScope scope(tool);
     return PdfToolBuildCurrent(win, cx);
 }
+
+void ShowPdfAddWatermarkDialog(MainWindow*) {}
+void ShowPdfAddHeaderFooterDialog(MainWindow*) {}
+void ShowPdfBatesNumberingDialog(MainWindow*) {}
