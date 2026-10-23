@@ -13,6 +13,7 @@
 #include "gui/VirtCtrl.h"
 #include "gui/VirtHost.h"
 #include "Settings.h"
+#include "PanelLayout.h"
 #include "AppSettings.h"
 #include "DocController.h"
 #include "SumatraPDF.h"
@@ -70,6 +71,8 @@ struct ToolsPanelVirt {
     Vec<VirtText*> headings;
     ScrollBox* scroll = nullptr;
     int page = -1;
+    bool rail = false;
+    ILayout* header = nullptr;
     VirtText* title = nullptr;
     VirtButton* more = nullptr;
     VirtHost* strip = nullptr;
@@ -77,7 +80,7 @@ struct ToolsPanelVirt {
 };
 
 int ToolsPanelDx() {
-    return DpiScale(240);
+    return DpiScale(ClampPanelWidth(gSettings->toolsPanelWidth, kToolsMinWidth));
 }
 
 bool ShouldShowToolsPanel(MainWindow* win) {
@@ -234,7 +237,7 @@ void ToolsPanelShowPage(MainWindow* win) {
     panel->more = nullptr;
     auto* col = new VBox();
     col->alignCross = CrossAxisAlign::Stretch;
-    col->gap = DpiScale(4);
+    col->gap = DpiScale(2);
     auto header = NewLabelWithClose(win->hwndFrame, GetAppFont(), MkFunc1(OnClose, win));
     panel->title = header.label;
     auto page = (RibbonPage)panel->page;
@@ -245,8 +248,8 @@ void ToolsPanelShowPage(MainWindow* win) {
     SetWindowTextW(panel->host->native, CWStrTemp(title));
     header.closeBtn->SetTooltip(Tr("Close tools panel"));
     SetupRow(win, header.closeBtn);
+    panel->header = header.box;
     col->AddChild(header.box);
-    col->AddChild(new VirtSpacer(0, DpiScale(8)));
     if (page == RibbonPage::Home) {
         for (const auto& d : tools) {
             auto* b = new RibbonButton();
@@ -268,7 +271,7 @@ void ToolsPanelShowPage(MainWindow* win) {
         for (auto& d : defs) {
             if (len(d.group)) {
                 auto* heading = new VirtText(trans::GetTranslation(d.group), GetScaledPlatformFont(GetAppFont(), 90));
-                heading->padding = DpiScaledInsets(8, 10);
+                heading->padding = DpiScaledInsets(4, 8);
                 VecAppend(panel->headings, heading);
                 col->AddChild(heading);
             }
@@ -289,10 +292,28 @@ void ToolsPanelShowPage(MainWindow* win) {
         b->isRtl = IsUIRtl();
         SetupRow(win, b);
     }
-    panel->scroll = new ScrollBox(new Padding(col, DpiScaledInsets(16, 12)));
+    panel->scroll = new ScrollBox(new Padding(col, DpiScaledInsets(8, 8)));
     panel->host->SetLayout(panel->scroll);
+    bool rail = panel->rail;
+    panel->rail = !rail;
+    ToolsPanelSetRail(win, rail);
     ToolsPanelAfterThemeChange(win);
     ToolsPanelUpdate(win);
+}
+
+void ToolsPanelSetRail(MainWindow* win, bool rail) {
+    auto* panel = win->toolsPanel;
+    if (!panel || panel->rail == rail) return;
+    panel->rail = rail;
+    auto vis = rail ? Visibility::Collapse : Visibility::Visible;
+    panel->header->SetVisibility(vis);
+    for (auto* heading : panel->headings) heading->SetVisibility(vis);
+    if (panel->more) panel->more->SetVisibility(vis);
+    for (auto* row : panel->rows) {
+        row->compact = rail;
+        row->alignStart = !rail;
+    }
+    panel->host->Relayout();
 }
 
 static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
@@ -442,6 +463,10 @@ TempStr ToolsPanelStateTemp(MainWindow* win) {
     if (!panel) return {};
     out.Append(fmt("toolsPanel page=%d visible=%d title=%s\n", panel->page, panel->host->IsVisible() ? 1 : 0,
                    panel->title->s));
+    out.Append(
+        fmt("panel-layout rail=%d toolsPref=%d commentsPref=%d toolsWidth=%d commentsWidth=%d canvasWidth=%d dpi=%d\n",
+            panel->rail, gSettings->toolsPanelWidth, gSettings->commentsPanelWidth, win->toolsPanelSlot->dx,
+            win->commentsPanelSlot->dx, win->canvasSlot->lastBounds.dx, DpiGet()));
     out.Append(fmt("ribbon height=%d stripVisible=0\n", win->toolbarVirt->ribbonDy));
     for (int i = 0; i < len(win->toolbarVirt->ribbonTabs); i++) {
         auto* tab = win->toolbarVirt->ribbonTabs[i];

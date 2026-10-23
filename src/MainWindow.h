@@ -515,6 +515,8 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     HwndSlot* commentsPanelSlot = nullptr;
     HwndSlot* documentPanelSlot = nullptr;
     HwndSlot* toolsPanelSlot = nullptr;
+    VirtSplitter* toolsPanelSplitter = nullptr;
+    VirtSplitter* commentsPanelSplitter = nullptr;
     HwndSlot* navRailSlot = nullptr;
     // tabs-in-titlebar caption: VirtCtrl buttons + HwndSlots for tabs/menu
     VBox* captionLayout = nullptr;

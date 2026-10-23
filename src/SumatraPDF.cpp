@@ -53,6 +53,7 @@
 #include "StatusBar.h"
 #include "NavRail.h"
 #include "ToolsPanel.h"
+#include "PanelLayout.h"
 #include "DocumentPanel.h"
 #include "SignatureCreate.h"
 #include "Ocr.h"
@@ -3111,13 +3112,40 @@ void FrameSyncSplitters(MainWindow* win) {
     if (win->captionLayout) {
         CollectVirtCtrls(win->captionLayout, tops);
     }
-    VirtSplitter* all[] = {win->sidebarSplitter, win->sidebarPanelsSplitter, win->aiChatSplitter};
+    VirtSplitter* all[] = {win->sidebarSplitter, win->sidebarPanelsSplitter, win->aiChatSplitter,
+                           win->toolsPanelSplitter, win->commentsPanelSplitter};
     for (VirtSplitter* s : all) {
         if (s) {
             VecAppend(tops, s);
         }
     }
     win->frameRoot->SetTops(tops);
+}
+
+static bool IsPanelDrag(MainWindow* win) {
+    auto* captured = win->frameRoot ? win->frameRoot->captured : nullptr;
+    return captured && (captured == win->toolsPanelSplitter || captured == win->commentsPanelSplitter);
+}
+
+static void OnToolPanelResize(MainWindow* win, VirtSplitter::MoveEvent* ev) {
+    bool tools = ev->w == win->toolsPanelSplitter;
+    auto* slot = tools ? win->toolsPanelSlot : win->commentsPanelSlot;
+    Rect r = slot->lastBounds;
+    Point cursor = HwndGetCursorPos(win->hwndFrame);
+    bool fromLeft = tools != SidebarOnRightLayout();
+    int width = fromLeft ? cursor.x - r.x : r.Right() - cursor.x;
+    int minWidth = DpiScale(tools ? kToolsMinWidth : kCommentsMinWidth);
+    int spare = win->canvasSlot->lastBounds.dx - DpiScale(kDocumentMinWidth);
+    int maxWidth = std::max(minWidth, std::min(DpiScale(kPanelMaxWidth), r.dx + spare));
+    width = limitValue(width, minWidth, maxWidth);
+    if (ev->queryOnly) return;
+    int& pref = tools ? gSettings->toolsPanelWidth : gSettings->commentsPanelWidth;
+    int logical = MulDiv(width, 96, DpiGet());
+    if (pref != logical) {
+        pref = logical;
+        ScheduleUiUpdate(win, kUiRelayout);
+        ScheduleSaveSettings();
+    }
 }
 
 //--- tabs-in-titlebar caption
@@ -3229,6 +3257,11 @@ static void CreateFrameLayout(MainWindow* win) {
     win->documentPanelSlot = new HwndSlot();
     CreateCaptionLayout(win);
 
+    win->toolsPanelSplitter = NewFrameSplitter(SplitterType::Vert, true);
+    win->toolsPanelSplitter->onMove = MkFunc1(OnToolPanelResize, win);
+    win->commentsPanelSplitter = NewFrameSplitter(SplitterType::Vert, true);
+    win->commentsPanelSplitter->onMove = MkFunc1(OnToolPanelResize, win);
+
     // the webview is expensive to resize, so this one only moves the panes
     // when the drag ends
     win->aiChatSplitter = NewFrameSplitter(SplitterType::Vert, false);
@@ -3248,12 +3281,14 @@ static void CreateFrameLayout(MainWindow* win) {
     auto* row = new HBox();
     row->alignCross = CrossAxisAlign::Stretch;
     row->AddChild(win->toolsPanelSlot);
+    row->AddChild(win->toolsPanelSplitter);
     row->AddChild(sidebar);
     row->AddChild(win->sidebarSplitter);
     row->AddChild(content, 1);
     row->AddChild(win->aiChatSplitter);
     row->AddChild(win->aiChatSlot);
     row->AddChild(win->documentPanelSlot);
+    row->AddChild(win->commentsPanelSplitter);
     row->AddChild(win->commentsPanelSlot);
     row->AddChild(win->navRailSlot);
     win->frameLayout = row;
@@ -8003,7 +8038,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     // transparent WebView2 in the strip the canvas just inherited
     bool isSplitterDrag = sidebarDx != -1;
     // dragging the splitter between the sidebar panels is just as live
-    bool isLiveDrag = isSplitterDrag || win->uiState.panelsDrag;
+    bool isLiveDrag = isSplitterDrag || win->uiState.panelsDrag || IsPanelDrag(win);
     // Fullscreen changes both the canvas origin and size while frame redraw is
     // disabled. Preserving its old screen bits copies the normal-window tabs,
     // toolbar, and document into the fullscreen surface until a later paint.
@@ -8040,19 +8075,40 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     NavRailUpdate(win);
     ToolsPanelUpdate(win);
     EnsureCommentsPanel(win);
-    bool showComments = gSettings->showCommentsPanel && win->hwndCommentsPanel && curTab && IsPdfDoc(curTab) &&
-                        !win->presentation && !win->isFullScreen && !win->isQuickLook && rc.dx >= DpiScale(900);
-    SetVis(win->commentsPanelSlot, showComments);
-    win->commentsPanelSlot->dx = showComments ? DpiScale(300) : 0;
-    if (win->hwndCommentsPanel) ShowWindow(win->hwndCommentsPanel, showComments ? SW_SHOW : SW_HIDE);
-    bool showTools = ShouldShowToolsPanel(win) && rc.dx >= DpiScale(700);
-    int toolsDx = showTools ? ToolsPanelDx() : 0;
+    bool panelContext = curTab && IsPdfDoc(curTab) && !win->presentation && !win->isFullScreen && !win->isQuickLook;
+    bool wantComments = gSettings->showCommentsPanel && win->hwndCommentsPanel && panelContext;
+    bool wantTools = ShouldShowToolsPanel(win);
+    // Comments and document details share the right side; navigation stays in the rail.
+    bool showDocumentPanel = gSettings->showDocumentPanel && win->hwndDocumentPanel && panelContext && !wantComments;
+    int documentPanelDx = showDocumentPanel ? DocumentPanelDx() : 0;
+    int reserved = (sidebarVisible ? DpiScale(kSidebarMinDx) + kSplitterDx : 0) +
+                   (aiChatVisible ? DpiScale(kSidebarMinDx) + kSplitterDx : 0);
+    if (rc.dx - reserved - documentPanelDx - navRailDx < DpiScale(kDocumentMinWidth + kToolsRailWidth)) {
+        showDocumentPanel = false;
+        documentPanelDx = 0;
+    }
+    if (rc.dx - reserved - navRailDx < DpiScale(kDocumentMinWidth + kToolsRailWidth)) {
+        showNavRail = false;
+        navRailDx = 0;
+    }
+    auto widths =
+        CalcPanelWidths(rc.dx - reserved - documentPanelDx - navRailDx, DpiGet(),
+                        wantTools ? gSettings->toolsPanelWidth : 0, wantComments ? gSettings->commentsPanelWidth : 0);
+    bool showTools = widths.tools > 0;
+    bool showComments = widths.comments > 0;
+    int toolsDx = widths.tools;
+    int handleDx = DpiScale(kPanelHandleWidth);
     SetVis(win->toolsPanelSlot, showTools);
     win->toolsPanelSlot->dx = toolsDx;
+    SetVis(win->toolsPanelSplitter, showTools);
+    win->toolsPanelSplitter->thickness = handleDx;
+    ToolsPanelSetRail(win, widths.rail);
     ShowWindow(win->hwndToolsPanel, showTools ? SW_SHOW : SW_HIDE);
-    bool showDocumentPanel = gSettings->showDocumentPanel && win->hwndDocumentPanel && curTab && IsPdfDoc(curTab) &&
-                             !win->presentation && !win->isFullScreen && !win->isQuickLook;
-    int documentPanelDx = showDocumentPanel ? DocumentPanelDx() : 0;
+    SetVis(win->commentsPanelSlot, showComments);
+    win->commentsPanelSlot->dx = widths.comments;
+    SetVis(win->commentsPanelSplitter, showComments);
+    win->commentsPanelSplitter->thickness = handleDx;
+    if (win->hwndCommentsPanel) ShowWindow(win->hwndCommentsPanel, showComments ? SW_SHOW : SW_HIDE);
     SetVis(win->documentPanelSlot, showDocumentPanel);
     win->documentPanelSlot->dx = documentPanelDx;
     if (showDocumentPanel) DocumentPanelUpdate(win);
@@ -8085,7 +8141,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     win->navRailSlot->dx = navRailDx;
 
     // leave at least this much canvas for the document when sidebar is open
-    constexpr int kMinDocCanvasDx = 200;
+    int kMinDocCanvasDx = DpiScale(kDocumentMinWidth);
+    int panelHandlesDx = (showTools ? handleDx : 0) + (showComments ? handleDx : 0);
     int sidebarDxApplied = 0;
     if (sidebarVisible) {
         if (sidebarDx > 0) {
@@ -8102,9 +8159,10 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
         }
         // never too narrow; max leaves kMinDocCanvasDx for the document
         // (was hard-capped at half the frame, which cut long favorite names)
-        int sidePanelsDx = (showComments ? DpiScale(300) : 0) + documentPanelDx;
-        int maxSidebarDx = std::max(kSidebarMinDx, rc.dx - toolsDx - navRailDx - sidePanelsDx - kMinDocCanvasDx);
-        sidebarDxApplied = limitValue(sidebarDxApplied, kSidebarMinDx, maxSidebarDx);
+        int sidePanelsDx = widths.comments + documentPanelDx + panelHandlesDx +
+                           (aiChatVisible ? DpiScale(kSidebarMinDx) + kSplitterDx : 0) + kSplitterDx;
+        int maxSidebarDx = std::max(0, rc.dx - toolsDx - navRailDx - sidePanelsDx - kMinDocCanvasDx);
+        sidebarDxApplied = limitValue(sidebarDxApplied, std::min(DpiScale(kSidebarMinDx), maxSidebarDx), maxSidebarDx);
         win->sidebarDx = sidebarDxApplied; // remember what's applied
     }
 
@@ -8112,14 +8170,14 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     // 1px caption-border inset can disagree with the HWND's x. Only pin when
     // the sidebar is on the left: on the right, side.x is the right pane and
     // using it as rc.x stacked fav+canvas at the same x (issue-2165).
-    if ((isFrameResize || isSplitterDrag) && sidebarVisible && prevSidebar && !SidebarOnRightLayout()) {
+    if (isSplitterDrag && sidebarVisible && prevSidebar && !SidebarOnRightLayout()) {
         HWND sideHwnd = topVisible ? win->sidebarTop->hwnd : win->sidebarBottom->hwnd;
         if (sideHwnd) {
             Rect side = ChildPosWithinParent(sideHwnd);
             if (!side.IsEmpty()) {
                 int right = rc.x + rc.dx;
                 // the tools panel sits left of the sidebar
-                rc.x = side.x - toolsDx;
+                rc.x = side.x - toolsDx - (showTools ? handleDx : 0);
                 rc.dx = std::max(0, right - rc.x);
                 if (isFrameResize) {
                     sidebarDxApplied = side.dx;
@@ -8153,8 +8211,10 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
         if (aiChatDx <= 0) {
             aiChatDx = rc.dx * 3 / 8;
         }
-        int availDx = rc.dx - (sidebarVisible ? sidebarDxApplied + kSplitterDx : 0);
-        aiChatDx = limitValue(aiChatDx, kSidebarMinDx, availDx / 2);
+        int availDx = rc.dx - (sidebarVisible ? sidebarDxApplied + kSplitterDx : 0) - toolsDx - widths.comments -
+                      documentPanelDx - navRailDx - panelHandlesDx - kSplitterDx - kMinDocCanvasDx;
+        availDx = std::max(0, availDx);
+        aiChatDx = limitValue(aiChatDx, std::min(DpiScale(kSidebarMinDx), availDx), availDx);
         win->aiChatDx = aiChatDx;
     }
 
@@ -8193,8 +8253,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     BindSlot(win->navRailSlot, win->hwndNavRail, &dh, updateToolbars && showNavRail);
     HWND topHwnd = win->sidebarTop->hwnd;
     HWND bottomHwnd = win->sidebarBottom->hwnd;
-    BindSlot(win->sidebarTopSlot, topHwnd, &dh, topVisible && !isFrameResize && !isSplitterDrag);
-    BindSlot(win->sidebarBottomSlot, bottomHwnd, &dh, bottomVisible && !isFrameResize && !isSplitterDrag);
+    BindSlot(win->sidebarTopSlot, topHwnd, &dh, topVisible && !isSplitterDrag);
+    BindSlot(win->sidebarBottomSlot, bottomHwnd, &dh, bottomVisible && !isSplitterDrag);
     BindSlot(win->favoritesTabSlot, win->favoritesTabPanel->hwnd, &dh, favAsTab);
     BindSlot(win->canvasSlot, win->hwndCanvas, &dh, !discardCanvasBits);
     BindSlot(win->aiChatSlot, win->hwndAiChatBox, &dh, aiChatVisible);
@@ -8204,16 +8264,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     if (discardCanvasBits) {
         dh.MoveWindowNoCopyBits(win->hwndCanvas, win->canvasSlot->lastBounds);
     }
-    // Frame resize: keep the sidebar's x/width, only stretch its height.
-    // Splitter drag: keep x/y/height, only stretch its width.
-    if (isFrameResize) {
-        if (topVisible) {
-            StretchHwndHeight(dh, topHwnd, win->sidebarTopSlot->lastBounds);
-        }
-        if (bottomVisible) {
-            StretchHwndHeight(dh, bottomHwnd, win->sidebarBottomSlot->lastBounds);
-        }
-    } else if (isSplitterDrag) {
+    if (isSplitterDrag) {
         if (topVisible) {
             StretchHwndWidth(dh, topHwnd, win->sidebarTopSlot->lastBounds);
         }

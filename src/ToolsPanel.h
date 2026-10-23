@@ -12,6 +12,7 @@ void DestroyToolsPanel(MainWindow*);
 void ToolsPanelUpdate(MainWindow*);
 void ToolsPanelAfterThemeChange(MainWindow*);
 void ToolsPanelShowPage(MainWindow*);
+void ToolsPanelSetRail(MainWindow*, bool rail);
 void ShowToolsPanelMenu(MainWindow*, Rect anchor, bool allPages = false);
 Rect ToolsPanelButtonRect(MainWindow*, int cmdId);
 TempStr ToolsPanelStateTemp(MainWindow*);

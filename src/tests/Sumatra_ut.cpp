@@ -47,6 +47,7 @@ void DictTest();
 void DirRemoveAllTest();
 void FileUtilTest();
 void DocumentPanel_UnitTests();
+void PanelLayout_UnitTests();
 bool EngineMupdf_UnitTestPanelData();
 void UpdateTempFileTests();
 void GuessFileTypeTest();
@@ -732,6 +733,15 @@ int RunAppUnitTests(bool forAi) {
     printf("Running unit tests\n");
     utassert(Ocr_UnitTests());
     DocumentPanel_UnitTests();
+    PanelLayout_UnitTests();
+    Settings* panels = NewSettings(StrL("ToolsPanelWidth = 336\nCommentsPanelWidth = 412\n"));
+    utassert(panels->toolsPanelWidth == 336 && panels->commentsPanelWidth == 412);
+    Str savedPanels = SerializeSettings(panels, {});
+    Settings* restoredPanels = NewSettings(savedPanels);
+    utassert(restoredPanels->toolsPanelWidth == 336 && restoredPanels->commentsPanelWidth == 412);
+    DeleteSettings(restoredPanels);
+    DeleteSettings(panels);
+    str::Free(savedPanels);
     utassert(EngineMupdf_UnitTestPanelData());
     FormAuthoringTest();
 
