@@ -28,7 +28,7 @@ test("accepts Swiftleaf ProductName with -exe", async () => {
     proc.exited,
   ]);
   expect({ code, output: stdout + stderr }).toEqual({ code: 0, output: "" });
-});
+}, 30000); // PowerShell cold start can exceed bun's 5s default on CI runners
 
 test("build docs load without optional CDN dependencies", async () => {
   const proc = Bun.spawn([process.execPath, "cmd/gen-docs.ts"], { cwd: ROOT, stdout: "pipe", stderr: "pipe" });
