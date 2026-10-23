@@ -81,6 +81,7 @@ struct UpdateInfo : NonCopyable {
     HANDLE stagingLock = INVALID_HANDLE_VALUE;
     HANDLE payloadLock = INVALID_HANDLE_VALUE;
     bool launched = false;
+    bool checksumFailed = false;
     Str builtOn; // optional "yyyy-mm-dd" from the update-check file
 
     UpdateInfo() = default;
@@ -692,6 +693,15 @@ static void DownloadUpdateFinish(DownloadUpdateAsyncData* data) {
     auto* updateInfo = data->updateInfo;
     data->updateInfo = nullptr;
     RemoveNotificationsForGroup(hwndForNotif, kNotifUpdateCheckInProgress);
+    if (updateInfo->checksumFailed) {
+        MessageBoxWarning(hwndForNotif,
+                          StrL("The downloaded update could not be verified against its published SHA-256 checksum and was not installed."),
+                          Tr("Swiftleaf Update"));
+        delete updateInfo;
+        gUpdateCheckInProgress = false;
+        delete data;
+        return;
+    }
     NotifyUserOfUpdate(updateInfo);
     delete updateInfo;
     gUpdateCheckInProgress = false;
@@ -739,8 +749,9 @@ static void DownloadUpdateAsync(DownloadUpdateAsyncData* data) {
     }
     if (ok) {
         updateInfo->payloadLock = OpenUpdatePayload(updateInfo->installerPath);
-        ok = IsUpdateHashValid(updateInfo->payloadLock, updateInfo->dlSha256) &&
-             IsUpdateSignerValid(updateInfo->installerPath, UpdateTrust::ManifestHash);
+        bool hashValid = IsUpdateHashValid(updateInfo->payloadLock, updateInfo->dlSha256);
+        updateInfo->checksumFailed = !hashValid;
+        ok = hashValid && IsUpdateSignerValid(updateInfo->installerPath, UpdateTrust::ManifestHash);
     }
     logf("DownloadUpdateAsync: verified=%d, path='%s'\n", (int)ok, updateInfo->installerPath);
     if (!ok) {
