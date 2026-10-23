@@ -8119,12 +8119,13 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     bool showTools = widths.tools > 0;
     bool showComments = widths.comments > 0;
     int toolsDx = widths.tools;
+    bool toolsRail = widths.rail || (toolsDx > 0 && toolsDx < DpiScale(kToolsMinWidth));
     int handleDx = DpiScale(kPanelHandleWidth);
     SetVis(win->toolsPanelSlot, showTools);
     win->toolsPanelSlot->dx = toolsDx;
-    SetVis(win->toolsPanelSplitter, showTools);
+    SetVis(win->toolsPanelSplitter, showTools && !toolsRail);
     win->toolsPanelSplitter->thickness = handleDx;
-    ToolsPanelSetRail(win, widths.rail || (toolsDx > 0 && toolsDx < DpiScale(kToolsMinWidth)));
+    ToolsPanelSetRail(win, toolsRail);
     ShowWindow(win->hwndToolsPanel, showTools ? SW_SHOW : SW_HIDE);
     SetVis(win->commentsPanelSlot, showComments);
     win->commentsPanelSlot->dx = widths.comments;
@@ -8164,7 +8165,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
 
     // leave at least this much canvas for the document when sidebar is open
     int kMinDocCanvasDx = DpiScale(kDocumentMinWidth);
-    int panelHandlesDx = (showTools ? handleDx : 0) + (showComments ? handleDx : 0);
+    int panelHandlesDx = (showTools && !toolsRail ? handleDx : 0) + (showComments ? handleDx : 0);
     int sidebarDxApplied = 0;
     if (sidebarVisible) {
         if (sidebarDx > 0) {
@@ -15740,8 +15741,8 @@ static LRESULT CALLBACK WndProcSumatraFrame(HWND hwnd, UINT msg, WPARAM wp, LPAR
             return 0;
 
         case WM_SETTINGCHANGE:
-            // Windows switched between light and dark mode: re-resolve the
             AnimationSettingsChanged();
+            // Windows switched between light and dark mode: re-resolve the
             // System theme (no-op unless Theme = System)
             if (lp && str::EqI(ToUtf8Temp((const WCHAR*)lp), StrL("ImmersiveColorSet"))) {
                 UpdateThemeAfterSystemColorChange();

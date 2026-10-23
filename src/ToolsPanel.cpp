@@ -83,7 +83,7 @@ struct ToolsPanelVirt {
     bool rail = false;
     ILayout* header = nullptr;
     VirtText* title = nullptr;
-    VirtButton* more = nullptr;
+    RibbonButton* more = nullptr;
     VirtHost* strip = nullptr;
     Vec<RibbonButton*> stripRows;
 };
@@ -134,10 +134,11 @@ void ToolsPanelAfterThemeChange(MainWindow* win) {
     if (!panel) return;
     panel->host->bgColor = RibbonPanelBgColor();
     panel->title->SetColor(kColText, ThemeWindowTextColor());
-    if (panel->more) panel->more->SetColor(kColBtnText, RibbonAccentColor());
-    if (panel->more) panel->more->SetColor(kColBtnBg, kColorTransparent);
-    if (panel->more) panel->more->SetColor(kColBtnBorder, kColorTransparent);
-    if (panel->more) panel->more->SetColor(kColBtnBgHover, M3().surfaceContainerHigh);
+    if (panel->more) {
+        panel->more->textColor = ThemeWindowTextColor();
+        panel->more->pixmap =
+            RibbonIconPixmap(Str(gLucideLayoutGrid), DpiScale(20), ThemeWindowTextColor(), RibbonPanelBgColor());
+    }
     for (auto* heading : panel->headings) heading->SetColor(kColText, M3().onSurfaceVariant);
     for (int i = 0; i < len(panel->rows); i++) {
         auto* b = panel->rows[i];
@@ -348,7 +349,10 @@ void ToolsPanelShowPage(MainWindow* win) {
             VecAppend(panel->sources, (VirtCtrl*)nullptr);
             col->AddChild(b);
         }
-        panel->more = new VirtButton(Tr("View more"), GetAppFont());
+        panel->more = new RibbonButton();
+        panel->more->font = GetAppFont();
+        panel->more->SetLabel(Tr("View more"));
+        panel->more->SetTooltip(Tr("View more"));
         panel->more->onClick = MkFunc1(OnMore, win);
         SetupRow(win, panel->more);
         col->AddChild(panel->more);
@@ -397,7 +401,7 @@ void ToolsPanelSetRail(MainWindow* win, bool rail) {
     auto vis = rail ? Visibility::Collapse : Visibility::Visible;
     panel->header->SetVisibility(vis);
     for (auto* heading : panel->headings) heading->SetVisibility(vis);
-    if (panel->more) panel->more->SetVisibility(vis);
+    if (panel->more) panel->more->compact = rail;
     for (auto* row : panel->rows) {
         row->compact = rail;
         row->alignStart = !rail;
