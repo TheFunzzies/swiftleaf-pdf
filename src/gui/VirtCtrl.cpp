@@ -3398,6 +3398,18 @@ static void SetLayoutRoots(ILayout* layout, VirtRoot* root) {
     for (int i = 0; i < layout->LayoutChildCount(); i++) SetLayoutRoots(layout->LayoutChildAt(i), root);
 }
 
+static bool HasFocusStop(ILayout* layout, VirtCtrl* focused) {
+    if (!layout || IsCollapsed(layout)) return false;
+    if (auto* w = layout->AsVirtCtrl()) {
+        if (!w->IsHitTestable()) return false;
+        if (w == focused) return w->HasFlag(vwfFocusable) && !w->HasFlag(vwfSkipTabStop);
+    }
+    for (int i = 0; i < layout->LayoutChildCount(); i++) {
+        if (HasFocusStop(layout->LayoutChildAt(i), focused)) return true;
+    }
+    return false;
+}
+
 void RefreshVirtTops(HWND hwnd, ILayout* layout, Rect bounds, VirtRoot** rootInOut) {
     if (!layout) {
         return;
@@ -3419,9 +3431,7 @@ void RefreshVirtTops(HWND hwnd, ILayout* layout, Rect bounds, VirtRoot** rootInO
     VirtCtrl* focused = root->focused;
     root->SetTops(tops);
     SetLayoutRoots(layout, root);
-    Vec<VirtCtrl*> focusable;
-    CollectFocusLayout(layout, focusable);
-    if (focused && VecContains(focusable, focused)) root->SetFocus(focused);
+    if (focused && HasFocusStop(layout, focused)) root->SetFocus(focused);
     // A top-level control's `bounds` is relative to the root's origin, but
     // SetBounds() computed it against whatever origin the root had *then* -
     // for a first layout that's no root at all, and for a caller that lays out
