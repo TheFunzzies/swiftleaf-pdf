@@ -9884,7 +9884,7 @@ bool EngineMupdfAddOcrText(EngineBase* engine, int pageNo, float zoom, int rotat
         fz_close_device(ctx, dev);
         form = pdf_new_xobject(ctx, e->pdfdoc, media, fz_identity, resources, buffer);
         pdf_obj* inherited = pdf_dict_get_inheritable(ctx, page->obj, PDF_NAME(Resources));
-        pageRes = inherited ? pdf_deep_copy_obj(ctx, inherited) : pdf_new_dict(ctx, e->pdfdoc, 2);
+        pageRes = inherited ? pdf_copy_dict(ctx, inherited) : pdf_new_dict(ctx, e->pdfdoc, 2);
         pdf_obj* xobjects = pdf_dict_get(ctx, pageRes, PDF_NAME(XObject));
         if (xobjects) {
             // Copy even an indirect dictionary; never mutate resources shared by pages.
