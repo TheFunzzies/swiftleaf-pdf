@@ -3142,7 +3142,11 @@ static void OnToolPanelResize(MainWindow* win, VirtSplitter::MoveEvent* ev) {
     int width = fromLeft ? cursor.x - r.x : r.Right() - cursor.x;
     int minWidth = DpiScale(tools ? kToolsMinWidth : kCommentsMinWidth);
     int spare = win->canvasSlot->lastBounds.dx - DpiScale(kDocumentMinWidth);
-    int maxWidth = std::max(minWidth, std::min(DpiScale(kPanelMaxWidth), r.dx + spare));
+    int maxWidth = std::min(DpiScale(kPanelMaxWidth), r.dx + spare);
+    if (maxWidth < minWidth) {
+        ev->resizeAllowed = false;
+        return;
+    }
     width = limitValue(width, minWidth, maxWidth);
     if (ev->queryOnly) return;
     int& pref = tools ? gSettings->toolsPanelWidth : gSettings->commentsPanelWidth;
@@ -18844,6 +18848,7 @@ int APIENTRY WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevIns
 
 #if IS_DEBUG
     if (flags.unitTests) {
+        if (!LoadLibsumatrapdf(false)) return 1;
         CreateSumatraAcceleratorTable();
         exitCode = RunAppUnitTests(flags.forAi);
         FreeAcceleratorTables();

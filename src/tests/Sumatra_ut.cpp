@@ -744,6 +744,7 @@ int RunAppUnitTests(bool forAi) {
     DeleteSettings(restoredPanels);
     DeleteSettings(panels);
     str::Free(savedPanels);
+    printf("Panel layout, settings and animation tests passed\n");
     utassert(EngineMupdf_UnitTestPanelData());
     FormAuthoringTest();
 

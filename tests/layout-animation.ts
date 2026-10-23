@@ -5,6 +5,7 @@ import { panelRows, selectToolTab, toolsDump } from "./contextual-panel.ts";
 import { assemblePdf, pollUntil, runStandalone, SETTINGS_FILE_NAME, tmpPath } from "./util.ts";
 import { killAndWait, launchControlled } from "./win-automation.ts";
 import {
+  captureWindowToPng,
   clientToScreen,
   getCursorPos,
   hasInteractiveDesktop,
@@ -132,6 +133,9 @@ export async function testit(): Promise<void> {
             raw,
           );
         sendMessage(frame, 0x0232, 0, 0); // WM_EXITSIZEMOVE
+        if (process.env.SWIFTLEAF_CAPTURE_LAYOUT) {
+          want(captureWindowToPng(frame, join(dir, `layout-${width}.png`)), "Could not capture DPI layout");
+        }
       }
       for (const mode of [1, 2, 3, 4, 0]) {
         await selectToolTab(client, frame, mode);

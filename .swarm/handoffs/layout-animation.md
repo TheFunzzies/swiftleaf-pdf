@@ -18,6 +18,11 @@ Base: `a19ef51` (contextual left panel).
 - Branding passed (629 files). Smoke script bundles successfully.
 - Debug build passed initial integration; cross-fade compile caught and fixed diagnostic shadowing and formatter argument checks. Final rebuild running.
 
+- Final integration Debug build passed; layout-animation smoke passed (all DPI scales, live handle drag, persistence, idle timer).
+- Unit runner reached engine tests after new tests passed, then delay-load crashed (C06D007E): unit startup preceded eager PDF DLL loading. Added normal eager-load path to unit startup; rebuild pending.
+- Fixed older contextual test's fixed-pixel narrow widths to follow actual DPI (150% desktop).
+- Reject rail resize when minimum panel width cannot fit, preserving saved preference.
+
 ## Next
 
 - Finish final Debug rebuild.
