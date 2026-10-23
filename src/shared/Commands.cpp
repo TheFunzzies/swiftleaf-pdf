@@ -360,6 +360,9 @@ const CommandInfo gCommands[] = {
     {CmdCreateFormRadio, "CmdCreateFormRadio\0", StrL("Create Radio Group")},
     {CmdCreateFormCombo, "CmdCreateFormCombo\0", StrL("Create Dropdown Field")},
     {CmdCreateFormSignature, "CmdCreateFormSignature\0", StrL("Create Unsigned Signature Field")},
+    {CmdAddWatermark, "CmdAddWatermark\0", StrL("Add Watermark...")},
+    {CmdAddHeaderFooter, "CmdAddHeaderFooter\0", StrL("Add Header/Footer...")},
+    {CmdBatesNumbering, "CmdBatesNumbering\0", StrL("Bates Numbering...")},
 };
 const int gCommandsCount = dimofi(gCommands);
 

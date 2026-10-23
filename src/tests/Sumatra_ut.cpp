@@ -28,6 +28,7 @@
 #include "SvgIcons.h"
 #include "EngineAll.h"
 #include "Annotation.h"
+#include "shared/PdfTools.h"
 #include <mupdf/pdf.h>
 #include "AppUnitTests.h"
 #include "Ocr.h"
@@ -707,6 +708,122 @@ static void FormAuthoringTest() {
     utassert(valid);
 }
 
+
+static void PageStampsTest() {
+    const char* objects[] = {
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"
+    };
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    int offsets[4];
+    for (int i = 0; i < 4; i++) {
+        offsets[i] = len(pdf);
+        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, Str(objects[i])));
+    }
+    int xref = len(pdf);
+    pdf.Append(StrL("xref\n0 5\n0000000000 65535 f \n"));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+
+    TempStr basePdf = GetTempFilePathTemp(StrL("base-stamps.pdf"));
+    utassert(file::WriteFile(basePdf, ToStrTemp(pdf)));
+
+    // 1. Watermark test (apply to page 1 only)
+    {
+        PdfWatermarkParams wm;
+        wm.text = StrL("CONFIDENTIAL");
+        wm.opacity = 0.5f;
+        wm.angle = 45.0f;
+        wm.position = PdfWatermarkPos::Center;
+        wm.fontSize = 36.0f;
+        wm.color = RGB(255, 0, 0);
+        wm.pagesSpec = StrL("1");
+
+        TempStr wmPdf = GetTempFilePathTemp(StrL("wm-test.pdf"));
+        bool ok = PdfApplyWatermark(basePdf, wmPdf, wm);
+        utassert(ok);
+
+        EngineBase* e = CreateEngineMupdfFromFile(wmPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        PageText pt1 = e->ExtractPageText(1);
+        PageText pt2 = e->ExtractPageText(2);
+        utassert(str::Contains(pt1.text, StrL("CONFIDENTIAL")));
+        utassert(!str::Contains(pt2.text, StrL("CONFIDENTIAL")));
+        FreePageText(&pt1);
+        FreePageText(&pt2);
+        SafeEngineRelease(&e);
+        file::Delete(wmPdf);
+    }
+
+    // 2. Header / Footer test (apply to page 2 only)
+    {
+        PdfHeaderFooterParams hf;
+        hf.headerLeft = StrL("LeftHeader");
+        hf.headerCenter = StrL("CenterHeader");
+        hf.headerRight = StrL("Doc: {filename}");
+        hf.footerLeft = StrL("Page {page} of {pages}");
+        hf.footerCenter = StrL("Date: {date}");
+        hf.footerRight = StrL("RightFooter");
+        hf.fontSize = 12.0f;
+        hf.color = RGB(0, 0, 0);
+        hf.pagesSpec = StrL("2");
+
+        TempStr hfPdf = GetTempFilePathTemp(StrL("hf-test.pdf"));
+        bool ok = PdfApplyHeaderFooter(basePdf, hfPdf, hf);
+        utassert(ok);
+
+        EngineBase* e = CreateEngineMupdfFromFile(hfPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        PageText pt1 = e->ExtractPageText(1);
+        PageText pt2 = e->ExtractPageText(2);
+        utassert(!str::Contains(pt1.text, StrL("Page 1 of 2")));
+        utassert(!str::Contains(pt1.text, StrL("LeftHeader")));
+        utassert(str::Contains(pt2.text, StrL("Page 2 of 2")));
+        utassert(str::Contains(pt2.text, StrL("LeftHeader")));
+        utassert(str::Contains(pt2.text, StrL("CenterHeader")));
+        utassert(str::Contains(pt2.text, StrL("RightFooter")));
+        FreePageText(&pt1);
+        FreePageText(&pt2);
+        SafeEngineRelease(&e);
+        file::Delete(hfPdf);
+    }
+
+    // 3. Bates numbering test (apply to all pages)
+    {
+        PdfBatesParams bp;
+        bp.prefix = StrL("BATES-");
+        bp.startNumber = 100;
+        bp.digitCount = 5;
+        bp.position = PdfBatesPos::BottomRight;
+        bp.fontSize = 10.0f;
+        bp.color = RGB(0, 0, 128);
+        bp.pagesSpec = StrL("all");
+
+        TempStr batesPdf = GetTempFilePathTemp(StrL("bates-test.pdf"));
+        bool ok = PdfApplyBatesNumbering(basePdf, batesPdf, bp);
+        utassert(ok);
+
+        EngineBase* e = CreateEngineMupdfFromFile(batesPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        PageText pt1 = e->ExtractPageText(1);
+        PageText pt2 = e->ExtractPageText(2);
+        utassert(str::Contains(pt1.text, StrL("BATES-00100")));
+        utassert(str::Contains(pt2.text, StrL("BATES-00101")));
+        FreePageText(&pt1);
+        FreePageText(&pt2);
+        SafeEngineRelease(&e);
+        file::Delete(batesPdf);
+    }
+
+    file::Delete(basePdf);
+}
+
 static LONG WINAPI ForAiCrashHandler(EXCEPTION_POINTERS* ei) {
     printf("unit tests crash\n");
     str::Builder s;
@@ -749,6 +866,7 @@ int RunAppUnitTests(bool forAi) {
     printf("Panel layout, settings and animation tests passed\n");
     utassert(EngineMupdf_UnitTestPanelData());
     FormAuthoringTest();
+    PageStampsTest();
 
     ArchiveTest();
     AppendStoreTest();
