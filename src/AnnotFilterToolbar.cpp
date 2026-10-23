@@ -65,6 +65,7 @@ static void UpdateFloatButtons(AnnotFilterToolbar*);
 
 struct AnnotFilterWindow : WindowBase {
     MainWindow* win = nullptr;
+    VirtText* title = nullptr;
     Edit* edit = nullptr;
     VirtListBox* listBox = nullptr;
     VirtButton* btnDelete = nullptr;
@@ -131,6 +132,7 @@ static void UpdateCue(AnnotFilterToolbar* f) {
     if (!f->floatWnd) {
         return;
     }
+    if (f->floatWnd->title) f->floatWnd->title->SetText(fmt(Tr("Comments %d").s, len(f->annotations)));
     EditSetCueText(f->floatWnd->edit, fmt(Tr("filter %d annotations").s, len(f->annotations)));
 }
 
@@ -216,6 +218,19 @@ static void ApplyVisibleToList(AnnotFilterToolbar* f, VirtListBox* lb, Annotatio
     }
 }
 
+static void AppendCommentThread(Vec<Annotation*>& ordered, const Vec<Annotation*>& source, Annotation* a, int depth) {
+    if (VecFind(ordered, a) >= 0) return;
+    VecAppend(ordered, a);
+    if (depth >= 64) return;
+    int id = AnnotationId(a);
+    if (!id) return;
+    for (auto* reply : source) {
+        if (reply->pageNo == a->pageNo && AnnotationReplyTo(reply) == id) {
+            AppendCommentThread(ordered, source, reply, depth + 1);
+        }
+    }
+}
+
 static void RebuildList(AnnotFilterToolbar* f) {
     if (!f) {
         return;
@@ -243,6 +258,14 @@ static void RebuildList(AnnotFilterToolbar* f) {
             VecAppend(f->visibleAnnots, annot);
         }
     }
+    VecSort(f->visibleAnnots, [](Annotation* const* a, Annotation* const* b) { return (*a)->pageNo - (*b)->pageNo; });
+    Vec<Annotation*> ordered;
+    for (auto* a : f->visibleAnnots) {
+        if (!AnnotationReplyTo(a)) AppendCommentThread(ordered, f->visibleAnnots, a, 0);
+    }
+    // Keep orphaned, filtered-parent and malformed cyclic replies visible.
+    for (auto* a : f->visibleAnnots) AppendCommentThread(ordered, f->visibleAnnots, a, 0);
+    f->visibleAnnots = std::move(ordered);
     if (f->floatWnd) {
         ApplyVisibleToList(f, f->floatWnd->listBox, caret, keepSel, prevScrollY);
     }
@@ -374,8 +397,36 @@ static void OnListDrawItem(AnnotFilterToolbar* f, VirtListBox::DrawItemEvent* ev
     if (!annot || !ev->listBox) {
         return;
     }
-    DrawAnnotationListRow(ev->gfx, ev->listBox->font, ev->itemRect, annot, f->filterWords, f->filterHlScratch,
-                          ev->listBox->GetColor(kColListBg), ev->listBox->GetColor(kColListText), ev->selected);
+    auto* gfx = ev->gfx;
+    auto* font = ev->listBox->font;
+    Rect r = ev->itemRect;
+    Color bg = ThemeWindowControlBackgroundColor();
+    Color fg = ThemeWindowTextColor();
+    if (ev->selected) bg = AccentColor(bg, 30);
+    gfx->FillRect(r, bg);
+    int pad = DpiScale(12);
+    bool reply = AnnotationReplyTo(annot) != 0;
+    int indent = reply ? DpiScale(18) : 0;
+    Rect line{r.x + pad + indent, r.y + pad, std::max(0, r.dx - 2 * pad - indent), DpiScale(22)};
+    Annotation* prev = VisibleAnnotAt(f, ev->itemIndex - 1);
+    if (!prev || prev->pageNo != annot->pageNo) {
+        gfx->DrawText(fmt(Tr("Page %d").s, annot->pageNo), line, gfxTextEllipsis, font, fg);
+    }
+    line.y += DpiScale(26);
+    Str author = Author(annot);
+    gfx->DrawText(author ? author : Tr("Unknown author"), line, gfxTextEllipsis, font, fg);
+    line.y += DpiScale(22);
+    time_t date = ModificationDate(annot);
+    struct tm tmDate{};
+    char dateText[32]{};
+    if (date && localtime_s(&tmDate, &date) == 0) strftime(dateText, sizeof(dateText), "%Y-%m-%d %H:%M", &tmDate);
+    gfx->DrawText(fmt("%s  %s", AnnotationReadableNameTemp(annot->type), Str(dateText)), line, gfxTextEllipsis, font,
+                  ThemeWindowTextDisabledColor());
+    line.y += DpiScale(26);
+    line.dy = std::max(0, r.Bottom() - line.y - pad);
+    gfx->DrawText(Contents(annot), line, gfxTextWrap, font, fg);
+    if (reply) gfx->FillRect({r.x + pad, r.y + pad, DpiScale(2), r.dy - 2 * pad}, ThemeWindowTextDisabledColor());
+    gfx->FillRect({r.x + pad, r.Bottom() - 1, r.dx - 2 * pad, 1}, ThemeWindowTextDisabledColor());
 }
 
 static void WireListBox(AnnotFilterToolbar* f, VirtListBox* lb, int dpi) {
@@ -383,6 +434,7 @@ static void WireListBox(AnnotFilterToolbar* f, VirtListBox* lb, int dpi) {
     lb->font = GetAppFont();
     lb->padding = DpiScaledInsets(1, 1);
     lb->idealSizeLines = 1;
+    lb->itemDy = DpiScale(180);
     lb->SetModel(new ListBoxModelStrings());
     lb->onSelectionChanged = MkFunc0(OnListSelectionChanged, f);
     lb->onDoubleClick = MkFunc0(OnListDoubleClick, f);
@@ -538,65 +590,6 @@ static int FilterEditPadR() {
     return FilterEditPadL() + DpiScale(4);
 }
 
-static bool FrameIsMaxOrFullscreen(MainWindow* win) {
-    if (!win || !win->hwndFrame) {
-        return false;
-    }
-    return win->isFullScreen || win->presentation || IsZoomed(win->hwndFrame);
-}
-
-static Rect AnnotFilterDefaultRect(MainWindow* win, int dx, int dy) {
-    HWND hwnd = win->hwndFrame;
-    Rect fr = HwndWindowRect(hwnd);
-    int dpi = DpiGetForHwnd(hwnd);
-    int gap = DpiScaleByDpi(dpi, kFloatWinGap);
-    Rect area = (win->isFullScreen || win->presentation) ? HwndGetFullscreenRect(hwnd) : GetWorkAreaRect(fr, nullptr);
-    dx = std::min(dx, std::max(area.dx, 1));
-    dy = std::min(dy, std::max(area.dy, 1));
-
-    if (FrameIsMaxOrFullscreen(win)) {
-        int x = area.x + area.dx - dx;
-        int y = area.y + ((area.dy - dy) / 2);
-        return {x, y, dx, dy};
-    }
-
-    int spaceRight = area.x + area.dx - (fr.x + fr.dx);
-    int spaceLeft = fr.x - area.x;
-    int x = spaceRight >= spaceLeft ? fr.x + fr.dx + gap : fr.x - gap - dx;
-    return ShiftRectToWorkArea({x, fr.y, dx, dy}, nullptr, true);
-}
-
-static Rect AnnotFilterWindowPlacementRect(MainWindow* win) {
-    if (!win || !win->hwndFrame) {
-        return {};
-    }
-    int dpi = DpiGetForHwnd(win->hwndFrame);
-    int dx = DpiScaleByDpi(dpi, 360);
-    int dy = DpiScaleByDpi(dpi, 540);
-    Rect saved = win->annotListFloatPos;
-    if (saved.dx > 0) {
-        dx = saved.dx;
-    }
-    if (saved.dy > 0) {
-        dy = saved.dy;
-    }
-    if (win->annotListFloatPosUserSet && !saved.IsEmpty()) {
-        return ShiftRectToWorkArea(saved, nullptr, true);
-    }
-    if (FrameIsMaxOrFullscreen(win) || saved.IsEmpty()) {
-        return AnnotFilterDefaultRect(win, dx, dy);
-    }
-    return ShiftRectToWorkArea(saved, nullptr, true);
-}
-
-static void PositionAnnotFilterWindow(AnnotFilterWindow* w) {
-    if (!w || !w->hwnd || !w->win) {
-        return;
-    }
-    Rect r = AnnotFilterWindowPlacementRect(w->win);
-    SetWindowPos(w->hwnd, HWND_TOP, r.x, r.y, r.dx, r.dy, SWP_NOACTIVATE);
-}
-
 static void DeleteFloatSelected(AnnotFilterWindow* w) {
     if (!w || !w->win || !w->listBox) {
         return;
@@ -722,44 +715,9 @@ static void UpdateFloatButtons(AnnotFilterToolbar* f) {
     }
 }
 
-// Cheat sheet under the buttons. The syntax itself is not translated, only the
-// explanation of what each condition does. A table so the explanations line up.
-static ILayout* NewFilterHelp(int gap) {
-    struct HelpRow {
-        Str syntax;
-        Str what;
-    };
-    HelpRow rows[] = {
-        {StrL(":a=name  :a!=name"), Tr("author is / is not")},
-        {StrL(":t=text  :t!=line"), Tr("type is / is not")},
-        {StrL(":c+  :c-"), Tr("has / has no contents")},
-    };
-    PlatformFont* font = GetAppFont();
-    Color col = EnsureContrast(ThemeWindowTextDisabledColor(), ThemeWindowControlBackgroundColor());
-    auto mkText = [&](Str s) -> ILayout* {
-        return NewVirtText({
-            .s = s,
-            .font = font,
-            .textColor = col,
-            .isRtl = IsUIRtl(),
-            .ellipsis = true,
-        });
-    };
-
-    auto* box = new VBox();
-    box->alignCross = CrossAxisAlign::Stretch;
-    box->AddChild(mkText(Tr("Search syntax:")));
-    box->AddChild(new Spacer(0, gap / 2));
-    int nRows = (int)dimof(rows);
-    auto* table = new Table();
-    table->SetSize(nRows, 2);
-    table->colGap = 2 * gap;
-    for (int i = 0; i < nRows; i++) {
-        table->SetCell(i, 0, mkText(rows[i].syntax));
-        table->SetCell(i, 1, mkText(rows[i].what));
-    }
-    box->AddChild(table);
-    return box;
+static void OnCommentsClose(MainWindow* win, VirtMouseEvent* ev) {
+    ToggleFloatingAnnotList(win);
+    ev->didHandle = true;
 }
 
 void AnnotFilterWindow::BuildLayout() {
@@ -769,11 +727,15 @@ void AnnotFilterWindow::BuildLayout() {
     header->alignCross = CrossAxisAlign::CrossCenter;
     header->gap = gap;
     header->rtl = IsUIRtl();
-    header->AddChild(edit, 1);
+    auto heading = NewLabelWithClose(hwnd, GetAppFont(), MkFunc1(OnCommentsClose, win));
+    title = heading.label;
+    title->SetText(Tr("Comments"));
+    header->AddChild(heading.box, 1);
 
     auto* vbox = new VBox();
     vbox->alignCross = CrossAxisAlign::Stretch;
     vbox->AddChild(header);
+    vbox->AddChild(edit);
     headerListGap = new Spacer(0, gap);
     vbox->AddChild(headerListGap);
     vbox->AddChild(listBox, 1);
@@ -790,7 +752,6 @@ void AnnotFilterWindow::BuildLayout() {
 
     buttonsHelpGap = new Spacer(0, gap);
     vbox->AddChild(buttonsHelpGap);
-    vbox->AddChild(NewFilterHelp(gap));
 
     rootPadding = new Padding(vbox, Insets{pad, pad, pad, pad});
     layout = rootPadding;
@@ -808,10 +769,11 @@ bool AnnotFilterWindow::Create(MainWindow* mainWin) {
         args.visible = false;
         args.title = Tr("Annotations");
         args.className = WStr(kAnnotFilterFloatClassName);
-        args.style = WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_CLIPCHILDREN;
-        args.exStyle = WS_EX_TOOLWINDOW;
+        args.parent = win->hwndFrame;
+        args.style = WS_CHILD | WS_CLIPCHILDREN;
+        args.exStyle = 0;
         args.isRtl = IsUIRtl();
-        args.pos = AnnotFilterWindowPlacementRect(win);
+        args.pos = {0, 0, DpiScale(300), DpiScale(540)};
         args.icon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(GetAppIconID()));
         args.bgColor = colBg;
         CreateCustom(args);
@@ -819,7 +781,7 @@ bool AnnotFilterWindow::Create(MainWindow* mainWin) {
     if (!hwnd) {
         return false;
     }
-    SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, (LONG_PTR)win->hwndFrame);
+    win->hwndCommentsPanel = hwnd;
     SetColors(colTxt, colBg);
     DarkModeApplyToTitleBar(hwnd);
 
@@ -898,6 +860,7 @@ void AnnotFilterWindow::UpdateDpi(int dpi) {
     edit->SetFont(appFont);
     listBox->font = appFont;
     listBox->dpi = dpi;
+    listBox->itemDy = DpiScaleByDpi(dpi, 180);
     int pad = DpiScaleByDpi(dpi, kFloatWinPadding);
     int gap = DpiScaleByDpi(dpi, kFloatWinGap);
     if (header) {
@@ -1041,14 +1004,9 @@ static void ShowAnnotFilterWindow(MainWindow* win) {
     LoadAnnotations(f);
     RebuildList(f);
     UpdateFloatButtons(f);
-    PositionAnnotFilterWindow(f->floatWnd);
-    Rect wr = HwndWindowRect(f->floatWnd->hwnd);
-    f->floatWnd->UpdateDpi(DpiGetForPoint(wr.x + (wr.dx / 2), wr.y + (wr.dy / 2)));
-    f->floatWnd->DoLayout();
-    // Ctrl+W always; Esc only with EscToExit (issue #6124)
-    f->floatWnd->closeOnCtrlW = true;
-    f->floatWnd->closeOnEsc = gSettings->escToExit;
-    ShowWindow(f->floatWnd->hwnd, SW_SHOW);
+    gSettings->showCommentsPanel = true;
+    ScheduleSaveSettings();
+    ScheduleUiUpdate(win, kUiForceRelayout);
     if (f->floatWnd->edit) {
         f->floatWnd->edit->SetFocus();
     }
@@ -1059,7 +1017,9 @@ static void HideAnnotFilterWindow(MainWindow* win) {
     if (!f || !f->floatWnd || !f->floatWnd->hwnd) {
         return;
     }
-    f->floatWnd->SavePos();
+    gSettings->showCommentsPanel = false;
+    ScheduleSaveSettings();
+    ScheduleUiUpdate(win, kUiForceRelayout);
     if (HwndIsVisible(f->floatWnd->hwnd)) {
         ShowWindow(f->floatWnd->hwnd, SW_HIDE);
     }
@@ -1090,10 +1050,7 @@ void UpdateAnnotFilterToolbar(MainWindow* win) {
     if (f->floatWnd) {
         f->floatWnd->UpdateTheme();
     }
-    if (!win->pdfAnnotationsToolbarEnabled) {
-        HideAnnotFilterWindow(win);
-        return;
-    }
+
     Edit* e = ActiveEdit(f);
     bool filterFocused = e && e->IsFocused();
     VirtListBox* lb = ActiveList(f);
@@ -1158,6 +1115,7 @@ void DeleteAnnotFilterToolbar(MainWindow* win) {
         w->win = nullptr;
         delete w;
     }
+    win->hwndCommentsPanel = nullptr;
     win->annotFilterToolbar = nullptr;
     delete f;
 }
@@ -1239,4 +1197,10 @@ TempStr AnnotFilterToolbarStateTemp(MainWindow* win) {
             deleteOn, discardOn, saveOn, nSel, itemDy, listY, saveNewRc.x, saveNewRc.y, saveNewRc.dx, saveNewRc.dy,
             SerializeColorTemp(saveNewTxt), SerializeColorTemp(saveNewBg)));
     return ToStrTemp(out);
+}
+
+void EnsureCommentsPanel(MainWindow* win) {
+    if (gSettings->showCommentsPanel && !win->hwndCommentsPanel && win->CurrentTab() && IsPdfDoc(win->CurrentTab())) {
+        ShowAnnotFilterWindow(win);
+    }
 }

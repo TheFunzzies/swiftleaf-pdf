@@ -15,3 +15,5 @@ bool ShouldShowToolsPanel(MainWindow*);
 void ToggleToolsPanel(MainWindow*);
 int ToolsPanelDx();
 void ShowTopBarMenu(MainWindow*, Rect anchorScreen);
+
+void PositionAnnotationStrip(MainWindow*);

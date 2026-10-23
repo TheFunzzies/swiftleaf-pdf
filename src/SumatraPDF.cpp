@@ -51,6 +51,7 @@
 #include "EditText.h"
 #include "StatusBar.h"
 #include "NavRail.h"
+#include "ToolsPanel.h"
 #include "SignatureCreate.h"
 #include "Ribbon.h"
 #include "Material.h"
@@ -3219,6 +3220,8 @@ static void CreateFrameLayout(MainWindow* win) {
     win->toolbarBottomSlot = new HwndSlot();
     win->statusBarSlot = new HwndSlot();
     win->navRailSlot = new HwndSlot();
+    win->toolsPanelSlot = new HwndSlot();
+    win->commentsPanelSlot = new HwndSlot();
     CreateCaptionLayout(win);
 
     // the webview is expensive to resize, so this one only moves the panes
@@ -3239,12 +3242,14 @@ static void CreateFrameLayout(MainWindow* win) {
 
     auto* row = new HBox();
     row->alignCross = CrossAxisAlign::Stretch;
-    row->AddChild(win->navRailSlot);
+    row->AddChild(win->toolsPanelSlot);
     row->AddChild(sidebar);
     row->AddChild(win->sidebarSplitter);
     row->AddChild(content, 1);
     row->AddChild(win->aiChatSplitter);
     row->AddChild(win->aiChatSlot);
+    row->AddChild(win->commentsPanelSlot);
+    row->AddChild(win->navRailSlot);
     win->frameLayout = row;
 
     auto* chrome = new VBox();
@@ -8024,6 +8029,18 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     bool showNavRail = ShouldShowNavRail(win) && win->hwndNavRail;
     int navRailDx = showNavRail ? NavRailDx() : 0;
     NavRailUpdate(win);
+    ToolsPanelUpdate(win);
+    EnsureCommentsPanel(win);
+    bool showComments = gSettings->showCommentsPanel && win->hwndCommentsPanel && curTab && IsPdfDoc(curTab) &&
+                        !win->presentation && !win->isFullScreen && !win->isQuickLook && rc.dx >= DpiScale(900);
+    SetVis(win->commentsPanelSlot, showComments);
+    win->commentsPanelSlot->dx = showComments ? DpiScale(300) : 0;
+    if (win->hwndCommentsPanel) ShowWindow(win->hwndCommentsPanel, showComments ? SW_SHOW : SW_HIDE);
+    bool showTools = ShouldShowToolsPanel(win) && rc.dx >= DpiScale(700);
+    int toolsDx = showTools ? ToolsPanelDx() : 0;
+    SetVis(win->toolsPanelSlot, showTools);
+    win->toolsPanelSlot->dx = toolsDx;
+    ShowWindow(win->hwndToolsPanel, showTools ? SW_SHOW : SW_HIDE);
     int statusBarDy = showStatusBar ? HwndWindowRect(win->hwndStatusBar).dy : 0;
 
     int tabHeight = GetTabbarHeight(win->hwndFrame);
@@ -8085,7 +8102,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
             if (!side.IsEmpty()) {
                 int right = rc.x + rc.dx;
                 // the navigation rail sits left of the sidebar
-                rc.x = side.x - navRailDx;
+                rc.x = side.x - toolsDx;
                 rc.dx = std::max(0, right - rc.x);
                 if (isFrameResize) {
                     sidebarDxApplied = side.dx;
@@ -8153,6 +8170,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     BindSlot(win->toolbarTopSlot, win->hwndToolbar, &dh, updateToolbars && showToolbar && !toolbarBottom);
     BindSlot(win->toolbarBottomSlot, win->hwndToolbar, &dh, updateToolbars && showToolbar && toolbarBottom);
     BindSlot(win->statusBarSlot, win->hwndStatusBar, &dh, updateToolbars && showStatusBar);
+    BindSlot(win->commentsPanelSlot, win->hwndCommentsPanel, &dh, showComments);
+    BindSlot(win->toolsPanelSlot, win->hwndToolsPanel, &dh, showTools);
     BindSlot(win->navRailSlot, win->hwndNavRail, &dh, updateToolbars && showNavRail);
     HWND topHwnd = win->sidebarTop->hwnd;
     HWND bottomHwnd = win->sidebarBottom->hwnd;
@@ -8186,9 +8205,10 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     }
 
     HwndSlot* chromeSlots[] = {
-        win->tabsSlot,    win->menuSlot,    win->toolbarTopSlot, win->toolbarBottomSlot, win->capMenuSlot,
-        win->capTabsRow1, win->capTabsRow2, win->sidebarTopSlot, win->sidebarBottomSlot, win->favoritesTabSlot,
-        win->canvasSlot,  win->aiChatSlot,  win->statusBarSlot,  win->navRailSlot};
+        win->tabsSlot,          win->menuSlot,         win->toolbarTopSlot, win->toolbarBottomSlot,
+        win->capMenuSlot,       win->capTabsRow1,      win->capTabsRow2,    win->sidebarTopSlot,
+        win->sidebarBottomSlot, win->favoritesTabSlot, win->canvasSlot,     win->aiChatSlot,
+        win->statusBarSlot,     win->navRailSlot,      win->toolsPanelSlot, win->commentsPanelSlot};
     for (HwndSlot* s : chromeSlots) {
         ClearSlotDefer(s);
     }
@@ -8223,6 +8243,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     }
 
     dh.End();
+    PositionAnnotationStrip(win);
 
     if (isSplitterDrag) {
         if (discardCanvasBits) {
@@ -17433,8 +17454,7 @@ static void ShowInstallerHelp() {
     dialogConfig.cbSize = sizeof(TASKDIALOGCONFIG);
     dialogConfig.pszWindowTitle = L"Swiftleaf installer usage";
     dialogConfig.pszMainInstruction = CWStrTemp(msg);
-    dialogConfig.pszContent =
-        LR"(<a href="https://github.com/TheFunzzies/swiftleaf-pdf">Read more on website</a>)";
+    dialogConfig.pszContent = LR"(<a href="https://github.com/TheFunzzies/swiftleaf-pdf">Read more on website</a>)";
     dialogConfig.nDefaultButton = IDOK;
     dialogConfig.dwFlags = (TASKDIALOG_FLAGS)flags;
     dialogConfig.pfCallback = TaskdialogHandleLinkscallback;

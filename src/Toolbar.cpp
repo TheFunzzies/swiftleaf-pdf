@@ -1629,6 +1629,7 @@ void UpdateToolbarAfterThemeChange(MainWindow* win) {
     RefreshToolbarIcons(win);
     StatusBarAfterThemeChange(win);
     NavRailAfterThemeChange(win);
+    ToolsPanelAfterThemeChange(win);
     VirtHost* host = ToolbarHost(win);
     if (host) {
         host->bgColor = TbBgColor();
@@ -3607,6 +3608,7 @@ static void OnRibbonTabClicked(MainWindow* win, VirtMouseEvent* ev) {
     }
     ev->didHandle = true;
     RibbonMode mode = (RibbonMode)(w->id - kRibbonTabIdBase);
+    if (mode == RibbonMode::AllTools) ToggleToolsPanel(win);
     SetRibbonPage(win, (int)RibbonModePage(mode), true);
 }
 
@@ -4054,6 +4056,7 @@ void CreateToolbar(MainWindow* win) {
     ToolbarSetHeight(win, tb->ribbonDy);
     CreateStatusBar(win);
     CreateNavRail(win);
+    CreateToolsPanel(win);
 
     DocController* ctrl = win->ctrl;
     UpdateToolbarPageText(win, ctrl ? ctrl->PageCount() : -1);
@@ -4076,6 +4079,7 @@ void CreateToolbar(MainWindow* win) {
 
 void DestroyToolbar(MainWindow* win) {
     DestroyStatusBar(win);
+    DestroyToolsPanel(win);
     DestroyNavRail(win);
     ToolbarVirt* tb = win->toolbarVirt;
     if (!tb) {

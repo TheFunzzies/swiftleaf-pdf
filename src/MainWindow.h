@@ -265,6 +265,9 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     HWND hwndStatusBar = nullptr;
     struct StatusBarVirt* statusBar = nullptr;
     // Swiftleaf navigation rail (NavRail.cpp)
+    HWND hwndCommentsPanel = nullptr;
+    HWND hwndToolsPanel = nullptr;
+    struct ToolsPanelVirt* toolsPanel = nullptr;
     HWND hwndNavRail = nullptr;
     struct NavRailVirt* navRail = nullptr;
     HWND hwndMenuReBar = nullptr;
@@ -504,6 +507,8 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     HwndSlot* toolbarTopSlot = nullptr;
     HwndSlot* toolbarBottomSlot = nullptr;
     HwndSlot* statusBarSlot = nullptr;
+    HwndSlot* commentsPanelSlot = nullptr;
+    HwndSlot* toolsPanelSlot = nullptr;
     HwndSlot* navRailSlot = nullptr;
     // tabs-in-titlebar caption: VirtCtrl buttons + HwndSlots for tabs/menu
     VBox* captionLayout = nullptr;
