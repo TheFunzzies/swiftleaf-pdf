@@ -7,7 +7,10 @@ import { killAndWait, launchControlled } from "./win-automation.ts";
 import {
   captureWindowToPng,
   clientToScreen,
+  getClientRect,
   getCursorPos,
+  getWindowRect,
+  getWorkArea,
   hasInteractiveDesktop,
   moveWindow,
   packCoords,
@@ -71,6 +74,7 @@ async function drag(client: ControlClient, frame: number, side: "tools" | "comme
           b = layout(s);
         return side === "tools" ? a.toolsPref !== b.toolsPref : a.commentsPref !== b.commentsPref;
       },
+      { error: (s) => `${side} drag did not change the saved width (delta=${delta}):\n${s}` },
     );
     want(/toolsRunning=0 commentsRunning=0/.test(next), "Resize drag animated", next);
     sendMessage(frame, WM_LBUTTONUP, 0, packCoords(x + delta, y));
@@ -106,8 +110,10 @@ export async function testit(): Promise<void> {
     let savedTools = 240,
       savedComments = 300;
     const scale = (n: number) => Math.round((n * percent) / 100);
+    let phase = "initial layout";
     try {
       for (const width of [1250, 850, 700, 600, 1250]) {
+        phase = `resize to ${scale(width)}x${scale(800)} (${width} logical pixels)`;
         // Suppress motion for the whole native resize gesture.
         sendMessage(frame, 0x0231, 0, 0); // WM_ENTERSIZEMOVE
         moveWindow(frame, 0, 0, scale(width), scale(800));
@@ -120,6 +126,7 @@ export async function testit(): Promise<void> {
             if (width === 700) return p.rail === 1 && p.comments === scale(220);
             return p.rail === 1 && p.comments === 0;
           },
+          { error: (s) => `Expected responsive layout for ${width} logical pixels:\n${s}` },
         );
         const p = layout(raw);
         want(p.dpi === Math.round((96 * percent) / 100), "DPI override was not applied", raw);
@@ -138,10 +145,12 @@ export async function testit(): Promise<void> {
         }
       }
       for (const mode of [1, 2, 3, 4, 0]) {
+        phase = `activate tab ${mode} and wait for motion active=0`;
         await selectToolTab(client, frame, mode);
         await settled(client);
       }
       if (percent === 100 && hasInteractiveDesktop()) {
+        phase = "drag tools and comments splitters";
         savedTools = (await drag(client, frame, "tools", 45)).toolsPref;
         savedComments = (await drag(client, frame, "comments", -45)).commentsPref;
         want(
@@ -153,11 +162,19 @@ export async function testit(): Promise<void> {
           "layout-animation: live cursor drag requires an interactive desktop; settings round-trip is unit-tested",
         );
       }
+      phase = "save panel widths";
       await client.quit();
       await proc.exited;
       const saved = readFileSync(settingsPath, "utf8");
       want(new RegExp(`ToolsPanelWidth = ${savedTools}\\b`).test(saved), "Tools resize was not saved", saved);
       want(new RegExp(`CommentsPanelWidth = ${savedComments}\\b`).test(saved), "Comments resize was not saved", saved);
+    } catch (error) {
+      throw new Error(
+        `layout-animation DPI=${percent}% during ${phase}: ${error}\n` +
+          `frame=${JSON.stringify(getWindowRect(frame))} client=${JSON.stringify(getClientRect(frame))} ` +
+          `workArea=${JSON.stringify(getWorkArea())}`,
+        { cause: error },
+      );
     } finally {
       client.close();
       await killAndWait(proc);
