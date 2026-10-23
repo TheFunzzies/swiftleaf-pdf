@@ -639,8 +639,35 @@ static void FormAuthoringTest() {
     utassert(SetFormFieldProperties(fields[2], p, error));
     p.options = StrL("Red\nBlue\nGreen");
     utassert(!SetFormFieldProperties(fields[2], p, error));
+    TempStr recovery = GetTempFilePathTemp(StrL("recovery"));
+    utassert(EngineMupdfAutoSave(e, recovery));
+    utassert(EngineHasUnsavedAnnotations(e));
+    Str snapshot = file::ReadFile(recovery);
+    utassert(len(snapshot) > 0);
+    FILETIME snapshotTime = file::GetModificationTime(recovery);
+    utassert(EngineMupdfAutoSave(e, recovery));
+    utassert(FileTimeEq(snapshotTime, file::GetModificationTime(recovery)));
+    EngineBase* recovered = CreateEngineMupdfFromFile(recovery, FileType::PDF, 96);
+    utassert(recovered && EngineMupdfCountFormFields(recovered) == 5);
+    SafeEngineRelease(&recovered);
+    utassert(EngineMupdfUndo(e, removed));
+    EngineMupdfRefreshModifiedState(e);
+    utassert(EngineMupdfRedo(e, removed));
+    EngineMupdfRefreshModifiedState(e);
+    utassert(EngineMupdfAutoSave(e, recovery));
+    str::Free(snapshot);
+
     TempStr path = GetTempFilePathTemp(StrL("form-authoring"));
+#if OS_WIN
+    HANDLE locked = CreateFileW(CWStrTemp(path), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    utassert(locked != INVALID_HANDLE_VALUE);
+    utassert(!EngineMupdfSaveUpdated(e, path, {}));
+    utassert(EngineHasUnsavedAnnotations(e) && file::Exists(recovery));
+    utassert(file::GetSize(path) == 0);
+    CloseHandle(locked);
+#endif
     utassert(EngineMupdfSaveUpdated(e, path, {}));
+    utassert(!file::Exists(recovery));
     SafeEngineRelease(&e);
 
     e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
@@ -654,9 +681,15 @@ static void FormAuthoringTest() {
     utassert(str::Eq(GetWidgetValue(widgets[2]), StrL("Blue")));
     utassert(str::Eq(GetWidgetValue(widgets[4]), StrL("Second")));
     utassert(GetWidgetType(widgets[5]) == PDF_WIDGET_TYPE_SIGNATURE);
+    utassert(EngineMupdfSaveCopy(e, recovery));
     DeleteAnnotation(widgets[1]);
     utassert(EngineMupdfCountFormFields(e) == 4);
     utassert(EngineMupdfSaveUpdated(e, path, {}));
+    utassert(SetWidgetChoiceValue(widgets[4], StrL("First")));
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    utassert(SetWidgetChoiceValue(widgets[4], StrL("Second")));
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    file::Delete(recovery);
     SafeEngineRelease(&e);
 
     // Open the saved file directly, independent of the application's wrappers.

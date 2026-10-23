@@ -5575,6 +5575,7 @@ static void CloseDocumentInCurrentTab(MainWindow* win, bool keepUIEnabled, bool 
         // Compact toolbar / filter list hold non-owning Annotation* into the
         // engine about to die.
         if (deleteModel) {
+            EngineMupdfClearRecovery(currentTab->GetEngine());
             CloseAnnotationUiForTab(currentTab);
         }
     }
@@ -5877,6 +5878,209 @@ bool SaveAnnotationsToMaybeNewPdfFile(WindowTab* tab) {
         SetSelectedAnnotation(tab, match);
     }
     return true;
+}
+
+constexpr UINT kRecoveryIntervalMs = 60 * 1000;
+static Str gRecoverySession;
+static HANDLE gRecoveryLock = INVALID_HANDLE_VALUE;
+static UINT_PTR gRecoveryTimer = 0;
+
+static bool CreateRecoverySession() {
+    if (len(gRecoverySession) > 0) {
+        return true;
+    }
+    TempStr root = path::JoinTemp(GetAppDataDirTemp(), StrL("recovery"));
+    if (!dir::CreateAll(root)) {
+        return false;
+    }
+    WCHAR tmp[MAX_PATH]{};
+    if (!GetTempFileNameW(CWStrTemp(root), L"ses", 0, tmp)) {
+        return false;
+    }
+    DeleteFileW(tmp);
+    if (!CreateDirectoryW(tmp, nullptr)) {
+        return false;
+    }
+    TempStr session = ToUtf8Temp(tmp);
+    TempStr lock = path::JoinTemp(session, StrL("session.lock"));
+    gRecoveryLock = CreateFileW(CWStrTemp(lock), GENERIC_READ | GENERIC_WRITE, 0, nullptr, CREATE_NEW,
+                                FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (gRecoveryLock == INVALID_HANDLE_VALUE) {
+        RemoveDirectoryW(tmp);
+        return false;
+    }
+    gRecoverySession = str::Dup(session);
+    return true;
+}
+
+static void CALLBACK RecoveryTimerProc(HWND, UINT, UINT_PTR, DWORD) {
+    if (!CanAccessDisk() || gPluginMode || IsStressTesting()) {
+        return;
+    }
+    for (MainWindow* win : gWindows) {
+        if (win->isBeingClosed) {
+            continue;
+        }
+        for (WindowTab* tab : win->Tabs()) {
+            EngineBase* engine = tab->GetEngine();
+            if (!EngineMupdfIsPdf(engine)) {
+                continue;
+            }
+            if (!EngineHasUnsavedAnnotations(engine)) {
+                EngineMupdfClearRecovery(engine);
+                continue;
+            }
+            if (!CreateRecoverySession()) {
+                return;
+            }
+            TempStr snapshot = path::JoinTemp(gRecoverySession, fmt("document-%p.pdf", engine));
+            TempStr info = str::JoinTemp(snapshot, StrL(".path"));
+            if (!file::Exists(info)) {
+                file::AtomicFile output(info);
+                if (len(output.tempPath) == 0 || !file::WriteFile(output.tempPath, tab->filePath) || !output.Commit()) {
+                    continue;
+                }
+            }
+            if (!EngineMupdfAutoSave(engine, snapshot)) {
+                logf("Recovery: snapshot failed for '%s'\n", tab->filePath);
+            }
+        }
+    }
+}
+
+enum class RecoveryChoice {
+    Ask,
+    Count,
+    Restore,
+    Discard
+};
+
+static int AskRecovery(HWND hwnd, Str original) {
+    TASKDIALOG_BUTTON buttons[] = {
+        {IDYES, CWStrTemp(Tr("&Restore..."))}, {IDNO, CWStrTemp(Tr("&Discard"))}, {IDCANCEL, CWStrTemp(Tr("&Later"))}};
+    TASKDIALOGCONFIG config{};
+    config.cbSize = sizeof(config);
+    config.hwndParent = hwnd;
+    config.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT;
+    config.pszWindowTitle = L"SwiftLeaf";
+    config.pszMainInstruction = CWStrTemp(Tr("Recover unsaved PDF changes?"));
+    config.pszContent = CWStrTemp(
+        fmt(Tr("Unsaved edits were recovered for:\n%s\n\nRestore saves a separate PDF. The original is unchanged.").s,
+            original));
+    config.cButtons = dimof(buttons);
+    config.pButtons = buttons;
+    config.nDefaultButton = IDCANCEL;
+    int button = IDCANCEL;
+    TaskDialogIndirect(&config, &button, nullptr, nullptr);
+    return button;
+}
+
+static TempStr PickRecoveryPath(HWND hwnd, Str original) {
+    WCHAR name[MAX_PATH]{};
+    str::BufSet(name, dimof(name), path::GetBaseNameTemp(original));
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = hwnd;
+    ofn.lpstrFilter = L"PDF documents\0*.pdf\0\0";
+    ofn.lpstrFile = name;
+    ofn.nMaxFile = dimof(name);
+    ofn.lpstrDefExt = L"pdf";
+    ofn.lpstrTitle = CWStrTemp(Tr("Restore PDF As"));
+    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY;
+    return GetSaveFileNameW(&ofn) ? ToUtf8Temp(WStr(name)) : TempStr{};
+}
+
+static bool RestoreRecovery(Str snapshot, Str destination) {
+    file::AtomicFile output(destination);
+    if (len(output.tempPath) == 0 || !file::Copy(output.tempPath, snapshot, false) || !output.Commit()) {
+        return false;
+    }
+    file::Delete(snapshot);
+    file::Delete(str::JoinTemp(snapshot, StrL(".path")));
+    return true;
+}
+
+// An exclusive session lock prevents recovery of another instance's live edits.
+static int ScanRecovery(HWND hwnd, RecoveryChoice choice, Str destination = {}) {
+    TempStr root = path::JoinTemp(GetAppDataDirTemp(), StrL("recovery"));
+    StrVec sessions;
+    DirIter dirs{root};
+    dirs.includeDirs = true;
+    dirs.includeFiles = false;
+    for (DirIterEntry* entry : dirs) {
+        if (!(entry->fd->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            sessions.Append(entry->filePath);
+        }
+    }
+    int count = 0;
+    for (Str session : sessions) {
+        TempStr lockPath = path::JoinTemp(session, StrL("session.lock"));
+        HANDLE lock = CreateFileW(CWStrTemp(lockPath), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS,
+                                  FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (lock == INVALID_HANDLE_VALUE) {
+            continue;
+        }
+        StrVec snapshots;
+        DirIter files{session};
+        for (DirIterEntry* entry : files) {
+            if (str::EqI(path::GetExtTemp(entry->name), StrL(".pdf")) &&
+                !(entry->fd->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+                snapshots.Append(entry->filePath);
+            }
+        }
+        for (Str snapshot : snapshots) {
+            count++;
+            if (choice == RecoveryChoice::Count) {
+                continue;
+            }
+            Str original = file::ReadFile(str::JoinTemp(snapshot, StrL(".path")));
+            int button = choice == RecoveryChoice::Ask       ? AskRecovery(hwnd, original)
+                         : choice == RecoveryChoice::Restore ? IDYES
+                                                             : IDNO;
+            if (button == IDNO) {
+                file::Delete(snapshot);
+                file::Delete(str::JoinTemp(snapshot, StrL(".path")));
+            } else if (button == IDYES) {
+                Str target = choice == RecoveryChoice::Ask ? PickRecoveryPath(hwnd, original) : destination;
+                if (len(target) > 0 && !path::IsSame(target, original) && RestoreRecovery(snapshot, target)) {
+                    if (choice == RecoveryChoice::Ask) {
+                        LoadArgs args(target, nullptr);
+                        StartLoadDocument(&args);
+                    }
+                } else if (len(target) > 0 && choice == RecoveryChoice::Ask) {
+                    MessageBoxWarning(hwnd, Tr("Couldn't restore the PDF. Choose a different file name."),
+                                      Tr("Recovery"));
+                }
+            }
+            str::Free(original);
+            if (choice == RecoveryChoice::Restore) {
+                CloseHandle(lock);
+                return count;
+            }
+        }
+        CloseHandle(lock);
+    }
+    return count;
+}
+
+static void OfferRecovery(MainWindow* win) {
+    if (IsMainWindowValidAndNotClosing(win)) {
+        ScanRecovery(win->hwndFrame, RecoveryChoice::Ask);
+    }
+}
+
+TempStr RecoveryTestResultTemp(int action, Str destination, int* exitCodeOut) {
+    *exitCodeOut = 0;
+    if (action == 0) {
+        RecoveryTimerProc(nullptr, 0, 0, 0);
+        return str::DupTemp(gRecoverySession);
+    }
+    if (action < 1 || action > 3) {
+        *exitCodeOut = 1;
+        return StrL("ERROR invalid action");
+    }
+    auto choice = action == 1 ? RecoveryChoice::Count : action == 2 ? RecoveryChoice::Restore : RecoveryChoice::Discard;
+    return fmt("%d", ScanRecovery(nullptr, choice, destination));
 }
 
 enum class SaveChoice {
@@ -6903,14 +7107,18 @@ bool ReplaceCurrentDocumentFile(MainWindow* win, Str newFilePath, int goToPage) 
         return false;
     }
     TempStr path = str::DupTemp(win->ctrl->GetFilePath());
+    file::AtomicFile output(path);
+    if (len(output.tempPath) == 0 || !file::Copy(output.tempPath, newFilePath, false)) {
+        return false;
+    }
     UpdateTabFileDisplayStateForTab(win->CurrentTab());
     CloseDocumentInCurrentTab(win, true, true);
     HwndSetFocus(win->hwndFrame);
 
-    TempWStr srcW = ToWStrTemp(newFilePath);
-    TempWStr dstW = ToWStrTemp(path);
-    DWORD flags = MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH;
-    BOOL moveOk = MoveFileExW(srcW.s, dstW.s, flags);
+    bool moveOk = output.Commit();
+    if (moveOk) {
+        file::Delete(newFilePath);
+    }
     if (!moveOk) {
         LogLastError();
     }
@@ -19391,6 +19599,12 @@ ContinueOpenWindow:
         uitask::Post(MkFunc0(MaybeShowDefaultAppNotification, win), "MaybeShowDefaultAppNotification");
     }
 
+    if (!gPluginMode && CanAccessDisk()) {
+        gRecoveryTimer = SetTimer(nullptr, 0, kRecoveryIntervalMs, RecoveryTimerProc);
+        if (!gForTesting && !flags.quickLook && !IsStressTesting()) {
+            uitask::Post(MkFunc0(OfferRecovery, win), "OfferRecovery");
+        }
+    }
     StartSumatraControl(flags.controlPipeName);
 
     // Tests drive us with posted messages, which carry their own MK_CONTROL etc.
@@ -19417,6 +19631,22 @@ ContinueOpenWindow:
     CleanUpThumbnailCache();
 
 Exit:
+    if (gRecoveryTimer) {
+        KillTimer(nullptr, gRecoveryTimer);
+        gRecoveryTimer = 0;
+    }
+    for (MainWindow* w : gWindows) {
+        for (WindowTab* tab : w->Tabs()) {
+            EngineMupdfClearRecovery(tab->GetEngine());
+        }
+    }
+    if (gRecoveryLock != INVALID_HANDLE_VALUE) {
+        CloseHandle(gRecoveryLock);
+        gRecoveryLock = INVALID_HANDLE_VALUE;
+        file::Delete(path::JoinTemp(gRecoverySession, StrL("session.lock")));
+        RemoveDirectoryW(CWStrTemp(gRecoverySession));
+    }
+    str::FreePtr(&gRecoverySession);
     SavePerfLog();
     // logf("Exiting with exit code: %d\n", exitCode);
     UnregisterSettingsForFileChanges();

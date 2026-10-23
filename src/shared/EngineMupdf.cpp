@@ -3471,6 +3471,7 @@ static void FreePageInfo(fz_context* ctx, FzPageInfo* pi) {
 }
 
 EngineMupdf::~EngineMupdf() {
+    EngineMupdfClearRecovery(this);
     pagesLock.Lock();
 
     auto* ctx = _ctx;
@@ -8962,15 +8963,17 @@ bool EngineMupdfSaveUpdated(EngineBase* engine, Str path, const ShowErrorCb& sho
     if (len(path) == 0) {
         path = currPath;
     }
-    auto* ctx = epdf->Ctx();
+    auto* ctx = epdf->BaseCtx();
     // the first change started reading the file; finish now if it hasn't.
     // Before docLock: the swap takes pagesLock first
     bool inPlace = str::Eq(path, currPath);
-    if (inPlace && !epdf->fileBytes && epdf->fileSizeAtLoad > 0 && pdf_can_be_saved_incrementally(ctx, epdf->pdfdoc)) {
+    if (inPlace && !epdf->fileBytes && epdf->fileSizeAtLoad > 0) {
         Str data = ReadFileLogged(path, StrL("save"));
         UseFileBytes(epdf, data);
         str::Free(data);
     }
+    ScopedRecursiveMutex pagesScope(&epdf->pagesLock);
+    ScopedMutex renderScope(&epdf->renderLock);
     ScopedRecursiveMutex scope(&epdf->docLock);
 
     pdf_write_options save_opts{};
@@ -8996,6 +8999,7 @@ bool EngineMupdfSaveUpdated(EngineBase* engine, Str path, const ShowErrorCb& sho
     bool fromMemory = len(whyNotFromMemory) == 0;
     int increments = epdf->pdfdoc->num_incremental_sections;
     int64_t startxref = epdf->pdfdoc->startxref;
+    int xrefStyle = epdf->pdfdoc->last_xref_was_old_style;
     bool ok = false;
     fz_var(ok);
     fz_try(ctx) {
@@ -9027,16 +9031,17 @@ bool EngineMupdfSaveUpdated(EngineBase* engine, Str path, const ShowErrorCb& sho
         }
     }
 
-    if (!ok) {
-        epdf->pdfdoc->num_incremental_sections = increments;
-        epdf->pdfdoc->startxref = startxref;
-        epdf->pdfdoc->xref_base = 0;
-        epdf->pdfdoc->disallow_new_increments = 0;
-        epdf->pdfdoc->save_in_progress = 0;
-    }
-    // note: this should be short-lived as we should re-load the file
+    // The engine still reads its original stream until reload. Keep every edit
+    // pending against those bytes, including after a failed publish or Save As.
+    epdf->pdfdoc->num_incremental_sections = increments;
+    epdf->pdfdoc->startxref = startxref;
+    epdf->pdfdoc->last_xref_was_old_style = xrefStyle;
+    epdf->pdfdoc->xref_base = 0;
+    epdf->pdfdoc->disallow_new_increments = 0;
+    epdf->pdfdoc->save_in_progress = 0;
     if (ok) {
         epdf->modifiedAnnotations = false;
+        EngineMupdfClearRecovery(epdf);
         // undoing back to here means the file on disk matches again
         epdf->savedUndoPos = EngineMupdfUndoPos(epdf, nullptr);
     }
@@ -9051,13 +9056,16 @@ bool EngineMupdfSaveCopy(EngineBase* engine, Str path) {
     if (!epdf || !epdf->pdfdoc || len(path) == 0) {
         return false;
     }
-    auto* ctx = epdf->Ctx();
+    auto* ctx = epdf->BaseCtx();
+    ScopedRecursiveMutex pagesScope(&epdf->pagesLock);
+    ScopedMutex renderScope(&epdf->renderLock);
     ScopedRecursiveMutex scope(&epdf->docLock);
     file::AtomicFile output(path);
     if (len(output.tempPath) == 0) {
         return false;
     }
     int increments = epdf->pdfdoc->num_incremental_sections;
+    int xrefStyle = epdf->pdfdoc->last_xref_was_old_style;
     pdf_write_options save_opts{};
     save_opts = gPdfDefaultWriteOptions;
     save_opts.do_incremental = 0;
@@ -9068,6 +9076,7 @@ bool EngineMupdfSaveCopy(EngineBase* engine, Str path) {
         ok = output.Commit();
     }
     fz_always(ctx) {
+        epdf->pdfdoc->last_xref_was_old_style = xrefStyle;
         epdf->pdfdoc->num_incremental_sections = increments;
         epdf->pdfdoc->xref_base = 0;
         epdf->pdfdoc->disallow_new_increments = 0;
@@ -9078,6 +9087,46 @@ bool EngineMupdfSaveCopy(EngineBase* engine, Str path) {
         logf("EngineMupdfSaveCopy: saving '%s' failed: '%s'\n", path, Str(fz_caught_message(ctx)));
     }
     return ok;
+}
+
+void EngineMupdfClearRecovery(EngineBase* engine) {
+    auto* e = AsEngineMupdf(engine);
+    if (!e || len(e->recoveryPath) == 0) {
+        return;
+    }
+    file::Delete(e->recoveryPath);
+    file::Delete(str::JoinTemp(e->recoveryPath, StrL(".path")));
+    str::FreePtr(&e->recoveryPath);
+    e->recoveryGeneration = 0;
+}
+
+// UI thread only: form calculation and appearance synthesis use the base context.
+bool EngineMupdfAutoSave(EngineBase* engine, Str path) {
+    auto* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc) {
+        return false;
+    }
+    if (!e->modifiedAnnotations) {
+        EngineMupdfClearRecovery(e);
+        return true;
+    }
+    if (e->journalNesting > 0) {
+        return false;
+    }
+    if (e->recoveryGeneration == e->editGeneration) {
+        return true;
+    }
+    if (len(e->recoveryPath) > 0) {
+        path = e->recoveryPath;
+    }
+    if (!EngineMupdfSaveCopy(e, path)) {
+        return false;
+    }
+    if (len(e->recoveryPath) == 0) {
+        e->recoveryPath = str::Dup(path);
+    }
+    e->recoveryGeneration = e->editGeneration;
+    return true;
 }
 
 // caller must hold pagesLock (protects pages[] and pageInfo->images)
@@ -9626,6 +9675,7 @@ bool EngineMupdfApplyRedactions(EngineBase* engine, Vec<Annotation*>& deletedOut
 
     if (any) {
         e->modifiedAnnotations = true;
+        e->editGeneration++;
         // the marks are burned in and gone; nothing left to apply
         e->createdRedactMark = false;
     }
@@ -10040,6 +10090,7 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
     InvalidateFzPageAfterContentChange(e, pi);
     e->InvalidateTextForPage(pageNo);
     e->modifiedAnnotations = true;
+    e->editGeneration++;
     return ok;
 }
 
@@ -10437,6 +10488,7 @@ void EngineMupdfRefreshModifiedState(EngineBase* engine) {
         return;
     }
     e->modifiedAnnotations = (pos != e->savedUndoPos);
+    e->editGeneration++;
 }
 
 // the mupdf engine also renders epub, mobi, fb2, xps, svg and more; only a real
@@ -11003,6 +11055,7 @@ void MarkNotificationAsModified(EngineMupdf* e, Annotation* annot) {
 
 NO_INLINE void MarkNotificationAsModified(EngineMupdf* e, Annotation* annot, AnnotationChange change) {
     e->modifiedAnnotations = true;
+    e->editGeneration++;
     if (!e->pdfdoc) {
         return;
     }

@@ -29,7 +29,8 @@ void FileUtilTest() {
             file::AtomicFile output(target);
             utassert(file::WriteFile(output.tempPath, StrL("complete")));
 #if OS_WIN
-            HANDLE locked = CreateFileW(CWStrTemp(target), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+            HANDLE locked =
+                CreateFileW(CWStrTemp(target), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
             utassert(locked != INVALID_HANDLE_VALUE);
             utassert(!output.Commit());
             bytes = file::ReadFile(target);
