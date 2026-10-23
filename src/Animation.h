@@ -18,6 +18,7 @@ struct Animation {
     void* context = nullptr;
     bool initialized = false;
     bool running = false;
+    bool invalidateWindow = true;
 
     Animation() = default;
     Animation(const Animation&) = delete;

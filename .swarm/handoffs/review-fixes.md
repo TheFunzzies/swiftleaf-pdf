@@ -9,14 +9,14 @@ Existing edits in three `ext/darkmodelib` resource files are excluded.
 | 1 | FALSE-POSITIVE | `DestroyToolbar` calls `DestroyToolsPanel` before deleting the toolbar host/tree; recreation cannot retain the cached sources. | — |
 | 2 | CONFIRMED + FIXED | Validate COM output pointers and live controls; port host identity guard. Existing Child already rejects destroyed hosts, so ordinary teardown was overstated. | `88a7505` |
 | 3 | CONFIRMED + FIXED | Iterate a snapshot and check membership before dereferencing; apply the same rule to suspension callbacks. Regression failed pre-fix with `idx >= len` (exit 105). | `adabab5` |
-| 4 | CONFIRMED, pending | Width animations invalidate the entire frame every tick. | pending |
-| 5 | CONFIRMED + FIXED | Apply the saved ribbon page after building the new toolbar tree. | Initialize and navigate the full top bar (this commit) |
+| 4 | CONFIRMED + FIXED | Width animations delegate painting to layout; invalidate only the union of each panel slot and its old/new splitter bounds. Also avoid invalidating all desktop windows for null test HWNDs. | Limit panel animation repaint regions (this commit) |
+| 5 | CONFIRMED + FIXED | Apply the saved ribbon page after building the new toolbar tree. | `83348d0` |
 | 6 | CONFIRMED + FIXED | Restore the first enabled row after page replacement; fall back to the close control when all rows are disabled (from `1c588b4`). | `c1d3ee9` |
 | 7 | CONFIRMED + FIXED | Clamp loaded preferences with the shared panel bounds (Win32 only). Layout already clamps effective widths. | `a6c948b` |
 | 8 | CONFIRMED, pending | SPI is queried on every animation eligibility check. | pending |
 | 9 | CONFIRMED + FIXED | Allocation-free Control/Count traversal; collect once for focus/hit testing and focus notifications. | `88a7505` |
 | 10 | CONFIRMED + FIXED | Empty ribbon labels fall back to tooltip text. | `88a7505` |
-| 11 | CONFIRMED + FIXED | Arrow/Home/End navigation traverses all enabled virtual top-bar tab stops, including Menu/Search/Properties/Save/Print. | Initialize and navigate the full top bar (this commit) |
+| 11 | CONFIRMED + FIXED | Arrow/Home/End navigation traverses all enabled virtual top-bar tab stops, including Menu/Search/Properties/Save/Print. | `83348d0` |
 | 12 | CONFIRMED, pending | Rail mode collapses the Home page's View more control. | pending |
 | 13 | FALSE-POSITIVE | `RibbonTabRow` is an HBox, not a VirtCtrl. Layout containers receive/store HWND-client bounds; `lastBounds.x` is already window-relative. | — |
 | 14 | CONFIRMED, pending | Refresh builds a focusable vector even without a focused control. | pending |

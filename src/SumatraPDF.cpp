@@ -3269,6 +3269,8 @@ static void CreateFrameLayout(MainWindow* win) {
 
     win->toolsWidthAnimation = new Animation();
     win->commentsWidthAnimation = new Animation();
+    win->toolsWidthAnimation->invalidateWindow = false;
+    win->commentsWidthAnimation->invalidateWindow = false;
     win->toolsWidthAnimation->onTick = OnPanelAnimation;
     win->commentsWidthAnimation->onTick = OnPanelAnimation;
     win->toolsWidthAnimation->context = win;
@@ -8038,6 +8040,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     bool isSplitterDrag = sidebarDx != -1;
     // dragging the splitter between the sidebar panels is just as live
     bool panelAnimating = win->toolsWidthAnimation->running || win->commentsWidthAnimation->running;
+    Rect oldTools = win->toolsPanelSlot->lastBounds.Union(win->toolsPanelSplitter->BoundsInWindow());
+    Rect oldComments = win->commentsPanelSlot->lastBounds.Union(win->commentsPanelSplitter->BoundsInWindow());
     bool isLiveDrag = isSplitterDrag || win->uiState.panelsDrag || IsPanelDrag(win) || panelAnimating;
     // Fullscreen changes both the canvas origin and size while frame redraw is
     // disabled. Preserving its old screen bits copies the normal-window tabs,
@@ -8279,6 +8283,10 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
 
     win->chromeLayout->Layout(Tight({rc.dx, rc.dy}));
     win->chromeLayout->SetBounds(rc);
+    Rect newTools = win->toolsPanelSlot->lastBounds.Union(win->toolsPanelSplitter->BoundsInWindow());
+    Rect newComments = win->commentsPanelSlot->lastBounds.Union(win->commentsPanelSplitter->BoundsInWindow());
+    if (oldTools != newTools) HwndInvalidateRect(win->hwndFrame, oldTools.Union(newTools), false);
+    if (oldComments != newComments) HwndInvalidateRect(win->hwndFrame, oldComments.Union(newComments), false);
     if (discardCanvasBits) {
         dh.MoveWindowNoCopyBits(win->hwndCanvas, win->canvasSlot->lastBounds);
     }

@@ -57,7 +57,7 @@ static void CALLBACK AnimationTick(HWND, UINT, UINT_PTR, DWORD) {
         auto onTick = a->onTick;
         void* context = a->context;
         if (finish) a->Snap(a->target);
-        InvalidateRect(hwnd, nullptr, FALSE);
+        if (a->invalidateWindow && hwnd) InvalidateRect(hwnd, nullptr, FALSE);
         if (onTick) onTick(context);
     }
     StopIdleTimer();
@@ -95,7 +95,7 @@ void AnimationSuspend(HWND hwnd, bool suspend) {
         auto onTick = a->onTick;
         void* context = a->context;
         a->Snap(a->target);
-        InvalidateRect(window, nullptr, FALSE);
+        if (a->invalidateWindow && window) InvalidateRect(window, nullptr, FALSE);
         if (onTick) onTick(context);
     }
 }
