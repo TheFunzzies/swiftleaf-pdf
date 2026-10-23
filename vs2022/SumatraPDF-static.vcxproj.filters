@@ -704,6 +704,12 @@
     <ClCompile Include="..\src\FormFields.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\FormAuthoring.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClInclude Include="..\src\FormAuthoring.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClCompile Include="..\src\GetPasswordDialog.cpp">
       <Filter>src</Filter>
     </ClCompile>

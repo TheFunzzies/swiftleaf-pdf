@@ -353,6 +353,12 @@ const CommandInfo gCommands[] = {
     {CmdToolSelect, "CmdToolSelect\0", StrL("Select Tool")},
     {CmdToolSnapshot, "CmdToolSnapshot\0", StrL("Snapshot Tool")},
     {CmdCreateSignature, "CmdCreateSignature\0", StrL("Create Signature")},
+    {CmdPrepareForm, "CmdPrepareForm\0", StrL("Prepare a Form")},
+    {CmdCreateFormText, "CmdCreateFormText\0", StrL("Create Text Field")},
+    {CmdCreateFormCheckbox, "CmdCreateFormCheckbox\0", StrL("Create Checkbox Field")},
+    {CmdCreateFormRadio, "CmdCreateFormRadio\0", StrL("Create Radio Group")},
+    {CmdCreateFormCombo, "CmdCreateFormCombo\0", StrL("Create Dropdown Field")},
+    {CmdCreateFormSignature, "CmdCreateFormSignature\0", StrL("Create Unsigned Signature Field")},
 };
 const int gCommandsCount = dimofi(gCommands);
 

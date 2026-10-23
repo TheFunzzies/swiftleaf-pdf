@@ -347,8 +347,14 @@ enum {
     CmdToolSelect = 541,
     CmdToolSnapshot = 542,
     CmdCreateSignature = 543,
+    CmdPrepareForm = 544,
+    CmdCreateFormText = 545,
+    CmdCreateFormCheckbox = 546,
+    CmdCreateFormRadio = 547,
+    CmdCreateFormCombo = 548,
+    CmdCreateFormSignature = 549,
 
-    CmdLast = 543,
+    CmdLast = 549,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

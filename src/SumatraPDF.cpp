@@ -46,6 +46,7 @@
 #include "PdfDarkMode.h"
 #include "Annotation.h"
 #include "FormFields.h"
+#include "FormAuthoring.h"
 #include "PdfTools.h"
 #include "PageOrganize.h"
 #include "EditText.h"
@@ -13976,6 +13977,29 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             ShowSetTabColorDialog(win, colorTab);
             return 0;
         }
+
+        case CmdPrepareForm:
+        case CmdCreateFormText:
+        case CmdCreateFormCheckbox:
+        case CmdCreateFormRadio:
+        case CmdCreateFormCombo:
+        case CmdCreateFormSignature: {
+            if (!win || !tab || !dm || !EngineMupdfIsPdf(dm->GetEngine()) ||
+                !EngineSupportsAnnotations(dm->GetEngine()))
+                return 0;
+            CommitFormFieldEdit(true);
+            EnablePdfAnnotationsToolbar(win);
+            if (!isAnnotationPlacementCommit) {
+                StartAnnotationPlacement(win, cmdId);
+                return 0;
+            }
+            Point pt;
+            int pageNo = -1;
+            PointF start, end;
+            AnnotCreateArgs args{AnnotationType::Widget};
+            if (!AnnotationPlacementFillCreate(win, AnnotationType::Widget, pt, pageNo, start, end, args)) return 0;
+            lastCreatedAnnot = PlaceFormField(win, cmdId, pageNo, args.rect);
+        } break;
 
         case CmdAnnotationHighlightBrush: {
             // The highlighter is a mode: every text selection finished while

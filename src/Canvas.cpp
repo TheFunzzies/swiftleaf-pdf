@@ -1569,7 +1569,7 @@ bool NudgeSelectedAnnotation(MainWindow* win, WPARAM key) {
     if (!dm || !AnnotationIsLive(annot) || win->annotationBeingDragged) {
         return false;
     }
-    if (!AnnotationCanBeMoved(annot->type) || annot->type == AnnotationType::Widget) {
+    if (!AnnotationCanBeMoved(annot->type)) {
         return false;
     }
 
@@ -2142,8 +2142,7 @@ static void StartAnnotationDrag(MainWindow* win, Annotation* annot, Point& pt) {
 bool StartSelectedAnnotMove(MainWindow* win, Point pt) {
     WindowTab* tab = win ? win->CurrentTab() : nullptr;
     Annotation* annot = tab ? tab->selectedAnnotation : nullptr;
-    if (!win || !win->AsFixed() || !AnnotationIsLive(annot) || !AnnotationCanBeMoved(Type(annot)) ||
-        Type(annot) == AnnotationType::Widget) {
+    if (!win || !win->AsFixed() || !AnnotationIsLive(annot) || !AnnotationCanBeMoved(Type(annot))) {
         return false;
     }
     win->annotationBeingResized = false;
@@ -2470,7 +2469,8 @@ static void OnMouseLeftButtonDown(MainWindow* win, int x, int y, WPARAM key) {
     if (locked) {
         bool onHandle =
             AnnotationCanBeResized(locked->type) && GetResizeHandleAt(win, pt, locked) != ResizeHandle::None;
-        bool onLocked = dm->GetAnnotationAtPos(pt, locked) == locked;
+        bool onLocked = dm->GetAnnotationAtPos(pt, locked) == locked ||
+                        (locked->type == AnnotationType::Widget && dm->GetWidgetAtPos(pt) == locked);
         if (!onHandle && !onLocked) {
             if (!AnnotContentsEditJustEnded()) {
                 SetSelectedAnnotation(win->CurrentTab(), nullptr);
@@ -2520,18 +2520,20 @@ static void OnMouseLeftButtonDown(MainWindow* win, int x, int y, WPARAM key) {
     // their own list (GetWidgetAtPos), separate from markup annotations. Consume
     // the click in either case so it doesn't start a drag/selection.
     Annotation* widget = locked ? nullptr : dm->GetWidgetAtPos(pt);
-    if (ToggleFormButton(widget)) {
+    bool authoring = win->pdfAnnotationsToolbarEnabled || MouseHasCtrl(key);
+    Annotation* fillWidget = authoring ? nullptr : widget;
+    if (ToggleFormButton(fillWidget)) {
         MainWindowRerender(win);
         win->mouseAction = MouseAction::None;
         return;
     }
-    if (StartFormFieldEdit(win, widget)) {
+    if (StartFormFieldEdit(win, fillWidget)) {
         win->mouseAction = MouseAction::None;
         return;
     }
     // an unsigned signature field is there to be signed: open Sign Document on
     // it rather than making the user find the command in a menu (issue #5964)
-    if (StartSignatureFieldSigning(win, widget)) {
+    if (StartSignatureFieldSigning(win, fillWidget)) {
         win->mouseAction = MouseAction::None;
         return;
     }
@@ -2554,6 +2556,7 @@ static void OnMouseLeftButtonDown(MainWindow* win, int x, int y, WPARAM key) {
     // the highlighter only selects text: a click never picks an annotation
     Annotation* annot =
         IsPlacingHighlighterAnnotation(win) ? nullptr : dm->GetAnnotationAtPos(pt, tab->selectedAnnotation);
+    if (authoring && widget) annot = widget;
     if (MouseHasCtrl(key) && annot && tab) {
         EnablePdfAnnotationsToolbar(win);
     }
@@ -2568,7 +2571,7 @@ static void OnMouseLeftButtonDown(MainWindow* win, int x, int y, WPARAM key) {
             return;
         }
     }
-    bool isMoveableAnnot = annot && AnnotationCanBeMoved(annot->type) && annot->type != AnnotationType::Widget;
+    bool isMoveableAnnot = annot && AnnotationCanBeMoved(annot->type);
     // Selecting / dragging an annotation is Edit PDF (Ctrl+click turns that
     // on above). A click outside that mode must stay a page click. An
     // annotation already selected (just created) can still be dragged.
@@ -2834,6 +2837,10 @@ static void OnMouseLeftButtonUp(MainWindow* win, int x, int y, WPARAM key) {
     Annotation* clickedAnnot = IsPlacingHighlighterAnnotation(win)
                                    ? nullptr
                                    : dm->GetAnnotationAtPos(pt, tab ? tab->selectedAnnotation : nullptr);
+    if (win->pdfAnnotationsToolbarEnabled || MouseHasCtrl(key)) {
+        Annotation* widget = dm->GetWidgetAtPos(pt);
+        if (widget) clickedAnnot = widget;
+    }
     if (MouseHasCtrl(key) && clickedAnnot && tab) {
         EnablePdfAnnotationsToolbar(win);
     }
@@ -4309,14 +4316,20 @@ static LRESULT OnSetCursorMouseNone(MainWindow* win, HWND hwnd) {
     // an annotation being edited: no hover cursors or tooltips for anything else
     if (AnnotationLockingMouse(win)) {
         win->DeleteToolTip();
-        bool onSelected = dm->GetAnnotationAtPos(pt, selected) == selected;
+        bool onSelected = dm->GetAnnotationAtPos(pt, selected) == selected ||
+                          (selected && selected->type == AnnotationType::Widget && dm->GetWidgetAtPos(pt) == selected);
         SetCursorCached(onSelected ? IDC_HAND : IDC_ARROW);
         return TRUE;
     }
 
     // PDF form fields: I-beam over text/choice, hand over checkbox/radio
     {
-        WidgetCursorKind kind = GetWidgetCursorKind(dm->GetWidgetAtPos(pt));
+        Annotation* widget = dm->GetWidgetAtPos(pt);
+        if (widget && win->pdfAnnotationsToolbarEnabled) {
+            SetCursorCached(IDC_HAND);
+            return TRUE;
+        }
+        WidgetCursorKind kind = GetWidgetCursorKind(widget);
         if (kind == WidgetCursorKind::Text) {
             SetCursorCached(IDC_IBEAM);
             return TRUE;

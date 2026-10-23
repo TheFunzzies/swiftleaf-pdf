@@ -49,8 +49,7 @@ static const ToolDef tools[] = {
     {gLucideShield, TrN("Protect a PDF"), CmdPdfEncrypt},
     {gLucideRectangleHorizontal, TrN("Redact a PDF"), CmdCreateAnnotRedact},
     {gLucideFileArchive, TrN("Compress a PDF"), CmdPdfCompress},
-    {gLucideTextCursorInput, TrN("Prepare a form"), 0,
-     TrN("Creating new PDF form fields is not supported by the bundled PDF engine.")},
+    {gLucideTextCursorInput, TrN("Prepare a form"), CmdPrepareForm},
     {gLucideStamp, TrN("Add a stamp"), CmdCreateAnnotStamp},
     {gLucideBadgeCheck, TrN("Use a certificate"), CmdSignDocument},
 };

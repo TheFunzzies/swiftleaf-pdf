@@ -34,6 +34,7 @@ export function accessibleObjectFromWindow(hwnd: number): bigint {
 }
 
 const user32 = dlopen("user32.dll", {
+  GetDlgItem: { args: [FFIType.ptr, FFIType.i32], returns: FFIType.ptr },
   EnumWindows: { args: [FFIType.function, FFIType.i64], returns: FFIType.bool },
   EnumChildWindows: { args: [FFIType.ptr, FFIType.function, FFIType.i64], returns: FFIType.bool },
   GetClassNameW: { args: [FFIType.ptr, FFIType.ptr, FFIType.i32], returns: FFIType.i32 },
@@ -1327,6 +1328,10 @@ export function tbGetButtonIndex(toolbar: number, cmdId: number): number {
 export function sendText(hwnd: number, text: string): void {
   const buf = wideZ(text);
   sendMessage(hwnd, WM_SETTEXT, 0, ptr(buf));
+}
+
+export function getDlgItem(hwnd: number, id: number): number {
+  return Number(user32.symbols.GetDlgItem(hwnd, id));
 }
 
 // PNG encoder CLSID {557CF406-1A04-11D3-9A73-0000F81EF32E}

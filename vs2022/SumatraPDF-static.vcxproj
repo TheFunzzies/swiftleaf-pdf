@@ -1621,6 +1621,8 @@
     <ClCompile Include="..\src\FindBar.cpp" />
     <ClCompile Include="..\src\FindWindow.cpp" />
     <ClCompile Include="..\src\FormFields.cpp" />
+    <ClCompile Include="..\src\FormAuthoring.cpp" />
+    <ClInclude Include="..\src\FormAuthoring.h" />
     <ClCompile Include="..\src\GetPasswordDialog.cpp" />
     <ClCompile Include="..\src\GlobalHotkeys.cpp" />
     <ClCompile Include="..\src\GoToPageDialog.cpp" />
