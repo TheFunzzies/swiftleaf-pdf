@@ -7,7 +7,7 @@ Branch: `t3/contextual-left-panel`
 - First contextual implementation Debug build passed (10:39 local).
 - Added tab/row keyboard handling, frame focus ring integration, and MSAA
   accessible names/state/actions for the virtual ribbon and panel controls.
-- Branding check passes (626 files).
+- Branding check passes (628 files).
 - Contextual panel rows now reuse original ribbon command controls, icons,
   labels, availability and checked state; separator headings added.
 - Horizontal strip collapsed; hidden/narrow panel uses a native tab menu.
@@ -24,6 +24,7 @@ Branch: `t3/contextual-left-panel`
   execution, keyboard tab navigation, document-close disabled state preservation, and narrow window fallback menu.
 - Updated outdated test assertions in `tests/annot-undo-redo.ts`, `tests/annot-color-dropdown.ts`,
   and `tests/redact-annotations.ts` for contextual panel layout without weakening test intent.
+- Handled `WM_VSCROLL` and `WM_MOUSEWHEEL` in `PanelNativeMsg` in `src/ToolsPanel.cpp` and set `lineDy` to `RibbonButtonDy(GetAppFont())` so tools panel rows scroll into view properly when requested by tests and users.
 - Wired `contextual-panel` into `tests/run-swiftleaf-ci.ts` and `tests/run-almost-all.ts`; updated
   `tests/ci-known-failures.test.ts` (3/3 pass).
 

@@ -290,6 +290,7 @@ void ToolsPanelShowPage(MainWindow* win) {
         SetupRow(win, b);
     }
     panel->scroll = new ScrollBox(new Padding(col, DpiScaledInsets(16, 12)));
+    panel->scroll->lineDy = RibbonButtonDy(GetAppFont());
     panel->host->SetLayout(panel->scroll);
     ToolsPanelAfterThemeChange(win);
     ToolsPanelUpdate(win);
@@ -314,6 +315,16 @@ static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
             AdvanceFocus(win);
             ev->didHandle = true;
         }
+    } else if (ev->msg == WM_VSCROLL && panel->scroll) {
+        panel->scroll->OnVScroll(ev->wp);
+        ev->res = 0;
+        ev->didHandle = true;
+    } else if (ev->msg == WM_MOUSEWHEEL && panel->scroll) {
+        VirtMouseEvent mev;
+        mev.wheelDelta = GET_WHEEL_DELTA_WPARAM(ev->wp);
+        panel->scroll->OnMouseWheel(&mev);
+        ev->res = 0;
+        ev->didHandle = true;
     }
 }
 
