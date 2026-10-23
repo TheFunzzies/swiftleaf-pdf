@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control.ts";
 import { SETTINGS_FILE_NAME, assemblePdf, cmdId, runStandalone, tmpPath } from "./util.ts";
 import {
+  setProcessDpiAware,
   clientToScreen,
   getClientRect,
   getPopupMenuHandle,
@@ -207,6 +208,7 @@ function requireEnabled(items: MenuItem[], text: string): void {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("annot-cut-paste");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });

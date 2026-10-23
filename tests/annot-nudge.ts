@@ -7,7 +7,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control.ts";
 import { assemblePdf, cmdId, runStandalone, tmpPath } from "./util.ts";
-import { captureWindowPixels, postMessage, sleep, WM_KEYDOWN } from "./winapi.ts";
+import { setProcessDpiAware, captureWindowPixels, postMessage, sleep, WM_KEYDOWN } from "./winapi.ts";
 import { clickAt, findCanvas, killAndWait, launchControlled, sendCommand } from "./win-automation.ts";
 
 const VK_LEFT = 0x25;
@@ -42,6 +42,7 @@ async function waitSquare(client: ControlClient, what: string, pred: (s: Square)
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("annot-nudge");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });

@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control.ts";
 import { SETTINGS_FILE_NAME, assemblePdf, cmdId, runStandalone, tmpPath } from "./util.ts";
 import {
+  setProcessDpiAware,
   clientToScreen,
   packCoords,
   sendMessage,
@@ -55,6 +56,7 @@ async function selected(client: ControlClient): Promise<Sel | null> {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("annot-moveable-types");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
