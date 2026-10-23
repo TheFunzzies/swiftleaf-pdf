@@ -3634,15 +3634,20 @@ static void OnTopBarKey(MainWindow* win, VirtKeyEvent* ev) {
         if (ev->vkey == VK_DOWN && ShouldShowToolsPanel(win) && HwndIsVisible(win->hwndToolsPanel))
             HwndSetFocus(win->hwndToolsPanel);
     } else if (ev->vkey == VK_LEFT || ev->vkey == VK_RIGHT || ev->vkey == VK_HOME || ev->vkey == VK_END) {
+        Vec<TabStop> stops;
+        CollectTabStops(tb->ribbonTabRow, stops);
+        Vec<VirtCtrl*> controls;
+        for (auto& stop : stops)
+            if (stop.vwnd) VecAppend(controls, stop.vwnd);
         int idx = -1;
-        for (int i = 0; i < len(tb->ribbonTabs); i++)
-            if (tb->ribbonTabs[i] == w) idx = i;
+        for (int i = 0; i < len(controls); i++)
+            if (controls[i] == w) idx = i;
         if (idx < 0) return;
-        int count = len(tb->ribbonTabs);
+        int count = len(controls);
         int next = ev->vkey == VK_HOME  ? 0
                    : ev->vkey == VK_END ? count - 1
                                         : (idx + (ev->vkey == VK_LEFT ? count - 1 : 1)) % count;
-        tb->host->vroot->SetFocus(tb->ribbonTabs[next]);
+        tb->host->vroot->SetFocus(controls[next]);
     } else
         return;
     ev->didHandle = true;
@@ -3651,6 +3656,7 @@ static void OnTopBarKey(MainWindow* win, VirtKeyEvent* ev) {
 static void SetupTopBarKey(MainWindow* win, VirtCtrl* w) {
     w->SetFlag(vwfFocusable, true);
     w->onKeyDown = MkFunc1(OnTopBarKey, win);
+    w->onFocusChanged = MkFunc1(RibbonAccessFocus, win);
 }
 
 static int RibbonHeightForPage(ToolbarVirt* tb, int page) {
@@ -4143,6 +4149,7 @@ void CreateToolbar(MainWindow* win) {
     host->SetFont(tb->platformFont);
 
     BuildToolbarLayout(win);
+    SetRibbonPage(win, win->ribbonPage, false);
     ToolbarSetHeight(win, tb->ribbonDy);
     CreateStatusBar(win);
     CreateNavRail(win);
@@ -4194,6 +4201,50 @@ void ReCreateToolbar(MainWindow* win) {
     DestroyToolbar(win);
     CreateToolbar(win);
 }
+
+#if IS_DEBUG
+#include "base/tests/UtAssert.h"
+void RibbonAccess_UnitTests() {
+    RibbonAccessible accessible(nullptr);
+    VARIANT self;
+    VariantInit(&self);
+    self.vt = VT_I4;
+    self.lVal = CHILDID_SELF;
+    utassert(accessible.get_accName(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accRole(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accState(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accFocus(nullptr) == E_POINTER);
+    utassert(accessible.accHitTest(0, 0, nullptr) == E_POINTER);
+    utassert(accessible.accLocation(nullptr, nullptr, nullptr, nullptr, self) == E_POINTER);
+    VARIANT result;
+    utassert(accessible.get_accRole(self, &result) == E_INVALIDARG);
+    utassert(accessible.get_accFocus(&result) == S_FALSE);
+    utassert(accessible.accHitTest(0, 0, &result) == S_FALSE);
+    utassert(accessible.get_accChildCount(nullptr) == E_POINTER);
+    utassert(accessible.get_accChild(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accValue(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accHelp(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accSelection(nullptr) == E_POINTER);
+    utassert(accessible.get_accDefaultAction(self, nullptr) == E_POINTER);
+    utassert(accessible.accNavigate(NAVDIR_FIRSTCHILD, self, nullptr) == E_POINTER);
+    auto* box = new VBox();
+    auto* first = new VirtCtrl();
+    auto* hidden = new VirtCtrl();
+    auto* last = new VirtCtrl();
+    first->SetFlag(vwfFocusable, true);
+    hidden->SetFlag(vwfFocusable, true);
+    hidden->SetVisibility(Visibility::Collapse);
+    last->SetFlag(vwfFocusable, true);
+    box->AddChild(first);
+    box->AddChild(hidden);
+    box->AddChild(last);
+    int id = 0;
+    utassert(!RibbonAccessible::Find(box, id) && id == -2);
+    id = 2;
+    utassert(RibbonAccessible::Find(box, id) == last);
+    delete box;
+}
+#endif
 
 // What the toolbar still needs Win32 for, now that VirtHost owns its window:
 // the colors of the native page-number edit, dragging the frame by an empty

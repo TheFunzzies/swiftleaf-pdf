@@ -3269,6 +3269,8 @@ static void CreateFrameLayout(MainWindow* win) {
 
     win->toolsWidthAnimation = new Animation();
     win->commentsWidthAnimation = new Animation();
+    win->toolsWidthAnimation->invalidateWindow = false;
+    win->commentsWidthAnimation->invalidateWindow = false;
     win->toolsWidthAnimation->onTick = OnPanelAnimation;
     win->commentsWidthAnimation->onTick = OnPanelAnimation;
     win->toolsWidthAnimation->context = win;
@@ -8038,6 +8040,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     bool isSplitterDrag = sidebarDx != -1;
     // dragging the splitter between the sidebar panels is just as live
     bool panelAnimating = win->toolsWidthAnimation->running || win->commentsWidthAnimation->running;
+    Rect oldTools = win->toolsPanelSlot->lastBounds.Union(win->toolsPanelSplitter->BoundsInWindow());
+    Rect oldComments = win->commentsPanelSlot->lastBounds.Union(win->commentsPanelSplitter->BoundsInWindow());
     bool isLiveDrag = isSplitterDrag || win->uiState.panelsDrag || IsPanelDrag(win) || panelAnimating;
     // Fullscreen changes both the canvas origin and size while frame redraw is
     // disabled. Preserving its old screen bits copies the normal-window tabs,
@@ -8115,12 +8119,13 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     bool showTools = widths.tools > 0;
     bool showComments = widths.comments > 0;
     int toolsDx = widths.tools;
+    bool toolsRail = widths.rail || (toolsDx > 0 && toolsDx < DpiScale(kToolsMinWidth));
     int handleDx = DpiScale(kPanelHandleWidth);
     SetVis(win->toolsPanelSlot, showTools);
     win->toolsPanelSlot->dx = toolsDx;
-    SetVis(win->toolsPanelSplitter, showTools);
+    SetVis(win->toolsPanelSplitter, showTools && !toolsRail);
     win->toolsPanelSplitter->thickness = handleDx;
-    ToolsPanelSetRail(win, widths.rail || (toolsDx > 0 && toolsDx < DpiScale(kToolsMinWidth)));
+    ToolsPanelSetRail(win, toolsRail);
     ShowWindow(win->hwndToolsPanel, showTools ? SW_SHOW : SW_HIDE);
     SetVis(win->commentsPanelSlot, showComments);
     win->commentsPanelSlot->dx = widths.comments;
@@ -8160,7 +8165,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
 
     // leave at least this much canvas for the document when sidebar is open
     int kMinDocCanvasDx = DpiScale(kDocumentMinWidth);
-    int panelHandlesDx = (showTools ? handleDx : 0) + (showComments ? handleDx : 0);
+    int panelHandlesDx = (showTools && !toolsRail ? handleDx : 0) + (showComments ? handleDx : 0);
     int sidebarDxApplied = 0;
     if (sidebarVisible) {
         if (sidebarDx > 0) {
@@ -8279,6 +8284,10 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
 
     win->chromeLayout->Layout(Tight({rc.dx, rc.dy}));
     win->chromeLayout->SetBounds(rc);
+    Rect newTools = win->toolsPanelSlot->lastBounds.Union(win->toolsPanelSplitter->BoundsInWindow());
+    Rect newComments = win->commentsPanelSlot->lastBounds.Union(win->commentsPanelSplitter->BoundsInWindow());
+    if (oldTools != newTools) HwndInvalidateRect(win->hwndFrame, oldTools.Union(newTools), false);
+    if (oldComments != newComments) HwndInvalidateRect(win->hwndFrame, oldComments.Union(newComments), false);
     if (discardCanvasBits) {
         dh.MoveWindowNoCopyBits(win->hwndCanvas, win->canvasSlot->lastBounds);
     }
@@ -15732,6 +15741,7 @@ static LRESULT CALLBACK WndProcSumatraFrame(HWND hwnd, UINT msg, WPARAM wp, LPAR
             return 0;
 
         case WM_SETTINGCHANGE:
+            AnimationSettingsChanged();
             // Windows switched between light and dark mode: re-resolve the
             // System theme (no-op unless Theme = System)
             if (lp && str::EqI(ToUtf8Temp((const WCHAR*)lp), StrL("ImmersiveColorSet"))) {

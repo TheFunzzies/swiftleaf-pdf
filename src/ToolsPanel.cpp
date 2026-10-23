@@ -83,7 +83,7 @@ struct ToolsPanelVirt {
     bool rail = false;
     ILayout* header = nullptr;
     VirtText* title = nullptr;
-    VirtButton* more = nullptr;
+    RibbonButton* more = nullptr;
     VirtHost* strip = nullptr;
     Vec<RibbonButton*> stripRows;
 };
@@ -134,10 +134,11 @@ void ToolsPanelAfterThemeChange(MainWindow* win) {
     if (!panel) return;
     panel->host->bgColor = RibbonPanelBgColor();
     panel->title->SetColor(kColText, ThemeWindowTextColor());
-    if (panel->more) panel->more->SetColor(kColBtnText, RibbonAccentColor());
-    if (panel->more) panel->more->SetColor(kColBtnBg, kColorTransparent);
-    if (panel->more) panel->more->SetColor(kColBtnBorder, kColorTransparent);
-    if (panel->more) panel->more->SetColor(kColBtnBgHover, M3().surfaceContainerHigh);
+    if (panel->more) {
+        panel->more->textColor = ThemeWindowTextColor();
+        panel->more->pixmap =
+            RibbonIconPixmap(Str(gLucideLayoutGrid), DpiScale(20), ThemeWindowTextColor(), RibbonPanelBgColor());
+    }
     for (auto* heading : panel->headings) heading->SetColor(kColText, M3().onSurfaceVariant);
     for (int i = 0; i < len(panel->rows); i++) {
         auto* b = panel->rows[i];
@@ -190,6 +191,7 @@ void ToolsPanelUpdate(MainWindow* win) {
 
 static void OnRowFocus(MainWindow* win, VirtFocusEvent* ev) {
     if (!ev->gotFocus) return;
+    RibbonAccessFocus(win, ev);
     auto* panel = win->toolsPanel;
     auto* scroll = panel->scroll;
     Rect r = ev->w->BoundsInWindow();
@@ -298,9 +300,23 @@ static void PaintPageFade(ToolsPanelVirt* panel, VirtHostPaintEvent* ev) {
     ev->gfx->DrawPixmap(dst, {0, 0, dst->width, dst->height});
 }
 
+static void FocusPanelRow(ToolsPanelVirt* panel) {
+    auto* root = panel->host->vroot;
+    if (!root) return;
+    for (auto* row : panel->rows) {
+        if (!row->IsEnabled()) continue;
+        root->SetFocus(row);
+        if (root->focused) return;
+    }
+    Vec<TabStop> stops;
+    CollectTabStops(panel->scroll->child, stops);
+    if (len(stops)) root->SetFocus(stops[0].vwnd);
+}
+
 void ToolsPanelShowPage(MainWindow* win) {
     auto* panel = win->toolsPanel;
     if (!panel || panel->page == win->ribbonPage) return;
+    bool hadFocus = panel->host->HasFocus();
     CapturePage(panel);
     panel->page = win->ribbonPage;
     VecReset(panel->rows);
@@ -333,7 +349,10 @@ void ToolsPanelShowPage(MainWindow* win) {
             VecAppend(panel->sources, (VirtCtrl*)nullptr);
             col->AddChild(b);
         }
-        panel->more = new VirtButton(Tr("View more"), GetAppFont());
+        panel->more = new RibbonButton();
+        panel->more->font = GetAppFont();
+        panel->more->SetLabel(Tr("View more"));
+        panel->more->SetTooltip(Tr("View more"));
         panel->more->onClick = MkFunc1(OnMore, win);
         SetupRow(win, panel->more);
         col->AddChild(panel->more);
@@ -372,6 +391,7 @@ void ToolsPanelShowPage(MainWindow* win) {
     ToolsPanelSetRail(win, rail);
     ToolsPanelAfterThemeChange(win);
     ToolsPanelUpdate(win);
+    if (hadFocus) FocusPanelRow(panel);
 }
 
 void ToolsPanelSetRail(MainWindow* win, bool rail) {
@@ -381,7 +401,7 @@ void ToolsPanelSetRail(MainWindow* win, bool rail) {
     auto vis = rail ? Visibility::Collapse : Visibility::Visible;
     panel->header->SetVisibility(vis);
     for (auto* heading : panel->headings) heading->SetVisibility(vis);
-    if (panel->more) panel->more->SetVisibility(vis);
+    if (panel->more) panel->more->compact = rail;
     for (auto* row : panel->rows) {
         row->compact = rail;
         row->alignStart = !rail;
@@ -394,12 +414,8 @@ static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
     auto* panel = win->toolsPanel;
     auto* root = panel->host->vroot;
     if (!root) return;
-    if (ev->msg == WM_SETFOCUS && !root->focused && len(panel->rows)) {
-        for (auto* row : panel->rows)
-            if (row->IsEnabled()) {
-                root->SetFocus(row);
-                break;
-            }
+    if (ev->msg == WM_SETFOCUS && !root->focused) {
+        FocusPanelRow(panel);
     } else if (ev->msg == WM_KEYDOWN && ev->wp == VK_TAB) {
         Vec<TabStop> stops;
         CollectTabStops(panel->scroll->child, stops);
@@ -419,6 +435,10 @@ static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
         ev->res = 0;
         ev->didHandle = true;
     }
+}
+
+static void StripNativeMsg(MainWindow*, VirtHostNativeMsg* ev) {
+    RibbonAccessMessage(ev);
 }
 
 void CreateToolsPanel(MainWindow* win) {
@@ -447,6 +467,7 @@ void CreateToolsPanel(MainWindow* win) {
     args.initialSize = {DpiScale(44), DpiScale(260)};
     panel->strip = VirtHost::Create(args);
     if (panel->strip) {
+        panel->strip->onNativeMsg = MkFunc1(StripNativeMsg, win);
         auto* stripCol = new VBox();
         stripCol->alignCross = CrossAxisAlign::Stretch;
         stripCol->gap = DpiScale(6);
@@ -506,7 +527,7 @@ static HMENU PageToolMenu(MainWindow* win, int page) {
     Vec<ToolbarPageTool> defs;
     ToolbarPageTools(win, page, defs);
     for (auto& d : defs) {
-        if (len(d.group)) AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        if (len(d.group) && GetMenuItemCount(menu) > 0) AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
         auto* b = AsRibbonButton(d.source);
         auto* text = AsVirtButton(d.source);
         auto* icon = AsVirtIconButton(d.source);

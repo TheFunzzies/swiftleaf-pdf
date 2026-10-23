@@ -49,6 +49,7 @@ void FileUtilTest();
 void DocumentPanel_UnitTests();
 void PanelLayout_UnitTests();
 void Animation_UnitTests();
+void RibbonAccess_UnitTests();
 bool EngineMupdf_UnitTestPanelData();
 void UpdateTempFileTests();
 void GuessFileTypeTest();
@@ -736,6 +737,7 @@ int RunAppUnitTests(bool forAi) {
     DocumentPanel_UnitTests();
     PanelLayout_UnitTests();
     Animation_UnitTests();
+    RibbonAccess_UnitTests();
     Settings* panels = NewSettings(StrL("ToolsPanelWidth = 336\nCommentsPanelWidth = 412\n"));
     utassert(panels->toolsPanelWidth == 336 && panels->commentsPanelWidth == 412);
     Str savedPanels = SerializeSettings(panels, {});

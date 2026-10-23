@@ -4,6 +4,7 @@
 int AnimationDuration(bool clientAreaAnimation, bool resizing);
 float AnimationEase(float progress);
 bool AnimationAllowed(HWND);
+void AnimationSettingsChanged();
 void AnimationSuspend(HWND, bool suspend);
 void AnimationForget(HWND);
 int AnimationCount(HWND);
@@ -18,6 +19,7 @@ struct Animation {
     void* context = nullptr;
     bool initialized = false;
     bool running = false;
+    bool invalidateWindow = true;
 
     Animation() = default;
     Animation(const Animation&) = delete;

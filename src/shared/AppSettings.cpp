@@ -14,6 +14,7 @@
 #include "gui/Dpi.h"
 #if !defined(SUMATRA_NG)
 #include "gui/PlatformFont.h"
+#include "PanelLayout.h"
 #endif
 #include "base/Timer.h"
 
@@ -890,6 +891,10 @@ bool LoadSettings() {
     setMin(gprefs->customScreenDPI, 0);
     setMin(gprefs->tabWidth, 60);
     setMin(gprefs->sidebarDx, 0);
+#if !defined(SUMATRA_NG)
+    setMinMax(gprefs->toolsPanelWidth, kToolsMinWidth, kPanelMaxWidth);
+    setMinMax(gprefs->commentsPanelWidth, kCommentsMinWidth, kPanelMaxWidth);
+#endif
     setMin(gprefs->tocDy, 0);
     setMin(gprefs->treeFontSize, 0);
     if (gprefs->toolbarSize == 0) {

@@ -7,6 +7,7 @@
 static Vec<Animation*> gAnimations;
 static Vec<HWND> gResizeWindows;
 static UINT_PTR gAnimationTimer = 0;
+static int gClientAreaAnimation = -1;
 constexpr int kAnimationMs = 160;
 
 int AnimationDuration(bool clientAreaAnimation, bool resizing) {
@@ -18,11 +19,17 @@ float AnimationEase(float progress) {
     return 1 - left * left * left;
 }
 
-bool AnimationAllowed(HWND hwnd) {
+void AnimationSettingsChanged() {
     BOOL enabled = FALSE;
     bool ok = SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &enabled, 0) != FALSE;
+    gClientAreaAnimation = ok && enabled;
+}
+
+bool AnimationAllowed(HWND hwnd) {
+    if (!hwnd || !IsWindowVisible(hwnd)) return false;
+    if (gClientAreaAnimation < 0) AnimationSettingsChanged();
     HWND frame = GetAncestor(hwnd, GA_ROOT);
-    return hwnd && IsWindowVisible(hwnd) && AnimationDuration(ok && enabled, VecFind(gResizeWindows, frame) >= 0) != 0;
+    return AnimationDuration(gClientAreaAnimation != 0, VecFind(gResizeWindows, frame) >= 0) != 0;
 }
 
 static void StopIdleTimer() {
@@ -46,8 +53,10 @@ void Animation::Snap(float next) {
 
 static void CALLBACK AnimationTick(HWND, UINT, UINT_PTR, DWORD) {
     ULONGLONG now = GetTickCount64();
-    for (int i = len(gAnimations) - 1; i >= 0; i--) {
-        auto* a = gAnimations[i];
+    auto animations = gAnimations;
+    for (int i = len(animations) - 1; i >= 0; i--) {
+        auto* a = animations[i];
+        if (VecFind(gAnimations, a) < 0) continue;
         float elapsed = (float)(now - a->start) / kAnimationMs;
         bool finish = elapsed >= 1 || !AnimationAllowed(a->hwnd);
         a->value = finish ? a->target : a->from + (a->target - a->from) * AnimationEase(elapsed);
@@ -55,7 +64,7 @@ static void CALLBACK AnimationTick(HWND, UINT, UINT_PTR, DWORD) {
         auto onTick = a->onTick;
         void* context = a->context;
         if (finish) a->Snap(a->target);
-        InvalidateRect(hwnd, nullptr, FALSE);
+        if (a->invalidateWindow && hwnd) InvalidateRect(hwnd, nullptr, FALSE);
         if (onTick) onTick(context);
     }
     StopIdleTimer();
@@ -80,17 +89,20 @@ float Animation::To(HWND window, float next) {
 
 void AnimationSuspend(HWND hwnd, bool suspend) {
     HWND frame = GetAncestor(hwnd, GA_ROOT);
+    if (!frame) return;
     if (suspend && VecFind(gResizeWindows, frame) < 0) VecAppend(gResizeWindows, frame);
     if (!suspend) VecRemove(gResizeWindows, frame);
     if (!suspend) return;
-    for (int i = len(gAnimations) - 1; i >= 0; i--) {
-        auto* a = gAnimations[i];
+    auto animations = gAnimations;
+    for (int i = len(animations) - 1; i >= 0; i--) {
+        auto* a = animations[i];
+        if (VecFind(gAnimations, a) < 0) continue;
         if (GetAncestor(a->hwnd, GA_ROOT) != frame) continue;
         HWND window = a->hwnd;
         auto onTick = a->onTick;
         void* context = a->context;
         a->Snap(a->target);
-        InvalidateRect(window, nullptr, FALSE);
+        if (a->invalidateWindow && window) InvalidateRect(window, nullptr, FALSE);
         if (onTick) onTick(context);
     }
 }
@@ -142,6 +154,21 @@ void Animation_UnitTests() {
     a.Snap(20);
     utassert(a.To(nullptr, 40) == 40 && !a.running);
     utassert(gAnimationTimer == 0 && len(gAnimations) == 0);
+    {
+        Animation removed, remover;
+        int ticks = 0;
+        removed.onTick = [](void* p) { ++*(int*)p; };
+        removed.context = &ticks;
+        remover.onTick = [](void* p) { ((Animation*)p)->Snap(42); };
+        remover.context = &removed;
+        VecAppend(gAnimations, &removed);
+        VecAppend(gAnimations, &remover);
+        AnimationTick(nullptr, 0, 0, 0);
+        utassert(ticks == 0 && removed.value == 42);
+        utassert(len(gAnimations) == 0);
+        AnimationSuspend(nullptr, true);
+        utassert(len(gResizeWindows) == 0);
+    }
     utassert(AnimationBlend(MkRgb(0, 0, 0), MkRgb(200, 100, 60), .5f) == MkRgb(100, 50, 30));
 }
 #endif
