@@ -3634,15 +3634,20 @@ static void OnTopBarKey(MainWindow* win, VirtKeyEvent* ev) {
         if (ev->vkey == VK_DOWN && ShouldShowToolsPanel(win) && HwndIsVisible(win->hwndToolsPanel))
             HwndSetFocus(win->hwndToolsPanel);
     } else if (ev->vkey == VK_LEFT || ev->vkey == VK_RIGHT || ev->vkey == VK_HOME || ev->vkey == VK_END) {
+        Vec<TabStop> stops;
+        CollectTabStops(tb->ribbonTabRow, stops);
+        Vec<VirtCtrl*> controls;
+        for (auto& stop : stops)
+            if (stop.vwnd) VecAppend(controls, stop.vwnd);
         int idx = -1;
-        for (int i = 0; i < len(tb->ribbonTabs); i++)
-            if (tb->ribbonTabs[i] == w) idx = i;
+        for (int i = 0; i < len(controls); i++)
+            if (controls[i] == w) idx = i;
         if (idx < 0) return;
-        int count = len(tb->ribbonTabs);
+        int count = len(controls);
         int next = ev->vkey == VK_HOME  ? 0
                    : ev->vkey == VK_END ? count - 1
                                         : (idx + (ev->vkey == VK_LEFT ? count - 1 : 1)) % count;
-        tb->host->vroot->SetFocus(tb->ribbonTabs[next]);
+        tb->host->vroot->SetFocus(controls[next]);
     } else
         return;
     ev->didHandle = true;
@@ -4144,6 +4149,7 @@ void CreateToolbar(MainWindow* win) {
     host->SetFont(tb->platformFont);
 
     BuildToolbarLayout(win);
+    SetRibbonPage(win, win->ribbonPage, false);
     ToolbarSetHeight(win, tb->ribbonDy);
     CreateStatusBar(win);
     CreateNavRail(win);
