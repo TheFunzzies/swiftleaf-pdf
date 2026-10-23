@@ -190,6 +190,7 @@ void ToolsPanelUpdate(MainWindow* win) {
 
 static void OnRowFocus(MainWindow* win, VirtFocusEvent* ev) {
     if (!ev->gotFocus) return;
+    RibbonAccessFocus(win, ev);
     auto* panel = win->toolsPanel;
     auto* scroll = panel->scroll;
     Rect r = ev->w->BoundsInWindow();
@@ -432,6 +433,10 @@ static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
     }
 }
 
+static void StripNativeMsg(MainWindow*, VirtHostNativeMsg* ev) {
+    RibbonAccessMessage(ev);
+}
+
 void CreateToolsPanel(MainWindow* win) {
     if (win->toolsPanel) return;
     auto* panel = new ToolsPanelVirt();
@@ -458,6 +463,7 @@ void CreateToolsPanel(MainWindow* win) {
     args.initialSize = {DpiScale(44), DpiScale(260)};
     panel->strip = VirtHost::Create(args);
     if (panel->strip) {
+        panel->strip->onNativeMsg = MkFunc1(StripNativeMsg, win);
         auto* stripCol = new VBox();
         stripCol->alignCross = CrossAxisAlign::Stretch;
         stripCol->gap = DpiScale(6);
@@ -517,7 +523,7 @@ static HMENU PageToolMenu(MainWindow* win, int page) {
     Vec<ToolbarPageTool> defs;
     ToolbarPageTools(win, page, defs);
     for (auto& d : defs) {
-        if (len(d.group)) AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        if (len(d.group) && GetMenuItemCount(menu) > 0) AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
         auto* b = AsRibbonButton(d.source);
         auto* text = AsVirtButton(d.source);
         auto* icon = AsVirtIconButton(d.source);

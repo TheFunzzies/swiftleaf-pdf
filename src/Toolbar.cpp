@@ -3651,6 +3651,7 @@ static void OnTopBarKey(MainWindow* win, VirtKeyEvent* ev) {
 static void SetupTopBarKey(MainWindow* win, VirtCtrl* w) {
     w->SetFlag(vwfFocusable, true);
     w->onKeyDown = MkFunc1(OnTopBarKey, win);
+    w->onFocusChanged = MkFunc1(RibbonAccessFocus, win);
 }
 
 static int RibbonHeightForPage(ToolbarVirt* tb, int page) {
@@ -4194,6 +4195,50 @@ void ReCreateToolbar(MainWindow* win) {
     DestroyToolbar(win);
     CreateToolbar(win);
 }
+
+#if IS_DEBUG
+#include "base/tests/UtAssert.h"
+void RibbonAccess_UnitTests() {
+    RibbonAccessible accessible(nullptr);
+    VARIANT self;
+    VariantInit(&self);
+    self.vt = VT_I4;
+    self.lVal = CHILDID_SELF;
+    utassert(accessible.get_accName(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accRole(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accState(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accFocus(nullptr) == E_POINTER);
+    utassert(accessible.accHitTest(0, 0, nullptr) == E_POINTER);
+    utassert(accessible.accLocation(nullptr, nullptr, nullptr, nullptr, self) == E_POINTER);
+    VARIANT result;
+    utassert(accessible.get_accRole(self, &result) == E_INVALIDARG);
+    utassert(accessible.get_accFocus(&result) == S_FALSE);
+    utassert(accessible.accHitTest(0, 0, &result) == S_FALSE);
+    utassert(accessible.get_accChildCount(nullptr) == E_POINTER);
+    utassert(accessible.get_accChild(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accValue(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accHelp(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accSelection(nullptr) == E_POINTER);
+    utassert(accessible.get_accDefaultAction(self, nullptr) == E_POINTER);
+    utassert(accessible.accNavigate(NAVDIR_FIRSTCHILD, self, nullptr) == E_POINTER);
+    auto* box = new VBox();
+    auto* first = new VirtCtrl();
+    auto* hidden = new VirtCtrl();
+    auto* last = new VirtCtrl();
+    first->SetFlag(vwfFocusable, true);
+    hidden->SetFlag(vwfFocusable, true);
+    hidden->SetVisibility(Visibility::Collapse);
+    last->SetFlag(vwfFocusable, true);
+    box->AddChild(first);
+    box->AddChild(hidden);
+    box->AddChild(last);
+    int id = 0;
+    utassert(!RibbonAccessible::Find(box, id) && id == -2);
+    id = 2;
+    utassert(RibbonAccessible::Find(box, id) == last);
+    delete box;
+}
+#endif
 
 // What the toolbar still needs Win32 for, now that VirtHost owns its window:
 // the colors of the native page-number edit, dragging the frame by an empty
