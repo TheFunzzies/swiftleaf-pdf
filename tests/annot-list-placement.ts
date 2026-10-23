@@ -1,16 +1,12 @@
-// The Annotations list opens on the roomier side of the main window, or on the
-// right edge of the screen when maximized / fullscreen. Position is session-only.
-//
-// Run: bun tests/annot-list-placement.ts [--no-build]
-
+// Comments dock beside the document, reserve canvas space, and restore their
+// placement after toggling, resizing, and leaving fullscreen.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand } from "./control.ts";
-import { assemblePdf, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
-import { findTopWindow, getWindowPid, getWindowRect, getWorkArea, sleep } from "./winapi.ts";
-import { killAndWait, launchControlled, sendCommandSync } from "./win-automation.ts";
-
-const FLOAT_CLASS = "SUMATRA_ANNOT_FILTER_WND";
+import { ControlCommand } from "./control.ts";
+import { waitCommentsPanel } from "./comments-panel.ts";
+import { assemblePdf, cmdId, runStandalone, tmpPath } from "./util.ts";
+import { getWindowRect, getWorkArea, moveWindow, setProcessDpiAware } from "./winapi.ts";
+import { findCanvas, killAndWait, launchControlled, sendCommandSync } from "./win-automation.ts";
 
 function makePdf(): string {
   return assemblePdf([
@@ -21,103 +17,78 @@ function makePdf(): string {
   ]);
 }
 
-async function waitFloat(
-  client: ControlClient,
-  visible: boolean,
-): Promise<{ x: number; y: number; dx: number; dy: number }> {
-  const deadline = Date.now() + 5_000 * SLOW_BUILD_FACTOR;
-  let raw = "";
-  for (;;) {
-    const res = await client.request(ControlCommand.TestMarkupAnnots, []);
-    raw = String(res[1] ?? "");
-    const m = /annotFilter floatVisible=(\d+) floatRect=(-?\d+),(-?\d+),(\d+),(\d+)/.exec(raw);
-    if (res[0] === 0 && m && m[1] === (visible ? "1" : "0")) {
-      return { x: +m[2]!, y: +m[3]!, dx: +m[4]!, dy: +m[5]! };
-    }
-    if (Date.now() > deadline) {
-      throw new Error(`annot-list-placement: floatVisible=${visible ? 1 : 0} never matched\n${raw}`);
-    }
-    await sleep(40);
-  }
-}
-
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("annot-list-placement");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   const pdf = join(dir, "a.pdf");
   writeFileSync(pdf, makePdf(), "latin1");
-
   const { proc, client, frame } = await launchControlled(["-view", "single page", "-zoom", "fit page", pdf]);
   try {
     await client.waitForRenderIdle();
     await client.setNotificationsEnabled(false);
-    sendCommandSync(frame, cmdId("CmdToggleEditPDF"));
-    await sleep(200);
-
-    sendCommandSync(frame, cmdId("CmdFindAnnotation"));
-    const first = await waitFloat(client, true);
-    const fr = getWindowRect(frame);
     const wa = getWorkArea();
-    const spaceRight = wa.right - fr.right;
-    const spaceLeft = fr.left - wa.left;
-    const listMid = first.x + first.dx / 2;
-    const frameMid = (fr.left + fr.right) / 2;
-    if (spaceRight >= spaceLeft) {
-      if (listMid < frameMid) {
+    moveWindow(frame, wa.left, wa.top, wa.right - wa.left, wa.bottom - wa.top);
+    sendCommandSync(frame, cmdId("CmdToggleEditPDF"));
+    const canvas = findCanvas(frame);
+    const toggle = () => sendCommandSync(frame, cmdId("CmdFindAnnotation"));
+    const docked = async () => {
+      const panel = await waitCommentsPanel(client, frame, true);
+      // Visibility precedes the deferred positioning; wait for a stable layout.
+      await client.waitForRenderIdle();
+      const p = getWindowRect(panel);
+      const c = getWindowRect(canvas);
+      const f = getWindowRect(frame);
+      if (
+        p.left < c.right ||
+        Math.abs(p.top - c.top) > 2 ||
+        Math.abs(p.bottom - c.bottom) > 2 ||
+        p.right > f.right ||
+        p.bottom > f.bottom ||
+        p.right <= p.left ||
+        c.right <= c.left
+      ) {
         throw new Error(
-          `annot-list-placement: more room on the right, list was left: list=${JSON.stringify(first)} frame=${JSON.stringify(fr)}`,
+          `annot-list-placement: panel must dock to the right without covering the canvas: ${JSON.stringify({ p, c, f })}`,
         );
       }
-    } else if (listMid > frameMid) {
-      throw new Error(
-        `annot-list-placement: more room on the left, list was right: list=${JSON.stringify(first)} frame=${JSON.stringify(fr)}`,
-      );
-    }
-
-    sendCommandSync(frame, cmdId("CmdFindAnnotation"));
-    await waitFloat(client, false);
-    sendCommandSync(frame, cmdId("CmdFindAnnotation"));
-    const again = await waitFloat(client, true);
-    if (again.x !== first.x || again.y !== first.y || again.dx !== first.dx || again.dy !== first.dy) {
-      throw new Error(
-        `annot-list-placement: session pos not kept: first=${JSON.stringify(first)} again=${JSON.stringify(again)}`,
-      );
-    }
-
-    sendCommandSync(frame, cmdId("CmdFindAnnotation"));
-    await waitFloat(client, false);
-    sendCommandSync(frame, cmdId("CmdToggleFullscreen"));
+      return { p, c };
+    };
+    toggle();
+    const first = await docked();
+    toggle();
+    await waitCommentsPanel(client, frame, false);
     await client.waitForRenderIdle();
-    await sleep(200);
-    sendCommandSync(frame, cmdId("CmdFindAnnotation"));
-    const fs = await waitFloat(client, true);
-    const fsFr = getWindowRect(frame);
-    if (Math.abs(fs.x + fs.dx - fsFr.right) > 8) {
-      throw new Error(
-        `annot-list-placement: fullscreen list not on right edge: list=${JSON.stringify(fs)} frame=${JSON.stringify(fsFr)}`,
-      );
+    const expanded = getWindowRect(canvas);
+    if (expanded.right - expanded.left < first.c.right - first.c.left + first.p.right - first.p.left - 2) {
+      throw new Error("annot-list-placement: hiding Comments did not return its space to the document");
     }
-    const fsMidY = fs.y + fs.dy / 2;
-    const frMidY = (fsFr.top + fsFr.bottom) / 2;
-    if (Math.abs(fsMidY - frMidY) > 40) {
-      throw new Error(
-        `annot-list-placement: fullscreen list not y-centered: list=${JSON.stringify(fs)} frame=${JSON.stringify(fsFr)}`,
-      );
+    toggle();
+    const again = await docked();
+    if (JSON.stringify(first) !== JSON.stringify(again)) {
+      throw new Error(`annot-list-placement: toggle changed dock placement: ${JSON.stringify({ first, again })}`);
     }
 
-    const pid = getWindowPid(frame);
-    if (!findTopWindow(pid, FLOAT_CLASS)) {
-      throw new Error("annot-list-placement: floating window hwnd not found");
-    }
+    // Narrow windows collapse Comments while retaining the user's open state.
+    const fr = getWindowRect(frame);
+    moveWindow(frame, fr.left, fr.top, 650, fr.bottom - fr.top);
+    await waitCommentsPanel(client, frame, false);
+    moveWindow(frame, fr.left, fr.top, fr.right - fr.left, fr.bottom - fr.top);
+    await docked();
+
+    // Fullscreen hides chrome; leaving it must restore the docked list.
+    sendCommandSync(frame, cmdId("CmdToggleFullscreen"));
+    await waitCommentsPanel(client, frame, false);
+    sendCommandSync(frame, cmdId("CmdToggleFullscreen"));
+    await docked();
+    const raw = String((await client.request(ControlCommand.TestAnnotFilter, []))[1] ?? "");
+    if (!/nAll=1 nVisible=1/.test(raw)) throw new Error(`Comments lost its annotation after relayout\n${raw}`);
   } finally {
     client.close();
     await killAndWait(proc);
   }
-
   console.log("annot-list-placement: OK");
 }
 
-if (import.meta.main) {
-  await runStandalone(testit);
-}
+if (import.meta.main) await runStandalone(testit);

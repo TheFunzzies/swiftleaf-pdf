@@ -6289,6 +6289,9 @@ void CloseWindow(MainWindow* win, bool quitIfLast, bool forceClose) {
         /* last window - don't delete it */
         CloseDocumentInCurrentTab(win, false, false);
         win->isBeingClosed = false;
+        // The surviving frame now shows Home. Closing suppresses UI updates,
+        // so relayout after clearing that guard to hide document-only panels.
+        ScheduleUiUpdate(win, kUiForceRelayout);
         HwndSetFocus(win->hwndFrame);
         ReportIf(!VecContains(gWindows, win));
     } else {
