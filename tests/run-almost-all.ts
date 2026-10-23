@@ -1,3 +1,5 @@
+import { testit as contextualPanel } from "./contextual-panel.ts";
+import { testit as layoutAnimation } from "./layout-animation.ts";
 // Fast regular tests: everything except cases whose time is the test
 // (print-to-PDF, LaTeX, debounce/CPU/scroll windows, high-zoom tile settle,
 // 400-file HTML TOC, restrict.ini exe copies). Those live in run-all.ts.
@@ -494,6 +496,8 @@ export const tests: NamedTest[] = [
   ["issue-5989", issue5989],
 
   // --- no SwiftLeaf process -------------------------------------------------
+  ["contextual-panel", contextualPanel],
+  ["layout-animation", layoutAnimation],
   ["lint-command-ids", lintCommandIds],
   ["build-cli", buildCli],
   ["ng-embedded", ngEmbedded],

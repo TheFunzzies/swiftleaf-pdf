@@ -17,6 +17,7 @@
 #include "Theme.h"
 #include "Translations.h"
 #include "Material.h"
+#include "Animation.h"
 #include "Ribbon.h"
 
 //--- icons the classic toolbar doesn't have (Tabler icons, MIT license)
@@ -227,39 +228,39 @@ static const RibbonItemDef gEditItems[] = {
     {gIconImage, CmdInsertImage, TrN("Image"), TrN("Insert an image from a file")},
     {gIconClipboard, CmdCreateAnnotImageFromClipboard, TrN("Paste Image"), TrN("Insert the image on the clipboard")},
     {gIconLink, CmdCreateAnnotLink, TrN("Link"), TrN("Add a link")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Redaction")},
     {gIconAnnotRedact, CmdCreateAnnotRedact, TrN("Redact"), TrN("Mark an area for redaction")},
     {gIconApplyRedactions, CmdApplyRedactions, TrN("Apply"), TrN("Apply redactions (permanently removes the content)")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("History")},
     {gIconUndo, CmdUndo, TrN("Undo")},
     {gIconRedo, CmdRedo, TrN("Redo")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Export")},
     {gIconCompress, CmdPdfCompress, TrN("Compress"), TrN("Save a smaller copy of the PDF")},
     {gIconExtractText, CmdScanOcr, TrN("Scan & OCR"), TrN("Recognize text on scanned pages")},
     {gIconExtractText, CmdDocumentExtractText, TrN("To Text"), TrN("Extract the text of the document")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Save")},
     {gIconSave, CmdSaveAnnotations, TrN("Save"), TrN("Save changes to the PDF")},
     {gIconSaveToNewFile, CmdSaveAnnotationsNewFile, TrN("Save Copy"), TrN("Save changes to a new PDF")},
 };
 
 static const RibbonItemDef gOrganizeItems[] = {
     {gIconThumbnails, CmdToggleThumbnails, TrN("Thumbnails"), TrN("Show page thumbnails")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Insert and delete")},
     {gIconPageInsert, CmdInsertBlankPage, TrN("Blank Page"), TrN("Insert a blank page after this one")},
     {gIconPageImport, CmdInsertPagesFromFile, TrN("Insert File"), TrN("Insert the pages of another PDF after this page")},
     {gIconPageDelete, CmdDeleteCurrentPage, TrN("Delete Page"), TrN("Delete this page")},
     {gIconPageDeleteMany, CmdPdfDeletePages, TrN("Delete..."), TrN("Delete a range of pages")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Rotate and move")},
     {gIconRotateLeft, CmdRotatePageLeft, TrN("Rotate Left"), TrN("Rotate this page left and save it")},
     {gIconRotateRight, CmdRotatePageRight, TrN("Rotate Right"), TrN("Rotate this page right and save it")},
     {gIconMoveUp, CmdMovePageUp, TrN("Move Up"), TrN("Move this page before the previous one")},
     {gIconMoveDown, CmdMovePageDown, TrN("Move Down"), TrN("Move this page after the next one")},
     {gIconUndo, CmdUndoPageChange, TrN("Undo"), TrN("Undo the last page change")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Extract and combine")},
     {gIconPageExtract, CmdPdfExtractPages, TrN("Extract"), TrN("Extract pages to a new PDF")},
     {gIconSplit, CmdSplitPdf, TrN("Split"), TrN("Split the PDF into several files")},
     {gIconMerge, CmdMergePDF, TrN("Merge"), TrN("Combine several PDF files into one")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Convert")},
     {gIconExportImages, CmdConvertPdfToImages, TrN("To Images"), TrN("Save pages as images")},
     {gIconImage, CmdConvertImageToPdf, TrN("From Image"), TrN("Create a PDF from images")},
 };
@@ -268,12 +269,12 @@ static const RibbonItemDef gFormsSignItems[] = {
     {gIconForms, CmdPrepareForm, TrN("Prepare a Form"), TrN("Draw a field, then choose its type and properties")},
     {gIconForms, CmdToggleHighlightFormFields, TrN("Highlight Fields"), TrN("Highlight form fields")},
     {gIconTypewriter, CmdCreateAnnotFreeText, TrN("Typewriter"), TrN("Type text anywhere on the page")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Signatures")},
     {gIconCreateSignature, CmdCreateSignature, TrN("Create Signature"), TrN("Draw, type or upload your signature")},
     {gIconSignature, CmdSignWithImage, TrN("Place Signature"), TrN("Place your signature on the page")},
     {gIconCertificate, CmdSignDocument, TrN("Digital ID"), TrN("Sign the document with a certificate")},
     {gIconAnnotStamp, CmdCreateAnnotStamp, TrN("Stamp")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Save")},
     {gIconSave, CmdSaveAnnotations, TrN("Save"), TrN("Save changes to the PDF")},
 };
 
@@ -282,21 +283,21 @@ static const RibbonItemDef gViewItems[] = {
     {gIconFacing, CmdFacingView, TrN("Two Pages"), TrN("Facing pages")},
     {gIconBook, CmdBookView, TrN("Book"), TrN("Book view")},
     {gIconLayoutContinuous, CmdToggleContinuousView, TrN("Continuous"), TrN("Scroll pages continuously")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Zoom")},
     {gIconFitWidth, CmdZoomFitWidth, TrN("Fit Width")},
     {gIconFitPage, CmdZoomFitPage, TrN("Fit Page")},
     {gIconActualSize, CmdZoomActualSize, TrN("Actual Size")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Panels")},
     {gIconBookmarks, CmdToggleBookmarks, TrN("Bookmarks"), TrN("Show bookmarks")},
     {gIconThumbnails, CmdToggleThumbnails, TrN("Thumbnails"), TrN("Show page thumbnails")},
     {gIconEye, CmdToggleShowAnnotations, TrN("Comments"), TrN("Show or hide comments")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Reading")},
     {gIconFullscreen, CmdToggleFullscreen, TrN("Full Screen")},
     {gIconPresentation, CmdTogglePresentationMode, TrN("Present"), TrN("Presentation mode")},
     {gIconInvert, CmdInvertColors, TrN("Night Mode"), TrN("Invert page colors")},
     {gIconTheme, CmdToggleLightDarkTheme, TrN("Theme"), TrN("Switch between light and dark theme")},
     {gIconSpeak, CmdToggleReadAloud, TrN("Read Aloud")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Navigation")},
     {gIconNavigateBack, CmdNavigateBack, TrN("Back"), TrN("Go back to the previous view")},
     {gIconNavigateForward, CmdNavigateForward, TrN("Forward")},
     {gIconInfo, CmdProperties, TrN("Properties"), TrN("Document properties")},
@@ -305,13 +306,13 @@ static const RibbonItemDef gViewItems[] = {
 static const RibbonItemDef gProtectItems[] = {
     {gIconLock, CmdPdfEncrypt, TrN("Protect"), TrN("Encrypt the PDF with a password")},
     {gIconUnlock, CmdPdfDecrypt, TrN("Unprotect"), TrN("Remove the password from the PDF")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Redaction")},
     {gIconAnnotRedact, CmdCreateAnnotRedact, TrN("Redact"), TrN("Mark an area for redaction")},
     {gIconApplyRedactions, CmdApplyRedactions, TrN("Apply"), TrN("Apply redactions (permanently removes the content)")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Sign and flatten")},
     {gIconCertificate, CmdSignDocument, TrN("Digital ID"), TrN("Sign the document with a certificate")},
     {gIconFlatten, CmdPdfBake, TrN("Flatten"), TrN("Merge comments and form fields into the pages")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Save")},
     {gIconSave, CmdSaveAnnotations, TrN("Save"), TrN("Save changes to the PDF")},
 };
 
@@ -319,7 +320,7 @@ static const RibbonItemDef gHelpItems[] = {
     {gIconHelp, CmdHelpOpenManualOnWebsite, TrN("Help"), TrN("Open the user guide")},
     {gIconKeyboard, CmdToggleKeyboardHelp, TrN("Shortcuts"), TrN("Keyboard shortcuts")},
     {gIconCommandPalette, CmdCommandPalette, TrN("Commands"), TrN("Find any command by name")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Support")},
     {gIconUpdate, CmdCheckUpdate, TrN("Update"), TrN("Check for a new version and install it")},
     {gIconWorld, CmdHelpVisitWebsite, TrN("Website"), TrN("Visit the Swiftleaf PDF website")},
     {gIconInfo, CmdHelpAbout, TrN("About")},
@@ -331,10 +332,10 @@ static const RibbonItemDef gFileItems[] = {
     {gIconSaveToNewFile, CmdSaveAs, TrN("Save As")},
     {gIconPrint, CmdPrint, TrN("Print")},
     {gIconClose, CmdClose, TrN("Close"), TrN("Close the document")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Settings")},
     {gIconInfo, CmdProperties, TrN("Properties"), TrN("Document properties")},
     {gIconSettings, CmdOptions, TrN("Settings")},
-    {nullptr, 0, {}},
+    {nullptr, 0, TrN("Exit")},
     {gIconExit, CmdExit, TrN("Exit")},
 };
 // clang-format on
@@ -624,6 +625,10 @@ Color RibbonAccentColor() {
     return M3().primary;
 }
 
+static Color RibbonFocusColor() {
+    return ThemeUsesHighContrastColors() ? SysHighlightBgColor() : RibbonAccentColor();
+}
+
 // Separate the tab strip from the tools without tinting the document chrome.
 Color RibbonTabRowBgColor() {
     return M3().surfaceContainerLow;
@@ -673,11 +678,13 @@ constexpr int kRibbonBtnMinDx = 36;
 constexpr int kRibbonBtnMaxLabelDx = 120;
 
 RibbonButton::RibbonButton() {
+    animatedBg = new AnimatedColor();
     kind = kindVirtCtrlRibbonButton;
     padding = {DpiScale(kRibbonBtnPadY), DpiScale(kRibbonBtnPadX), DpiScale(kRibbonBtnPadY), DpiScale(kRibbonBtnPadX)};
 }
 
 RibbonButton::~RibbonButton() {
+    delete animatedBg;
     str::Free(label);
 }
 
@@ -714,9 +721,12 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
     } else if (enabled && HasFlag(vwfHovered)) {
         container = isSelected ? M3StateLayer(container, m3.onSurface, kM3HoverOpacity) : m3.surfaceContainerHigh;
     }
+    container = animatedBg->Get(GetHwnd(), container);
     if (container != RibbonPanelBgColor()) {
         ctx.gfx->FillRoundedRect(r, diameter, container);
     }
+
+    if (HasFlag(vwfFocused)) ctx.gfx->DrawRect(r, RibbonFocusColor(), DpiScale(1));
 
     Pixmap* px = (!enabled && pixmapDisabled) ? pixmapDisabled : pixmap;
     int iconDx = px ? px->width : RibbonLargeIconSize();
@@ -760,7 +770,7 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
         float pt = 11.f * (float)DpiGet() / 96.f;
         PlatformFont* chevronFont = GetPlatformFont(StrL("Segoe UI"), pt, PlatformFontStyle::Regular);
         Rect drop{r.Right() - dropDx, iconY, dropDx, iconDy};
-        ctx.gfx->DrawText(StrL("â¾"), drop, gfxTextCenter | gfxTextVCenter, chevronFont, col);
+        ctx.gfx->DrawText(StrL("\xE2\x96\xBE"), drop, gfxTextCenter | gfxTextVCenter, chevronFont, col);
     }
 }
 
@@ -835,6 +845,7 @@ constexpr int kRibbonTabPadY = 7;
 constexpr int kRibbonTabUnderlineDy = 3;
 
 RibbonTab::RibbonTab(Str s, PlatformFont* f) {
+    animatedBg = new AnimatedColor();
     kind = kindRibbonTab;
     label = str::Dup(s);
     font = f;
@@ -845,6 +856,7 @@ RibbonTab::RibbonTab(Str s, PlatformFont* f) {
 }
 
 RibbonTab::~RibbonTab() {
+    delete animatedBg;
     str::Free(label);
 }
 
@@ -865,30 +877,22 @@ void RibbonTab::Paint(VirtPaintCtx& ctx) {
     if (isActive) {
         ctx.gfx->FillRect(r, RibbonPanelBgColor());
     }
+    Color bg = isActive ? RibbonPanelBgColor() : RibbonTabRowBgColor();
+    Color hover = bg;
     if (HasFlag(vwfHovered) || HasFlag(vwfPressed)) {
         int layer = HasFlag(vwfPressed) ? kM3PressedOpacity : kM3HoverOpacity;
-        Rect hi = r;
-        hi.y += DpiScale(4);
-        hi.dy -= DpiScale(4) + DpiScale(kRibbonTabUnderlineDy);
-        Color bg = isActive ? RibbonPanelBgColor() : RibbonTabRowBgColor();
-        ctx.gfx->FillRoundedRect(hi, DpiScale(6), M3StateLayer(bg, m3.onSurface, layer));
+        hover = M3StateLayer(bg, m3.onSurface, layer);
     }
+    Rect hi = r;
+    hi.y += DpiScale(4);
+    hi.dy -= DpiScale(4) + DpiScale(kRibbonTabUnderlineDy);
+    ctx.gfx->FillRoundedRect(hi, DpiScale(6), animatedBg->Get(GetHwnd(), hover));
+    if (HasFlag(vwfFocused)) ctx.gfx->DrawRect(r, RibbonFocusColor(), DpiScale(1));
     // PDFCraft: neutral active text for underlined mode bar
     Color col = isActive ? m3.onSurface : m3.onSurfaceVariant;
     Rect rText = r;
     rText.dy -= DpiScale(kRibbonTabUnderlineDy);
     ctx.gfx->DrawText(label, rText, gfxTextCenter | gfxTextVCenter | gfxTextSingleLine, font, col);
-    if (!isActive) {
-        return;
-    }
-    int dy = DpiScale(kRibbonTabUnderlineDy);
-    int textDx = PlatformFontMeasureText(font, label).dx;
-    int barDx = std::max(textDx, DpiScale(24));
-    Rect bar{r.x + (r.dx - barDx) / 2, r.Bottom() - dy, barDx, dy * 2};
-    // round the top only: the lower half of the shape is clipped by the tab
-    ctx.gfx->PushClip({r.x, r.Bottom() - dy, r.dx, dy});
-    ctx.gfx->FillRoundedRect(bar, dy, m3.primary);
-    ctx.gfx->PopClip();
 }
 
 void RibbonTab::OnMouseEnter() {
@@ -904,6 +908,40 @@ RibbonTab* AsRibbonTab(ILayout* l) {
         return (RibbonTab*)l;
     }
     return nullptr;
+}
+
+RibbonTabRow::RibbonTabRow() {
+    underlineX = new Animation();
+    underlineWidth = new Animation();
+}
+
+RibbonTabRow::~RibbonTabRow() {
+    delete underlineX;
+    delete underlineWidth;
+}
+
+void RibbonTabRow::PaintUnderline(Gfx* gfx, HWND hwnd) {
+    for (auto& item : children) {
+        auto* tab = AsRibbonTab(item.layout);
+        if (!tab || !tab->isActive || IsCollapsed(tab)) continue;
+        Rect r = tab->BoundsInWindow();
+        int width = std::max(PlatformFontMeasureText(tab->font, tab->label).dx, DpiScale(24));
+        int x = r.x + (r.dx - width) / 2;
+        Size size{lastBounds.dx, lastBounds.dy};
+        if (!(size == paintedSize)) {
+            underlineX->Snap((float)x);
+            underlineWidth->Snap((float)width);
+            paintedSize = size;
+        }
+        int left = (int)(underlineX->To(hwnd, (float)x) + .5f);
+        int dx = (int)(underlineWidth->To(hwnd, (float)width) + .5f);
+        int dy = DpiScale(kRibbonTabUnderlineDy);
+        Rect bar{left, r.Bottom() - dy, dx, dy * 2};
+        gfx->PushClip({lastBounds.x, r.Bottom() - dy, lastBounds.dx, dy});
+        gfx->FillRoundedRect(bar, dy, RibbonAccentColor());
+        gfx->PopClip();
+        return;
+    }
 }
 
 Size RibbonTabRow::Layout(Constraints bc) {

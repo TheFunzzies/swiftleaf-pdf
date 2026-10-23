@@ -61,6 +61,7 @@
 #include "Theme.h"
 #include "Canvas.h"
 #include "HomePage.h"
+#include "Animation.h"
 #include "MainWindow.h"
 
 static void SafeDeleteTabsCtrl(TabsCtrl* tabsCtrl) {
@@ -255,6 +256,10 @@ MainWindow::~MainWindow() {
     delete favViewLayout;
 
     DestroyAIChatPanel(this);
+
+    delete toolsWidthAnimation;
+    delete commentsWidthAnimation;
+    AnimationForget(hwndFrame);
 
     // owns chrome, the content row, the splitters and the slots
     delete chromeLayout;

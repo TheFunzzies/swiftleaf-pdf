@@ -61,6 +61,7 @@
 #include "Material.h"
 #include "LucideIcons.h"
 #include "ToolsPanel.h"
+#include "RibbonAccess.h"
 #include "Toolbar.h"
 
 // https://docs.microsoft.com/en-us/windows/win32/controls/toolbar-control-reference
@@ -250,16 +251,15 @@ static bool IsOnShownRibbonPage(MainWindow* win, VirtCtrl* w) {
     if (!tb || len(tb->ribbonPanels) == 0) {
         return true;
     }
-    int page = win->ribbonPage;
     if (VecContains(tb->items, w)) {
-        return IsRibbonNavCmd(w->id) || page == (int)RibbonPage::Home;
+        return IsRibbonNavCmd(w->id);
     }
     if (VecContains(tb->annotationItems, w)) {
-        return page == (int)RibbonPage::Comment;
+        return false;
     }
     int idx = VecFind(tb->ribbonItems, w);
     if (idx >= 0) {
-        return tb->ribbonItemPages[idx] == page;
+        return false;
     }
     return true;
 }
@@ -502,6 +502,7 @@ void SetToolbarButtonCheckedState(MainWindow* win, int cmdId, bool isChecked) {
             ib->Invalidate();
         }
     }
+    ToolsPanelUpdate(win);
 }
 
 // some commands are only avialble in certain contexts
@@ -718,9 +719,9 @@ static void SetRibbonAnnotationsVisible(MainWindow* win, bool visible, bool docS
     }
     tb->ribbonAnnotsVisible = visible;
     bool onEditPage = RibbonPageEditsPdf((RibbonPage)win->ribbonPage);
-    if (visible && !onEditPage) {
+    if (visible && !onEditPage && !tb->ribbonSelectingPage) {
         SetRibbonPage(win, (int)RibbonPage::Comment, false);
-    } else if (!visible && onEditPage && docSupportsAnnots) {
+    } else if (!visible && onEditPage && docSupportsAnnots && !tb->ribbonSelectingPage) {
         SetRibbonPage(win, (int)RibbonPage::Home, false);
     }
     if (visible) {
@@ -1683,6 +1684,8 @@ static Rect ToolbarButtonRect(MainWindow* win, int cmdId) {
 // returns an empty rect when the toolbar isn't visible (e.g. fullscreen /
 // presentation) so the caller can fall back to a different anchor.
 Rect GetToolbarButtonScreenRect(MainWindow* win, int cmdId) {
+    Rect panelRect = ToolsPanelButtonRect(win, cmdId);
+    if (!panelRect.IsEmpty()) return panelRect;
     VirtHost* host = ToolbarHost(win);
     if (!host || !host->IsVisible()) {
         return {};
@@ -1722,7 +1725,7 @@ TempStr ToolbarButtonsResultTemp(int* exitCodeOut) {
     for (int i = 0; i < n; i++) {
         VirtCtrl* w = tb->items[i];
         Rect r = w ? w->BoundsInWindow() : Rect{};
-        bool hidden = !w || w->GetVisibility() != Visibility::Visible;
+        bool hidden = !w || w->GetVisibility() != Visibility::Visible || !IsOnShownRibbonPage(win, w);
         // Match the old Win32 dump: TBIF_TEXT. Built-in buttons store the
         // tooltip (with accelerator); custom ones stored the raw name.
         Str text{};
@@ -1754,6 +1757,7 @@ TempStr ToolbarButtonsResultTemp(int* exitCodeOut) {
                        bi.toolTip, tip));
     }
     out.Append(AnnotFilterToolbarStateTemp(win));
+    out.Append(ToolsPanelStateTemp(win));
     out.Append(HoverDropdownStateTemp(win));
     *exitCodeOut = 0;
     return ToStrTemp(out);
@@ -1809,7 +1813,7 @@ static void OnToolbarButtonClicked(MainWindow* win, VirtMouseEvent* ev) {
         if (ib->hasDropdown) {
             int dropDx = ib->DropdownDx();
             if (dropDx > 0 && ev->pt.x >= w->bounds.dx - dropDx) {
-                ShowTtsVoiceMenu(win, GetToolbarButtonScreenRect(win, cmdId));
+                ShowToolbarButtonDropdown(win, cmdId);
                 ev->didHandle = true;
                 return;
             }
@@ -2372,8 +2376,8 @@ static bool ShowToolbarButtonDropdown(MainWindow* win, int cmdId) {
         return false;
     }
 
-    if (auto* ib = AsVirtIconButton(ToolbarItemForCmd(win, cmdId))) {
-        if (ib->hasDropdown) {
+    if (cmdId == CmdToggleReadAloud || cmdId == CmdPauseReadAloud) {
+        {
             ShowTtsVoiceMenu(win, GetToolbarButtonScreenRect(win, cmdId));
             return true;
         }
@@ -3612,13 +3616,51 @@ static void OnRibbonTabClicked(MainWindow* win, VirtMouseEvent* ev) {
     }
     ev->didHandle = true;
     RibbonMode mode = (RibbonMode)(w->id - kRibbonTabIdBase);
-    if (mode == RibbonMode::AllTools) ToggleToolsPanel(win);
     SetRibbonPage(win, (int)RibbonModePage(mode), true);
+    if (!ShouldShowToolsPanel(win) || !HwndIsVisible(win->hwndToolsPanel)) {
+        ShowToolsPanelMenu(win, win->toolbarVirt->host->ToScreen(w->BoundsInWindow()));
+    }
+}
+
+static void OnTopBarKey(MainWindow* win, VirtKeyEvent* ev) {
+    auto* tb = win->toolbarVirt;
+    auto* w = ev->target;
+    if (ev->vkey == VK_ESCAPE) {
+        HwndSetFocus(win->hwndFrame);
+    } else if (ev->vkey == VK_RETURN || ev->vkey == VK_SPACE || ev->vkey == VK_DOWN) {
+        VirtMouseEvent click;
+        click.target = w;
+        w->onClick.Call(&click);
+        if (ev->vkey == VK_DOWN && ShouldShowToolsPanel(win) && HwndIsVisible(win->hwndToolsPanel))
+            HwndSetFocus(win->hwndToolsPanel);
+    } else if (ev->vkey == VK_LEFT || ev->vkey == VK_RIGHT || ev->vkey == VK_HOME || ev->vkey == VK_END) {
+        Vec<TabStop> stops;
+        CollectTabStops(tb->ribbonTabRow, stops);
+        Vec<VirtCtrl*> controls;
+        for (auto& stop : stops)
+            if (stop.vwnd) VecAppend(controls, stop.vwnd);
+        int idx = -1;
+        for (int i = 0; i < len(controls); i++)
+            if (controls[i] == w) idx = i;
+        if (idx < 0) return;
+        int count = len(controls);
+        int next = ev->vkey == VK_HOME  ? 0
+                   : ev->vkey == VK_END ? count - 1
+                                        : (idx + (ev->vkey == VK_LEFT ? count - 1 : 1)) % count;
+        tb->host->vroot->SetFocus(controls[next]);
+    } else
+        return;
+    ev->didHandle = true;
+}
+
+static void SetupTopBarKey(MainWindow* win, VirtCtrl* w) {
+    w->SetFlag(vwfFocusable, true);
+    w->onKeyDown = MkFunc1(OnTopBarKey, win);
+    w->onFocusChanged = MkFunc1(RibbonAccessFocus, win);
 }
 
 static int RibbonHeightForPage(ToolbarVirt* tb, int page) {
-    bool hasPanel = RibbonPageHasPanel((RibbonPage)page);
-    return tb->ribbonTabRowDy + (hasPanel ? tb->ribbonPanelsDy : 0) + 1;
+    return tb->ribbonTabRowDy + 1;
 }
 
 static void ShowRibbonPage(ToolbarVirt* tb, int page) {
@@ -3635,8 +3677,7 @@ static void ShowRibbonPage(ToolbarVirt* tb, int page) {
         tb->ribbonPanels[i]->SetVisibility(i == page ? Visibility::Visible : Visibility::Collapse);
     }
     if (tb->ribbonPanelsRow) {
-        bool hasPanel = RibbonPageHasPanel((RibbonPage)page);
-        tb->ribbonPanelsRow->SetVisibility(hasPanel ? Visibility::Visible : Visibility::Collapse);
+        tb->ribbonPanelsRow->SetVisibility(Visibility::Collapse);
     }
     tb->ribbonDy = RibbonHeightForPage(tb, page);
 }
@@ -3670,6 +3711,7 @@ static RibbonButton* NewTopBarButton(MainWindow* win, const char* svg, int cmdId
     ApplyRibbonButtonStyle(b, Str(svg), cmdId);
     b->SetTooltip(ToolbarTipTemp(cmdId, tip, false));
     b->onClick = MkFunc1(OnTopBarClicked, win);
+    SetupTopBarKey(win, b);
     VecAppend(win->toolbarVirt->topBarItems, (VirtCtrl*)b);
     return b;
 }
@@ -3684,6 +3726,7 @@ static RibbonSearchBox* NewTopBarSearchBox(MainWindow* win) {
     sb->icon = GetCachedPixmapForSvg(Str(gLucideSearch), sz, sz, M3().onSurfaceVariant, RibbonPanelBgColor());
     sb->SetTooltip(ToolbarTipTemp(CmdCommandPalette, Tr("Find tools and commands"), false));
     sb->onClick = MkFunc1(OnTopBarClicked, win);
+    SetupTopBarKey(win, sb);
     VecAppend(tb->topBarItems, (VirtCtrl*)sb);
     return sb;
 }
@@ -3699,6 +3742,7 @@ static void SetRibbonPage(MainWindow* win, int page, bool userAction) {
     int prevDy = tb->ribbonDy;
     win->ribbonPage = page;
     ShowRibbonPage(tb, page);
+    ToolsPanelShowPage(win);
     if (changed) {
         HideToolbarHoverDropdown(win);
         VirtHost* host = tb->host;
@@ -3718,7 +3762,9 @@ static void SetRibbonPage(MainWindow* win, int page, bool userAction) {
     }
     bool wantEdit = RibbonPageEditsPdf((RibbonPage)page);
     if (wantEdit != win->pdfAnnotationsToolbarEnabled) {
+        tb->ribbonSelectingPage = true;
         SetPdfAnnotationsToolbarEnabled(win, wantEdit);
+        tb->ribbonSelectingPage = false;
     }
     ToolbarUpdateStateForWindow(win, true);
 }
@@ -3731,6 +3777,48 @@ static RibbonButton* NewRibbonButton(MainWindow* win, Str svg, int cmdId, Str la
     b->SetLabel(label);
     ApplyRibbonButtonStyle(b, svg, cmdId);
     return b;
+}
+
+void ToolbarSetupToolRow(MainWindow* win, RibbonButton* row) {
+    row->onClick = MkFunc1(OnToolbarButtonClicked, win);
+    row->hasDropdown = row->id == CmdToggleReadAloud || FindHoverReg(win->toolbarVirt, row->id) != nullptr;
+}
+
+void ToolbarToolOptions(MainWindow* win, int cmdId) {
+    ShowToolbarButtonDropdown(win, cmdId);
+}
+
+void ToolbarPageTools(MainWindow* win, int page, Vec<ToolbarPageTool>& out) {
+    auto* tb = win->toolbarVirt;
+    if (!tb) return;
+    if (page == (int)RibbonPage::Home || page == (int)RibbonPage::Comment) {
+        auto& items = page == (int)RibbonPage::Home ? tb->items : tb->annotationItems;
+        for (auto* source : items) {
+            if (source && source->id && !IsRibbonNavCmd(source->id) && source->id != WarningMsgId) {
+                VecAppend(out, ToolbarPageTool{source, {}});
+            }
+        }
+        return;
+    }
+    const RibbonItemDef* defs = nullptr;
+    int count = 0;
+    RibbonPageItems((RibbonPage)page, &defs, &count);
+    Str group;
+    for (int i = 0; i < count; i++) {
+        const auto& d = defs[i];
+        if (!d.icon) {
+            group = d.label;
+            continue;
+        }
+        for (int j = 0; j < len(tb->ribbonItems); j++) {
+            auto* source = tb->ribbonItems[j];
+            if (tb->ribbonItemPages[j] == page && source->id == d.cmdId) {
+                VecAppend(out, ToolbarPageTool{source, group});
+                group = {};
+                break;
+            }
+        }
+    }
 }
 
 static HBox* NewRibbonPanel() {
@@ -3829,6 +3917,7 @@ static void BuildToolbarLayout(MainWindow* win) {
     VecReset(tb->topBarItems);
     tb->ribbonPanelsRow = nullptr;
     auto* tabRow = new RibbonTabRow();
+    tb->ribbonTabRow = tabRow;
     tabRow->alignCross = CrossAxisAlign::CrossCenter;
     tabRow->rtl = rtl;
     tabRow->AddChild(NewTopBarButton(win, gLucidePanelLeft, TopBarMenuId, Tr("Menu"), Tr("Panels and all tools")));
@@ -3841,6 +3930,8 @@ static void BuildToolbarLayout(MainWindow* win) {
         t->id = kRibbonTabIdBase + i;
         t->textColor = fg;
         t->onClick = MkFunc1(OnRibbonTabClicked, win);
+        SetupTopBarKey(win, t);
+        t->SetTooltip(t->label);
         VecAppend(tb->ribbonTabs, t);
         tabRow->AddChild(t);
     }
@@ -4001,6 +4092,7 @@ static void PaintToolbarEdge(MainWindow* win, VirtHostPaintEvent* ev) {
     if (!tb || tb->ribbonTabRowDy <= 0) {
         return;
     }
+    if (tb->ribbonTabRow) tb->ribbonTabRow->PaintUnderline(ev->gfx, tb->host->native);
     Color edge = RibbonEdgeColor();
     ev->gfx->FillRect({rc.x, rc.y + tb->ribbonTabRowDy, rc.dx, 1}, edge);
     ev->gfx->FillRect({rc.x, rc.Bottom() - 1, rc.dx, 1}, edge);
@@ -4057,6 +4149,7 @@ void CreateToolbar(MainWindow* win) {
     host->SetFont(tb->platformFont);
 
     BuildToolbarLayout(win);
+    SetRibbonPage(win, win->ribbonPage, false);
     ToolbarSetHeight(win, tb->ribbonDy);
     CreateStatusBar(win);
     CreateNavRail(win);
@@ -4108,6 +4201,50 @@ void ReCreateToolbar(MainWindow* win) {
     DestroyToolbar(win);
     CreateToolbar(win);
 }
+
+#if IS_DEBUG
+#include "base/tests/UtAssert.h"
+void RibbonAccess_UnitTests() {
+    RibbonAccessible accessible(nullptr);
+    VARIANT self;
+    VariantInit(&self);
+    self.vt = VT_I4;
+    self.lVal = CHILDID_SELF;
+    utassert(accessible.get_accName(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accRole(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accState(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accFocus(nullptr) == E_POINTER);
+    utassert(accessible.accHitTest(0, 0, nullptr) == E_POINTER);
+    utassert(accessible.accLocation(nullptr, nullptr, nullptr, nullptr, self) == E_POINTER);
+    VARIANT result;
+    utassert(accessible.get_accRole(self, &result) == E_INVALIDARG);
+    utassert(accessible.get_accFocus(&result) == S_FALSE);
+    utassert(accessible.accHitTest(0, 0, &result) == S_FALSE);
+    utassert(accessible.get_accChildCount(nullptr) == E_POINTER);
+    utassert(accessible.get_accChild(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accValue(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accHelp(self, nullptr) == E_POINTER);
+    utassert(accessible.get_accSelection(nullptr) == E_POINTER);
+    utassert(accessible.get_accDefaultAction(self, nullptr) == E_POINTER);
+    utassert(accessible.accNavigate(NAVDIR_FIRSTCHILD, self, nullptr) == E_POINTER);
+    auto* box = new VBox();
+    auto* first = new VirtCtrl();
+    auto* hidden = new VirtCtrl();
+    auto* last = new VirtCtrl();
+    first->SetFlag(vwfFocusable, true);
+    hidden->SetFlag(vwfFocusable, true);
+    hidden->SetVisibility(Visibility::Collapse);
+    last->SetFlag(vwfFocusable, true);
+    box->AddChild(first);
+    box->AddChild(hidden);
+    box->AddChild(last);
+    int id = 0;
+    utassert(!RibbonAccessible::Find(box, id) && id == -2);
+    id = 2;
+    utassert(RibbonAccessible::Find(box, id) == last);
+    delete box;
+}
+#endif
 
 // What the toolbar still needs Win32 for, now that VirtHost owns its window:
 // the colors of the native page-number edit, dragging the frame by an empty
@@ -4316,6 +4453,19 @@ static bool OnCaptionDrag(MainWindow* win, VirtHostNativeMsg* ev) {
 }
 
 static void OnToolbarNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
+    if (RibbonAccessMessage(ev)) return;
+    auto* root = ev->host->vroot;
+    if (ev->msg == WM_SETFOCUS && root && !root->focused && len(win->toolbarVirt->ribbonTabs))
+        root->SetFocus(win->toolbarVirt->ribbonTabs[0]);
+    if (ev->msg == WM_KEYDOWN && ev->wp == VK_TAB && root) {
+        Vec<TabStop> stops;
+        CollectTabStops(ev->host->layout, stops);
+        if (len(stops) && root->focused == stops[IsShiftPressed() ? 0 : len(stops) - 1].vwnd) {
+            AdvanceFocus(win);
+            ev->didHandle = true;
+            return;
+        }
+    }
     switch (ev->msg) {
         case WM_COMMAND:
         case WM_CTLCOLOREDIT:
@@ -4332,5 +4482,6 @@ static void OnToolbarNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
 }
 
 void ToolbarSetNativeHooks(MainWindow* win, VirtHost* host) {
+    SetWindowTextW(host->native, CWStrTemp(Tr("Tools and commands")));
     host->onNativeMsg = MkFunc1(OnToolbarNativeMsg, win);
 }

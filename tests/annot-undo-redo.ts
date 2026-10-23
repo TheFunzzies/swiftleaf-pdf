@@ -1,3 +1,4 @@
+import { panelRows } from "./contextual-panel.ts";
 // Undo / redo of PDF edits (MuPDF's journal). Checks that a change can be
 // stepped back and forward, that Undo / Redo are only offered when there is
 // something to step to, and that one gesture is one step: a paste writes the
@@ -94,13 +95,9 @@ type Button = { idx: number; enabled: boolean; tip: string };
 async function toolbarButtons(client: ControlClient): Promise<Map<string, Button>> {
   const raw = String((await client.request(ControlCommand.TestToolbarButtons, []))[1] ?? "");
   const res = new Map<string, Button>();
-  const re = /annotation-idx=(\d+) cmd=(\d+) hidden=(\d) enabled=(\d) rect=\S+ text=.*? tip=(.*)/g;
-  for (const m of raw.matchAll(re)) {
-    const cmd = +m[2]!;
+  for (const row of panelRows(raw)) {
     for (const name of ["CmdUndo", "CmdRedo", "CmdSaveAnnotations"]) {
-      if (cmd === cmdId(name) && m[3] === "0") {
-        res.set(name, { idx: +m[1]!, enabled: m[4] === "1", tip: m[5]!.trim() });
-      }
+      if (row.cmd === cmdId(name)) res.set(name, { idx: row.idx, enabled: row.enabled, tip: row.tip });
     }
   }
   return res;

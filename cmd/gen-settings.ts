@@ -1478,10 +1478,12 @@ const globalPrefs: Field[] = [
     "if true, put the bookmarks / favorites sidebar on the right of the window " +
       "(left is the default; right-to-left UI languages already put it on the right)",
   ).ver("3.7"),
+  field("ToolsPanelWidth", Int, 240, "preferred tools panel width in 96-DPI units").ver("3.7"),
+  field("CommentsPanelWidth", Int, 300, "preferred comments panel width in 96-DPI units").ver("3.7"),
   field("ShowToolsPanel", Bool, true, "if true, show the All tools panel on the left of the window").ver("3.7"),
-  field("ShowCommentsPanel", Bool, false, "if true, show the Comments panel on the right of PDF documents").ver(
-    "3.7",
-  ),
+  field("ShowCommentsPanel", Bool, false, "if true, show the Comments panel on the right of PDF documents").ver("3.7"),
+  field("ShowDocumentPanel", Bool, false, "if true, show the Layers / Attachments panel").ver("3.7"),
+  field("DocumentPanelMode", Int, 0, "document details page: 0 layers, 1 attachments").ver("3.7"),
   field(
     "SidebarWindowSize",
     Str,
@@ -2143,8 +2145,12 @@ const globalPrefsLayout = [
   "ShowToc",
   "AlwaysShowSidebar",
   "SidebarOnRight",
+  "ToolsPanelWidth",
+  "CommentsPanelWidth",
   "ShowToolsPanel",
   "ShowCommentsPanel",
+  "ShowDocumentPanel",
+  "DocumentPanelMode",
   "SidebarWindowSize",
   "ShowLinks",
   "HighlightFormFields",

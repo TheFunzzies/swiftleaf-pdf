@@ -799,6 +799,8 @@ void VirtRoot::SetFocus(VirtCtrl* w) {
     }
 }
 
+static void CollectFocusLayout(ILayout*, Vec<VirtCtrl*>&);
+
 static void CollectFocusable(VirtCtrl* w, Vec<VirtCtrl*>& out) {
     if (!w || !w->IsHitTestable()) {
         return;
@@ -806,9 +808,18 @@ static void CollectFocusable(VirtCtrl* w, Vec<VirtCtrl*>& out) {
     if (w->HasFlag(vwfFocusable) && !w->HasFlag(vwfSkipTabStop)) {
         VecAppend(out, w);
     }
-    for (VirtCtrl* c : w->children) {
-        CollectFocusable(c, out);
+    for (int i = 0; i < w->LayoutChildCount(); i++) {
+        CollectFocusLayout(w->LayoutChildAt(i), out);
     }
+}
+
+static void CollectFocusLayout(ILayout* layout, Vec<VirtCtrl*>& out) {
+    if (!layout || IsCollapsed(layout)) return;
+    if (auto* w = layout->AsVirtCtrl()) {
+        CollectFocusable(w, out);
+        return;
+    }
+    for (int i = 0; i < layout->LayoutChildCount(); i++) CollectFocusLayout(layout->LayoutChildAt(i), out);
 }
 
 // a win32 control is in the ring if it says so (WS_TABSTOP) and can take focus
@@ -3381,6 +3392,24 @@ VirtLine* AsVirtLine(ILayout* l) {
 
 //--- hosting virtual controls in a window
 
+static void SetLayoutRoots(ILayout* layout, VirtRoot* root) {
+    if (!layout || IsCollapsed(layout)) return;
+    if (auto* w = layout->AsVirtCtrl()) w->SetRoot(root);
+    for (int i = 0; i < layout->LayoutChildCount(); i++) SetLayoutRoots(layout->LayoutChildAt(i), root);
+}
+
+static bool HasFocusStop(ILayout* layout, VirtCtrl* focused) {
+    if (!layout || IsCollapsed(layout)) return false;
+    if (auto* w = layout->AsVirtCtrl()) {
+        if (!w->IsHitTestable()) return false;
+        if (w == focused) return w->HasFlag(vwfFocusable) && !w->HasFlag(vwfSkipTabStop);
+    }
+    for (int i = 0; i < layout->LayoutChildCount(); i++) {
+        if (HasFocusStop(layout->LayoutChildAt(i), focused)) return true;
+    }
+    return false;
+}
+
 void RefreshVirtTops(HWND hwnd, ILayout* layout, Rect bounds, VirtRoot** rootInOut) {
     if (!layout) {
         return;
@@ -3399,7 +3428,10 @@ void RefreshVirtTops(HWND hwnd, ILayout* layout, Rect bounds, VirtRoot** rootInO
         *rootInOut = root;
     }
     root->bounds = bounds;
+    VirtCtrl* focused = root->focused;
     root->SetTops(tops);
+    SetLayoutRoots(layout, root);
+    if (focused && HasFocusStop(layout, focused)) root->SetFocus(focused);
     // A top-level control's `bounds` is relative to the root's origin, but
     // SetBounds() computed it against whatever origin the root had *then* -
     // for a first layout that's no root at all, and for a caller that lays out

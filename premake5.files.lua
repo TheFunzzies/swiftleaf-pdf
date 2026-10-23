@@ -416,6 +416,8 @@ function sumatrapdf_files()
     "StatusBar.*",
     "NavRail.*",
     "ToolsPanel.*",
+    "PanelLayout.*",
+    "Animation.*",
     "DocumentPanel.*",
     "LucideIcons.*",
     "Material.*",
