@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6005
+// Test for upstream issues #6005
 //
 // The Trim page-box label sat below the box, so on a single (or last) page at
 // Fit Page it was clipped at the canvas edge. It must stay inside the viewport.
@@ -6,7 +6,7 @@
 // Run: bun tests/issue-6005.ts [--no-build]
 
 import { writeFileSync } from "node:fs";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { captureWindowPixels, captureWindowToPng } from "./winapi.ts";
 import { findCanvas, sendCommandSync, waitForFrame } from "./win-automation.ts";
 import { cmdId, EXE, runStandalone, tmpPath } from "./util.ts";
@@ -48,7 +48,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-6005.pdf");
   writeFileSync(pdf, makePdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6190
+// Regression test for upstream issues #6190
 //
 // Outline entries with /FitH top must land on their page. ScrollTo treated the
 // page-relative top as an absolute document offset, so they jumped to page 1.
@@ -6,7 +6,7 @@
 // Run:  bun tests/issue-6190.ts [--no-build]   (or via tests/run-almost-all.ts)
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 function makePdf(): Buffer {
@@ -61,7 +61,7 @@ export async function testit(): Promise<void> {
   const PDF = tmpPath("issue-6190-fith-dests.pdf");
   writeFileSync(PDF, makePdf());
 
-  const results = await withControlledSumatra(
+  const results = await withControlledApp(
     EXE,
     async (client) => {
       const out: string[] = [];

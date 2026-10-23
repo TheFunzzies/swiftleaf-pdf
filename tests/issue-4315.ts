@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/4315
+// Test for upstream issues #4315
 //
 // KF8 / AZW3 fixed-layout books store pages as JPEGs in the PDB and leave the
 // PalmDoc HTML empty. EngineMobi must still show those images as pages.
@@ -10,7 +10,7 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone } from "./util.ts";
 
 const AZW3 = join(import.meta.dir, "issue-4315.azw3");
@@ -26,7 +26,7 @@ export async function testit(): Promise<void> {
     throw new Error(`issue-4315: fixture not found: ${AZW3}`);
   }
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const p1 = await client.request(ControlCommand.TestRenderPageColors, [AZW3, 1]);
     const p1Raw = String(p1[1] ?? "");
     if (p1[0] !== 0) {

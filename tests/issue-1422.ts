@@ -7,7 +7,7 @@
 // down to 66.67% (or similar) before later steps zoomed in normally.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, withControlledSumatra } from "./control.ts";
+import { ControlClient, withControlledApp } from "./control.ts";
 import { sendCommandSync, waitForFrame } from "./win-automation.ts";
 import { cmdId, EXE, runStandalone, tmpPath } from "./util.ts";
 
@@ -66,7 +66,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-1422.pdf");
   writeFileSync(pdfPath, buildPdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

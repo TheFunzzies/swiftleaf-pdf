@@ -4,7 +4,7 @@
 // real turn does (addUser + appendText + flushBlock). Lets you iterate on the
 // webview render fast; watch the app window to see it render. Needs a PDF path.
 //   bun tests/ai-chat-replay.ts --no-build "C:\\path\\doc.pdf"
-import { ControlCommand, withControlledSumatra } from "./control";
+import { ControlCommand, withControlledApp } from "./control";
 import { EXE, runStandalone } from "./util";
 
 const PDF =
@@ -30,7 +30,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 export async function testit(): Promise<void> {
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await sleep(1500);

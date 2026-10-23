@@ -14,7 +14,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpPath } from "./util.ts";
 import { makeFixtures } from "./ad-hoc-issue-4600.ts";
-import { findCanvas, launchSumatra, waitForFrame, killAndWait, killProcessesNamed } from "./win-automation.ts";
+import { findCanvas, launchApp, waitForFrame, killAndWait, killProcessesNamed } from "./win-automation.ts";
 import { captureWindowPixels, moveWindow, setForegroundWindow, showWindow, sleep, SW_RESTORE } from "./winapi.ts";
 
 type Cap = { w: number; h: number; data: Uint8Array };
@@ -26,7 +26,7 @@ async function render(settings: string[]): Promise<Cap> {
   mkdirSync(appdata, { recursive: true });
   writeFileSync(join(appdata, "SumatraPDF-settings.txt"), [...settings, `RestoreSession = false`, ``].join("\n"));
   const epub = join(tmpPath("epub-font"), "none.epub");
-  const proc = launchSumatra(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", epub]);
+  const proc = launchApp(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", epub]);
   try {
     const frame = await waitForFrame(proc.pid!);
     showWindow(frame, SW_RESTORE);
@@ -77,7 +77,7 @@ function show(name: string, b: Box): void {
 
 export async function testit(): Promise<void> {
   makeFixtures();
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   const epub = join(tmpPath("epub-font"), "none.epub");
 
   const base = await box(null);

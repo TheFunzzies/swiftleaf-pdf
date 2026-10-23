@@ -410,7 +410,7 @@ export class ControlClient {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
     }
-    throw new Error(`failed to connect to Sumatra control pipe ${path}: ${lastErr}`);
+    throw new Error(`failed to connect to SwiftLeaf control pipe ${path}: ${lastErr}`);
   }
 
   async request(cmd: ControlCommand, args: ControlArg[] = []): Promise<ControlArg[]> {
@@ -441,7 +441,7 @@ export class ControlClient {
     } catch (e) {
       const msg = String((e as Error)?.message ?? e);
       if (/EPIPE|control pipe closed/i.test(msg)) {
-        throw new Error(`SumatraPDF exited while waiting for control response (${msg})`);
+        throw new Error(`SwiftLeaf exited while waiting for control response (${msg})`);
       }
       throw e;
     }
@@ -736,17 +736,17 @@ export class ControlClient {
   }
 }
 
-export function uniquePipeName(prefix = "sumatra-control"): string {
+export function uniquePipeName(prefix = "swiftleaf-control"): string {
   return `${prefix}-${process.pid}-${Date.now()}-${Math.floor(Math.random() * 0x100000000).toString(16)}`;
 }
 
-// exit code SumatraPDF uses when a debug report (ReportIf) fires in a
+// exit code SwiftLeaf uses when a debug report (ReportIf) fires in a
 // -for-testing run; must match kDebugReportTestExitCode in src/base/CrashHandler.cpp
 export const DEBUG_REPORT_EXIT_CODE = 105;
 
 // fn also gets the spawned process so a test can combine control commands with
 // real window messages (its pid is what finds the app's windows)
-export async function withControlledSumatra<T>(
+export async function withControlledApp<T>(
   exe: string,
   fn: (client: ControlClient, proc: Bun.Subprocess) => Promise<T>,
   extraArgs: string[] = [],
@@ -821,7 +821,7 @@ export async function withControlledSumatra<T>(
   const stderrText = (await stderrPromise).trim();
   if (exitCode === "timeout") {
     const details = stderrText ? `\n${stderrText}` : "";
-    throw new Error(`SumatraPDF did not exit within ${quitMs / 1000}s of Quit${details}`);
+    throw new Error(`SwiftLeaf did not exit within ${quitMs / 1000}s of Quit${details}`);
   }
   if (!fnOk) {
     if (stderrText) {
@@ -833,7 +833,7 @@ export async function withControlledSumatra<T>(
   if (!killed && exitCode !== 0) {
     const what = exitCode === DEBUG_REPORT_EXIT_CODE ? "debug report (ReportIf) fired" : `exit code ${exitCode}`;
     const details = stderrText ? `\n${stderrText}` : "";
-    throw new Error(`SumatraPDF: ${what}${details}`);
+    throw new Error(`SwiftLeaf: ${what}${details}`);
   }
   return result as T;
 }
@@ -844,13 +844,13 @@ export async function runControlCommand(
   args: ControlArg[] = [],
   extraArgs: string[] = [],
 ): Promise<ControlArg[]> {
-  return await withControlledSumatra(exe, (client) => client.request(cmd, args), extraArgs);
+  return await withControlledApp(exe, (client) => client.request(cmd, args), extraArgs);
 }
 
 if (import.meta.main) {
   const [exe, cmdName, ...args] = process.argv.slice(2);
   if (!exe || !cmdName) {
-    console.log("Usage: bun tests/control.ts <SumatraPDF.exe> <ping|test-search> [args...]");
+    console.log("Usage: bun tests/control.ts <Swiftleaf.exe> <ping|test-search> [args...]");
     process.exit(1);
   }
   const cmd = cmdName === "ping" ? ControlCommand.Ping : cmdName === "test-search" ? ControlCommand.TestSearch : 0;

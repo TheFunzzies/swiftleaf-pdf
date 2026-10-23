@@ -4,7 +4,7 @@
 // The gate used CouldBePDFDoc(), which is true for epub/mobi/fb2/xps/svg too;
 // it now asks the engine whether there is really a pdf_document behind the tab.
 
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { cmdId, EXE, runStandalone } from "./util.ts";
 import { sendCommandSync, waitForFrame } from "./win-automation.ts";
 
@@ -21,7 +21,7 @@ async function vis(client: { request: Function }, cmd: string): Promise<string> 
 }
 
 export async function testit(): Promise<void> {
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

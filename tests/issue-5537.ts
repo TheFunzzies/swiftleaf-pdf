@@ -1,8 +1,8 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5537
+// Test for upstream issues #5537
 //
 // A PDF /XYZ destination with a zoom of 0 (or null) must mean "retain the
 // current zoom" (PDF spec: "A zoom value of 0 has the same meaning as a null
-// value"), NOT force 100%. SumatraPDF resolves such a destination to zoom 0,
+// value"), NOT force 100%. SwiftLeaf resolves such a destination to zoom 0,
 // which DisplayModel::ScrollTo treats as "don't change zoom".
 //
 // Builds a tiny PDF whose outline has three /XYZ destinations and checks each
@@ -18,9 +18,9 @@ import { existsSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { EXE, runStandalone } from "./util.ts";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 
-const PDF = join(tmpdir(), "sumatra-issue-5537.pdf");
+const PDF = join(tmpdir(), "swiftleaf-issue-5537.pdf");
 
 // build a minimal PDF (2 pages) with an outline of 3 /XYZ destinations
 function makePdf(): Buffer {
@@ -64,7 +64,7 @@ export async function testit(): Promise<void> {
   ];
 
   let allOk = true;
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     for (const [no, expectZoom, desc] of cases) {
       const [, rawArg] = await client.request(ControlCommand.TestDest, [PDF, no]);
       const raw = String(rawArg).trim();

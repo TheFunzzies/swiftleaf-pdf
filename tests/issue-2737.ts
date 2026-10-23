@@ -3,7 +3,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const CHM = join(import.meta.dir, "issue-2737.chm");
@@ -37,7 +37,7 @@ ChmUI [
 `,
   );
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       const out = await waitForFonts(client);

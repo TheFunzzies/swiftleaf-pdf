@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6266
+// Test for upstream issues #6266
 //
 // Some fixed-layout EPUBs wrap each page JPEG in an <svg width="100%"
 // height="100%"> with no viewBox, and the <image> has no width or height.
@@ -13,7 +13,7 @@
 import { deflateRawSync, deflateSync } from "node:zlib";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, withControlledSumatra } from "./control.ts";
+import { ControlClient, withControlledApp } from "./control.ts";
 import { cmdId, EXE, runStandalone, tmpPath } from "./util.ts";
 import { captureWindowPixels } from "./winapi.ts";
 import { findCanvas, sendCommand, waitForFrame } from "./win-automation.ts";
@@ -224,7 +224,7 @@ export async function testit(): Promise<void> {
   const epubPath = join(dir, "issue-6266.epub");
   writeFileSync(epubPath, makeEpub(makeSplitPng()));
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

@@ -15,10 +15,10 @@
     </title-info>
     <document-info>
       <author>
-        <nickname>sumatra-test</nickname>
+        <nickname>swiftleaf-test</nickname>
       </author>
       <date value="2026-01-01">2026</date>
-      <id>sumatra-issue-5792</id>
+      <id>swiftleaf-issue-5792</id>
       <version>1.0</version>
     </document-info>
   </description>

@@ -11,7 +11,7 @@
 
 import { existsSync } from "node:fs";
 import { runStandalone, tmpPath } from "./util.ts";
-import { launchSumatra, waitForFrame, findCanvas, killAndWait } from "./win-automation.ts";
+import { launchApp, waitForFrame, findCanvas, killAndWait } from "./win-automation.ts";
 import { sleep, captureWindowToPng, getClientRect } from "./winapi.ts";
 
 const BUGS_DIR = "C:\\Users\\kjk\\OneDrive\\!sumatra\\bugs";
@@ -63,7 +63,7 @@ async function renderAndCheck(jpg: string): Promise<void> {
     return;
   }
 
-  const proc = launchSumatra([path]);
+  const proc = launchApp([path]);
   try {
     const frame = await waitForFrame(proc.pid!);
     // give the async image decode + paint time to complete

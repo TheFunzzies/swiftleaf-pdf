@@ -47,7 +47,7 @@ export async function testit(): Promise<void> {
     await waitHome(client);
     postMessage(frame, WM_CLOSE, 0, 0);
     if (!(await waitForExit(proc))) {
-      throw new Error("settings-persist: SumatraPDF didn't exit after WM_CLOSE");
+      throw new Error("settings-persist: SwiftLeaf didn't exit after WM_CLOSE");
     }
   } finally {
     client.close();

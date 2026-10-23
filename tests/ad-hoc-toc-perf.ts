@@ -1,11 +1,11 @@
-// Run with -exe out/rel64/SumatraPDF.exe; TOC_PROFILE_LABEL names the xperf artifacts.
+// Run with -exe out/rel64/Swiftleaf.exe; TOC_PROFILE_LABEL names the xperf artifacts.
 // TOC_PROFILE_PDF optionally replaces the generated large TOC with a real document.
 import { strict as assert } from "node:assert";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { makeTocPdf } from "./issue-6167";
 import { cmdId, ROOT, runStandalone, tmpPath, writeAppdata } from "./util";
-import { killAndWait, launchSumatra, sendCommandSync, waitForFrame, waitForTitle } from "./win-automation";
+import { killAndWait, launchApp, sendCommandSync, waitForFrame, waitForTitle } from "./win-automation";
 import { findChildWindow, getWindowText, sendMessage, TVM_GETCOUNT } from "./winapi";
 
 const width = 20;
@@ -35,7 +35,7 @@ export async function testit(): Promise<void> {
     writeFileSync(file, pdf);
   }
   const appdata = writeAppdata("toc-perf-settings", "NoHomeTab = true\nShowToc = true\n");
-  const proc = launchSumatra(["-appdata", appdata, ...files]);
+  const proc = launchApp(["-appdata", appdata, ...files]);
   let recording = false;
   try {
     const frame = await waitForFrame(proc.pid);

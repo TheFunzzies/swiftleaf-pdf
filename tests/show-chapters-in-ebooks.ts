@@ -6,7 +6,7 @@
 // Run: bun tests/show-chapters-in-ebooks.ts [--no-build]
 
 import { join } from "node:path";
-import { ControlClient, withControlledSumatra } from "./control.ts";
+import { ControlClient, withControlledApp } from "./control.ts";
 import { EXE, ROOT, runStandalone, SLOW_BUILD_FACTOR, writeAppdata } from "./util.ts";
 import { sleep } from "./winapi.ts";
 
@@ -45,7 +45,7 @@ async function openEpub(showChapters: boolean): Promise<void> {
     ].join("\n"),
   );
   const epub = join(ROOT, "tests", "issue-6095.epub");
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle(30000);

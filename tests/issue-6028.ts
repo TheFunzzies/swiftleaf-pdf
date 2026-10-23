@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6028
+// Test for upstream issues #6028
 //
 // Session restore loads tabs while the frame is hidden. ShowScrollBar then
 // sets WS_VSCROLL without WM_NCCALCSIZE, so the style bit is on but no bar

@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5780
+// Test for upstream issues #5780
 //
 // Ctrl+Shift+Right / Ctrl+Shift+Left (CmdOpenNextFileInFolder /
 // CmdOpenPrevFileInFolder) stopped working: DirIter built its FindFirstFileW

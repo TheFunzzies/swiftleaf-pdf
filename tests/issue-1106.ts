@@ -1,6 +1,6 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/1106
+// Regression test for upstream issues #1106
 //
-// Rotating the display while Sumatra is fullscreen left the restore geometry
+// Rotating the display while SwiftLeaf is fullscreen left the restore geometry
 // stale: exiting fullscreen reapplied a pre-rotation maximized rect so the
 // window looked "maximized" but did not cover the work area (title-bar buttons
 // off-screen on Win7 tablets).
@@ -15,7 +15,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT, cmdId, tmpPath } from "./util.ts";
-import { launchSumatra, sendCommandSync, waitForExit, waitForFrame, killAndWait } from "./win-automation.ts";
+import { launchApp, sendCommandSync, waitForExit, waitForFrame, killAndWait } from "./win-automation.ts";
 import {
   getWindowRect,
   isZoomed,
@@ -65,12 +65,12 @@ export async function testit(): Promise<void> {
   mkdirSync(appDataDir, { recursive: true });
   writeFileSync(join(appDataDir, "SumatraPDF-settings.txt"), SETTINGS);
 
-  const proc = launchSumatra(["-appdata", appDataDir, PDF], { defaultWindowPos: true });
+  const proc = launchApp(["-appdata", appDataDir, PDF], { defaultWindowPos: true });
   let frame = 0;
   try {
     frame = await waitForFrame(proc.pid!);
     if (!frame) {
-      throw new Error("SumatraPDF frame window not found");
+      throw new Error("SwiftLeaf frame window not found");
     }
     const deadline0 = Date.now() + 5000;
     while (!isZoomed(frame) && Date.now() < deadline0) {

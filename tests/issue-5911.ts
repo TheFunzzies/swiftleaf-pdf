@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5911
+// Test for upstream issues #5911
 //
 // Dark-theme bitmap recolor used to snap blue hyperlink pixels to a solid
 // link color, which turned anti-aliased URL text into a pixelated stencil.
@@ -8,7 +8,7 @@
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { withControlledSumatra } from "./control.ts";
+import { withControlledApp } from "./control.ts";
 import { assemblePdf, EXE, runStandalone, tmpPath, writeAppdata } from "./util.ts";
 import { captureWindowPixels, captureWindowToPng } from "./winapi.ts";
 import { findCanvas, waitForFrame } from "./win-automation.ts";
@@ -115,7 +115,7 @@ export async function testit(): Promise<void> {
   const pdfPath = join(dir, "issue-5911.pdf");
   writeFileSync(pdfPath, makePdf(), "latin1");
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

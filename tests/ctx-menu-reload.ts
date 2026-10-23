@@ -89,7 +89,7 @@ export async function testit(): Promise<void> {
     try {
       await client.waitForRenderIdle(5000);
     } catch (e) {
-      throw new Error(`ctx-menu-reload: SumatraPDF crashed after copying an image from a reloaded document: ${e}`);
+      throw new Error(`ctx-menu-reload: SwiftLeaf crashed after copying an image from a reloaded document: ${e}`);
     }
   } finally {
     client.close();

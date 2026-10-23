@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/1744
+// Test for upstream issues #1744
 //
 // Fill & Sign-style electronic signature: stamp a PNG onto a PDF page as an
 // image annotation. File → Insert Image... and the document context menu run
@@ -8,7 +8,7 @@
 
 import { writeFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath, assemblePdf } from "./util.ts";
 
 function crc32(buf: Buffer): number {
@@ -76,7 +76,7 @@ export async function testit(): Promise<void> {
   writeFileSync(pdf, makePdf(), "latin1");
   writeFileSync(png, makeRedPng(48, 24));
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const res = await client.request(ControlCommand.TestInsertImage, [pdf, png]);
     const raw = String(res[1] ?? "");
     if (res[0] !== 0) {

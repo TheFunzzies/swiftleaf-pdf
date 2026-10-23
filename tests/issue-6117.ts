@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6117
+// Test for upstream issues #6117
 //
 // With the focus on the Find window's results list, PageUp / PageDown scrolled
 // the document instead of paging the list: they accelerated to CmdScrollUpPage

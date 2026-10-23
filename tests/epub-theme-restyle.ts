@@ -12,7 +12,7 @@
 // Run: bun tests/epub-theme-restyle.ts [--no-build]   (or via tests/run-almost-all.ts)
 
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { cmdId, EXE, ROOT, runStandalone, writeAppdata } from "./util.ts";
 import { sendCommandSync, waitForFrame } from "./win-automation.ts";
 
@@ -34,7 +34,7 @@ export async function testit(): Promise<void> {
   );
   const epub = join(ROOT, "tests", "issue-6095.epub");
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

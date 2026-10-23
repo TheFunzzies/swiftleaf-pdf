@@ -1,7 +1,7 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/1809
+// Test for upstream issues #1809
 //
 // A PDF with no page fill (transparent) and a white rectangle is invisible
-// on Sumatra's white paper. CmdToggleTransparencyGrid paints a checkerboard
+// on SwiftLeaf's white paper. CmdToggleTransparencyGrid paints a checkerboard
 // under the page so the white box and the holes show up, like Acrobat.
 // Session-only; not saved in settings.
 //
@@ -12,7 +12,7 @@
 
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, runStandalone, assemblePdf } from "./util.ts";
 
 const PDF = join(ROOT, "tests", "issue-1809.pdf");
@@ -45,7 +45,7 @@ export async function testit(): Promise<void> {
     writeFileSync(PDF, makeTransparentPdf());
   }
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle(30000);

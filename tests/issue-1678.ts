@@ -3,7 +3,7 @@
 // Additional related file extensions should map to the correct viewer types
 // (compared via the type's canonical extension).
 
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone } from "./util.ts";
 
 const CASES: [string, string][] = [
@@ -16,7 +16,7 @@ const CASES: [string, string][] = [
 ];
 
 export async function testit(): Promise<void> {
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     for (const [path, ext] of CASES) {
       const [exitCode, raw] = await client.request(ControlCommand.TestFileKind, [path, ext]);
       if (exitCode !== 0) {

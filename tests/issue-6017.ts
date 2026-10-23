@@ -5,7 +5,7 @@
 // Run: bun tests/issue-6017.ts [--no-build]
 
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, cmdId, runStandalone, SLOW_BUILD_FACTOR } from "./util.ts";
 import { FRAME_CLASS, sendCommandSync } from "./win-automation.ts";
 import {
@@ -70,7 +70,7 @@ function colorDelta(a: [number, number, number], b: [number, number, number]): n
 
 export async function testit(): Promise<void> {
   const pdf = join(ROOT, "ext", "a-zlib", "zlib.3.pdf");
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client: ControlClient, proc) => {
       const frame = await waitForTopWindow(proc.pid!, FRAME_CLASS);

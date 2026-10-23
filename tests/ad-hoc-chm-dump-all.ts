@@ -1,4 +1,4 @@
-// Run -dump-chm on all .chm files under the Sumatra test corpus and the repo.
+// Run -dump-chm on all .chm files under the SwiftLeaf test corpus and the repo.
 // Writes tests/chm-dump-all-baseline.txt (or compares against it with --compare).
 //
 // Run:  bun tests/ad-hoc-chm-dump-all.ts

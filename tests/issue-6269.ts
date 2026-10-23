@@ -52,7 +52,7 @@ function forceForeground(hwnd: number): void {
   user32.symbols.BringWindowToTop(hwnd);
   user32.symbols.AttachThreadInput(me, fgThread, false);
   if (getForegroundWindow() !== hwnd) {
-    throw new Error("issue-6269: could not bring SumatraPDF to the foreground");
+    throw new Error("issue-6269: could not bring SwiftLeaf to the foreground");
   }
 }
 
@@ -77,7 +77,7 @@ function setClipboard(value: string): void {
   }
 }
 
-// colored "SumatraPDF" letters in the top band, away from the pale background
+// colored "SwiftLeaf" letters in the top band, away from the pale background
 function findLogo(canvas: number): { x: number; y: number } | null {
   const pix = captureWindowPixels(canvas, "client");
   if (!pix) {
@@ -200,7 +200,7 @@ async function clickCopy(hover: number, from: { x: number; y: number }): Promise
   sendMessage(hover, WM_LBUTTONUP, 0, lp);
   await sleep(100);
   const text = clipboardText();
-  if (!text.startsWith("SumatraPDF")) {
+  if (!text.startsWith("SwiftLeaf")) {
     throw new Error(`issue-6269: Copy did not put the report on the clipboard: ${JSON.stringify(text.slice(0, 80))}`);
   }
 }
@@ -219,7 +219,7 @@ export async function testit(): Promise<void> {
       }
     }
     if (!logo) {
-      throw new Error("issue-6269: could not find the SumatraPDF title on the home page");
+      throw new Error("issue-6269: could not find the SwiftLeaf title on the home page");
     }
     const logoScreen = clientToScreen(canvas, logo.x, logo.y);
 

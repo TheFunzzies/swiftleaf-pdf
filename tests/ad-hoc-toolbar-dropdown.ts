@@ -14,7 +14,7 @@
 // Uses -appdata so it never touches the user's real settings.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control";
+import { ControlCommand, withControlledApp } from "./control";
 import { cmdId, EXE, ROOT, runStandalone, tmpPath } from "./util";
 import { findChildByClass } from "./win-automation";
 import { enumWindows, getClassName, postMessage, WM_KEYDOWN, WM_LBUTTONDOWN, WM_LBUTTONUP } from "./winapi";
@@ -75,7 +75,7 @@ export async function testit(): Promise<void> {
   writeFileSync(join(dir, "SumatraPDF-settings.txt"), SETTINGS);
 
   const pdf = join(ROOT, "ext", "a-zlib", "zlib.3.pdf");
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       const res = await client.request(ControlCommand.TestToolbarButtons, []);

@@ -1,6 +1,6 @@
 // Installer -x extracts the payload without installing (issue #6003).
-// Copy the exe into a temp dir as SumatraPDF.exe, then check:
-//   -x -d out  writes SumatraPDF.exe plus the payload under out/
+// Copy the exe into a temp dir as Swiftleaf.exe, then check:
+//   -x -d out  writes Swiftleaf.exe plus the payload under out/
 //   -x         unpacks the payload next to the running exe and does not
 //              overwrite that exe
 //
@@ -50,20 +50,20 @@ export async function testit(): Promise<void> {
   const dir = tmpPath("issue-6003");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  const copied = join(dir, "SumatraPDF.exe");
+  const copied = join(dir, "Swiftleaf.exe");
   copyFileSync(EXE, copied);
   const outDir = join(dir, "out");
   mkdirSync(outDir);
 
   const toOut = runExtract(copied, dir, ["-x", "-d", "out"]);
-  if (/not a SumatraPDF installer/i.test(toOut.out)) {
+  if (/not a SwiftLeaf installer/i.test(toOut.out)) {
     console.log("issue-6003: skip, this exe has no installer payload");
     return;
   }
   if (toOut.exitCode !== 0) {
     throw new Error(`issue-6003: -x -d out exited ${toOut.exitCode}:\n${toOut.out}`);
   }
-  mustExist(outDir, ["SumatraPDF.exe", ...PAYLOAD]);
+  mustExist(outDir, ["Swiftleaf.exe", ...PAYLOAD]);
 
   const before = statSync(copied);
   const inPlace = runExtract(copied, dir, ["-x"]);
@@ -72,11 +72,11 @@ export async function testit(): Promise<void> {
   }
   mustExist(dir, PAYLOAD);
   if (!existsSync(copied)) {
-    throw new Error("issue-6003: in-place -x removed SumatraPDF.exe");
+    throw new Error("issue-6003: in-place -x removed Swiftleaf.exe");
   }
   const after = statSync(copied);
   if (after.size !== before.size || after.mtimeMs !== before.mtimeMs) {
-    throw new Error("issue-6003: in-place -x overwrote SumatraPDF.exe");
+    throw new Error("issue-6003: in-place -x overwrote Swiftleaf.exe");
   }
 }
 

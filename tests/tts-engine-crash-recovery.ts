@@ -1,8 +1,8 @@
 // A SAPI voice engine (RHVoice, crash 2026-09-15-11-11-b6e9) crashing on a thread
 // it started ends only that thread: the app keeps running, read aloud turns SAPI
-// off and forgets the voice. withControlledSumatra fails on a non-zero exit.
+// off and forgets the voice. withControlledApp fails on a non-zero exit.
 
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, IS_ASAN, pollUntil, runStandalone, SLOW_BUILD_FACTOR } from "./util.ts";
 
 async function engineCrash(client: ControlClient, action: string): Promise<string> {
@@ -21,7 +21,7 @@ export async function testit(): Promise<void> {
     console.log("tts-engine-crash-recovery: skipped, an ASan build ends the process on any crash");
     return;
   }
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     await engineCrash(client, "crash");
     await pollUntil(
       () => engineCrash(client, "state"),

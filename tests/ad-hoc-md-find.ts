@@ -1,6 +1,6 @@
 // Ad-hoc test for in-page find in markdown files rendered in a WebView2.
 //
-// Ctrl+F on a markdown doc now shows Sumatra's own find bar (not the
+// Ctrl+F on a markdown doc now shows SwiftLeaf's own find bar (not the
 // browser's find UI); the search runs over the rendered DOM text inside the
 // webview (kFindInPageJs) and highlights matches via the CSS Custom Highlight
 // API. This test opens a .md with 3 occurrences of "zebra" (one spanning
@@ -13,7 +13,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cmdId, runStandalone, tmpPath } from "./util.ts";
 import {
-  launchSumatra,
+  launchApp,
   waitForFrame,
   sendCommand,
   findCanvas,
@@ -82,8 +82,8 @@ export async function testit(): Promise<void> {
   const md = join(dir, "find-test.md");
   writeFileSync(md, "# Find test\n\nzebra one\n\nsome ze**br**a bold\n\nlast Zebra here\n\nnothing else\n");
 
-  await killProcessesNamed("SumatraPDF.exe");
-  const proc = launchSumatra([md]);
+  await killProcessesNamed("Swiftleaf.exe");
+  const proc = launchApp([md]);
   try {
     const frame = await waitForFrame(proc.pid!);
     await sleep(3000); // let the WebView2 initialize and render the markdown

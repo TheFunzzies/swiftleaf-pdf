@@ -6,7 +6,7 @@
 // Run: bun tests/issue-6240.ts [--no-build]
 
 import { rmSync, writeFileSync } from "node:fs";
-import { ControlClient, withControlledSumatra } from "./control.ts";
+import { ControlClient, withControlledApp } from "./control.ts";
 import { EXE, assemblePdf, runStandalone, tmpPath } from "./util.ts";
 
 const FF_RADIO_NO_TOGGLE_OFF = 16384 | 32768; // NoToggleToOff (bit 15) | Radio (bit 16)
@@ -35,7 +35,7 @@ export async function testit(): Promise<void> {
   const saved = tmpPath("issue-6240-saved.pdf");
   rmSync(saved, { force: true });
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client: ControlClient) => {
       await client.waitForRenderIdle();
@@ -72,7 +72,7 @@ export async function testit(): Promise<void> {
   );
 
   // the copy (compressed, so not greppable) must open with B still selected
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client: ControlClient) => {
       await client.waitForRenderIdle();

@@ -38,7 +38,7 @@ function readingPdf(): string {
 }
 
 async function testCase(mode: "reading" | "created" | "hover" | "main"): Promise<void> {
-  const dir = mkdtempSync(join(tmpdir(), "sumatra-highlight-"));
+  const dir = mkdtempSync(join(tmpdir(), "swiftleaf-highlight-"));
   const fixture = mode === "reading" || mode === "created";
   const document = fixture ? join(dir, "reading.pdf") : resolve("ext/a-zlib/zlib.3.pdf");
   if (fixture) writeFileSync(document, readingPdf(), "latin1");

@@ -58,7 +58,7 @@ async function chooseAdjacentTheme(appDataDir: string, key: number): Promise<voi
     await waitForChangeThemeDialog(proc.pid!, false);
     postMessage(frame, WM_CLOSE, 0, 0);
     if (!(await waitForExit(proc))) {
-      throw new Error("issue-5995: SumatraPDF did not exit after WM_CLOSE");
+      throw new Error("issue-5995: SwiftLeaf did not exit after WM_CLOSE");
     }
   } finally {
     client.close();

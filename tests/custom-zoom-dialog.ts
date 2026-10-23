@@ -7,7 +7,7 @@
 // Run: bun tests/custom-zoom-dialog.ts [--no-build]   (or via tests/run-almost-all.ts)
 
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, cmdId, runStandalone, SLOW_BUILD_FACTOR, writeAppdata } from "./util.ts";
 import {
   ensureModifierKeysUp,
@@ -165,7 +165,7 @@ async function checkTallList(): Promise<void> {
   );
   const pdf = join(ROOT, "tests", "issue-5871.pdf");
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const pid = proc.pid!;
@@ -201,7 +201,7 @@ export async function testit(): Promise<void> {
   );
   const pdf = join(ROOT, "tests", "issue-5871.pdf");
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const pid = proc.pid!;

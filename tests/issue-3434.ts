@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/3434
+// Test for upstream issues #3434
 //
 // Opening a small PNG and copying a selection used to shift the image by half
 // a pixel (and enlarge the dest by 1px). CvtFromScreen pulls a pixel-aligned
@@ -15,7 +15,7 @@
 
 import { writeFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const W = 32;
@@ -104,7 +104,7 @@ export async function testit(): Promise<void> {
   const png = tmpPath("issue-3434.png");
   writeFileSync(png, makeEdgePng());
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     for (const [label, zoom, clipKind] of [
       ["full page 100%", 100, 0],
       ["copy-selection clip 100%", 100, 1],

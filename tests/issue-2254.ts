@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/2254
+// Regression test for upstream issues #2254
 //
 // FB2 <title-info><annotation>…</annotation> must show in Document Properties
 // (Ctrl+D) as Subject, alongside Title and Author.

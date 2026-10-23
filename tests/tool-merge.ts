@@ -1,4 +1,4 @@
-// `SumatraPDF merge` (mupdf's pdfmerge):
+// `SwiftLeaf merge` (mupdf's pdfmerge):
 // - a missing or non-PDF input is skipped, but the exit code must say it failed
 // - a backwards range ("3-1") must renumber the bookmarks with the pages
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";

@@ -9,7 +9,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, DEBUG_REPORT_EXIT_CODE, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, DEBUG_REPORT_EXIT_CODE, withControlledApp } from "./control.ts";
 import { makeEpub } from "./epub-relayout-stale-page.ts";
 import { cmdId, EXE, runStandalone, SLOW_BUILD_FACTOR, tmpPath, writeAppdata } from "./util.ts";
 import { sleep } from "./winapi.ts";
@@ -53,7 +53,7 @@ export async function testit(): Promise<void> {
     ].join("\n"),
   );
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

@@ -4,7 +4,7 @@
 // scroll restore.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, cmdId, runStandalone, tmpPath } from "./util.ts";
 import { sendCommand, waitForFrame } from "./win-automation.ts";
 
@@ -83,7 +83,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-4973.pdf");
   writeFileSync(pdf, buildPdf(kPages));
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const page = await waitForPage(client, kRememberedPage);

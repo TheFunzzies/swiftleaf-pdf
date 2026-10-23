@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/2165
+// Test for upstream issues #2165
 //
 // Feature: SidebarOnRight puts the bookmarks / favorites sidebar on the right
 // of the window (left is the default).
@@ -7,7 +7,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const SETTINGS_HEAD = `UiLanguage = en
@@ -86,7 +86,7 @@ async function runWithSettings(pdf: string, extraSettings: string, body: (client
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SumatraPDF-settings.txt"), `${SETTINGS_HEAD}${extraSettings}\n`);
-  await withControlledSumatra(EXE, body, ["-appdata", dir, pdf]);
+  await withControlledApp(EXE, body, ["-appdata", dir, pdf]);
 }
 
 export async function testit(): Promise<void> {

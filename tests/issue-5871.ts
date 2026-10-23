@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5871
+// Test for upstream issues #5871
 //
 // Condensed title/header fonts (MyriadPro-BoldCond on this CompTIA page) use
 // real word spaces at ~0.16em. The #5627 tracking-space filter originally

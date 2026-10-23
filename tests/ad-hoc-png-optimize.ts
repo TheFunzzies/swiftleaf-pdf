@@ -15,7 +15,7 @@
 import { readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { cmdId, runStandalone } from "./util.ts";
-import { launchSumatra, waitForFrame, sendCommand, killAndWait, killProcessesNamed } from "./win-automation.ts";
+import { launchApp, waitForFrame, sendCommand, killAndWait, killProcessesNamed } from "./win-automation.ts";
 import { sleep } from "./winapi.ts";
 
 const IMG_W = 1200;
@@ -77,8 +77,8 @@ export async function testit(): Promise<void> {
 
   setClipboardImage();
 
-  await killProcessesNamed("SumatraPDF.exe");
-  const proc = launchSumatra([]);
+  await killProcessesNamed("Swiftleaf.exe");
+  const proc = launchApp([]);
   let newFile = "";
   try {
     const frame = await waitForFrame(proc.pid!);
@@ -135,7 +135,7 @@ export async function testit(): Promise<void> {
       .subarray(33, 33 + 64)
       .toString("latin1");
     if (!head.startsWith("\0\0\0\x1atEXtSoftware\0SumatraPDF zopfli")) {
-      throw new Error("optimized png is missing the SumatraPDF zopfli marker chunk after IHDR");
+      throw new Error("optimized png is missing the SwiftLeaf zopfli marker chunk after IHDR");
     }
     console.log("PASS: saved png was optimized in place, has the marker chunk and still decodes");
   } finally {

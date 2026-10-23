@@ -11,7 +11,7 @@
 
 import { writeFileSync } from "node:fs";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 
 // Build a minimal single-page PDF that shows the given lines using Helvetica
 // with WinAnsiEncoding (so byte 0xDF renders/extracts as ß). `lines` are raw
@@ -56,7 +56,7 @@ export async function testit(): Promise<void> {
     { needle: "Xyzzy", expectFound: false }, // control: no match
   ];
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     for (const c of cases) {
       const [, rawArg] = await client.request(ControlCommand.TestSearch, [pdfPath, c.needle]);
       const res = String(rawArg).trim();

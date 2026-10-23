@@ -5,7 +5,7 @@
 // Run: bun tests/issue-1930.ts [--no-build]
 
 import { rmSync, writeFileSync } from "node:fs";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const W = 16;
@@ -98,7 +98,7 @@ export async function testit(): Promise<void> {
   writeFileSync(gif, makeTwoFrameGif());
   rmSync(pdf, { force: true });
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const gifRes = await client.request(ControlCommand.TestRenderPageColors, [gif]);
     const gifRaw = String(gifRes[1] ?? "");
     if (gifRes[0] !== 0) {

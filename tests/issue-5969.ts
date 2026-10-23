@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5969
+// Test for upstream issues #5969
 //
 // ScrollbarInSinglePage + Fit Single Page + zoom in hung: SetScrollInfo hid
 // the page-number bar (range does not need scrolling), ShowScrollBar showed
@@ -10,7 +10,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { sendCommand, waitForFrame } from "./win-automation.ts";
 import { cmdId, EXE, makeMinimalPdf, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
 
@@ -141,7 +141,7 @@ export async function testit(): Promise<void> {
 
   const twoPage = tmpPath("issue-5969-two.pdf");
   writeFileSync(twoPage, makeTwoPagePdf());
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       await zoomInSinglePage(client, proc, "issue-5969 two-page");
@@ -152,7 +152,7 @@ export async function testit(): Promise<void> {
 
   const onePage = tmpPath("issue-5969-one.pdf");
   writeFileSync(onePage, makeMinimalPdf("issue-5969"));
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       await zoomInSinglePage(client, proc, "issue-5969 one-page");

@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6244
+// Test for upstream issues #6244
 //
 // "Show the bookmarks sidebar when available" (ShowToc) was ignored for comic
 // archives: they never showed it on open, because without ComicInfo.xml their
@@ -9,7 +9,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath, writeStoredZip } from "./util.ts";
 
 const SETTINGS = `UiLanguage = en
@@ -41,7 +41,7 @@ function pages(): { name: string; data: Buffer }[] {
 
 async function tocVisibleOnOpen(cbz: string, appdata: string): Promise<boolean> {
   let vis = false;
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle();

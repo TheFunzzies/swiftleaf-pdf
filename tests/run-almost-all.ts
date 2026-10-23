@@ -2,12 +2,12 @@
 // (print-to-PDF, LaTeX, debounce/CPU/scroll windows, high-zoom tile settle,
 // 400-file HTML TOC, restrict.ini exe copies). Those live in run-all.ts.
 //
-// Order groups tests that can share a Sumatra session (default -for-testing +
+// Order groups tests that can share a SwiftLeaf session (default -for-testing +
 // quadrant -window-pos + -dbg-control) so a later shared-process runner can
 // keep one instance. Isolated tests (custom -appdata, session restore, their
 // own window placement) come after.
 //
-// Run:  bun tests/run-almost-all.ts [--no-build] [-silent] [-exe <SumatraPDF.exe>]
+// Run:  bun tests/run-almost-all.ts [--no-build] [-silent] [-exe <Swiftleaf.exe>]
 //
 // Register a new fast test here. Inherently-slow ones go in tests/run-all.ts.
 //
@@ -491,7 +491,7 @@ export const tests: NamedTest[] = [
   ["issue-6013", issue6013],
   ["issue-5989", issue5989],
 
-  // --- no Sumatra process -------------------------------------------------
+  // --- no SwiftLeaf process -------------------------------------------------
   ["lint-command-ids", lintCommandIds],
   ["build-cli", buildCli],
   ["ng-embedded", ngEmbedded],

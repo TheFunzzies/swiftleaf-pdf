@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/4967
+// Test for upstream issues #4967
 //
 // Verifies -print-settings "last" and "-1" print only the final page via
 // Microsoft Print to PDF.
@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { runStandalone } from "./util.ts";
 import { pdfPageCount, requirePrintToPdf, runPrintToPdf, tempPrintOutput, writeMultiPagePdf } from "./print-util.ts";
 
-const FIXTURE = join(tmpdir(), "sumatra-issue-4967.pdf");
+const FIXTURE = join(tmpdir(), "swiftleaf-issue-4967.pdf");
 const PAGES = ["Page 1", "Page 2", "Page 3"];
 
 export async function testit(): Promise<void> {

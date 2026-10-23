@@ -6,7 +6,7 @@
 // Run: bun tests/issue-6241.ts [--no-build]
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, assemblePdf, runStandalone, tmpPath } from "./util.ts";
 
 const PAGE_W = 612;
@@ -38,7 +38,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-6241.pdf");
   writeFileSync(pdf, makePdf(), "latin1");
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client: ControlClient) => {
       await client.waitForRenderIdle();

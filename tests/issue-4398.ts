@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/4398
+// Test for upstream issues #4398
 //
 // CmdTogglePageGrid overlays graph paper on paginated documents (default
 // ¼ inch minor / 1 inch major, color 128,128,255, dots). Showing it is
@@ -12,7 +12,7 @@
 
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, runStandalone, tmpPath, assemblePdf } from "./util.ts";
 
 const PDF = join(ROOT, "tests", "issue-4398.pdf");
@@ -39,7 +39,7 @@ export async function testit(): Promise<void> {
   rmSync(appdata, { recursive: true, force: true });
   mkdirSync(appdata, { recursive: true });
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle(30000);

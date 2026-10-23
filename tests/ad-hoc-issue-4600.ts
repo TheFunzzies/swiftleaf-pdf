@@ -16,7 +16,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { deflateRawSync } from "node:zlib";
 import { join } from "node:path";
 import { tmpPath } from "./util.ts";
-import { findCanvas, killAndWait, killProcessesNamed, launchSumatra, waitForFrame } from "./win-automation.ts";
+import { findCanvas, killAndWait, killProcessesNamed, launchApp, waitForFrame } from "./win-automation.ts";
 import { captureWindowPixels, moveWindow, setForegroundWindow, showWindow, sleep, SW_RESTORE } from "./winapi.ts";
 
 const EPUB_DIR = tmpPath("epub-font");
@@ -162,7 +162,7 @@ async function render(epub: string, cfg: Cfg): Promise<Uint8Array> {
       ``,
     ].join("\n"),
   );
-  const proc = launchSumatra(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", epub]);
+  const proc = launchApp(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", epub]);
   try {
     const frame = await waitForFrame(proc.pid!);
     if (!frame) {
@@ -196,7 +196,7 @@ function diffPct(a: Uint8Array, b: Uint8Array): number {
 
 export async function testit(): Promise<void> {
   makeFixtures();
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   for (const v of Object.keys(VARIANTS)) {
     const epub = join(EPUB_DIR, `${v}.epub`);
     const font = v === "cjk" ? "SimSun" : "Arial";

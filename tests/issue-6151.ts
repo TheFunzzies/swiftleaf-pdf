@@ -2,7 +2,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { findCanvas, sendCommandSync, waitForFrame } from "./win-automation.ts";
 import { captureWindowPixels } from "./winapi.ts";
 import { assemblePdf, cmdId, EXE, runStandalone, tmpPath } from "./util.ts";
@@ -59,7 +59,7 @@ async function testZoomSteps(): Promise<void> {
   const pdfPath = tmpPath("issue-6151.pdf");
   writeFileSync(pdfPath, buildPdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);
@@ -120,7 +120,7 @@ async function testSharpTiles(): Promise<void> {
   // Without rasterizer AA, intermediate grays can only come from bitmap scaling.
   writeFileSync(join(appdata, "SumatraPDF-settings.txt"), "DisableAntiAlias = true\nCustomScreenDPI = 96\n");
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

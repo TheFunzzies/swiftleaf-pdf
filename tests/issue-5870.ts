@@ -14,7 +14,7 @@
 // and the test failed with "file size not shown" while the app was fine.
 import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control";
+import { ControlClient, ControlCommand, withControlledApp } from "./control";
 import { EXE, ROOT, runStandalone, tmpPath } from "./util";
 
 const SETTINGS = `UiLanguage = en
@@ -74,7 +74,7 @@ async function checkFile(docPath: string): Promise<void> {
     `${SETTINGS}FileStates [\n\t[\n\t\tFilePath = ${docPath}\n\t\tOpenCount = 3\n\t]\n]\n`,
   );
 
-  const rows = await withControlledSumatra(EXE, (client) => homeListRows(client), ["-appdata", dir]);
+  const rows = await withControlledApp(EXE, (client) => homeListRows(client), ["-appdata", dir]);
   const row = rows.find((r) => r.path.toLowerCase() === docPath.toLowerCase());
   if (!row) {
     throw new Error(`issue-5870: no home page list row for ${docPath}, got ${JSON.stringify(rows)}`);

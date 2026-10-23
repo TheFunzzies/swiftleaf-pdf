@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/discussions/5845
+// Test for upstream discussions #5845
 //
 // CmdDeleteFileAndOpenNext should load the next file before moving the current
 // file to the Recycle Bin. When no other file remains, it must keep the current
@@ -7,7 +7,7 @@
 import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { cmdId, tmpPath } from "./util.ts";
-import { launchSumatra, sendCommand, waitForFrame, killAndWait } from "./win-automation.ts";
+import { launchApp, sendCommand, waitForFrame, killAndWait } from "./win-automation.ts";
 import { getWindowText, sleep } from "./winapi.ts";
 
 const SRC_PDF = join(import.meta.dir, "issue-3219.pdf");
@@ -36,11 +36,11 @@ export async function testit(): Promise<void> {
   copyFileSync(SRC_PDF, bbb);
   copyFileSync(SRC_PDF, ccc);
 
-  const proc = launchSumatra([aaa]);
+  const proc = launchApp([aaa]);
   try {
     const frame = await waitForFrame(proc.pid!);
     if (!frame) {
-      throw new Error("SumatraPDF frame window not found");
+      throw new Error("SwiftLeaf frame window not found");
     }
     const command = cmdId("CmdDeleteFileAndOpenNext");
 

@@ -1,6 +1,6 @@
 // Test for "Trim Empty Margins" (CmdToggleTrimEmptyMargins)
 import { writeFileSync } from "node:fs";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 function makePdfWithMargins(): Buffer {
@@ -68,7 +68,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("trim-margins-test.pdf");
   writeFileSync(pdf, makePdfWithMargins());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle();

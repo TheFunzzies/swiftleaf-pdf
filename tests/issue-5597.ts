@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5597
+// Test for upstream issues #5597
 //
 // Case-insensitive search should find Turkish/accented text regardless of case.
 // The reported example: searching "ibradı" (lowercase i) should find the word
@@ -19,7 +19,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { EXE, runStandalone } from "./util.ts";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 
 const PDF = join(import.meta.dir, "issue-5597.pdf");
 
@@ -32,7 +32,7 @@ export async function testit(): Promise<void> {
     throw new Error(`test pdf not found: ${PDF}`);
   }
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const search = async (needle: string): Promise<number> => {
       const [, rawArg] = await client.request(ControlCommand.TestSearch, [PDF, needle]);
       const raw = String(rawArg).trim();

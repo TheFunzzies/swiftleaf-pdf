@@ -3,7 +3,7 @@
 //
 // Fixture tests/issue-6101.pdf is the report's template.pdf (LuaLaTeX + ocgx2).
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, runStandalone } from "./util.ts";
 
 const PDF = join(ROOT, "tests", "issue-6101.pdf");
@@ -17,7 +17,7 @@ function parseCounts(raw: string): { view: number; print: number } {
 }
 
 export async function testit(): Promise<void> {
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const res = await client.request(ControlCommand.TestRenderViewPrint, [PDF]);
     const raw = String(res[1] ?? "");
     if (res[0] !== 0) {

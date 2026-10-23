@@ -5917,7 +5917,7 @@ file class=meta space=uncompressed size=38 read=38 sha1=1bd62c3ec90edf4956e3a861
 dir class=meta space=uncompressed size=0 read=0 sha1=- status=ok path=::DataSpace/Storage/MSCompressed/Transform/{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}/InstanceData/
 file class=meta space=uncompressed size=48 read=48 sha1=5c26e1a88d87be16336af877c6b484df6e7ace7c status=ok path=::DataSpace/Storage/MSCompressed/Transform/{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}/InstanceData/ResetTable
 summary entries=18 files=16 dirs=2 total-size=27006 unpack-failures=0 enumerate=ok
-metadata title=Manual for Sumatra PDF reader
+metadata title=Manual for SwiftLeaf PDF reader
 metadata creator=htm2chm 3.0.9.3
 metadata home=Manual_en.htm
 metadata toc=
@@ -5949,7 +5949,7 @@ file class=meta space=uncompressed size=38 read=38 sha1=1bd62c3ec90edf4956e3a861
 dir class=meta space=uncompressed size=0 read=0 sha1=- status=ok path=::DataSpace/Storage/MSCompressed/Transform/{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}/InstanceData/
 file class=meta space=uncompressed size=48 read=48 sha1=61c0bf2d15b93f76851109d8c53c3797a5c37af1 status=ok path=::DataSpace/Storage/MSCompressed/Transform/{7FC28940-9D31-11D0-9B27-00A0C91E9C7C}/InstanceData/ResetTable
 summary entries=18 files=16 dirs=2 total-size=30216 unpack-failures=0 enumerate=ok
-metadata title=����������� ������������ Sumatra PDF
+metadata title=����������� ������������ SwiftLeaf PDF
 metadata creator=htm2chm 3.0.9.3
 metadata home=manual_ru.htm
 metadata toc=

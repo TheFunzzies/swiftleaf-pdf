@@ -1,5 +1,5 @@
-// Tests for https://github.com/sumatrapdfreader/sumatrapdf/issues/5792
-// and https://github.com/sumatrapdfreader/sumatrapdf/issues/5793
+// Tests for upstream issues #5792
+// and upstream issues #5793
 //
 // #5792: mismatched FB2/XML closers (e.g. <b><i>x</b></i>) used to abort the
 // MuPDF XML parse and produce giant fonts / huge page counts. Lenient close_tag

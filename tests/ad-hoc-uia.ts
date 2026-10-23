@@ -145,12 +145,12 @@ export async function testit(): Promise<void> {
   mkdirSync(appdata, { recursive: true });
   writeFileSync(join(appdata, "SumatraPDF-settings.txt"), SETTINGS);
 
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   const proc = Bun.spawn([EXE, "-for-testing", "-appdata", appdata, pdf], { stdout: "ignore", stderr: "ignore" });
   try {
     const frame = await waitForTopWindow(proc.pid, "SUMATRA_PDF_FRAME");
     if (!frame) {
-      throw new Error("SumatraPDF main window did not appear");
+      throw new Error("SwiftLeaf main window did not appear");
     }
     showWindow(frame, SW_RESTORE);
     moveWindow(frame, 60, 60, 1100, 850);

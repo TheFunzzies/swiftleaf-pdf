@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5751
+// Regression test for upstream issues #5751
 //
 // Custom shortcut Key = Right must bind to VK_RIGHT so it overrides the built-in
 // CmdScrollRight accelerator.

@@ -7,7 +7,7 @@
 // all of its pages are laid out on is measured in int pixels.
 //
 // The test drives the zoom from the command line (-zoom) and reads back the
-// zoom SumatraPDF saved for the file, and it measures a small black square on
+// zoom SwiftLeaf saved for the file, and it measures a small black square on
 // the page to check that the zoom is real and not just a remembered number.
 
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -103,12 +103,12 @@ async function openAtZoom(
     sendCommand(frame, cmdId("CmdExit"));
     // the settings file is complete once the process is gone
     if (!(await waitForExit(proc))) {
-      throw new Error("SumatraPDF didn't exit after CmdExit");
+      throw new Error("SwiftLeaf didn't exit after CmdExit");
     }
     const txt = readFileSync(settingsPath, "utf8");
     const m = txt.split("FileStates")[1]?.match(/\bZoom = ([^\r\n]*)/);
     if (!m) {
-      throw new Error("SumatraPDF didn't save a zoom level for the file");
+      throw new Error("SwiftLeaf didn't save a zoom level for the file");
     }
     return { zoom: parseFloat(m[1]), dark };
   } finally {

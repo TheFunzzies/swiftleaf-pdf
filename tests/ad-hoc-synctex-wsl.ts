@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5702
+// Test for upstream issues #5702
 //
 // Verifies that SyncTeX forward and inverse search work across two
 // previously-unsupported WSL workflows:
@@ -25,7 +25,7 @@ const WIN_TEST_DIR = join(import.meta.dir, "issue-5702-data", ".work");
 const WIN_TEX_SRC = join(import.meta.dir, "issue-5702-data", TEX_NAME);
 
 const WSL_DISTRO = "Ubuntu";
-const WSL_TEST_DIR = `\\\\wsl.localhost\\${WSL_DISTRO}\\tmp\\sumatra-test-5702`;
+const WSL_TEST_DIR = `\\\\wsl.localhost\\${WSL_DISTRO}\\tmp\\swiftleaf-test-5702`;
 const WSL_TEX_SRC = join(WSL_TEST_DIR, TEX_NAME);
 
 // line 4 of issue-5702-data/test.tex is a body paragraph that synctex maps to a position

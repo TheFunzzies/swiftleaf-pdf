@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5581
+// Test for upstream issues #5581
 //
 // Document Properties for a digitally signed PDF must report the hash and
 // signature algorithms, issuer, expiry / LTV, device vs TSA time labels, and
@@ -11,10 +11,10 @@
 
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, runStandalone, tmpPath } from "./util.ts";
 
-const kCertSubject = "CN=SumatraPDF SigPropsTest";
+const kCertSubject = "CN=SwiftLeaf SigPropsTest";
 
 function ps(script: string): { ok: boolean; out: string } {
   const r = Bun.spawnSync(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script]);
@@ -93,7 +93,7 @@ function requireLine(raw: string, re: RegExp, label: string): void {
 }
 
 async function signaturesOf(pdf: string): Promise<string> {
-  return withControlledSumatra(
+  return withControlledApp(
     EXE,
     async (client) => {
       const deadline = Date.now() + 20_000;
@@ -151,7 +151,7 @@ export async function testit(): Promise<void> {
   rmSync(signed, { force: true });
 
   try {
-    await withControlledSumatra(EXE, async (client) => {
+    await withControlledApp(EXE, async (client) => {
       const signedRes = await client.request(ControlCommand.TestSignDocument, [pdf, signed, thumb]);
       if (signedRes[0] !== 0) {
         throw new Error(`issue-5581 sign: ${String(signedRes[1] ?? "").trim()}`);
@@ -161,7 +161,7 @@ export async function testit(): Promise<void> {
       }
     });
 
-    await withControlledSumatra(
+    await withControlledApp(
       EXE,
       async (client) => {
         const deadline = Date.now() + 20_000;

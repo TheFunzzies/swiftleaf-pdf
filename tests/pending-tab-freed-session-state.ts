@@ -71,7 +71,7 @@ async function currentPath(client: ControlClient): Promise<string> {
 }
 
 export async function testit(): Promise<void> {
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   seedSettings();
   const { proc, client, frame } = await launchControlled(["-appdata", APPDATA], { saveSettings: true });
   try {
@@ -114,7 +114,7 @@ export async function testit(): Promise<void> {
       throw new Error(`pending-tab-freed-session-state: exit code ${exitCode}, want 0`);
     }
   } finally {
-    await killProcessesNamed("SumatraPDF.exe");
+    await killProcessesNamed("Swiftleaf.exe");
     rmSync(APPDATA, { recursive: true, force: true });
   }
 }

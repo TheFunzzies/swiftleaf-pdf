@@ -58,7 +58,7 @@ ${tabState(LOADED_PDF)}
 }
 
 export async function testit(): Promise<void> {
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   seedSettings();
   const { proc, client, frame } = await launchControlled(["-appdata", APPDATA], { saveSettings: true });
   try {
@@ -98,7 +98,7 @@ export async function testit(): Promise<void> {
       throw new Error(`lazy-tab-state-after-save: exit code ${exitCode}, want 0`);
     }
   } finally {
-    await killProcessesNamed("SumatraPDF.exe");
+    await killProcessesNamed("Swiftleaf.exe");
     rmSync(APPDATA, { recursive: true, force: true });
   }
 }

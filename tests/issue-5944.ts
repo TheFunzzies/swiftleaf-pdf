@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5944
+// Test for upstream issues #5944
 //
 // A /GoTo link with a /FitR destination must keep the annotation's /Rect as the
 // clickable (and "Show Links") box. After #5828 the destination rectangle was
@@ -13,7 +13,7 @@
 // Run:  bun tests/issue-5944.ts [--no-build]   (or via tests/run-almost-all.ts)
 
 import { writeFileSync } from "node:fs";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath, assemblePdf } from "./util.ts";
 
 function makePdf(): string {
@@ -54,7 +54,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-5944.pdf");
   writeFileSync(pdf, makePdf(), "latin1");
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const res = await client.request(ControlCommand.TestPageLinks, [pdf, 1]);
     const out = String(res[1] ?? res[0] ?? "");
     const links = parseLinks(out);

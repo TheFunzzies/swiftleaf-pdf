@@ -3,7 +3,7 @@
 // it again, checking each time that a top-level "Advanced Settings" window
 // appears. Run: bun tests/ad-hoc-adv-settings-reopen.ts
 import { cmdId } from "./util.ts";
-import { launchSumatra, waitForFrame, sendCommand, killAndWait } from "./win-automation.ts";
+import { launchApp, waitForFrame, sendCommand, killAndWait } from "./win-automation.ts";
 import { enumWindows, getWindowText, getWindowPid, postMessage, sleep } from "./winapi.ts";
 
 const CmdAdvancedSettings = cmdId("CmdAdvancedSettings");
@@ -34,7 +34,7 @@ async function waitForDialog(pid: number, timeoutMs = 4000): Promise<number> {
   return 0;
 }
 
-const proc = launchSumatra([PDF]);
+const proc = launchApp([PDF]);
 const frame = await waitForFrame(proc.pid!);
 if (!frame) throw new Error("no frame");
 await sleep(500);

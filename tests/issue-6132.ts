@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6132
+// Test for upstream issues #6132
 //
 // Document Timestamp signatures (PAdES RFC 3161) without an /M entry in the
 // signature dictionary must display the timestamp time and policy ID from
@@ -7,11 +7,11 @@
 // Run: bun tests/issue-6132.ts [--no-build]
 
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, runStandalone } from "./util.ts";
 
 async function signaturesOf(pdf: string): Promise<string> {
-  return withControlledSumatra(
+  return withControlledApp(
     EXE,
     async (client) => {
       const deadline = Date.now() + 20_000;
