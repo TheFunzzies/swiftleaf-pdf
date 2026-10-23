@@ -61,6 +61,7 @@
 #include "Material.h"
 #include "LucideIcons.h"
 #include "ToolsPanel.h"
+#include "RibbonAccess.h"
 #include "Toolbar.h"
 
 // https://docs.microsoft.com/en-us/windows/win32/controls/toolbar-control-reference
@@ -2375,8 +2376,8 @@ static bool ShowToolbarButtonDropdown(MainWindow* win, int cmdId) {
         return false;
     }
 
-    if (auto* ib = AsVirtIconButton(ToolbarItemForCmd(win, cmdId))) {
-        if (ib->hasDropdown) {
+    if (cmdId == CmdToggleReadAloud || cmdId == CmdPauseReadAloud) {
+        {
             ShowTtsVoiceMenu(win, GetToolbarButtonScreenRect(win, cmdId));
             return true;
         }
@@ -3621,6 +3622,37 @@ static void OnRibbonTabClicked(MainWindow* win, VirtMouseEvent* ev) {
     }
 }
 
+static void OnTopBarKey(MainWindow* win, VirtKeyEvent* ev) {
+    auto* tb = win->toolbarVirt;
+    auto* w = ev->target;
+    if (ev->vkey == VK_ESCAPE) {
+        HwndSetFocus(win->hwndFrame);
+    } else if (ev->vkey == VK_RETURN || ev->vkey == VK_SPACE || ev->vkey == VK_DOWN) {
+        VirtMouseEvent click;
+        click.target = w;
+        w->onClick.Call(&click);
+        if (ev->vkey == VK_DOWN && ShouldShowToolsPanel(win) && HwndIsVisible(win->hwndToolsPanel))
+            HwndSetFocus(win->hwndToolsPanel);
+    } else if (ev->vkey == VK_LEFT || ev->vkey == VK_RIGHT || ev->vkey == VK_HOME || ev->vkey == VK_END) {
+        int idx = -1;
+        for (int i = 0; i < len(tb->ribbonTabs); i++)
+            if (tb->ribbonTabs[i] == w) idx = i;
+        if (idx < 0) return;
+        int count = len(tb->ribbonTabs);
+        int next = ev->vkey == VK_HOME  ? 0
+                   : ev->vkey == VK_END ? count - 1
+                                        : (idx + (ev->vkey == VK_LEFT ? count - 1 : 1)) % count;
+        tb->host->vroot->SetFocus(tb->ribbonTabs[next]);
+    } else
+        return;
+    ev->didHandle = true;
+}
+
+static void SetupTopBarKey(MainWindow* win, VirtCtrl* w) {
+    w->SetFlag(vwfFocusable, true);
+    w->onKeyDown = MkFunc1(OnTopBarKey, win);
+}
+
 static int RibbonHeightForPage(ToolbarVirt* tb, int page) {
     return tb->ribbonTabRowDy + 1;
 }
@@ -3673,6 +3705,7 @@ static RibbonButton* NewTopBarButton(MainWindow* win, const char* svg, int cmdId
     ApplyRibbonButtonStyle(b, Str(svg), cmdId);
     b->SetTooltip(ToolbarTipTemp(cmdId, tip, false));
     b->onClick = MkFunc1(OnTopBarClicked, win);
+    SetupTopBarKey(win, b);
     VecAppend(win->toolbarVirt->topBarItems, (VirtCtrl*)b);
     return b;
 }
@@ -3687,6 +3720,7 @@ static RibbonSearchBox* NewTopBarSearchBox(MainWindow* win) {
     sb->icon = GetCachedPixmapForSvg(Str(gLucideSearch), sz, sz, M3().onSurfaceVariant, RibbonPanelBgColor());
     sb->SetTooltip(ToolbarTipTemp(CmdCommandPalette, Tr("Find tools and commands"), false));
     sb->onClick = MkFunc1(OnTopBarClicked, win);
+    SetupTopBarKey(win, sb);
     VecAppend(tb->topBarItems, (VirtCtrl*)sb);
     return sb;
 }
@@ -3889,6 +3923,8 @@ static void BuildToolbarLayout(MainWindow* win) {
         t->id = kRibbonTabIdBase + i;
         t->textColor = fg;
         t->onClick = MkFunc1(OnRibbonTabClicked, win);
+        SetupTopBarKey(win, t);
+        t->SetTooltip(t->label);
         VecAppend(tb->ribbonTabs, t);
         tabRow->AddChild(t);
     }
@@ -4364,6 +4400,19 @@ static bool OnCaptionDrag(MainWindow* win, VirtHostNativeMsg* ev) {
 }
 
 static void OnToolbarNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
+    if (RibbonAccessMessage(ev)) return;
+    auto* root = ev->host->vroot;
+    if (ev->msg == WM_SETFOCUS && root && !root->focused && len(win->toolbarVirt->ribbonTabs))
+        root->SetFocus(win->toolbarVirt->ribbonTabs[0]);
+    if (ev->msg == WM_KEYDOWN && ev->wp == VK_TAB && root) {
+        Vec<TabStop> stops;
+        CollectTabStops(ev->host->layout, stops);
+        if (len(stops) && root->focused == stops[IsShiftPressed() ? 0 : len(stops) - 1].vwnd) {
+            AdvanceFocus(win);
+            ev->didHandle = true;
+            return;
+        }
+    }
     switch (ev->msg) {
         case WM_COMMAND:
         case WM_CTLCOLOREDIT:
@@ -4380,5 +4429,6 @@ static void OnToolbarNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
 }
 
 void ToolbarSetNativeHooks(MainWindow* win, VirtHost* host) {
+    SetWindowTextW(host->native, CWStrTemp(Tr("Tools and commands")));
     host->onNativeMsg = MkFunc1(OnToolbarNativeMsg, win);
 }

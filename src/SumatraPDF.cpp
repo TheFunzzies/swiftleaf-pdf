@@ -8222,12 +8222,12 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
         }
     }
 
-    HwndSlot* chromeSlots[] = {
-        win->tabsSlot,          win->menuSlot,         win->toolbarTopSlot, win->toolbarBottomSlot,
-        win->capMenuSlot,       win->capTabsRow1,      win->capTabsRow2,    win->sidebarTopSlot,
-        win->sidebarBottomSlot, win->favoritesTabSlot, win->canvasSlot,     win->aiChatSlot,
-        win->statusBarSlot,     win->navRailSlot,      win->toolsPanelSlot, win->commentsPanelSlot,
-        win->documentPanelSlot};
+    HwndSlot* chromeSlots[] = {win->tabsSlot,          win->menuSlot,         win->toolbarTopSlot,
+                               win->toolbarBottomSlot, win->capMenuSlot,      win->capTabsRow1,
+                               win->capTabsRow2,       win->sidebarTopSlot,   win->sidebarBottomSlot,
+                               win->favoritesTabSlot,  win->canvasSlot,       win->aiChatSlot,
+                               win->statusBarSlot,     win->navRailSlot,      win->toolsPanelSlot,
+                               win->commentsPanelSlot, win->documentPanelSlot};
     for (HwndSlot* s : chromeSlots) {
         ClearSlotDefer(s);
     }
@@ -9532,9 +9532,10 @@ void AdvanceFocus(MainWindow* win) {
     bool hasToolbar = !win->isFullScreen && !win->presentation && gSettings->showToolbar && win->IsDocLoaded();
     int direction = IsShiftPressed() ? -1 : 1;
 
-    constexpr int kMaxWindows = 7;
+    constexpr int kMaxWindows = 9;
     HWND tabOrder[kMaxWindows] = {win->hwndFrame};
     int nWindows = 1;
+    if (win->hwndToolbar && HwndIsVisible(win->hwndToolbar)) tabOrder[nWindows++] = win->hwndToolbar;
     if (hasToolbar && ShowChapterUi(win->ctrl) && win->chapterEdit) {
         tabOrder[nWindows++] = win->chapterEdit->hwnd;
     }
@@ -9543,6 +9544,7 @@ void AdvanceFocus(MainWindow* win) {
     }
     // note: the find edit is no longer in the toolbar tab order; it lives in the
     // floating findBar and is reached via Ctrl+F / the search toolbar icon
+    if (win->hwndToolsPanel && HwndIsVisible(win->hwndToolsPanel)) tabOrder[nWindows++] = win->hwndToolsPanel;
     // the sidebar panels, top then bottom
     if (win->uiState.sidebarTopVisible) {
         tabOrder[nWindows++] = SidebarPanelFocusHwnd(win->sidebarTop);
@@ -16670,8 +16672,10 @@ static bool MaybeTranslateAccelerator(MSG& msg) {
     // Enter and Space otherwise accelerate to document scrolling.
     if (msg.message == WM_KEYDOWN && !IsCtrlPressed() && !IsAltPressed()) {
         MainWindow* win = FindMainWindowByHwnd(msg.hwnd);
-        if (win && msg.hwnd == win->hwndFormBanner &&
-            (msg.wParam == VK_RETURN || msg.wParam == VK_SPACE || msg.wParam == VK_TAB || msg.wParam == VK_ESCAPE)) {
+        if (win &&
+            (msg.hwnd == win->hwndFormBanner || msg.hwnd == win->hwndToolsPanel || msg.hwnd == win->hwndToolbar) &&
+            (msg.wParam == VK_RETURN || msg.wParam == VK_SPACE || msg.wParam == VK_TAB || msg.wParam == VK_ESCAPE ||
+             (msg.wParam >= VK_PRIOR && msg.wParam <= VK_DOWN) || msg.wParam == VK_APPS)) {
             return false;
         }
     }

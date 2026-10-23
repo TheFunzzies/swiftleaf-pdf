@@ -28,6 +28,7 @@
 #include "Toolbar.h"
 #include "Menu.h"
 #include "ToolsPanel.h"
+#include "RibbonAccess.h"
 
 struct ToolDef {
     const char* icon;
@@ -201,7 +202,7 @@ static void OnRowKey(MainWindow* win, VirtKeyEvent* ev) {
         w->onClick.Call(&click);
     } else if (ev->vkey == VK_DOWN || ev->vkey == VK_UP || ev->vkey == VK_HOME || ev->vkey == VK_END) {
         Vec<TabStop> stops;
-        CollectTabStops(panel->host->layout, stops);
+        CollectTabStops(panel->scroll->child, stops);
         int idx = -1;
         for (int i = 0; i < len(stops); i++)
             if (stops[i].vwnd == w) idx = i;
@@ -240,6 +241,7 @@ void ToolsPanelShowPage(MainWindow* win) {
     Str title =
         mode >= 0 && RibbonModePage((RibbonMode)mode) == page ? RibbonModeName((RibbonMode)mode) : RibbonPageName(page);
     panel->title->SetText(title);
+    SetWindowTextW(panel->host->native, CWStrTemp(title));
     header.closeBtn->SetTooltip(Tr("Close tools panel"));
     SetupRow(win, header.closeBtn);
     col->AddChild(header.box);
@@ -292,6 +294,28 @@ void ToolsPanelShowPage(MainWindow* win) {
     ToolsPanelUpdate(win);
 }
 
+static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
+    if (RibbonAccessMessage(ev)) return;
+    auto* panel = win->toolsPanel;
+    auto* root = panel->host->vroot;
+    if (!root) return;
+    if (ev->msg == WM_SETFOCUS && !root->focused && len(panel->rows)) {
+        for (auto* row : panel->rows)
+            if (row->IsEnabled()) {
+                root->SetFocus(row);
+                break;
+            }
+    } else if (ev->msg == WM_KEYDOWN && ev->wp == VK_TAB) {
+        Vec<TabStop> stops;
+        CollectTabStops(panel->scroll->child, stops);
+        bool back = IsShiftPressed();
+        if (len(stops) && root->focused == stops[back ? 0 : len(stops) - 1].vwnd) {
+            AdvanceFocus(win);
+            ev->didHandle = true;
+        }
+    }
+}
+
 void CreateToolsPanel(MainWindow* win) {
     if (win->toolsPanel) return;
     auto* panel = new ToolsPanelVirt();
@@ -307,6 +331,7 @@ void CreateToolsPanel(MainWindow* win) {
     }
     win->toolsPanel = panel;
     win->hwndToolsPanel = panel->host->native;
+    panel->host->onNativeMsg = MkFunc1(PanelNativeMsg, win);
     panel->host->onPaintBackground = MkFunc1(PaintBackground, panel);
     ToolsPanelShowPage(win);
     args.parent = win->hwndCanvas;

@@ -4,6 +4,10 @@ Branch: `t3/contextual-left-panel`
 
 ## Done
 
+- First contextual implementation Debug build passed (10:39 local).
+- Added tab/row keyboard handling, frame focus ring integration, and MSAA
+  accessible names/state/actions for the virtual ribbon and panel controls.
+- Branding check passes (626 files).
 - Contextual panel rows now reuse original ribbon command controls, icons,
   labels, availability and checked state; separator headings added.
 - Horizontal strip collapsed; hidden/narrow panel uses a native tab menu.
@@ -14,8 +18,7 @@ Branch: `t3/contextual-left-panel`
 
 ## Next
 
-- Finish keyboard focus integration and accessible names.
-- Inspect/verify current implementation and build (first build running).
+- Build and verify keyboard/accessibility additions.
 - Cover tab switching, command state, keyboard access and updated smoke layout.
 - Run requested Debug build, unit tests, SwiftLeaf CI and branding check.
 - Capture each tab in both themes under `.swarm/docs/` if launch works.
