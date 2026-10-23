@@ -10,7 +10,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT, runStandalone } from "./util.ts";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 
 const ASAN_EXE = join(ROOT, "out", "dbg64_asan", "SumatraPDF-static.exe");
 const CHM = join(import.meta.dir, "issue-chm-lzx.chm");
@@ -30,7 +30,7 @@ function buildAsanApp(): void {
 }
 
 async function runTestChm(chmPath: string): Promise<{ code: number; out: string }> {
-  return await withControlledSumatra(
+  return await withControlledApp(
     ASAN_EXE,
     async (client) => {
       const [code, out] = await client.request(ControlCommand.TestChm, [chmPath]);

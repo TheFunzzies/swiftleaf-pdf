@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5404
+// Test for upstream issues #5404
 //
 // A PDF form field whose value contains Central European Latin diacritics
 // (Č, Ň, Ý, ...) rendered blank/garbled. With /AcroForm /NeedAppearances the

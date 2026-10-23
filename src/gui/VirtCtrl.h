@@ -700,7 +700,7 @@ struct VirtButton : VirtText {
 VirtButton* AsVirtButton(ILayout*);
 
 struct VirtIconButton : VirtCtrl {
-    // not owned; in SumatraPDF it comes from GetCachedPixmapForSvg()
+    // not owned; in SwiftLeaf it comes from GetCachedPixmapForSvg()
     Pixmap* pixmap = nullptr;
     // drawn when !IsEnabled(); if null, pixmap is used
     Pixmap* pixmapDisabled = nullptr;
@@ -843,7 +843,7 @@ struct VirtSpacer : VirtCtrl {
 Rect FitSizeInRect(Size src, Rect dst);
 
 //--- VirtRichText: a small markup with links, keyboard shortcuts and bold runs.
-// Shared by SumatraPDF's home page and notifications, and by other apps in the
+// Shared by SwiftLeaf's home page and notifications, and by other apps in the
 // family. What it needs from the app is a CommandsContext and a way to open a
 // url
 
@@ -851,7 +851,7 @@ struct TipLink;
 
 // What the markup needs to know about the app's commands. The app implements it
 // and installs it as gCommandsContext, which is what keeps this code free of
-// SumatraPDF's command table.
+// SwiftLeaf's command table.
 struct CommandsContext {
     virtual ~CommandsContext() = default;
 

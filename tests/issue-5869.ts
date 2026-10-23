@@ -12,7 +12,7 @@
 // Uses -appdata so it never touches the user's real settings.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control";
+import { ControlCommand, withControlledApp } from "./control";
 import { EXE, ROOT, runStandalone, tmpPath } from "./util";
 
 const SHORTCUT_NAMES = ["SVG test dummy A", "SVG test dummy B", "SVG test dummy C"];
@@ -93,7 +93,7 @@ export async function testit(): Promise<void> {
   writeFileSync(join(dir, "SumatraPDF-settings.txt"), SETTINGS);
 
   const pdf = join(ROOT, "ext", "a-zlib", "zlib.3.pdf");
-  const res = await withControlledSumatra(EXE, (client) => client.request(ControlCommand.TestToolbarButtons, []), [
+  const res = await withControlledApp(EXE, (client) => client.request(ControlCommand.TestToolbarButtons, []), [
     "-appdata",
     dir,
     pdf,

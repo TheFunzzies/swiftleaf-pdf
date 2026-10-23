@@ -100,7 +100,7 @@ export async function testit(): Promise<void> {
     await client.waitForRenderIdle();
     sendCommand(frame, cmdId("CmdExit"));
     if (!(await waitForExit(proc))) {
-      throw new Error("issue-6224: SumatraPDF didn't exit after CmdExit");
+      throw new Error("issue-6224: SwiftLeaf didn't exit after CmdExit");
     }
   } finally {
     client.close();

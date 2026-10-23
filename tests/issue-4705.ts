@@ -61,7 +61,7 @@ export async function testit(): Promise<void> {
     }
     const del = tryDeleteFile(pdf);
     if (!del.ok) {
-      throw new Error(`issue-4705: cannot delete original while Sumatra has it open (error ${del.error})`);
+      throw new Error(`issue-4705: cannot delete original while SwiftLeaf has it open (error ${del.error})`);
     }
     if (existsSync(pdf)) {
       throw new Error("issue-4705: original still exists after DeleteFile");
@@ -71,7 +71,7 @@ export async function testit(): Promise<void> {
     try {
       rmSync(join(dir, "OneNote"), { recursive: true, force: false });
     } catch (e) {
-      throw new Error(`issue-4705: cannot remove OneNote cache dir while Sumatra is open: ${String(e)}`);
+      throw new Error(`issue-4705: cannot remove OneNote cache dir while SwiftLeaf is open: ${String(e)}`);
     }
     await client.waitForRenderIdle();
     if (!getWindowText(frame).includes("attachment.pdf")) {

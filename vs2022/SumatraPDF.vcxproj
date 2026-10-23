@@ -1421,6 +1421,10 @@
     <ClInclude Include="..\src\Menu.h" />
     <ClInclude Include="..\src\MergePdf.h" />
     <ClInclude Include="..\src\NavRail.h" />
+    <ClInclude Include="..\src\ToolsPanel.h" />
+    <ClInclude Include="..\src\Ocr.h" />
+    <ClInclude Include="..\src\DocumentPanel.h" />
+    <ClInclude Include="..\src\LucideIcons.h" />
     <ClInclude Include="..\src\Notifications.h" />
     <ClInclude Include="..\src\OverlayScrollbar.h" />
     <ClInclude Include="..\src\PageOrganize.h" />
@@ -1633,6 +1637,8 @@
     <ClCompile Include="..\src\FindBar.cpp" />
     <ClCompile Include="..\src\FindWindow.cpp" />
     <ClCompile Include="..\src\FormFields.cpp" />
+    <ClCompile Include="..\src\FormAuthoring.cpp" />
+    <ClInclude Include="..\src\FormAuthoring.h" />
     <ClCompile Include="..\src\GetPasswordDialog.cpp" />
     <ClCompile Include="..\src\GlobalHotkeys.cpp" />
     <ClCompile Include="..\src\GoToPageDialog.cpp" />
@@ -1650,6 +1656,10 @@
     <ClCompile Include="..\src\MuPDF_Exports.cpp" />
     <ClCompile Include="..\src\NavFilesInFolder.cpp" />
     <ClCompile Include="..\src\NavRail.cpp" />
+    <ClCompile Include="..\src\ToolsPanel.cpp" />
+    <ClCompile Include="..\src\Ocr.cpp" />
+    <ClCompile Include="..\src\DocumentPanel.cpp" />
+    <ClCompile Include="..\src\LucideIcons.cpp" />
     <ClCompile Include="..\src\Notifications.cpp" />
     <ClCompile Include="..\src\OverlayScrollbar.cpp" />
     <ClCompile Include="..\src\PageGridDialog.cpp" />

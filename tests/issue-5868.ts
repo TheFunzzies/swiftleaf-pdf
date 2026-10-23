@@ -27,7 +27,7 @@ export async function testit(): Promise<void> {
     }
   }
 
-  // the #5627 repro isn't in the repo (see agents.md); check it when present
+  // the #5627 repro isn't in the repo (see docs/development.md); check it when present
   const repro = "C:\\Users\\kjk\\OneDrive\\!sumatra\\bugs\\bug-5627.pdf";
   if (!existsSync(repro)) {
     console.log(`issue-5868: SKIP tracking-space half (no ${repro})`);

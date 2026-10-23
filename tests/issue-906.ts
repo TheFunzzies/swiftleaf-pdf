@@ -1,6 +1,6 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/906
+// Test for upstream issues #906
 //
-// SumatraPDF should accept a document password from the command line via
+// SwiftLeaf should accept a document password from the command line via
 // `-pwd <password>`. The test creates an encrypted copy of an existing text
 // search fixture with the bundled `clean` tool, then checks that the control search command
 // can only load/search it when the password is provided.
@@ -30,7 +30,7 @@ export async function testit(): Promise<void> {
     throw new Error(`test pdf not found: ${SRC_PDF}`);
   }
 
-  const encryptedPdf = join(tmpdir(), "sumatra-issue-906-encrypted.pdf");
+  const encryptedPdf = join(tmpdir(), "swiftleaf-issue-906-encrypted.pdf");
   rmSync(encryptedPdf, { force: true });
 
   // Command-line tools must run through cmd.exe when invoked from PowerShell

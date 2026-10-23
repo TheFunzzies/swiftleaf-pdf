@@ -3,7 +3,7 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
-import { extractSumatraVersion, clangFormatFiles, runLogged, isGitClean } from "./helper/ng-gen-util";
+import { extractAppVersion, clangFormatFiles, runLogged, isGitClean } from "./helper/ng-gen-util";
 
 async function runCapture(cmd: string, args: string[], cwd?: string): Promise<string> {
   const proc = Bun.spawn([cmd, ...args], { stdout: "pipe", stderr: "pipe", cwd });
@@ -340,7 +340,7 @@ const keyboardShortcut: Field[] = [
     "Cmd",
     Str,
     "",
-    "command to run, e.g. CmdOpenFile. See [the list of commands](https://www.sumatrapdfreader.org/docs/Commands)",
+    "command to run, e.g. CmdOpenFile. See [the list of commands](https://github.com/TheFunzzies/swiftleaf-pdf)",
   ),
   field("Key", Str, "", "keyboard shortcut (e.g. Ctrl-Alt-F)"),
   field("Name", Str, null, "name shown in command palette").ver("3.6"),
@@ -1276,7 +1276,7 @@ const globalPrefs: Field[] = [
     "if true, show the SyncTeX inverse search command line in Settings -> Options, so a " +
       "double-click in the document can jump to the matching line in a LaTeX editor",
   ),
-  field("EscToExit", Bool, false, "if true, Esc key closes SumatraPDF"),
+  field("EscToExit", Bool, false, "if true, Esc key closes SwiftLeaf"),
   field("FullPathInTitle", Bool, false, "if true, show the full path to the document in the title bar").ver("3.0"),
   field("InverseSearchCmdLine", Str, null, "pattern used to launch the LaTeX editor when doing inverse search"),
   field(
@@ -1314,7 +1314,7 @@ const globalPrefs: Field[] = [
     Str,
     "",
     "file open dialog used by Open File: empty or os (standard Windows file picker), " +
-      "or sumatrapdf (Navigate Files in Folder). Toggled by Settings / SumatraPDF File Picker",
+      "or sumatrapdf (Navigate Files in Folder). Toggled by Settings / SwiftLeaf File Picker",
   )
     .ver("3.7")
     .doc("valid values: (empty), os, sumatrapdf"),
@@ -1350,7 +1350,7 @@ const globalPrefs: Field[] = [
     "ReuseInstance",
     Bool,
     true,
-    "if true, open documents in the already running SumatraPDF instead of starting a new one",
+    "if true, open documents in the already running SwiftLeaf instead of starting a new one",
   ),
   field(
     "ShowMenubar",
@@ -1487,7 +1487,7 @@ const globalPrefs: Field[] = [
     "if true, Space in File Explorer (or on the desktop) previews the selected " +
       "file in a popup window, like macOS Quick Look. Esc or Space closes it; " +
       "Left / Right open the previous / next file in the folder. Starts a small " +
-      "background helper at logon so it works even when SumatraPDF is not open",
+      "background helper at logon so it works even when SwiftLeaf is not open",
   ).ver("3.7"),
   field(
     "RememberViewOffsetOnPageTurn",
@@ -1892,7 +1892,7 @@ const globalPrefs: Field[] = [
     "ExternalViewers",
     externalViewer,
     "list of additional external viewers for various file types. " +
-      "See [docs for more information](https://www.sumatrapdfreader.org/docs/Customize-external-viewers)",
+      "See [docs for more information](https://github.com/TheFunzzies/swiftleaf-pdf)",
   ),
   emptyLine(),
   struct(
@@ -1908,7 +1908,7 @@ const globalPrefs: Field[] = [
   array(
     "SelectionHandlers",
     selectionHandler,
-    "list of handlers for selected text, shown in context menu when text selection is active. See [docs for more information](https://www.sumatrapdfreader.org/docs/Customize-search-translation-services)",
+    "list of handlers for selected text, shown in context menu when text selection is active. See [docs for more information](https://github.com/TheFunzzies/swiftleaf-pdf)",
   ),
   emptyLine(),
   array(
@@ -1943,7 +1943,7 @@ const globalPrefs: Field[] = [
   field("UiLanguage", Str, null, "ISO code of the current UI language").doc(
     "[ISO code](langs.html) of the current UI language",
   ),
-  field("VersionToSkip", Str, null, "SumatraPDF won't offer to update to this version again"),
+  field("VersionToSkip", Str, null, "SwiftLeaf won't offer to update to this version again"),
   field("WindowState", Int, 1, "default state of new windows (same as the last closed)").doc(
     "default state of the window. 1 is normal, 2 is maximized, " + "3 is fullscreen, 4 is minimized",
   ),
@@ -1975,7 +1975,7 @@ const globalPrefs: Field[] = [
     .doc("data required for reloading documents after an auto-update"),
   compactStruct("TimeOfLastUpdateCheck", fileTime, "timestamp of the last update check")
     .structName("FILETIME")
-    .doc("data required to determine when SumatraPDF last checked for updates"),
+    .doc("data required to determine when SwiftLeaf last checked for updates"),
 
   field("OpenCountWeek", Int, 0, 'week count since 2011-01-01 needed to "age" openCount values in file history').doc(
     "value required to determine recency for the OpenCount value in FileStates",
@@ -2386,7 +2386,7 @@ function buildMetaData(struc: Field, built: Record<string, number>): string {
 
 const settingsStructsHeader = `// !!!!! This file is auto-generated by cmd/ng-gen-settings.ts
 
-/* Copyright 2026 the SumatraPDF project authors (see AUTHORS file).
+/* Copyright 2026 the SwiftLeaf project authors (see AUTHORS file).
    License: Simplified BSD (see COPYING) */
 
 struct Pixmap;
@@ -2644,7 +2644,7 @@ const tmplHTML = `<!doctype html>
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<title>Customizing SumatraPDF %VER%</title>
+<title>Customizing SwiftLeaf %VER%</title>
 <style type="text/css">
 body {
     font-size: 90%;
@@ -2699,13 +2699,13 @@ body {
 
 <div class="desc">
 
-<h2>Customizing SumatraPDF %VER%</h2>
+<h2>Customizing SwiftLeaf %VER%</h2>
 
 <p>You can change the look and behavior of
-<a href="https://www.sumatrapdfreader.org/">SumatraPDF</a>
+<a href="https://github.com/TheFunzzies/swiftleaf-pdf">SwiftLeaf</a>
 by editing the file <code>SumatraPDF-settings.txt</code>. The file is stored in
 <code>%LOCALAPPDATA%\\SumatraPDF</code> directory for the installed version or in the
-same directory as <code>SumatraPDF.exe</code> executable for the portable version.</p>
+same directory as <code>Swiftleaf.exe</code> executable for the portable version.</p>
 
 <p>Use the menu item <code>Settings -> Advanced Settings...</code> to open the settings file
 with your default text editor.</p>
@@ -2750,7 +2750,7 @@ const tmplLangsHTML = `<!doctype html>
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<title>Languages supported by SumatraPDF %VER%</title>
+<title>Languages supported by SwiftLeaf %VER%</title>
 <style type="text/css">
 body {
     font-size: 90%;
@@ -2792,13 +2792,13 @@ body {
 
 <body>
 
-<h2>Languages supported by SumatraPDF %VER%</h2>
+<h2>Languages supported by SwiftLeaf %VER%</h2>
 
-<p>Languages supported by SumatraPDF. You can use ISO code as a value
+<p>Languages supported by SwiftLeaf. You can use ISO code as a value
 of <code>UiLanguage</code> setting in <a href="settings%VER_URL%">settings file</a>.
 </p>
 
-<p>Note: not all languages are fully translated. Help us <a href="http://www.apptranslator.org/app/SumatraPDF">translate SumatraPDF</a>.</p>
+<p>Note: not all languages are fully translated. Help us <a href="http://www.apptranslator.org/app/SumatraPDF">translate SwiftLeaf</a>.</p>
 
 <table>
 <tr><th>Language name</th><th>ISO code</th></tr>
@@ -2931,9 +2931,9 @@ async function getCurrentBranch(dir: string): Promise<string> {
 
 async function updateSumatraWebsite(): Promise<string> {
   let dir = resolve(getWebsiteDir());
-  console.log(`sumatra website dir: '${dir}'`);
+  console.log(`website dir: '${dir}'`);
   if (!existsSync(dir)) {
-    throw new Error(`directory for sumatra website '${dir}' doesn't exist`);
+    throw new Error(`directory for website '${dir}' doesn't exist`);
   }
   if (!(await isGitClean(dir))) {
     throw new Error(`github repository '${dir}' must be clean`);
@@ -2945,7 +2945,7 @@ async function updateSumatraWebsite(): Promise<string> {
   await runLogged("git", ["pull"], dir);
   dir = join(dir, "www");
   if (!existsSync(dir)) {
-    throw new Error(`directory for sumatra website '${dir}' doesn't exist`);
+    throw new Error(`directory for website '${dir}' doesn't exist`);
   }
   return dir;
 }
@@ -2958,13 +2958,13 @@ export async function main(opts?: { formatOutput?: boolean }) {
   const timeStart = performance.now();
   const updateWebsite = process.argv.includes("-website");
 
-  const ver = extractSumatraVersion();
+  const ver = extractAppVersion();
   const verUrlized = ver.replaceAll(".", "-");
 
   const settingsFileName = `settings${verUrlized}.html`;
   const langsFileName = `langs${verUrlized}.html`;
 
-  const helpURI = `For documentation, see https://www.sumatrapdfreader.org/settings/settings${verUrlized}.html`;
+  const helpURI = `For documentation, see https://github.com/TheFunzzies/swiftleaf-pdf`;
   globalPrefs[0].Comment = helpURI;
 
   const rootDir = join(import.meta.dir, "..");
@@ -3024,7 +3024,7 @@ export async function main(opts?: { formatOutput?: boolean }) {
       writeFileMust(path, html);
     }
 
-    console.log("!!!!!! checkin sumatra website repo!!!!");
+    console.log("!!!!!! checkin website repo!!!!");
   }
 
   const elapsed = ((performance.now() - timeStart) / 1000).toFixed(1);

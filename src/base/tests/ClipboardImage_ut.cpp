@@ -32,15 +32,42 @@ static Pixmap* MakeHalfTransparent(int w, int h) {
 }
 
 static Str ReadClipboardFormat(UINT fmt) {
-    HANDLE h = GetClipboardData(fmt);
-    if (!h) {
+    constexpr int kTries = 10;
+    constexpr int kPauseMs = 20;
+    bool opened = false;
+    for (int i = 0; i < kTries; i++) {
+        if (OpenClipboard(GetClipboardOwnerWnd())) {
+            opened = true;
+            break;
+        }
+        Sleep(kPauseMs);
+    }
+    if (!opened) {
+        logf("ReadClipboardFormat: OpenClipboard failed error=%lu sequence=%lu\n", GetLastError(),
+             GetClipboardSequenceNumber());
         return {};
     }
-    void* data = GlobalLock(h);
-    if (!data) {
+    defer {
+        CloseClipboard();
+    };
+    HANDLE h = GetClipboardData(fmt);
+    if (!h) {
+        DWORD error = GetLastError();
+        BOOL available = IsClipboardFormatAvailable(fmt);
+        logf("ReadClipboardFormat: GetClipboardData(%u) failed error=%lu available=%d sequence=%lu\n", fmt, error,
+             available, GetClipboardSequenceNumber());
         return {};
     }
     size_t n = GlobalSize(h);
+    void* data = GlobalLock(h);
+    if (!data) {
+        logf("ReadClipboardFormat: GlobalLock(%u, %p) failed error=%lu sequence=%lu\n", fmt, h, GetLastError(),
+             GetClipboardSequenceNumber());
+        return {};
+    }
+    if (!n)
+        logf("ReadClipboardFormat: GlobalSize(%u, %p) returned zero error=%lu sequence=%lu\n", fmt, h, GetLastError(),
+             GetClipboardSequenceNumber());
     Str res = str::Dup(Str((const char*)data, (int)n));
     GlobalUnlock(h);
     return res;
@@ -79,13 +106,19 @@ static void TransparentImageTest() {
     // still there for Paint / Word, which don't understand the other two
     utassert(IsClipboardFormatAvailable(CF_BITMAP));
 
-    utassert(OpenClipboard(nullptr));
     Str png = ReadClipboardFormat(cfPng);
     utassert(len(png) > 26);
     utassert(PngColorType(png) == 6);
 
     Str dib = ReadClipboardFormat(CF_DIBV5);
     utassert(len(dib) > (int)sizeof(BITMAPV5HEADER));
+    // Assertions report failure but continue; never dereference missing data.
+    if (len(dib) <= (int)sizeof(BITMAPV5HEADER)) {
+        str::Free(png);
+        str::Free(dib);
+        FreePixmap(p);
+        return;
+    }
     auto* bi = (BITMAPV5HEADER*)dib.s;
     utassert(bi->bV5BitCount == 32);
     utassert(bi->bV5AlphaMask == 0xff000000);
@@ -94,7 +127,8 @@ static void TransparentImageTest() {
     const u8* bits = (const u8*)dib.s + sizeof(BITMAPV5HEADER);
     utassert(bits[3] == 255);                              // first pixel: opaque
     utassert(bits[(((size_t)p->width - 1) * 4) + 3] == 0); // last pixel of row 0: transparent
-    CloseClipboard();
+    str::Free(png);
+    str::Free(dib);
 
     FreePixmap(p);
 }

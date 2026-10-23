@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/3415
+// Test for upstream issues #3415
 //
 // WebP already opens as a standalone image / CBZ page. Inside an EPUB, MuPDF
 // used to fail fz_new_image_from_buffer and draw the IMAGE placeholder.
@@ -9,7 +9,7 @@
 
 import { writeFileSync } from "node:fs";
 import { deflateRawSync } from "node:zlib";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 // 80x80 lossy WebP, solid (220,0,0). Generated with Pillow.
@@ -134,7 +134,7 @@ export async function testit(): Promise<void> {
   writeFileSync(webpPath, RED_WEBP);
   writeFileSync(epubPath, makeEpub(RED_WEBP));
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     {
       const res = await client.request(ControlCommand.TestRenderPageColors, [webpPath]);
       const raw = String(res[1] ?? "");

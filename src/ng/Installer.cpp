@@ -175,21 +175,21 @@ static bool CopySelfToDir(Str destDir) {
     logf("  failed to copy '%s' to '%s' lastError=%u\n", exePath, dstPath, lastErr);
     if (lastErr == ERROR_ACCESS_DENIED) {
         NotifyFailed(
-            Tr("Couldn't copy SumatraPDF.exe to the installation directory (access denied). "
+            Tr("Couldn't copy Swiftleaf.exe to the installation directory (access denied). "
                "Temporarily disable antivirus or Controlled Folder Access for this folder, "
                "run the installer as administrator, or choose a different install folder. "
-               "See https://www.sumatrapdfreader.org/docs/Installation"));
+               "See https://github.com/TheFunzzies/swiftleaf-pdf"));
     } else if (lastErr == ERROR_SHARING_VIOLATION || lastErr == ERROR_LOCK_VIOLATION) {
         NotifyFailed(
-            Tr("Couldn't copy SumatraPDF.exe to the installation directory (file in use). "
-               "Close all SumatraPDF windows and Explorer PDF previews, then try again. "
-               "See https://www.sumatrapdfreader.org/docs/Installation"));
+            Tr("Couldn't copy Swiftleaf.exe to the installation directory (file in use). "
+               "Close all SwiftLeaf windows and Explorer PDF previews, then try again. "
+               "See https://github.com/TheFunzzies/swiftleaf-pdf"));
     } else if (IsDiskFullError(lastErr)) {
         NotifyFailed(
-            Tr("Not enough free disk space to copy SumatraPDF.exe to the installation directory.\n\n"
+            Tr("Not enough free disk space to copy Swiftleaf.exe to the installation directory.\n\n"
                "Free up space on this drive and try again."));
     } else {
-        NotifyFailed(Tr("Couldn't copy SumatraPDF.exe to the installation directory"));
+        NotifyFailed(Tr("Couldn't copy Swiftleaf.exe to the installation directory"));
     }
     return false;
 }
@@ -206,7 +206,7 @@ bool ExtractInstallerFiles(Str dir) {
     }
     TempStr selfDir = GetSelfExeDirTemp();
     if (path::IsSame(selfDir, dir)) {
-        log(StrL("ExtractInstallerFiles: dest is this exe's directory, not copying SumatraPDF.exe\n"));
+        log(StrL("ExtractInstallerFiles: dest is this exe's directory, not copying Swiftleaf.exe\n"));
         ProgressStep();
         return true;
     }
@@ -564,7 +564,7 @@ static void OnButtonBrowse(InstallerWnd* wnd) {
     gp::PathPrompt opts;
     opts.files = false;
     opts.directories = true;
-    opts.title = ToGpui(Tr("Select the folder where SumatraPDF should be installed:"));
+    opts.title = ToGpui(Tr("Select the folder where SwiftLeaf should be installed:"));
     TempStr installPath = str::DupTemp(FromGpui(gp::PromptForPathTemp(wnd->win, opts)));
     if (len(installPath) == 0) {
         return;
@@ -595,7 +595,7 @@ static void OnInstallationFinished(InstallerWnd* wnd, Flags* cli) {
         return;
     }
 
-    SetMsg(Tr("Thank you! SumatraPDF has been installed."), kColorMsgOk);
+    SetMsg(Tr("Thank you! SwiftLeaf has been installed."), kColorMsgOk);
     gMsgError = gFirstError;
 
     if (cli->fastInstall) {
@@ -768,7 +768,7 @@ gp::El* InstallerView::Render(InstallerView*, gp::Ctx* cx) {
 
     if (wnd->showOptions && !wnd->installing && !wnd->finished) {
         gp::El* opts = gp::Div(cx->a)->FlexCol()->W(gp::kFill)->Gap(2)->PadL(margin)->PadR(margin);
-        opts->Child(DlgAccelText(cx, DlgAccelInput(cx, Tr("Install SumatraPDF in &folder:"), wnd->editInstallationDir))
+        opts->Child(DlgAccelText(cx, DlgAccelInput(cx, Tr("Install SwiftLeaf in &folder:"), wnd->editInstallationDir))
                         ->Font(13)
                         ->Fg(ToGpui(kColBlack)));
         gp::El* dirRow = gp::Div(cx->a)->FlexRow()->W(gp::kFill)->ItemsCenter()->Gap(6);
@@ -807,7 +807,7 @@ gp::El* InstallerView::Render(InstallerView*, gp::Ctx* cx) {
     if (wnd->finished) {
         if (!gInstallFailed && !gCliNew.fastInstall) {
             bottom->Child(gpc::Button::New(cx, GStrL("inst-start"))
-                              ->Label(ToGpui(Tr("Start SumatraPDF")))
+                              ->Label(ToGpui(Tr("Start SwiftLeaf")))
                               ->Primary()
                               ->WithSize(gp::UiSize::Small)
                               ->OnClick(gp::ListenTo(gInstallerView, &InstallerView::OnStartSumatra))
@@ -820,7 +820,7 @@ gp::El* InstallerView::Render(InstallerView*, gp::Ctx* cx) {
                           ->IntoEl());
     } else if (!wnd->installing && !gCliNew.fastInstall) {
         bottom->Child(gpc::Button::New(cx, GStrL("inst-install"))
-                          ->Label(ToGpui(Tr("Install SumatraPDF")))
+                          ->Label(ToGpui(Tr("Install SwiftLeaf")))
                           ->Primary()
                           ->WithSize(gp::UiSize::Small)
                           ->OnClick(gp::ListenTo(gInstallerView, &InstallerView::OnInstall))
@@ -832,7 +832,7 @@ gp::El* InstallerView::Render(InstallerView*, gp::Ctx* cx) {
 //] ACCESSKEY_GROUP Installer
 
 static bool CreateInstallerWindow(Flags* cli) {
-    gDefaultMsg = Tr("Thank you for choosing SumatraPDF!");
+    gDefaultMsg = Tr("Thank you for choosing SwiftLeaf!");
 
     gWnd = new InstallerWnd();
     gWnd->forAllUsers = cli->allUsers;
@@ -850,7 +850,7 @@ static bool CreateInstallerWindow(Flags* cli) {
     gWnd->editInstallationDir->focus = gp::FocusHandleNew(app);
     gp::InputSetValue(gWnd->editInstallationDir, ToGpui(cli->installDir));
 
-    TempStr title = fmt(Tr("SumatraPDF %s Installer").s, StrL(CURR_VERSION_STRA));
+    TempStr title = fmt(Tr("SwiftLeaf %s Installer").s, StrL(CURR_VERSION_STRA));
     int dx = GetInstallerWinDx();
     int dy = kInstallerWinDy;
     gWnd->win = gp::WindowOpenView(app, ToGpui(title), dx, dy, gInstallerView.id, gp::WinOpts{});
@@ -886,7 +886,7 @@ int RunInstaller(Flags* cli) {
         bool removeLog = !gCli->runInstallNow;
         StartLogToFile(installerLogPath, removeLog);
     }
-    logf("------------- Starting SumatraPDF installation\n");
+    logf("------------- Starting SwiftLeaf installation\n");
 
     GetPreviousInstallInfo(&gPrevInstall);
     // with -run-install all values should be explicitly set

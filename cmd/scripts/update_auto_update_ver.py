@@ -58,7 +58,7 @@ def get_update_versions(url):
     try:
         data = urllib2.urlopen(url).read()
         root = SquareTree.Parse(data)
-        node = root.GetChild("SumatraPDF")
+        node = root.GetChild("SwiftLeaf")
         return (node.GetValue("Stable"), node.GetValue("Latest"))
     except:
         return (None, None)
@@ -158,7 +158,7 @@ def main(new_ver):
         sys.exit(1)
 
     # remove the Stable version from sumpdf-update.txt
-    s = "[SumatraPDF]\nLatest %s\n" % new_ver
+    s = "[SwiftLeaf]\nLatest %s\n" % new_ver
     s3.upload_data_public(s, "sumatrapdf/sumpdf-update.txt")
     # keep updating the legacy file for now
     s = "%s\n" % new_ver

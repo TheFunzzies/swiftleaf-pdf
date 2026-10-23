@@ -348,6 +348,9 @@ bool CmdWorksWithoutDocument(int cmdId) {
 }
 
 CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, CommandSurface surface) {
+#if defined(SUMATRA_NG)
+    if (cmdId == CmdScanOcr) return CommandVisibility::Hide;
+#endif
     if (cmdId <= CmdFirst) {
         return CommandVisibility::Hide;
     }
@@ -487,6 +490,10 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
         return CommandVisibility::Hide;
     }
 
+    if (cmdId == CmdScanOcr && (!ctx.isFixedPage || !ctx.allowsCopyingText || !HasPermission(Perm::CopySelection))) {
+        return CommandVisibility::Hide;
+    }
+
     if (cmdId == CmdShowGeneratedHTML && !ctx.isMarkdown) {
         return CommandVisibility::Hide;
     }
@@ -526,6 +533,11 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
         return ctx.allowToggleMenuBar ? CommandVisibility::Show : CommandVisibility::Hide;
     }
 
+#if !defined(SUMATRA_NG)
+    if (cmdId >= CmdPrepareForm && cmdId <= CmdCreateFormSignature && (!ctx.supportsAnnots || !ctx.isPdf)) {
+        return CommandVisibility::Hide;
+    }
+#endif
     if (!ctx.supportsAnnots) {
         if ((cmdId >= (int)CmdCreateAnnotFirst) && (cmdId <= (int)CmdCreateAnnotLast)) {
             return CommandVisibility::Hide;

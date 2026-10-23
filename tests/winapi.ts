@@ -1,6 +1,6 @@
 // Reusable Windows API wrappers for tests, via Bun's FFI (bun:ffi).
 //
-// Why this exists: driving SumatraPDF for verification means finding its windows
+// Why this exists: driving SwiftLeaf for verification means finding its windows
 // and posting real window messages / reading scrollbar state cross-process.
 // Injected mouse-button input is dropped on the test machine, but PostMessage,
 // MoveWindow and cross-process GetScrollInfo all work (see the project memory
@@ -14,7 +14,27 @@
 
 import { dlopen, FFIType, JSCallback, ptr, toArrayBuffer } from "bun:ffi";
 
+const oleacc = dlopen("oleacc.dll", {
+  AccessibleObjectFromWindow: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.ptr],
+    returns: FFIType.i32,
+  },
+});
+
+export function accessibleObjectFromWindow(hwnd: number): bigint {
+  const iid = new Uint8Array([
+    0xe0, 0x36, 0x87, 0x61, 0x3d, 0x3c, 0xcf, 0x11, 0x81, 0x0c, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+  ]);
+  const out = new BigUint64Array(1);
+  const hr = oleacc.symbols.AccessibleObjectFromWindow(hwnd, 0xffff_fffc, ptr(iid), ptr(out));
+  if (hr !== 0 || out[0] === 0n) {
+    throw new Error(`AccessibleObjectFromWindow(${hwnd}) failed: HRESULT 0x${(hr >>> 0).toString(16)}`);
+  }
+  return out[0];
+}
+
 const user32 = dlopen("user32.dll", {
+  GetDlgItem: { args: [FFIType.ptr, FFIType.i32], returns: FFIType.ptr },
   EnumWindows: { args: [FFIType.function, FFIType.i64], returns: FFIType.bool },
   EnumChildWindows: { args: [FFIType.ptr, FFIType.function, FFIType.i64], returns: FFIType.bool },
   GetClassNameW: { args: [FFIType.ptr, FFIType.ptr, FFIType.i32], returns: FFIType.i32 },
@@ -341,7 +361,7 @@ export interface Rect {
   bottom: number;
 }
 
-// a window position the way MoveWindow and SumatraPDF's -window-pos want it
+// a window position the way MoveWindow and SwiftLeaf's -window-pos want it
 export interface WindowPos {
   x: number;
   y: number;
@@ -413,7 +433,7 @@ export async function waitForWindowIdle(hwnd: number, timeoutMs = 5000, settleMs
   return false;
 }
 
-// Where tests put the SumatraPDF window. "rightHalf" is the default and what a
+// Where tests put the SwiftLeaf window. "rightHalf" is the default and what a
 // developer wants: it leaves the left half of the desktop alone and still gives
 // the app a window big enough for toolbars, sidebars and dialogs.
 // "workArea" is for a runner on a machine nobody is looking at, where the
@@ -786,7 +806,7 @@ export function injectKeyUp(vk: number): void {
 // client sends a Ctrl down and never the up (logged right after it re-synced
 // its modifier state, which it does when its window gets focus), and a
 // session disconnected with the key down keeps it down.
-// SumatraPDF started with -for-testing or -dbg-control clears the key state
+// SwiftLeaf started with -for-testing or -dbg-control clears the key state
 // it inherits (ReleaseThreadKeyState()), so a stuck key only matters if it
 // goes down while a test window is in front. Release stuck keys with injected
 // key-ups anyway. They are dropped while the session is disconnected or an
@@ -1078,7 +1098,7 @@ export function getSystemMetrics(index: number): number {
 
 // Opt this process into per-monitor-v2 DPI awareness. Bun is DPI-virtualized by
 // default, which makes window rects and window-DC pixel coordinates disagree
-// when reading a DPI-aware window like SumatraPDF's on a scaled display (see
+// when reading a DPI-aware window like SwiftLeaf's on a scaled display (see
 // project memory dpi-aware-probe-trick). No-op at 100% scaling.
 //
 // This is process-wide and cannot be undone, so only call it from tests that
@@ -1117,7 +1137,7 @@ export function hasInteractiveDesktop(): boolean {
 // Taskbar auto-hide, via SHAppBarMessage. Takes effect immediately (no Explorer
 // restart). Worth toggling in a test because auto-hide makes the monitor work
 // area equal the whole screen, so a MAXIMIZED window's client rect matches a
-// full-screen one -- which is a distinct code path in SumatraPDF's
+// full-screen one -- which is a distinct code path in SwiftLeaf's
 // ExitFullScreen (issue #5866). Always restore the previous value in a finally.
 const ABM_GETSTATE = 0x4;
 const ABM_SETSTATE = 0xa;
@@ -1308,6 +1328,10 @@ export function tbGetButtonIndex(toolbar: number, cmdId: number): number {
 export function sendText(hwnd: number, text: string): void {
   const buf = wideZ(text);
   sendMessage(hwnd, WM_SETTEXT, 0, ptr(buf));
+}
+
+export function getDlgItem(hwnd: number, id: number): number {
+  return Number(user32.symbols.GetDlgItem(hwnd, id));
 }
 
 // PNG encoder CLSID {557CF406-1A04-11D3-9A73-0000F81EF32E}
@@ -1676,7 +1700,7 @@ function readWideZ(buf: Uint8Array, byteOff: number): string {
   return s;
 }
 
-// PIDs whose image name matches (case-insensitive), e.g. "SumatraPDF.exe"
+// PIDs whose image name matches (case-insensitive), e.g. "Swiftleaf.exe"
 export function listPidsByExeName(exeName: string): number[] {
   const snap = kernel32.symbols.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
   if (!snap || snap === INVALID_HANDLE_VALUE) {

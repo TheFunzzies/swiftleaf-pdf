@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/3219
+// Test for upstream issues #3219
 //
 // Searching for text failed because mupdf text extraction dropped words set in
 // embedded subset fonts (MSTT*) that name glyphs "G45", "G6D", ... (i.e. "G"

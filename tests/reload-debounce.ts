@@ -1,5 +1,5 @@
 // Auto-reload debounce: while another program is still writing the file we
-// watch (a LaTeX run rewriting its .pdf), SumatraPDF must not reload a
+// watch (a LaTeX run rewriting its .pdf), SwiftLeaf must not reload a
 // half-written document. It used to reload twice per rewrite -- once on the
 // truncated file ("cannot find startxref" / "document has no pages"), once on
 // the finished one. AUTO_RELOAD_TIMER now re-arms itself while size/mtime keep

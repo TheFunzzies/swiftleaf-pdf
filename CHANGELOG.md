@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.4.0 - 2026-10-23
+
+### Added
+
+- PDFCraft-style interface: an "All tools" sidebar, a mode tab bar with a
+  command search box, a comments panel grouped by page with replies, an icon
+  rail, a floating annotation tool strip and a form-fields banner.
+- Scan & OCR using the Windows OCR engine (current or all pages, copy or save as
+  text). The result is not written into the PDF as a text layer.
+- Form authoring: text, checkbox, radio, dropdown and signature fields with a
+  properties dialog, saved as real AcroForm fields.
+
+### Changed
+
+- The product is now consistently named SwiftLeaf; upstream credits remain in
+  the README and AUTHORS. Settings and registry names are unchanged so existing
+  installs keep working (see `docs/rename-notes.md`).
+- Repository reorganized: stale branches removed, old notes moved to
+  `docs/archive/`, README links the latest release.
+
+### Security
+
+- Extracted attachments are opened more safely: unsafe extensions are neutralized
+  and embedded HTML attachments are not run.
+- Fixed a clipboard read race and added keyboard access and contrast fixes to
+  the new banner and panels.
+
+### Limitations
+
+- OCR needs an installed Windows OCR language; form authoring cannot change a
+  radio group's option count after creation. The binaries are unsigned.
+
 ## 0.3.4 - 2026-10-20
 
 ### Security

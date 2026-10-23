@@ -2,8 +2,8 @@
 
 Temp notes for an agent on another machine. Delete when done.
 
-Issue: https://github.com/sumatrapdfreader/sumatrapdf/issues/6154  
-The useful comment: https://github.com/sumatrapdfreader/sumatrapdf/issues/6154#issuecomment-5591969544
+Issue: upstream issues #6154  
+The useful comment: upstream issues #6154#issuecomment-5591969544
 
 ## Goal
 
@@ -13,7 +13,7 @@ Do not "fix" until you have seen it, or have a measurement that shows zoom-depen
 
 ## Reporter setup (from the comment + settings file)
 
-- Pre-release SumatraPDF, Windows 11 Pro, Best Performance
+- Pre-release SwiftLeaf, Windows 11 Pro, Best Performance
 - 3K OLED, **Scaling 250%**, maximized window `0 0 2880 1800` (`WindowState = 3`)
 - Scroll: Precision touchpad two-finger, later also native vertical scrollbar
 - Sample: [lorem.pdf](https://github.com/user-attachments/files/31962008/lorem.pdf) (3 pages, ~403 KB)
@@ -51,11 +51,11 @@ If your machine has 250% scaling, a touchpad, and a real desktop, **manual repro
 
 ## Manual repro (do this first on a 250% / 3K box)
 
-1. Build: `bun cmd/build.ts -dbg` → `out/dbg64/SumatraPDF.exe`
+1. Build: `bun cmd/build.ts -dbg` → `out/dbg64/Swiftleaf.exe`
 2. Copy reporter settings into a throwaway dir, then:
 
 ```
-out\dbg64\SumatraPDF.exe -for-testing -appdata <throwaway> -log -log-to-file <log> -zoom 180 <lorem.pdf>
+out\dbg64\Swiftleaf.exe -for-testing -appdata <throwaway> -log -log-to-file <log> -zoom 180 <lorem.pdf>
 ```
 
 Maximize. Two-finger scroll. Repeat at 100%, 180%, 250%. Then set `Scrollbars = windows` and drag the thumb / click the track.

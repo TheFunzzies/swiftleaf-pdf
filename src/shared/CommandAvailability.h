@@ -72,6 +72,7 @@ struct AppCommandCtx {
     bool canSendEmail = false;
     // the document's own permission (orig's MenuUpdatePrintItem)
     bool allowsPrinting = true;
+    bool allowsCopyingText = true;
     bool allowToggleMenuBar = true;
     bool isSpeaking = false;
     bool canContinueReadAloud = false;

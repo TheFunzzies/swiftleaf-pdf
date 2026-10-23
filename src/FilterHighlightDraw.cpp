@@ -10,6 +10,7 @@
 #include "gui/Gfx.h"
 
 #include "Theme.h"
+#include "Material.h"
 #include "FilterHighlightDraw.h"
 
 // approximate "is this UTF-8 byte part of a word character?": any byte >= 0x80
@@ -163,21 +164,16 @@ void ResolveTreeFilterItemColors(HDC hdc, Rect itemRc, Color treeBg, Color treeT
         ReportIf(true);
         return;
     }
-    if (isSelected && hasFocus) {
+    if (isSelected && ThemeUsesHighContrastColors()) {
         *bgOut = GetSysColor(COLOR_HIGHLIGHT);
         *txtOut = GetSysColor(COLOR_HIGHLIGHTTEXT);
         return;
     }
     if (isSelected) {
-        // Selected but unfocused (or multi-match "current page" rows): use a
-        // subtle accent of the themed tree background. Explorer-themed TreeView
-        // inactive selection is often a light gray even in dark mode; combined
-        // with light theme text that made the initial bookmark highlight
-        // unreadable (issue #5848). COLOR_BTNFACE has the same problem when
-        // system colors are not fully remapped.
-        Color base = !IsSpecialColor(treeBg) ? treeBg : ThemeControlBackgroundColor();
-        *bgOut = AccentColor(base, 40);
-        *txtOut = IsSpecialColor(treeTxt) ? ThemeWindowTextColor() : treeTxt;
+        // One themed selection, focused or not: Explorer's inactive selection
+        // is a light gray even in dark mode (issue #5848).
+        *bgOut = M3().secondaryContainer;
+        *txtOut = M3().onSecondaryContainer;
         return;
     }
 

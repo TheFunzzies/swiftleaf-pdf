@@ -8,7 +8,7 @@
 // caret, and after leaving that mode they move the selection's end the same way
 // they do for a selection made with the mouse.
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control";
+import { ControlClient, ControlCommand, withControlledApp } from "./control";
 import { EXE, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util";
 import { FRAME_CLASS, sendCommandSync } from "./win-automation";
 import { WM_KEYDOWN, WM_KEYUP, postMessage, sleep, waitForTopWindow, postChar } from "./winapi";
@@ -82,7 +82,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-5922.pdf");
   writeFileSync(pdf, makeTextPdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForTopWindow(proc.pid!, FRAME_CLASS);

@@ -9,7 +9,7 @@
 // Run: bun tests/issue-6214.ts [--no-build]   (or via tests/run-almost-all.ts)
 
 import { writeFileSync } from "node:fs";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const RED = "ff0000";
@@ -95,7 +95,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-6214.pdf");
   writeFileSync(pdfPath, makePdf());
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     for (let i = 0; i < PAGES.length; i++) {
       const p = PAGES[i]!;
       const res = await client.request(ControlCommand.TestImageOrientation, [pdfPath, i + 1]);

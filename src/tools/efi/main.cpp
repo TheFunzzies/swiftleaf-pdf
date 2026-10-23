@@ -264,7 +264,7 @@ static const char* GetUndecoratedSymbolName(IDiaSymbol* symbol, const char* defN
         // http://google-breakpad.googlecode.com/svn/trunk/src/common/windows/pdb_source_line_writer.cc
     } else {
         // Unfortunately it does happen that get_undecoratedNameEx() fails
-        // e.g. for RememberDefaultWindowPosition() in Sumatra code
+        // e.g. for RememberDefaultWindowPosition() in SwiftLeaf code
         symbol->get_name(&name);
         BStrToString(strTmp, name, defName, true);
     }

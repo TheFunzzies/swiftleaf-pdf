@@ -4,7 +4,7 @@
 // Auto-links that overlap a real PDF /Link annot are dropped.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 function makePdf(content: string, annots: string): Buffer {
@@ -73,7 +73,7 @@ export async function testit(): Promise<void> {
     "]";
   writeFileSync(annotPdf, makePdf(twoCol, annots));
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const twoColVals = await pageLinks(client, twoColPdf);
     const glued = twoColVals.filter((v) => v.includes("Languagehat") && v.includes("archive.org"));
     if (glued.length > 0) {

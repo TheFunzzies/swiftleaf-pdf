@@ -3,7 +3,7 @@
 // Trim / Art are optional and per-page).
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
 
 function buildPdf(): Buffer {
@@ -71,7 +71,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-814.pdf");
   writeFileSync(pdfPath, buildPdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle();

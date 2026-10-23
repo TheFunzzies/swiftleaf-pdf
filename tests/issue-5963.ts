@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5963
+// Test for upstream issues #5963
 //
 // Sign Document used to always draw labels ("Digitally signed by"), the
 // distinguished name, the date, and a large name graphic. The dialog now has
@@ -25,7 +25,7 @@ import {
   WM_CLOSE,
 } from "./winapi.ts";
 
-const kCertSubject = "CN=SumatraPDF AppearSignTest";
+const kCertSubject = "CN=SwiftLeaf AppearSignTest";
 const BM_GETCHECK = 0x00f0;
 const BST_CHECKED = 1;
 // dn | date | text name — no labels, no graphic name

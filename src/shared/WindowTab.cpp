@@ -26,6 +26,7 @@
 #if !defined(SUMATRA_NG)
 #include "ReadingAutoScroll.h"
 #include "ReadingBar.h"
+#include "DocumentPanel.h"
 #include "AnnotEditToolbar.h"
 #endif
 #include "WindowTab.h"
@@ -91,6 +92,7 @@ WindowTab::~WindowTab() {
 #if !defined(SUMATRA_NG)
     ReadingAutoScrollForgetTab(this);
     ReadingBarForgetTab(this);
+    DocumentPanelForgetTab(this);
 #endif
     // DestroyWindow can re-enter code that reads these pointers.
     if (win) {

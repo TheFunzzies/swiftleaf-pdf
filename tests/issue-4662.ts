@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/4662
+// Test for upstream issues #4662
 //
 // Arrow-key line scrolling used to jump by ScrollLineAmount instantly, which
 // reads as jitter on zoomed/tall pages. With SmoothScroll (default true) it
@@ -8,7 +8,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { getScrollInfo, sendMessage, sleep } from "./winapi.ts";
 import { findCanvas, sendCommandSync, waitForFrame } from "./win-automation.ts";
 import { cmdId, EXE, ROOT, runStandalone, tmpPath } from "./util.ts";
@@ -34,7 +34,7 @@ CheckForUpdates = false
 `,
   );
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

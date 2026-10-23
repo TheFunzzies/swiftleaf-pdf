@@ -1,9 +1,9 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/discussions/5938
+// Test for upstream discussions #5938
 //
 // Feature: an option to keep the current zoom when following a "Go to
 // Destination" action -- clicking a bookmark or a link inside the document.
 // Adobe Reader and Foxit both have it ("forbid the change of the current Zoom
-// factor during execution of 'Go to Destination' actions"); since 3.7 SumatraPDF
+// factor during execution of 'Go to Destination' actions"); since 3.7 SwiftLeaf
 // applies the Adobe /Fit and /XYZ zoom modes (#5828), so there has to be a way
 // to say "don't".
 //
@@ -21,10 +21,10 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
-// zoom is reported as SumatraPDF's "virtual" zoom: a percentage when it is a
+// zoom is reported as SwiftLeaf's "virtual" zoom: a percentage when it is a
 // number, or one of the negative sentinels for the fit modes (Settings.h)
 const kZoomFitPage = -1;
 
@@ -105,7 +105,7 @@ async function run(pdf: string, ignoreDestinationZoom: boolean): Promise<Nav[]> 
     join(dir, "SumatraPDF-settings.txt"),
     `${SETTINGS}IgnoreDestinationZoom = ${ignoreDestinationZoom ? "true" : "false"}\n`,
   );
-  return withControlledSumatra(
+  return withControlledApp(
     EXE,
     async (client) => [await followDest(client, 1, 100), await followDest(client, 2, 100)],
     ["-appdata", dir, pdf],

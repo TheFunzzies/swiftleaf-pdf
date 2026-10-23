@@ -37,12 +37,14 @@
 #include "Annotation.h"
 #include "TextSearch.h"
 #include "SumatraPDF.h"
+#include "SumatraConfig.h"
 #include "AIChatCommon.h"
 #include "AIChatPanel.h"
 #include "SelectionToolbar.h"
 #include "AnnotEditToolbar.h"
 #include "AnnotTextPopup.h"
 #include "AnnotFilterToolbar.h"
+#include "DocumentPanel.h"
 #include "FindBar.h"
 #include "FindWindow.h"
 #include "SearchAndDDE.h"
@@ -400,6 +402,7 @@ void MainWindow::UpdateCanvasSize() {
     RelayoutNotifications(hwndCanvas);
     ReadAloudPlaybackBarRelayout(hwndCanvas);
     ReadingAutoScrollRelayout(hwndCanvas);
+    FormBannerUpdate(this);
 }
 
 Size MainWindow::GetViewPortSize() const {
@@ -555,25 +558,16 @@ static void LaunchEmbeddedDestination(MainWindow* win, PageDestination* pd) {
          data.len);
     // PDF (and other types we can open): load from memory into a tab
     if (OpenDocumentFromMemory(win, data, fileName)) {
+        logf("LaunchEmbeddedDestination: opened in app '%s'\n", fileName);
         str::Free(data);
         return;
     }
-    TempStr tmpDir = GetTempDirTemp();
-    if (len(tmpDir) == 0) {
-        str::Free(data);
-        return;
-    }
-    TempStr tmpPath = path::JoinTemp(tmpDir, path::GetBaseNameTemp(fileName));
-    if (!file::WriteFile(tmpPath, data)) {
-        str::Free(data);
-        return;
-    }
-    // a type the shell isn't allowed to open is shown in the file manager instead
-    if (OpenFileExternally(tmpPath)) {
-        logf("LaunchEmbeddedDestination: opened '%s'\n", tmpPath);
-    } else {
-        logf("LaunchEmbeddedDestination: showing '%s' in the file manager\n", tmpPath);
-        OpenPathInDefaultFileManager(tmpPath);
+    Str extracted = DocumentPanelExtractAttachment(fileName, data);
+    if (extracted) {
+        DocumentPanelTrackExtractedFile(win, extracted);
+        logf("LaunchEmbeddedDestination: showing '%s' in the file manager\n", extracted);
+        OpenPathInDefaultFileManager(extracted);
+        str::Free(extracted);
     }
     str::Free(data);
 }
@@ -809,7 +803,7 @@ void CleanRemoteDestNameInPlace(Str& destName) {
     str::TrimPrefixI(destName, StrL("nameddest="));
 }
 
-// for safety, only handle relative paths and only open them in SumatraPDF
+// for safety, only handle relative paths and only open them in SwiftLeaf
 // (unless they're of an allowed perceived type) and never launch any external
 // file in plugin mode (where documents are supposed to be self-contained)
 void LinkHandler::LaunchFile(Str pathOrig, IPageDestination* remoteLink) {
@@ -1093,6 +1087,7 @@ AppCommandCtx NewAppCommandCtx(MainWindow* win, Point cursorPos) {
 #ifndef DISABLE_DOCUMENT_RESTRICTIONS
         ctx.allowsPrinting = !win->AsFixed() || (engine && engine->AllowsPrinting());
 #endif
+        ctx.allowsCopyingText = gDisableDocumentRestrictions || !engine || engine->allowsCopyingText;
         ctx.isPdf = IsPdfDoc(ctx.tab);
         if (ctx.isPdf && engine) {
             ctx.isPdfEncrypted = EngineMupdfIsEncrypted(engine);

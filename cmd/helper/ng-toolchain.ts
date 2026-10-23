@@ -134,7 +134,7 @@ function runVcvars(vsDir: string): Record<string, string> | null {
     }
     env["PATH"] = preinit;
   }
-  const shim = join(tmpdir(), `sumatra-vcvars-${process.pid}.bat`);
+  const shim = join(tmpdir(), `swiftleaf-vcvars-${process.pid}.bat`);
   writeFileSync(shim, ["@echo off", `call "${bat}" >nul 2>&1`, "set", ""].join("\r\n"));
   let r;
   try {

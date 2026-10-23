@@ -8,6 +8,7 @@
 #include "base/WinDynCalls.h"
 #include "base/DbgHelpDyn.h"
 #include "base/File.h"
+#include "base/GuessFileType.h"
 #include "base/Pixmap.h"
 
 #include "gui/UIModels.h"
@@ -25,7 +26,11 @@
 #include "Flags.h"
 #include "Commands.h"
 #include "SvgIcons.h"
+#include "EngineAll.h"
+#include "Annotation.h"
+#include <mupdf/pdf.h>
 #include "AppUnitTests.h"
+#include "Ocr.h"
 
 // must be last to over-write assert()
 #include "base/tests/UtAssert.h"
@@ -41,6 +46,8 @@ void CssParser_UnitTests();
 void DictTest();
 void DirRemoveAllTest();
 void FileUtilTest();
+void DocumentPanel_UnitTests();
+bool EngineMupdf_UnitTestPanelData();
 void UpdateTempFileTests();
 void GuessFileTypeTest();
 void JsonTest();
@@ -106,7 +113,7 @@ static void ParseFileArgsTest() {
 static void ParseCommandLineTest() {
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bench foo.pdf", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bench foo.pdf", i);
         utassert(2 == len(i.pathsToBenchmark));
         utassert(str::Eq(StrL("foo.pdf"), i.pathsToBenchmark[0]));
         utassert(len(i.pathsToBenchmark[1]) == 0);
@@ -114,7 +121,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bench foo.pdf -fwdsearch-width 5", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bench foo.pdf -fwdsearch-width 5", i);
         utassert(len(i.globalPrefArgs) == 2);
         Str s = i.globalPrefArgs[0];
         utassert(str::Eq(s, StrL("-fwdsearch-width")));
@@ -127,7 +134,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bench bar.pdf loadonly", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bench bar.pdf loadonly", i);
         utassert(2 == len(i.pathsToBenchmark));
         utassert(str::Eq(StrL("bar.pdf"), i.pathsToBenchmark[0]));
         utassert(str::Eq(StrL("loadonly"), i.pathsToBenchmark[1]));
@@ -135,7 +142,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bench bar.pdf 1 -set-color-range 0x123456 #abCDef", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bench bar.pdf 1 -set-color-range 0x123456 #abCDef", i);
         utassert(len(i.globalPrefArgs) == 3);
         utassert(2 == len(i.pathsToBenchmark));
         utassert(str::Eq(StrL("bar.pdf"), i.pathsToBenchmark[0]));
@@ -144,7 +151,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bench bar.pdf 1-5,3   -bench some.pdf 1,3,8-34", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bench bar.pdf 1-5,3   -bench some.pdf 1,3,8-34", i);
         utassert(4 == len(i.pathsToBenchmark));
         utassert(str::Eq(StrL("bar.pdf"), i.pathsToBenchmark[0]));
         utassert(str::Eq(StrL("1-5,3"), i.pathsToBenchmark[1]));
@@ -154,7 +161,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -presentation -bgcolor 0xaa0c13 foo.pdf -invert-colors bar.pdf", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -presentation -bgcolor 0xaa0c13 foo.pdf -invert-colors bar.pdf", i);
         utassert(true == i.enterPresentation);
         utassert(true == i.invertColors);
         utassert(2 == len(i.fileNames));
@@ -164,7 +171,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bg-color 0xaa0c13 -invertcolors rosanna.pdf", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bg-color 0xaa0c13 -invertcolors rosanna.pdf", i);
         utassert(true == i.invertColors);
         utassert(1 == len(i.fileNames));
         utassert(0 == i.fileNames.Find(StrL("rosanna.pdf")));
@@ -172,7 +179,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), LR"(SumatraPDF.exe "foo \" bar \\.pdf" un\"quoted.pdf)", i);
+        ParseFlags(GetPermArena(), LR"(Swiftleaf.exe "foo \" bar \\.pdf" un\"quoted.pdf)", i);
         utassert(2 == len(i.fileNames));
         utassert(0 == i.fileNames.Find(StrL(R"(foo " bar \\.pdf)")));
         utassert(1 == i.fileNames.Find(StrL(R"(un"quoted.pdf)")));
@@ -182,7 +189,7 @@ static void ParseCommandLineTest() {
         Flags i;
         ParseFlags(
             GetPermArena(),
-            L"SumatraPDF.exe -page 37 -view continuousfacing -zoom fitcontent -scroll 45,1234         -reuse-instance",
+            L"Swiftleaf.exe -page 37 -view continuousfacing -zoom fitcontent -scroll 45,1234         -reuse-instance",
             i);
         utassert(0 == len(i.fileNames));
         utassert(i.pageNumber == 37);
@@ -193,7 +200,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), LR"(SumatraPDF.exe -view "single page" -zoom 237.45 -scroll -21,-1)", i);
+        ParseFlags(GetPermArena(), LR"(Swiftleaf.exe -view "single page" -zoom 237.45 -scroll -21,-1)", i);
         utassert(0 == len(i.fileNames));
         utassert(i.startView == DisplayMode::SinglePage);
         utassert(i.startZoom == 237.45f);
@@ -202,14 +209,14 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -zoom 35%", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -zoom 35%", i);
         utassert(0 == len(i.fileNames));
         utassert(i.startZoom == 35.f);
     }
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -zoom fit-content", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -zoom fit-content", i);
         utassert(i.startZoom == kZoomFitContent);
         utassert(0 == len(i.fileNames));
     }
@@ -558,6 +565,145 @@ static void ParseTip_UnitTests() {
     }
 }
 
+static void FormAuthoringTest() {
+    const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+                             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Rotate 90 >>"};
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    int offsets[3];
+    for (int i = 0; i < 3; i++) {
+        offsets[i] = len(pdf);
+        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, Str(objects[i])));
+    }
+    int xref = len(pdf);
+    pdf.Append(StrL("xref\n0 4\n0000000000 65535 f \n"));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+    EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("form-authoring.pdf"), nullptr);
+    utassert(e != nullptr);
+    Str error;
+    FormFieldProperties p;
+    Annotation* fields[5]{};
+    for (int i = 0; i < 5; i++) {
+        p = {};
+        p.kind = (FormFieldKind)i;
+        p.name = fmt("Field%d", i);
+        p.options = StrL("First\nSecond");
+        fields[i] = CreateFormField(e, 1, {40.f, 40.f + 70.f * i, 160.f, 50.f}, p, error);
+        utassert(fields[i] && AnnotationIsLive(fields[i]));
+    }
+    utassert(EngineMupdfCountFormFields(e) == 5);
+    Vec<Annotation*> widgets;
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    utassert(len(widgets) == 6);
+    Vec<Annotation*> removed;
+    utassert(EngineMupdfUndo(e, removed));
+    for (Annotation* a : removed) DeleteAnnotation(a);
+    utassert(EngineMupdfCountFormFields(e) == 4);
+    VecClear(removed);
+    utassert(EngineMupdfRedo(e, removed));
+    utassert(len(removed) == 0 && EngineMupdfCountFormFields(e) == 5);
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    Vec<RectF> highlights;
+    EngineMupdfGetFormFieldHighlightRects(e, 1, nullptr, highlights);
+    utassert(len(highlights) == 6);
+    utassert(ToggleFormButton(fields[1]));
+    utassert(str::Eq(GetWidgetValue(fields[1]), StrL("Yes")));
+    utassert(ToggleFormButton(fields[2]));
+    utassert(str::Eq(GetWidgetValue(fields[2]), StrL("First")));
+    utassert(ToggleFormButton(widgets[3]));
+    utassert(str::Eq(GetWidgetValue(fields[2]), StrL("Second")));
+    utassert(SetWidgetChoiceValue(fields[3], StrL("Second")));
+    utassert(GetFormFieldProperties(fields[0], p));
+    p.name = StrL("Customer");
+    p.defaultValue = StrL("Ada");
+    p.required = true;
+    p.readOnly = true;
+    p.fontSize = 18;
+    utassert(SetFormFieldProperties(fields[0], p, error));
+    utassert(GetWidgetFieldFlags(fields[0]) & PDF_FIELD_IS_READ_ONLY);
+    utassert(GetWidgetFieldFlags(fields[0]) & PDF_FIELD_IS_REQUIRED);
+    utassert(GetWidgetFontSize(fields[0]) == 18);
+    utassert(str::Eq(GetWidgetValue(fields[0]), StrL("Ada")));
+    p.kind = FormFieldKind::Text;
+    utassert(!CreateFormField(e, 1, {10, 10, 20, 20}, p, error));
+    RectF moved{85, 95, 220, 36};
+    SetRect(fields[0], moved);
+    utassert(GetBounds(fields[0]) == moved);
+    utassert(GetFormFieldProperties(fields[2], p));
+    p.options = StrL("Red\nBlue");
+    p.defaultValue = StrL("Blue");
+    utassert(SetFormFieldProperties(fields[2], p, error));
+    p.options = StrL("Red\nBlue\nGreen");
+    utassert(!SetFormFieldProperties(fields[2], p, error));
+    TempStr path = GetTempFilePathTemp(StrL("form-authoring"));
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    SafeEngineRelease(&e);
+
+    e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+    utassert(e != nullptr);
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    utassert(len(widgets) == 6 && EngineMupdfCountFormFields(e) == 5);
+    utassert(GetFormFieldProperties(widgets[0], p));
+    utassert(str::Eq(p.name, StrL("Customer")) && str::Eq(p.defaultValue, StrL("Ada")));
+    utassert(p.required && p.readOnly && p.fontSize == 18);
+    utassert(GetBounds(widgets[0]) == moved);
+    utassert(str::Eq(GetWidgetValue(widgets[2]), StrL("Blue")));
+    utassert(str::Eq(GetWidgetValue(widgets[4]), StrL("Second")));
+    utassert(GetWidgetType(widgets[5]) == PDF_WIDGET_TYPE_SIGNATURE);
+    DeleteAnnotation(widgets[1]);
+    utassert(EngineMupdfCountFormFields(e) == 4);
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    SafeEngineRelease(&e);
+
+    // Open the saved file directly, independent of the application's wrappers.
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_UNLIMITED);
+    pdf_document* doc = nullptr;
+    pdf_page* page = nullptr;
+    bool valid = false;
+    fz_try(ctx) {
+        doc = pdf_open_document(ctx, CStrTemp(path));
+        page = pdf_load_page(ctx, doc, 0);
+        pdf_obj* roots = pdf_dict_getp(ctx, pdf_trailer(ctx, doc), "Root/AcroForm/Fields");
+        int count = 0;
+        int radioOn = 0;
+        for (pdf_annot* a = pdf_first_widget(ctx, page); a; a = pdf_next_widget(ctx, a)) {
+            count++;
+            utassert(pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(P)));
+            utassert(pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(AP)));
+            if (pdf_widget_type(ctx, a) == PDF_WIDGET_TYPE_RADIOBUTTON) {
+                pdf_obj* state = pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(AS));
+                if (!pdf_name_eq(ctx, state, PDF_NAME(Off))) {
+                    utassert(str::Eq(Str(pdf_to_name(ctx, state)), StrL("Blue")));
+                    radioOn++;
+                }
+            }
+        }
+        valid = count == 5 && pdf_array_len(ctx, roots) == 4 && radioOn == 1;
+    }
+    fz_always(ctx) {
+        fz_drop_page(ctx, (fz_page*)page);
+        pdf_drop_document(ctx, doc);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    fz_drop_context(ctx);
+    e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+    utassert(e != nullptr);
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    DeleteAnnotation(widgets[1]);
+    DeleteAnnotation(widgets[2]);
+    utassert(EngineMupdfCountFormFields(e) == 3);
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    SafeEngineRelease(&e);
+    e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+    utassert(e != nullptr && EngineMupdfCountFormFields(e) == 3);
+    SafeEngineRelease(&e);
+    file::Delete(path);
+    utassert(valid);
+}
+
 static LONG WINAPI ForAiCrashHandler(EXCEPTION_POINTERS* ei) {
     printf("unit tests crash\n");
     str::Builder s;
@@ -584,6 +730,10 @@ int RunAppUnitTests(bool forAi) {
         SetupForAi();
     }
     printf("Running unit tests\n");
+    utassert(Ocr_UnitTests());
+    DocumentPanel_UnitTests();
+    utassert(EngineMupdf_UnitTestPanelData());
+    FormAuthoringTest();
 
     ArchiveTest();
     AppendStoreTest();

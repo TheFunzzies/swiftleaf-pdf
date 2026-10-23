@@ -45,11 +45,13 @@ extern "C" {
 #include "Toolbar.h"
 #include "AppSettings.h"
 #include "FormFields.h"
+#include "FormAuthoring.h"
 #include "FilterHighlightDraw.h"
 #include "AnnotFilterToolbar.h"
 #include "SvgIcons.h"
 #include "ImageReader.h"
 #include "CommandPalette.h"
+#include "DocumentPanel.h"
 
 #include "AnnotEditToolbar.h"
 
@@ -563,13 +565,15 @@ static void CollectItems(Annotation* annot, Vec<AnnotEditItem>& out) {
             VecAppend(out, it);
         }
     }
-    if (type != AnnotationType::Widget) {
+    {
         AnnotEditItem it;
         it.kind = AnnotEditKind::Contents;
-        it.tooltip = isFreeText ? Tr("Edit text") : Tr("Edit Note");
+        it.tooltip = type == AnnotationType::Widget ? Tr("Field properties")
+                     : isFreeText                   ? Tr("Edit text")
+                                                    : Tr("Edit Note");
         VecAppend(out, it);
     }
-    if (type != AnnotationType::Widget) {
+    {
         // last, so a mis-aimed click lands on a harmless chip, not on delete
         AnnotEditItem it;
         it.kind = AnnotEditKind::Delete;
@@ -2192,6 +2196,10 @@ void StartSelectedAnnotContentsEdit(MainWindow* win) {
         return;
     }
     Annotation* annot = LiveToolbarAnnot(tb);
+    if (annot && Type(annot) == AnnotationType::Widget) {
+        EditFormFieldProperties(win, annot);
+        return;
+    }
     if (annot && Type(annot) == AnnotationType::FreeText && StartFreeTextInPlaceEdit(win, annot)) {
         return;
     }
@@ -3404,6 +3412,8 @@ void DeleteAnnotationAndUpdateUI(WindowTab* tab, Annotation* annot) {
 
     DetachAnnotationFromUI(annot);
     DeleteAnnotation(annot);
+    tab->formFieldCount = -1;
+    FormBannerUpdate(tab->win);
     RefreshAnnotationLists(tab);
     SetSelectedAnnotation(tab, keepSelected);
     if (IsMainWindowValidAndNotClosing(tab->win)) {
@@ -3413,6 +3423,8 @@ void DeleteAnnotationAndUpdateUI(WindowTab* tab, Annotation* annot) {
 
 void NotifyAnnotationsChanged(WindowTab* tab) {
     if (tab && tab->win) {
+        tab->formFieldCount = -1;
+        FormBannerUpdate(tab->win);
         UpdateAnnotFilterToolbar(tab->win);
     }
     CommandPaletteOnAnnotationsChanged();

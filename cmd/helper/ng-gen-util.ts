@@ -54,7 +54,7 @@ export async function isGitClean(dir: string): Promise<boolean> {
   return out.length === 0;
 }
 
-export function extractSumatraVersion(): string {
+export function extractAppVersion(): string {
   const path = join(import.meta.dir, "..", "..", "src", "shared", "Version.h");
   const content = readFileSync(path, "utf-8");
   const prefix = "#define CURR_VERSION ";

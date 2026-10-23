@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6055
+// Test for upstream issues #6055
 //
 // Opening a PDF with `-search <term>` then showing the floating Find window
 // used to leave the search box empty and the results list as blank rows
@@ -7,7 +7,7 @@
 // Run:  bun tests/issue-6055.ts [--no-build]   (or via tests/run-almost-all.ts)
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const WORD = "needle";
@@ -60,7 +60,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-6055.pdf");
   writeFileSync(pdfPath, makePdf());
 
-  const result = await withControlledSumatra(EXE, (client) => requestWithRetry(client), ["-search", WORD, pdfPath]);
+  const result = await withControlledApp(EXE, (client) => requestWithRetry(client), ["-search", WORD, pdfPath]);
 
   const m = /OK term=(\S+) n=(\d+) snippets=(\d+) first=(.*)$/.exec(result);
   if (!m) {

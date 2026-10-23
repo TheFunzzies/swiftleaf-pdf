@@ -6,6 +6,7 @@
 #include "base/Win.h"
 
 #include "Theme.h"
+#include "Material.h"
 #include "OverlayScrollbar.h"
 
 constexpr const WCHAR* kOverlayScrollbarClass = L"SUMATRA_OVERLAY_SCROLLBAR";
@@ -29,14 +30,16 @@ static Color ThemeTrackColor() {
     return bg;
 }
 
+// neutral thumbs: the text color over the panel at a low, then higher, opacity
+constexpr int kThumbOpacity = 30;
+constexpr int kThumbHoverOpacity = 55;
+
 static Color ThemeThumbColor() {
-    Color bg = ThemeControlBackgroundColor();
-    return AccentColor(bg, 100);
+    return M3StateLayer(ThemeControlBackgroundColor(), M3().onSurface, kThumbOpacity);
 }
 
 static Color ThemeThumbHoverColor() {
-    Color bg = ThemeControlBackgroundColor();
-    return AccentColor(bg, 140);
+    return M3StateLayer(ThemeControlBackgroundColor(), M3().onSurface, kThumbHoverOpacity);
 }
 
 static constexpr int kMinThumbSize = 20;
@@ -265,6 +268,34 @@ static void PaintScrollbar(OverlayScrollbar* sb) {
         }
     };
 
+    // a fully rounded bar: the corners get partial coverage
+    auto fillPill = [&](Rect r, Color color) {
+        DWORD* pixels = (DWORD*)bits;
+        float rad = (float)std::min(r.dx, r.dy) / 2.f;
+        float cx = (float)r.x + (float)r.dx / 2.f;
+        float cy = (float)r.y + (float)r.dy / 2.f;
+        // the straight part of the bar is a segment between two cap centers
+        float halfX = std::max(0.f, (float)r.dx / 2.f - rad);
+        float halfY = std::max(0.f, (float)r.dy / 2.f - rad);
+        int x0 = std::max(r.x, 0);
+        int y0 = std::max(r.y, 0);
+        int x1 = std::min(r.x + r.dx, w);
+        int y1 = std::min(r.y + r.dy, h);
+        for (int y = y0; y < y1; y++) {
+            for (int x = x0; x < x1; x++) {
+                float px = (float)x + 0.5f - cx;
+                float py = (float)y + 0.5f - cy;
+                float ox = std::max(0.f, fabsf(px) - halfX);
+                float oy = std::max(0.f, fabsf(py) - halfY);
+                float cov = rad - sqrtf(ox * ox + oy * oy) + 0.5f;
+                cov = std::min(1.f, std::max(0.f, cov));
+                if (cov > 0.f) {
+                    pixels[(y * w) + x] = PremultiplyPixel(color, (u8)(alpha * cov));
+                }
+            }
+        }
+    };
+
     if (IsThick(sb)) {
         fillRect(Rect(0, 0, w, h), ThemeTrackColor());
     }
@@ -282,7 +313,16 @@ static void PaintScrollbar(OverlayScrollbar* sb) {
             thumbRc.dy = thinW;
         }
     }
-    fillRect(thumbRc, thumbCol);
+    if (IsThick(sb)) {
+        // leave a gutter on each side so the pill floats in the track
+        int gutter = DpiScale(3);
+        if (IsVert(sb)) {
+            thumbRc.Inflate(-gutter, 0);
+        } else {
+            thumbRc.Inflate(0, -gutter);
+        }
+    }
+    fillPill(thumbRc, thumbCol);
 
     if (IsThick(sb)) {
         Gdiplus::Graphics gfx(hdcMem);

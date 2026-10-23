@@ -2,12 +2,12 @@ import { existsSync, readdirSync } from "node:fs";
 import { delimiter, join } from "node:path";
 
 // Build the debug ASan executable and run it under a debugger.
-// Arguments after -- go to SumatraPDF. The launch saves and restores
+// Arguments after -- go to SwiftLeaf. The launch saves and restores
 // the session; pass -- -for-testing to skip that.
 //
 // Windows defaults to cdb. macOS tries lldb then gdb; Linux tries gdb then lldb.
 
-const usage = `Usage: bun cmd/ng-dbg.ts [-cdb|-windbg|-lldb|-gdb] [-clean] [-- <SumatraPDF args>]
+const usage = `Usage: bun cmd/ng-dbg.ts [-cdb|-windbg|-lldb|-gdb] [-clean] [-- <SwiftLeaf args>]
 
   -cdb      Windows: cdb.exe (default)
   -windbg   Windows: WinDbg
@@ -222,7 +222,7 @@ async function main(): Promise<void> {
   if (opts.clean) buildArgs.push("-clean");
   await run(buildArgs, "build");
 
-  const exeName = plat === "win" ? "SumatraPDF.exe" : "SumatraPDF";
+  const exeName = plat === "win" ? "Swiftleaf.exe" : "SwiftLeaf";
   const exe = join(process.cwd(), "out", plat, "dbg-asan", exeName);
   if (!existsSync(exe)) throw new Error(`debug ASan executable not found: ${exe}`);
   // A normal launch: it saves settings and restores the session.

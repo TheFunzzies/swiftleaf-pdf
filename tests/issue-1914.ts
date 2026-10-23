@@ -6,7 +6,7 @@
 // Checks the engine really reports the button as a link destination, and that
 // clicking it in the app navigates.
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control";
+import { ControlClient, ControlCommand, withControlledApp } from "./control";
 import { EXE, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util";
 import { FRAME_CLASS, clickAt, findCanvas, sendCommandSync } from "./win-automation";
 import { sleep, waitForTopWindow } from "./winapi";
@@ -78,7 +78,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-1914.pdf");
   writeFileSync(pdf, makePushButtonPdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       // engine level: the pushbutton must show up as a link to page 2

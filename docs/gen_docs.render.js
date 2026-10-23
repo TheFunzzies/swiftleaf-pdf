@@ -11,11 +11,11 @@
     '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true">' +
     '<rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11"/></svg></button>';
   const h1BreadcrumbsStart =
-    '<div class="breadcrumbs"><div><a href="SumatraPDF-documentation.html">SumatraPDF documentation</a></div><div>/</div><div>';
+    '<div class="breadcrumbs"><div><a href="SumatraPDF-documentation.html">SwiftLeaf documentation</a></div><div>/</div><div>';
   const h1BreadcrumbsStartWithToggle =
     '<div class="breadcrumbs">' +
     tocToggleHTML +
-    '<div><a href="SumatraPDF-documentation.html">SumatraPDF documentation</a></div><div>/</div><div>';
+    '<div><a href="SumatraPDF-documentation.html">SwiftLeaf documentation</a></div><div>/</div><div>';
   const h1BreadcrumbsEnd = "</div></div>";
 
   let manifest = null;
@@ -323,7 +323,7 @@
   }
 
   // docs screenshots are stored in R2 under assets/sumatrapdf/docs/img/
-  const kDocsImgCdn = "https://files.sumatrapdfreader.org/assets/sumatrapdf/docs/img/";
+  const kDocsImgCdn = "https://raw.githubusercontent.com/TheFunzzies/swiftleaf-pdf/main/docs/img/";
 
   function docsImgToCdnUrl(src) {
     let s = (src || "").replace(/%20/g, " ").replace(/\\/g, "/");
@@ -391,7 +391,7 @@
         const ext = fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
         if (ext === ".md") {
           if (fileName === "SumatraPDF-all-docs-for-llm-ai.md") {
-            tok.attrSet("href", "https://www.sumatrapdfreader.org/docs/SumatraPDF-all-docs-for-llm-ai.md");
+            tok.attrSet("href", "https://github.com/TheFunzzies/swiftleaf-pdf");
           } else {
             let dest = getHTMLFileName(fileName);
             if (hash) dest += "#" + hash;

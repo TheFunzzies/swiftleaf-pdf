@@ -13,7 +13,7 @@
 //     space, which the app opens in a tab (discussion #5924)
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control";
+import { ControlClient, ControlCommand, withControlledApp } from "./control";
 import { EXE, makeMinimalPdf, runStandalone, tmpPath } from "./util";
 
 // the .md and the .pdf it links to, both with a space and an umlaut in the name
@@ -71,7 +71,7 @@ function makeFolder(): { dir: string; appdata: string } {
 export async function testit(): Promise<void> {
   const { dir, appdata } = makeFolder();
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       // the page is served and scrollable: it rendered rather than 404ing

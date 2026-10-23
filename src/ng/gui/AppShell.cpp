@@ -1176,7 +1176,7 @@ static void InstallNativeMenu(MainWindow* win) {
     appRows[3].action = ActSumatraCmd();
     appRows[3].arg = CmdExit;
     appRows[3].stroke = "cmd-q";
-    defs[n].name = GStrL("SumatraPDF");
+    defs[n].name = GStrL("SwiftLeaf");
     defs[n].items = appRows;
     defs[n].n = 4;
     n++;
@@ -1632,7 +1632,7 @@ static gp::El* BuildCanvas(ShellView* self, gp::Ctx* cx, bool overlayUp) {
     WindowTab* tab = win->CurrentTab();
     DocController* ctrl = tab ? tab->ctrl : nullptr;
     if (!ctrl) {
-        canvas->Child(gp::TextEl(cx->a, GStrL("SumatraPDF is a PDF reader"))->Font(16)->Fg(th.mutedFg));
+        canvas->Child(gp::TextEl(cx->a, GStrL("SwiftLeaf is a PDF reader"))->Font(16)->Fg(th.mutedFg));
         return canvas;
     }
     TempStr s = fmt("%s", tab->GetTabTitle());
@@ -2827,7 +2827,7 @@ MainWindow* AppShellCreateWindow(gp::App* app, int dipW, int dipH) {
     // orig sets tabsInTitlebar from UseTabs when it creates the frame
     gp::WinOpts opts;
     opts.clientTitleBar = CanHaveTabsInTitlebar() && SettingsUseTabs();
-    gp::Window* gw = gp::WindowOpenView(app, GStrL("SumatraPDF"), dipW, dipH, ui->view.id, opts);
+    gp::Window* gw = gp::WindowOpenView(app, GStrL("SwiftLeaf"), dipW, dipH, ui->view.id, opts);
     auto* win = new MainWindow(gw);
     win->shell = ui;
     win->tabsInTitlebar = opts.clientTitleBar;

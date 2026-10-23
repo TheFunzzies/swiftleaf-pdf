@@ -5,7 +5,7 @@
 // Run: bun tests/issue-6023.ts [--no-build]
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
 import { FRAME_CLASS, sendCommandSync } from "./win-automation.ts";
 import { WM_KEYDOWN, WM_KEYUP, postMessage, sleep, waitForTopWindow, postChar } from "./winapi.ts";
@@ -85,7 +85,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-6023.pdf");
   writeFileSync(pdf, makeTextPdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client: ControlClient, proc) => {
       const frame = await waitForTopWindow(proc.pid!, FRAME_CLASS);

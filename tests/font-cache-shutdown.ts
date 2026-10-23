@@ -8,7 +8,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { withControlledSumatra } from "./control.ts";
+import { withControlledApp } from "./control.ts";
 import { makeEpub } from "./epub-relayout-stale-page.ts";
 import { EXE, runStandalone, tmpPath, writeAppdata } from "./util.ts";
 
@@ -29,7 +29,7 @@ export async function testit(): Promise<void> {
 
   for (let i = 0; i < PASSES; i++) {
     const logPath = join(dir, `log-${i}.txt`);
-    await withControlledSumatra(EXE, async () => {}, ["-appdata", appdata, "-log-to-file", logPath, epub]);
+    await withControlledApp(EXE, async () => {}, ["-appdata", appdata, "-log-to-file", logPath, epub]);
     const log = readFileSync(logPath, "utf8");
     // a stuck engine must not look like a pass: we leak the cache instead of freeing it
     if (log.includes("timed out waiting for engines")) {

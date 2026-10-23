@@ -45,6 +45,8 @@ void UpdateToolbarAfterThemeChange(MainWindow*);
 Rect GetToolbarButtonScreenRect(MainWindow*, int cmdId);
 void ToolbarNoteDropdownClosed();
 void TogglePdfAnnotationsToolbar(MainWindow*);
+// show a ribbon page (RibbonPage) as if its tab was clicked
+void ToolbarShowRibbonPage(MainWindow*, int page);
 void EnablePdfAnnotationsToolbar(MainWindow*);
 int ToolbarIconSize();
 
@@ -113,6 +115,8 @@ TempStr AnnotColorPopupStateTemp();
 // covered by other HWNDs. They need the right size
 constexpr int PageInfoId = (int)CmdLast + 16;
 constexpr int WarningMsgId = (int)CmdLast + 17;
+// the top bar's Menu button
+constexpr int TopBarMenuId = (int)CmdLast + 18;
 
 // the overlay toolbar's delayed-hide timer, on the toolbar's own host
 constexpr int kHideOverlayToolbarTimerId = 0x101;
@@ -177,6 +181,13 @@ struct ToolbarVirt {
     int ribbonTabRowDy = 0;
     int ribbonDy = 0;
     bool ribbonAnnotsVisible = false;
+    // PDFCraft top bar: ribbonTabs are its mode tabs (RibbonMode). topBarItems
+    // are Menu, the search box and the icon buttons at the right end
+    Vec<VirtCtrl*> topBarItems;
+    // the tools row under the top bar; collapsed for pages without one
+    ILayout* ribbonPanelsRow = nullptr;
+    // the tools row's height, padding included
+    int ribbonPanelsDy = 0;
 };
 
 Color TbTextColor();

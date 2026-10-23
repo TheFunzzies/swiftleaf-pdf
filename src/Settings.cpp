@@ -535,7 +535,7 @@ static const StructInfo gShortcutInfo = {
     gShortcutFields,
     "Cmd\0Key\0Name\0ToolbarText\0ToolbarSvgIcon",
     "command to run, e.g. CmdOpenFile. See [the list of "
-    "commands](https://www.sumatrapdfreader.org/docs/Commands)\0keyboard shortcut (e.g. Ctrl-Alt-F)\0name shown in "
+    "commands](https://github.com/TheFunzzies/swiftleaf-pdf)\0keyboard shortcut (e.g. Ctrl-Alt-F)\0name shown in "
     "command palette\0if given, shows in toolbar\0optional SVG icon for toolbar button; if both ToolbarSvgIcon and "
     "ToolbarText are set, the icon is used",
     false};
@@ -873,7 +873,7 @@ static const StructInfo gPointInfo = {
 
 static const FieldInfo gSettingsFields[] = {
     {(size_t)-1, SettingType::Comment,
-     (intptr_t)"For documentation, see https://www.sumatrapdfreader.org/settings/settings3-7.html"},
+     (intptr_t)"For documentation, see https://github.com/TheFunzzies/swiftleaf-pdf"},
     {(size_t)-1, SettingType::Comment, 0},
     {offsetof(Settings, defaultDisplayMode), SettingType::String, (intptr_t)"automatic"},
     {offsetof(Settings, defaultZoom), SettingType::String, (intptr_t)"fit page"},
@@ -912,6 +912,10 @@ static const FieldInfo gSettingsFields[] = {
     {offsetof(Settings, showToc), SettingType::Bool, true},
     {offsetof(Settings, alwaysShowSidebar), SettingType::Bool, false},
     {offsetof(Settings, sidebarOnRight), SettingType::Bool, false},
+    {offsetof(Settings, showToolsPanel), SettingType::Bool, true},
+    {offsetof(Settings, showCommentsPanel), SettingType::Bool, false},
+    {offsetof(Settings, showDocumentPanel), SettingType::Bool, false},
+    {offsetof(Settings, documentPanelMode), SettingType::Int, 0},
     {offsetof(Settings, sidebarWindowSize), SettingType::String, (intptr_t)""},
     {offsetof(Settings, showLinks), SettingType::Bool, false},
     {offsetof(Settings, highlightFormFields), SettingType::Bool, true},
@@ -1039,28 +1043,30 @@ static const FieldInfo gSettingsFields[] = {
 };
 const StructInfo gSettingsInfo = {
     sizeof(Settings),
-    163,
+    167,
     gSettingsFields,
     "\0\0DefaultDisplayMode\0DefaultZoom\0DisableJavaScript\0AllowExternalImages\0EnableTeXEnhancements\0EscToExit\0Ful"
     "lPathInTitle\0InverseSearchCmdLine\0LazyLoading\0MainWindowBackground\0NoHomeTab\0HomePageSortByFrequentlyRead\0Ho"
     "mePageViewMode\0FilePicker\0PrinterUI\0ReloadModifiedDocuments\0RememberOpenedFiles\0RememberStatePerDocument\0Res"
     "toreSession\0ReuseInstance\0ShowMenubar\0ShowMenubarWithTabs\0ShowPageNumberInTabs\0ShowHomePageReadingProgress\0S"
     "howChaptersInEbooks\0ShowTips\0CustomColors\0ShowToolbar\0Toolbar\0ToolbarPosition\0SearchUIFloating\0ShowFavorite"
-    "s\0SidebarBottomView\0SortFavoritesByName\0ShowToc\0AlwaysShowSidebar\0SidebarOnRight\0SidebarWindowSize\0ShowLink"
-    "s\0HighlightFormFields\0ClickEdgeToTurnPage\0DisableLinks\0ExplorerQuickLook\0RememberViewOffsetOnPageTurn\0MouseW"
-    "heelTurnsPage\0ScrollEdgeTurnsPage\0ShowDocumentFocusIndicator\0ShowAnnotationNotification\0ShowFileNavigateHint\0"
-    "ShowAnnotationAuthorInTooltip\0ShowTocPageNumbers\0AutoGenerateTOC\0ShowStartPage\0SidebarDx\0Scrollbars\0Scrollba"
-    "rInSinglePage\0SmoothScroll\0ScrollLineAmount\0SaveMemory\0PaddingAfterLastPage\0IgnoreDestinationZoom\0HighlightL"
-    "inkDestination\0CitationHoverDelay\0ReadAloudVoiceId\0ReadAloudSpeed\0ReadingAutoScrollSpeed\0ReadingBar\0FastScro"
-    "llOverScrollbar\0PreventSleepInFullscreen\0TabWidth\0Theme\0HelpTheme\0LastLightTheme\0LastDarkTheme\0DocumentColo"
-    "rsFollowTheme\0TocDy\0ToolbarCustomLayout\0ToolbarShowReadAloud\0ToolbarSize\0TreeFontName\0TreeFontSize\0UIFontSi"
-    "ze\0DisableAntiAlias\0EngineeringDrawingEnhance\0DisableAutoLinks\0UseSysColors\0UseTabs\0SelectionToolbar\0Select"
-    "ionToolbarLayout\0TabsMru\0CtrlTabSimple\0ZoomLevels\0ZoomIncrement\0\0FixedPageUI\0\0EBookUI\0\0ComicBookUI\0\0Im"
-    "ageUI\0\0ChmUI\0\0MarkdownUI\0\0HtmlUI\0\0ClaudeCode\0\0GrokBuild\0\0CodexBuild\0\0AntiGravity\0\0AIChatSidebarDx"
-    "\0\0TranslateToLang\0TranslateFromLang\0TranslateEngine\0\0Annotations\0\0ExternalViewers\0\0ForwardSearch\0\0Prin"
-    "terDefaults\0\0Fullscreen\0\0SelectionHandlers\0\0TextSnippets\0\0Shortcuts\0\0Themes\0\0TabGroups\0\0CustomScreen"
-    "DPI\0\0\0DefaultPasswords\0UiLanguage\0VersionToSkip\0WindowState\0WindowPos\0SearchUIWindowPos\0HelpWindowPos\0Fi"
-    "leStates\0SessionData\0ReopenOnce\0TimeOfLastUpdateCheck\0OpenCountWeek\0PropWinPos\0CheckForUpdates\0\0",
+    "s\0SidebarBottomView\0SortFavoritesByName\0ShowToc\0AlwaysShowSidebar\0SidebarOnRight\0ShowToolsPanel\0ShowComment"
+    "sPanel\0ShowDocumentPanel\0DocumentPanelMode\0SidebarWindowSize\0ShowLinks\0HighlightFormFields\0ClickEdgeTo"
+    "TurnPage\0DisableLinks\0ExplorerQuickLook\0R"
+    "ememberViewOffsetOnPageTurn\0MouseWheelTurnsPage\0ScrollEdgeTurnsPage\0ShowDocumentFocusIndicator\0ShowAnnotationN"
+    "otification\0ShowFileNavigateHint\0ShowAnnotationAuthorInTooltip\0ShowTocPageNumbers\0AutoGenerateTOC\0ShowStartPa"
+    "ge\0SidebarDx\0Scrollbars\0ScrollbarInSinglePage\0SmoothScroll\0ScrollLineAmount\0SaveMemory\0PaddingAfterLastPage"
+    "\0IgnoreDestinationZoom\0HighlightLinkDestination\0CitationHoverDelay\0ReadAloudVoiceId\0ReadAloudSpeed\0ReadingAu"
+    "toScrollSpeed\0ReadingBar\0FastScrollOverScrollbar\0PreventSleepInFullscreen\0TabWidth\0Theme\0HelpTheme\0LastLigh"
+    "tTheme\0LastDarkTheme\0DocumentColorsFollowTheme\0TocDy\0ToolbarCustomLayout\0ToolbarShowReadAloud\0ToolbarSize\0T"
+    "reeFontName\0TreeFontSize\0UIFontSize\0DisableAntiAlias\0EngineeringDrawingEnhance\0DisableAutoLinks\0UseSysColors"
+    "\0UseTabs\0SelectionToolbar\0SelectionToolbarLayout\0TabsMru\0CtrlTabSimple\0ZoomLevels\0ZoomIncrement\0\0FixedPag"
+    "eUI\0\0EBookUI\0\0ComicBookUI\0\0ImageUI\0\0ChmUI\0\0MarkdownUI\0\0HtmlUI\0\0ClaudeCode\0\0GrokBuild\0\0CodexBuild"
+    "\0\0AntiGravity\0\0AIChatSidebarDx\0\0TranslateToLang\0TranslateFromLang\0TranslateEngine\0\0Annotations\0\0Extern"
+    "alViewers\0\0ForwardSearch\0\0PrinterDefaults\0\0Fullscreen\0\0SelectionHandlers\0\0TextSnippets\0\0Shortcuts\0\0T"
+    "hemes\0\0TabGroups\0\0CustomScreenDPI\0\0\0DefaultPasswords\0UiLanguage\0VersionToSkip\0WindowState\0WindowPos\0Se"
+    "archUIWindowPos\0HelpWindowPos\0FileStates\0SessionData\0ReopenOnce\0TimeOfLastUpdateCheck\0OpenCountWeek\0PropWin"
+    "Pos\0CheckForUpdates\0\0",
     "\0\0default layout of pages. valid values: automatic, single page, facing, book view, continuous, continuous "
     "facing, continuous book view, page aspect. page aspect (3.7+): first open of a PDF, XPS, DjVu or PostScript file "
     "uses page 1 — taller than wide is continuous + fit width, wider than tall is single page + fit page; a remembered "
@@ -1069,7 +1075,7 @@ const StructInfo gSettingsInfo = {
     "true, a PDF may load an image stored in a separate file referenced by name (an external image stream); the file "
     "must sit next to the PDF. Off by default for security (matches Acrobat)\0if true, show the SyncTeX inverse search "
     "command line in Settings -> Options, so a double-click in the document can jump to the matching line in a LaTeX "
-    "editor\0if true, Esc key closes SumatraPDF. In presentation or fullscreen mode, Esc leaves that mode first\0if "
+    "editor\0if true, Esc key closes SwiftLeaf. In presentation or fullscreen mode, Esc leaves that mode first\0if "
     "true, show the full path to the document in the title bar\0pattern used to launch the LaTeX editor when doing "
     "inverse search\0if true, restoring a session delays loading each document until its tab is selected\0background "
     "color of the area around the document, traditionally yellow. Only applies to the Light theme; the default "
@@ -1082,7 +1088,7 @@ const StructInfo gSettingsInfo = {
     "doesn't remove it from the history. Also required for saving SessionData\0if true, store display settings for "
     "each document separately (i.e. everything after UseDefaultState in FileStates)\0if true, documents that were "
     "still open when the last window was closed (SessionData) are reopened at startup\0if true, open documents in the "
-    "already running SumatraPDF instead of starting a new one\0if true, show the menu bar (F9 toggles it; the choice "
+    "already running SwiftLeaf instead of starting a new one\0if true, show the menu bar (F9 toggles it; the choice "
     "is remembered across sessions)\0if true, show the menu bar when using tabs (useTabs = true)\0if true, show the "
     "current page as n/N after the file name on tabs\0if true, show reading progress (n/N, or chapter:page for ebooks) "
     "on home page thumbnails and list rows\0if true, a document with chapters (EPUB, MOBI) shows the current place as "
@@ -1100,15 +1106,17 @@ const StructInfo gSettingsInfo = {
     "sorted by page number\0if true, show the table of contents (Bookmarks) sidebar when the document has one\0if "
     "true, every document with bookmarks opens with the Bookmarks sidebar, even one that was closed with it hidden\0if "
     "true, put the bookmarks / favorites sidebar on the right of the window (left is the default; right-to-left UI "
-    "languages already put it on the right)\0valid values: (empty), keep, grow\0if true, draw a blue border around "
-    "links in the document\0if true, highlight empty fillable PDF form fields in pale blue so they are easy to "
-    "find\0if true, a click (not a drag) on the left fifth of the page area goes to the previous page and a click on "
-    "the right fifth goes to the next page (reversed in manga / right-to-left mode). Links, annotations and "
+    "languages already put it on the right)\0if true, show the All tools panel on the left of the window\0if true, "
+    "show the Comments panel on the right of PDF documents\0if true, show the Layers / Attachments panel on the right of "
+    "PDF documents\0which panel to show: 0 layers, 1 attachments\0valid values: (empty), keep, grow\0if true, draw a blue "
+    "border around links in the document\0if true, highlight empty fillable PDF form fields in pale blue so they are "
+    "easy to find\0if true, a click (not a drag) on the left fifth of the page area goes to the previous page and a "
+    "click on the right fifth goes to the next page (reversed in manga / right-to-left mode). Links, annotations and "
     "presentation-mode clicks are unchanged\0if true, document links are ignored so you can select and read (useful "
     "for drawings with many links); if false, clicking a link follows it\0if true, Space in File Explorer (or on the "
     "desktop) previews the selected file in a popup window, like macOS Quick Look. Esc or Space closes it; Left / "
     "Right open the previous / next file in the folder. Starts a small background helper at logon so it works even "
-    "when SumatraPDF is not open\0if true, next/previous page keeps the same view position on the page instead of "
+    "when SwiftLeaf is not open\0if true, next/previous page keeps the same view position on the page instead of "
     "jumping to the top (useful when zoomed in on similarly sized pages)\0if true, one mouse-wheel notch goes to the "
     "next / previous page instead of scrolling; combine with RememberViewOffsetOnPageTurn to read zoomed-in pages "
     "without touching the keyboard. Alt + wheel still scrolls, Shift + wheel scrolls horizontally and Ctrl + wheel "
@@ -1190,11 +1198,11 @@ const StructInfo gSettingsInfo = {
     "language\0remembered source language for selection translation; empty means Auto\0remembered engine for Translate "
     "Selection: Google, DeepL, Grok Build, Claude Code, OpenAI Codex or Antigravity\0\0default values for annotations "
     "in PDF documents\0\0list of additional external viewers for various file types. See [docs for more "
-    "information](https://www.sumatrapdfreader.org/docs/Customize-external-viewers)\0\0customization options for how "
+    "information](https://github.com/TheFunzzies/swiftleaf-pdf)\0\0customization options for how "
     "forward search results are shown (used from LaTeX editors)\0\0these override the default settings in the Print "
     "dialog\0\0options for fullscreen mode\0\0list of handlers for selected text, shown in context menu when text "
     "selection is active. See [docs for more "
-    "information](https://www.sumatrapdfreader.org/docs/Customize-search-translation-services)\0\0predefined text "
+    "information](https://github.com/TheFunzzies/swiftleaf-pdf)\0\0predefined text "
     "inserted as a free text annotation from the context menu or the command palette\0\0custom keyboard "
     "shortcuts\0\0color themes\0\0saved groups of tabs\0\0actual resolution of the main screen in DPI, used to show "
     "documents at their physical size; if 0 or negative, the resolution reported by Windows is used\0\0You're not "
@@ -1204,9 +1212,9 @@ const StructInfo gSettingsInfo = {
     "maximized, 3 is fullscreen, 4 is minimized\0default position (x, y) and size (width, height) of the "
     "window\0position/size of the floating find window (see SearchUIFloating)\0position/size of the in-app Help: "
     "Manual window\0history of opened files, most recently used first. A closed file stays here until it drops off the "
-    "list or the history is cleared\0windows and tabs still open when SumatraPDF was last closed; reopened at startup "
+    "list or the history is cleared\0windows and tabs still open when SwiftLeaf was last closed; reopened at startup "
     "if RestoreSession is true\0data required for reloading documents after an auto-update\0data required to determine "
-    "when SumatraPDF last checked for updates\0value required to determine recency for the OpenCount value in "
+    "when SwiftLeaf last checked for updates\0value required to determine recency for the OpenCount value in "
     "FileStates\0position of the document properties window\0if true, check once a day whether an update is "
     "available\0\0Settings below are not recognized by the current version",
     false};

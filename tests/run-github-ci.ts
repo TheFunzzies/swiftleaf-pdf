@@ -37,7 +37,7 @@ export const excludedTests: Record<string, string> = {
   // a TeX distribution is a big install we don't want on the runner; the LaTeX
   // suite itself (tests/latex.ts) is only in run-pre-release, not here
   "issue-5040": "needs pdflatex (MiKTeX / TeX Live)",
-  // agents.md flags this one as focus-dependent even on a developer machine;
+  // docs/development.md flags this one as focus-dependent even on a developer machine;
   // on a runner nothing has focus. Re-enable if it turns out to be fine.
   // (issue-1136 was the other one; it now waits on the home page's own state
   // over -dbg-control instead of on focus, so it runs here.)

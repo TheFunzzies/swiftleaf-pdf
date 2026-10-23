@@ -5,8 +5,8 @@
 // of MainWindow / WindowTab / HWND. The declarations below are copied
 // verbatim from orig, in orig's order; what the gpui shell replaced is gone.
 
-constexpr const char* kWebsiteURL = "https://www.sumatrapdfreader.org/";
-constexpr const char* kContributeTranslationsURL = "https://www.sumatrapdfreader.org/docs/Contribute-translation";
+constexpr const char* kWebsiteURL = "https://github.com/TheFunzzies/swiftleaf-pdf";
+constexpr const char* kContributeTranslationsURL = "https://github.com/TheFunzzies/swiftleaf-pdf";
 
 // in plugin mode the "file path" is the URL the document came from. ng: the
 // plugin host is step 17, so this is always empty for now
@@ -230,7 +230,7 @@ struct SettingsApplyState {
 SettingsApplyState GetSettingsApplyState();
 void ApplyChangedSettingsAndRelayout(const SettingsApplyState& before);
 // opens a page of the online documentation ("LaTeX-integration", ...)
-constexpr const char* kManualURL = "https://www.sumatrapdfreader.org/manual";
+constexpr const char* kManualURL = "https://github.com/TheFunzzies/swiftleaf-pdf";
 void LaunchDocumentation(Str page);
 
 TempStr GetSumatraDataDirTemp();

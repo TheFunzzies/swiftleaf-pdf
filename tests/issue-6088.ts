@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6088
+// Test for upstream issues #6088
 //
 // Dark theme + DocumentColorsFollowTheme = smart preserved figures that are
 // artwork drawn on a uniform light backdrop, so the backdrop stayed a bright
@@ -13,7 +13,7 @@
 import { deflateSync } from "node:zlib";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { withControlledSumatra } from "./control.ts";
+import { withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 import { captureWindowPixels } from "./winapi.ts";
 import { findCanvas, waitForFrame } from "./win-automation.ts";
@@ -141,7 +141,7 @@ export async function testit(): Promise<void> {
     ].join("\n"),
   );
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

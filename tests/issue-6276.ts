@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6276
+// Regression test for upstream issues #6276
 //
 // `sumatrapdf-tool grep` printing UTF-8 matches to a console with a DBCS code
 // page (936) failed with "cannot fwrite: No space left on device". The failure

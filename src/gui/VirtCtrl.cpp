@@ -17,6 +17,7 @@
 #include "gui/GuiColors.h"
 #include "gui/VirtHost.h"
 #include "Theme.h"
+#include "Material.h"
 #include "gui/VirtCtrl.h"
 
 //--- VirtCtrl
@@ -2300,7 +2301,18 @@ void VirtSplitter::Paint(VirtPaintCtx& ctx) {
     if (ColorSkipsPaint(bg)) {
         return;
     }
-    ctx.gfx->FillRect(ctx.bounds, AccentColor(bg, 30));
+    ctx.gfx->FillRect(ctx.bounds, bg);
+    // a 1px divider in the middle of the grab area, like a panel border
+    Rect r = ctx.bounds;
+    int line = std::max(1, DpiScale(1));
+    if (type == SplitterType::Vert) {
+        r.x += (r.dx - line) / 2;
+        r.dx = line;
+    } else {
+        r.y += (r.dy - line) / 2;
+        r.dy = line;
+    }
+    ctx.gfx->FillRect(r, GetColor(kColLineFg));
 }
 
 void VirtSplitter::OnMouseDown(VirtMouseEvent* ev) {
@@ -2733,7 +2745,7 @@ Color VirtButton::TextColor(Color bg) const {
     return EnsureContrast(textCol, bg);
 }
 
-// Swiftleaf: a Material pill, filled and / or outlined by the palette
+// Swiftleaf: a rounded rect, filled and / or outlined by the palette
 void VirtButton::Paint(VirtPaintCtx& ctx) {
     bool isEnabled = HasFlag(vwfEnabled);
     Color bg = GetColor((isEnabled && HasFlag(vwfHovered)) ? kColBtnBgHover : kColBtnBg);
@@ -2746,7 +2758,7 @@ void VirtButton::Paint(VirtPaintCtx& ctx) {
         borderCol = kColorTransparent;
     }
     Rect pill = ctx.bounds;
-    int radius = pill.dy; // FillRoundedRect takes the corner diameter
+    int radius = std::min(pill.dy, DpiScale(kChromeCornerDiameter)); // FillRoundedRect takes the diameter
     ctx.gfx->FillRoundedRect(pill, radius, bg, borderCol);
     Rect r = ctx.content;
     r.SubTB(textPadding.top, textPadding.bottom);
@@ -2763,7 +2775,7 @@ void VirtButton::Paint(VirtPaintCtx& ctx) {
         b.SubLR(2, 2);
         Color col = (textCol != kColorUnset) ? textCol : borderCol;
         if (col != kColorUnset && !b.IsEmpty()) {
-            ctx.gfx->FillRoundedRect(b, b.dy, kColorTransparent, col);
+            ctx.gfx->FillRoundedRect(b, std::max(0, radius - DpiScale(2)), kColorTransparent, col);
         }
     }
 }
@@ -3538,7 +3550,7 @@ bool VirtTreeOnMessage(HWND hwnd, VirtRoot* root, UINT msg, WPARAM wp, LPARAM lp
 
 // A small markup with links, keyboard shortcuts and bold runs, parsed into a
 // VirtRichText: a virtual control that wraps, paints and hit-tests itself.
-// Shared by SumatraPDF's home page and notifications, and by other apps in the
+// Shared by SwiftLeaf's home page and notifications, and by other apps in the
 // family. What it needs from the app is a CommandsContext (see VirtCtrl.h) and a
 // way to open a url.
 

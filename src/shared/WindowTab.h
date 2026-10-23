@@ -153,6 +153,9 @@ struct WindowTab {
     // state of the table of contents
     bool showToc = false;
     bool showTocPresentation = false;
+    // Reset before controller replacement/destruction, never keyed by address.
+    int formFieldCount = -1;
+    bool formBannerDismissed = false;
 #if defined(SUMATRA_NG)
     SidebarContent sidebarContent = SidebarContent::Bookmarks;
 #else

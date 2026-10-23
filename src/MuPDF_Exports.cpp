@@ -5,7 +5,7 @@
 // as exporting/importing them prevents sharing of .obj
 // files for all files using them - instead we can just
 // link this file along libsumatrapdf.lib and omit it when
-// building a static SumatraPDF.exe.
+// building a static Swiftleaf.exe.
 
 #include "base/Base.h"
 

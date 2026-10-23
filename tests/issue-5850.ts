@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5850
+// Test for upstream issues #5850
 //
 // With Scrollbars = windows, UseTabs = false and a maximized window, opening a
 // document from a cold start left the canvas's vertical scrollbar as a blank
@@ -52,7 +52,7 @@ export async function testit(): Promise<void> {
     await client.waitForRenderIdle();
     const canvas = findCanvas(frame);
     if (!canvas) {
-      throw new Error("SumatraPDF canvas window not found");
+      throw new Error("SwiftLeaf canvas window not found");
     }
     // the scrollbar must paint on its own after startup relayout (no hover)
     const deadline = Date.now() + 5000;

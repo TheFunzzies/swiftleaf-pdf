@@ -1,12 +1,12 @@
 @echo off
-REM VS / ninja prebuild helper: stages everything SumatraPDF.exe embeds under
+REM VS / ninja prebuild helper: stages everything Swiftleaf.exe embeds under
 REM out\<cfg>\ and packs it into one LzSA archive linked as IDR_EMBEDDED_PAK
 REM (SumatraPDF.rc gets its path via the EMBEDDED_PAK resdefine, see premake5.lua).
 REM
 REM   pack-embedded-prebuild.cmd <staging dir> <archive> [<file>[:<in-archive name>] ...]
 REM
 REM   SumatraPDF-static:  out\<cfg>\embedded-static  ->  out\<cfg>\embedded-static.lzsa
-REM   SumatraPDF:         out\<cfg>\embedded         ->  out\<cfg>\embedded.lzsa
+REM   SwiftLeaf:         out\<cfg>\embedded         ->  out\<cfg>\embedded.lzsa
 REM                       plus libsumatrapdf.dll & co (the installer payload)
 REM                       passed as extra files
 REM

@@ -123,7 +123,7 @@ export function runPrintToPdf(
 }
 
 export function tempPrintOutput(name: string): string {
-  return join(tmpdir(), `sumatra-print-test-${name}-${Date.now()}.pdf`);
+  return join(tmpdir(), `swiftleaf-print-test-${name}-${Date.now()}.pdf`);
 }
 
 export function requirePrintToPdf(): void {

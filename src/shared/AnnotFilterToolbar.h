@@ -23,3 +23,5 @@ void AnnotFilterTestAction(MainWindow*, Str action, int arg, int mods);
 void AnnotFilterTick(MainWindow*, int elapsedMs);
 gpui::El* AnnotFilterListBuild(MainWindow*, gpui::Ctx*);
 TempStr AnnotFilterToolbarStateTemp(MainWindow*);
+
+void EnsureCommentsPanel(MainWindow*);

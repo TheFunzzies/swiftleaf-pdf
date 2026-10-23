@@ -1,6 +1,6 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5633
+// Test for upstream issues #5633
 //
-// Verifies that SumatraPDF's SyncTeX reverse/forward-search works for all three
+// Verifies that SwiftLeaf's SyncTeX reverse/forward-search works for all three
 // on-disk synctex layouts:
 //   1. plain   .synctex           (uncompressed text)
 //   2. gzip    .synctex.gz        (gzip with the .gz extension)

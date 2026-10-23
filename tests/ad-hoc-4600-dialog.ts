@@ -133,7 +133,7 @@ async function launch(epub: string): Promise<Launched> {
   const proc = Bun.spawn([EXE, "-appdata", APPDATA, epub], { stdout: "ignore", stderr: "ignore" });
   const frame = await waitForFrame(proc.pid!);
   if (!frame) {
-    throw new Error("SumatraPDF window didn't open");
+    throw new Error("SwiftLeaf window didn't open");
   }
   showWindow(frame, SW_RESTORE);
   moveWindow(frame, 40, 40, 1000, 800);
@@ -174,7 +174,7 @@ async function openDialog(l: Launched): Promise<number> {
 export async function testit(): Promise<void> {
   makeFixtures();
   const epub = join(OUT, "none.epub");
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
 
   // --- both states of the CSS box ---------------------------------------
   writeSettings([]);

@@ -235,6 +235,17 @@ bool EngineMupdfCadEnhanceActive(EngineBase* engine);
 void EngineMupdfInvalidateDarkMode(EngineBase* engine);
 Str EngineMupdfLoadAttachment(EngineBase*, int attachmentNo);
 Str EngineMupdfLoadAnnotAttachment(EngineBase*, int objNum);
+int EngineMupdfCountFormFields(EngineBase*);
+int EngineMupdfGetLayerCount(EngineBase*);
+Str EngineMupdfGetLayerName(EngineBase*, int layer);
+bool EngineMupdfIsLayerEnabled(EngineBase*, int layer);
+bool EngineMupdfSetLayerEnabled(EngineBase*, int layer, bool enabled);
+struct PdfAttachment {
+    Str name; // owned by the caller
+    i64 size = -1;
+};
+// One name-tree traversal; entries follow EngineMupdfLoadAttachment's 1-based order.
+void EngineMupdfGetAttachments(EngineBase*, Vec<PdfAttachment>&);
 TempStr EngineMupdfGetPdfInfo(Str path);
 TempStr EngineMupdfGetPdfOutline(Str path);
 

@@ -1,7 +1,5 @@
-// Find Annotation (issue #6086): the annotation filter used to be a search box
-// on the main toolbar that crowded out the other buttons. It now lives only in
-// the floating Annotations window, which a button near the end of the Edit PDF
-// toolbar opens and closes.
+// Find Annotation keeps the filter off the ribbon and toggles the docked
+// Comments panel. Preserve navigation, filtering, selection and deletion checks.
 //
 // Covers: the toggle, the list and its keyboard nav, Esc, click / double-click,
 // multi-select and Delete.
@@ -9,20 +7,20 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control";
+import { COMMENTS_PANEL_CLASS, waitCommentsPanel } from "./comments-panel.ts";
 import { assemblePdf, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util";
 import {
   captureWindowToPng,
   enumChildWindows,
-  findTopWindow,
   getClassName,
   getClientRect,
   getFocusedHwnd,
-  getWindowPid,
   isWindowVisible,
   packCoords,
   sendMessage,
   sendText,
   sleep,
+  setProcessDpiAware,
   VK_DELETE,
   VK_DOWN,
   WM_KEYDOWN,
@@ -44,7 +42,6 @@ import {
 } from "./win-automation";
 
 const TOOLBAR_CLASS = "SUMATRA_VIRT_TOOLBAR";
-const FLOAT_CLASS = "SUMATRA_ANNOT_FILTER_WND";
 const CANVAS_CLASS = "SUMATRA_PDF_CANVAS";
 
 type FilterState = {
@@ -159,9 +156,9 @@ async function waitFocusedClass(frame: number, want: string, what: string): Prom
   }
 }
 
-function floatEditHwnd(floatWnd: number): number {
+function panelEditHwnd(panelWnd: number): number {
   let e = 0;
-  enumChildWindows(floatWnd, (hwnd) => {
+  enumChildWindows(panelWnd, (hwnd) => {
     if (getClassName(hwnd) === "Edit" && isWindowVisible(hwnd)) {
       e = hwnd;
       return false;
@@ -172,6 +169,7 @@ function floatEditHwnd(floatWnd: number): number {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("annot-filter-toolbar");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -182,7 +180,6 @@ export async function testit(): Promise<void> {
   try {
     await client.waitForRenderIdle();
     await client.setNotificationsEnabled(false);
-    const pid = getWindowPid(frame);
     sendCommandSync(frame, cmdId("CmdToggleEditPDF"));
 
     // the main toolbar no longer carries a filter box (#6086)
@@ -201,25 +198,25 @@ export async function testit(): Promise<void> {
     if (nEdits > 1) {
       throw new Error(`annot-filter-toolbar: toolbar still has a filter box (${nEdits} edits)`);
     }
-    if (findTopWindow(pid, FLOAT_CLASS)) {
+    if (isWindowVisible(findChildByClass(frame, COMMENTS_PANEL_CLASS))) {
       throw new Error("annot-filter-toolbar: annotation list opened without being asked for");
     }
 
-    // Find Annotation opens the floating list
+    // Find Annotation opens the docked Comments panel
     sendCommand(frame, cmdId("CmdFindAnnotation"));
     let st = await waitFilter(client, (s) => s.floatVisible && s.nAll >= 2, 8000);
     if (st.discardEnabled || st.saveEnabled) {
       throw new Error(`annot-filter-toolbar: save/discard should be disabled with no changes\n${st.raw}`);
     }
-    const floatWnd = findTopWindow(pid, FLOAT_CLASS);
-    if (!floatWnd || !isWindowVisible(floatWnd)) {
-      throw new Error("annot-filter-toolbar: floating annotation list window not visible");
+    const panelWnd = await waitCommentsPanel(client, frame, true);
+    if (!panelWnd || !isWindowVisible(panelWnd)) {
+      throw new Error("annot-filter-toolbar: Comments panel not visible");
     }
-    captureWindowToPng(floatWnd, join(dir, "floating.png"));
+    captureWindowToPng(panelWnd, join(dir, "comments-panel.png"));
 
-    const edit = floatEditHwnd(floatWnd);
+    const edit = panelEditHwnd(panelWnd);
     if (!edit) {
-      throw new Error("annot-filter-toolbar: floating window has no Edit");
+      throw new Error("annot-filter-toolbar: Comments panel has no filter Edit");
     }
     const editRc = getClientRect(edit);
     await clickAt(edit, Math.floor(editRc.right / 2), Math.floor(editRc.bottom / 2), 200);
@@ -240,22 +237,23 @@ export async function testit(): Promise<void> {
     // click and double-click in the list
     st = await waitFilter(client, (s) => s.itemDy > 0);
     const lp = packCoords(24, st.listY + Math.floor(st.itemDy / 2));
-    sendMessage(floatWnd, WM_LBUTTONDOWN, MK_LBUTTON, lp);
-    sendMessage(floatWnd, WM_LBUTTONUP, 0, lp);
+    sendMessage(panelWnd, WM_LBUTTONDOWN, MK_LBUTTON, lp);
+    sendMessage(panelWnd, WM_LBUTTONUP, 0, lp);
     st = await waitFilter(client, (s) => s.sel >= 0);
-    sendMessage(floatWnd, WM_LBUTTONDBLCLK, MK_LBUTTON, lp);
+    sendMessage(panelWnd, WM_LBUTTONDBLCLK, MK_LBUTTON, lp);
     await waitPageSelected(client, "double-click did not select the annotation");
 
     // Ctrl+click adds to the selection; Del removes both annotations
     st = await waitFilter(client, (s) => s.nSel >= 1 && s.deleteEnabled);
-    await clickAt(floatWnd, 24, st.listY + st.itemDy + Math.floor(st.itemDy / 2), 200, MK_CONTROL);
+    await clickAt(panelWnd, 24, st.listY + st.itemDy + Math.floor(st.itemDy / 2), 200, MK_CONTROL);
     st = await waitFilter(client, (s) => s.nSel >= 2);
-    await pressKey(floatWnd, VK_DELETE, 400);
+    await pressKey(panelWnd, VK_DELETE, 400);
     st = await waitFilter(client, (s) => s.nAll === 0 && s.nSel === 0 && !s.deleteEnabled);
 
-    // Find Annotation again closes it
+    // Find Annotation again hides the panel
     sendCommand(frame, cmdId("CmdFindAnnotation"));
     st = await waitFilter(client, (s) => !s.floatVisible);
+    await waitCommentsPanel(client, frame, false);
   } finally {
     client.close();
     await killAndWait(proc);

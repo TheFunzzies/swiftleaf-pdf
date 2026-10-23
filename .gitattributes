@@ -1,9 +1,27 @@
-# Disable LF normalization for all files
+# Disable LF normalization for files without an explicit text rule.
 * -text
-docs/**/*.md          text eol=lf
-cmd/**/*.ts           text eol=lf
+
+# Project text uses LF in the repository and working tree.
+docs/*.md             text eol=lf
+docs/**/*.md           text eol=lf
+cmd/**/*.ts            text eol=lf
 src/**/*.cpp           text eol=lf
 src/**/*.h             text eol=lf
 src/**/*.c             text eol=lf
+
+# Visual Studio project files and resource scripts use CRLF on Windows.
 vs2022/*.vcxproj       text eol=crlf
 vs2022/*.sln           text eol=crlf
+*.rc                   text eol=crlf
+
+# Executables and image assets are binary.
+bin/*.exe              -text
+*.bmp                  -text
+*.gif                  -text
+*.ico                  -text
+*.jpeg                 -text
+*.jpg                  -text
+*.png                  -text
+*.tif                  -text
+*.tiff                 -text
+*.webp                 -text

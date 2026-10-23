@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/2799
+// Regression test for upstream issues #2799
 // (and the related #3310 page-level outline destinations).
 //
 // Page-level outline entries (/Fit, /XYZ with null coords) must land on the
@@ -12,7 +12,7 @@
 // Run:  bun tests/issue-2799.ts [--no-build]   (or via tests/run-almost-all.ts)
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const PDF = tmpPath("issue-2799-page-dests.pdf");
@@ -67,7 +67,7 @@ async function navigate(client: ControlClient, destNo: number): Promise<string> 
 export async function testit(): Promise<void> {
   writeFileSync(PDF, makePdf());
 
-  const results = await withControlledSumatra(
+  const results = await withControlledApp(
     EXE,
     async (client) => {
       const out: string[] = [];

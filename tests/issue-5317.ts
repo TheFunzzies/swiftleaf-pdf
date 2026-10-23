@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5317
+// Test for upstream issues #5317
 //
 // Comic archives whose images live in chapter folders should show those
 // folders as nested Bookmarks entries. A single shared directory is stripped
@@ -8,7 +8,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 // 1x1 transparent PNG
@@ -131,7 +131,7 @@ export async function testit(): Promise<void> {
   ]);
   const flatWant = ["001.png|page=1", "002.png|page=2"].join("\n") + "\n";
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const nestedGot = await tocOf(client, nested);
     if (nestedGot !== nestedWant) {
       throw new Error(`issue-5317: nested TOC mismatch.\nexpected:\n${nestedWant}got:\n${nestedGot}`);

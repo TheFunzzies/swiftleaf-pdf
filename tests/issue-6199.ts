@@ -2,7 +2,7 @@
 // badge). Seed FileStates with PageNo / PageCount and check the list dump.
 import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control";
+import { ControlClient, ControlCommand, withControlledApp } from "./control";
 import { EXE, ROOT, runStandalone, tmpPath } from "./util";
 
 type Row = { size: string; progress: string; path: string };
@@ -64,7 +64,7 @@ async function rowsFor(
   files: { path: string; pageNo: string; pageCount: number }[],
 ): Promise<Row[]> {
   writeFileSync(join(dir, "SumatraPDF-settings.txt"), settingsFor(dir, showProgress, files));
-  return withControlledSumatra(EXE, (client) => homeListRows(client), ["-appdata", dir]);
+  return withControlledApp(EXE, (client) => homeListRows(client), ["-appdata", dir]);
 }
 
 export async function testit(): Promise<void> {

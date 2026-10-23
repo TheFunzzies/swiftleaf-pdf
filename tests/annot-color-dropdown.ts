@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control.ts";
 import { SETTINGS_FILE_NAME, assemblePdf, cmdId, pollUntil, runStandalone, tmpPath } from "./util.ts";
 import {
+  setProcessDpiAware,
   clientToScreen,
   enumWindows,
   findTopWindow,
@@ -653,6 +654,7 @@ async function testCurrentColorAdded(): Promise<void> {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   await testMarkup();
   await testShape();
   await testToolbarButtons();

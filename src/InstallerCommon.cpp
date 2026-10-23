@@ -373,7 +373,7 @@ void UnRegisterSearchFilter() {
         return;
     }
     log(StrL("  failed to unregister\n"));
-    NotifyFailed(Tr("Couldn't uninstall Sumatra search filter"));
+    NotifyFailed(Tr("Couldn't uninstall SwiftLeaf search filter"));
 }
 
 constexpr const char* kPreviewDllName = "PdfPreview.dll";
@@ -504,7 +504,7 @@ int KillProcessesWithModule(Str modulePath, bool waitUntilTerminated) {
 }
 
 // Kill processes that have any of our install-dir modules loaded:
-// libsumatrapdf.dll, PdfFilter.dll, PdfPreview.dll, SumatraPDF.exe.
+// libsumatrapdf.dll, PdfFilter.dll, PdfPreview.dll, Swiftleaf.exe.
 // dllhost/prevhost/SearchFilterHost load the shell-extension DLLs; they may
 // keep PdfFilter.dll locked even after libsumatrapdf.dll was renamed aside.
 // returns false if there are processes and we failed to kill them

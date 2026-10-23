@@ -719,7 +719,7 @@ function wasmShellFile(dir: string): string {
   const at = shell.lastIndexOf(marker);
   if (at < 0) throw new Error("ext/gpui/web/shell.html has no {{{ SCRIPT }}} marker");
   const spliced = `${shell.slice(0, at)}<script>\n${js}\n</script>\n    ${shell.slice(at)}`;
-  const out = spliced.replace("<title>gpui</title>", "<title>SumatraPDF</title>");
+  const out = spliced.replace("<title>gpui</title>", "<title>SwiftLeaf</title>");
   const path = join(dir, "generated", "shell.html");
   mkdirSync(dirname(path), { recursive: true });
   if (!existsSync(path) || readFileSync(path, "utf8") !== out) writeFileSync(path, out);

@@ -15,7 +15,7 @@
 //
 // The defaults start out as the colors the OS draws its own UI in
 // (GuiSetDefaultColorsFromSystem()). An app with a theme of its own overwrites
-// them after a theme change - SumatraPDF does that in SumatraUpdateTheme().
+// them after a theme change - SwiftLeaf does that in SumatraUpdateTheme().
 // That is the whole of the app -> gui color coupling: gui/ never asks the app
 // for a color, the app pushes its palette into these arrays.
 //

@@ -24,6 +24,26 @@ enum class RibbonPage {
     Count,
 };
 
+// PDFCraft's mode tabs in the top bar. Each shows one ribbon page; All tools
+// shows none (its tools are in the All tools panel). The other pages are in
+// the Menu button's drop-down
+enum class RibbonMode {
+    AllTools = 0,
+    Read,
+    Edit,
+    Convert,
+    ESign,
+    Count,
+};
+
+int RibbonModeCount();
+Str RibbonModeName(RibbonMode);
+RibbonPage RibbonModePage(RibbonMode);
+// the mode whose tab is active while a page is shown, -1 for none
+int RibbonModeForPage(RibbonPage);
+// the page's tools row is shown under the top bar
+bool RibbonPageHasPanel(RibbonPage);
+
 // one button on a ribbon page; a null icon with cmdId 0 is a group separator
 struct RibbonItemDef {
     const char* icon = nullptr;
@@ -53,13 +73,14 @@ Color RibbonSelectedBgColor();
 Color RibbonEdgeColor();
 Color RibbonIconColor(int cmdId);
 int RibbonLargeIconSize();
+int RibbonSmallIconSize();
 // height of a RibbonButton / RibbonTab drawn in this font
 int RibbonButtonDy(PlatformFont*);
 int RibbonTabDy(PlatformFont*);
 // an SVG icon drawn with a heavier stroke, which reads better at ribbon size
 Pixmap* RibbonIconPixmap(Str svg, int size, Color fg, Color bg);
 
-// a large button: icon on top, short label underneath
+// a tool button: icon with a short label beside it
 struct RibbonButton : VirtIconButton {
     Str label; // owned
     PlatformFont* font = nullptr;
@@ -67,6 +88,8 @@ struct RibbonButton : VirtIconButton {
     Color textColorDisabled = kColorUnset;
     // too little room for the page: icon only (the label is in the tooltip)
     bool compact = false;
+    bool alignStart = false;
+    bool isRtl = false;
 
     RibbonButton();
     ~RibbonButton() override;
@@ -106,3 +129,21 @@ RibbonTab* AsRibbonTab(ILayout*);
 struct RibbonTabRow : HBox {
     Size Layout(Constraints bc) override;
 };
+
+// PDFCraft's "Find tools and commands" field. It only looks like an edit: a
+// click opens the command palette, which does the searching
+struct RibbonSearchBox : VirtCtrl {
+    Str placeholder; // owned
+    Str shortcut;    // owned, e.g. "Ctrl+K"
+    PlatformFont* font = nullptr;
+    Pixmap* icon = nullptr;
+
+    RibbonSearchBox(Str placeholder, Str shortcut, PlatformFont*);
+    ~RibbonSearchBox() override;
+
+    Size GetIdealSize() override;
+    void Paint(VirtPaintCtx&) override;
+    void OnHoverChanged();
+};
+
+RibbonSearchBox* AsRibbonSearchBox(ILayout*);

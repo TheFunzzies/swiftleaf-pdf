@@ -4,16 +4,16 @@
 
 import { EXE, runStandalone } from "./util.ts";
 import { getWindowPid, sendCopyDataW, sleep } from "./winapi.ts";
-import { launchSumatra, waitForFrame, killAndWait } from "./win-automation.ts";
+import { launchApp, waitForFrame, killAndWait } from "./win-automation.ts";
 
 const kCopyDataDdeW = 0x44646557;
 
 export async function testit(): Promise<void> {
-  const proc = launchSumatra([]);
+  const proc = launchApp([]);
   try {
     const frame = await waitForFrame(proc.pid);
     if (!frame) {
-      throw new Error("SumatraPDF start-page window did not appear");
+      throw new Error("SwiftLeaf start-page window did not appear");
     }
 
     const missingExe = `${EXE}.ghsa-p2ph-2rvm-q37m-missing`;
@@ -23,7 +23,7 @@ export async function testit(): Promise<void> {
     const deadline = Date.now() + 250;
     while (Date.now() < deadline) {
       if (proc.exitCode !== null || getWindowPid(frame) !== proc.pid) {
-        throw new Error("CmdExec with no document tab terminated SumatraPDF");
+        throw new Error("CmdExec with no document tab terminated SwiftLeaf");
       }
       await sleep(20);
     }

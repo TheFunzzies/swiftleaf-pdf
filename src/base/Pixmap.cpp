@@ -605,7 +605,7 @@ Pixmap* PixmapToBgr(Pixmap* p) {
 // over an arbitrary background (toolbar icons on the home page) needs this.
 //
 // The compositing is done by hand rather than with AlphaBlend() or GDI+:
-// msimg32 and GdiPlusUtil are linked into SumatraPDF.exe but not into the other
+// msimg32 and GdiPlusUtil are linked into Swiftleaf.exe but not into the other
 // consumers of base (PdfFilter, PdfPreview, ...). Reading the destination back
 // costs a BitBlt, which is nothing at icon sizes.
 //
@@ -820,6 +820,8 @@ void RecolorPixmap(Pixmap* px, Color textColor, Color bgColor, Color linkColor, 
 static Pixmap* PixmapFromHBITMAPPixels(HBITMAP hbmp) {
     BITMAP bmp{};
     if (!GetObject(hbmp, sizeof(bmp), &bmp) || bmp.bmWidth <= 0 || bmp.bmHeight <= 0) {
+        logf("PixmapFromHBITMAPPixels: GetObject(%p) failed error=%lu sequence=%lu\n", hbmp, GetLastError(),
+             GetClipboardSequenceNumber());
         return nullptr;
     }
     int w = bmp.bmWidth;
@@ -842,6 +844,8 @@ static Pixmap* PixmapFromHBITMAPPixels(HBITMAP hbmp) {
         ReleaseDC(nullptr, hdc);
     }
     if (!n) {
+        logf("PixmapFromHBITMAPPixels: GetDIBits(%p, %dx%d) failed error=%lu sequence=%lu\n", hbmp, w, h,
+             GetLastError(), GetClipboardSequenceNumber());
         FreePixmap(pixmap);
         return nullptr;
     }
@@ -859,7 +863,7 @@ Pixmap* GetClipboardImageAsPixmap() {
     constexpr int kTries = 10;
     constexpr int kPauseMs = 20;
     for (int i = 0; i < kTries; i++) {
-        if (!OpenClipboard(nullptr)) {
+        if (!OpenClipboard(GetClipboardOwnerWnd())) {
             Sleep(kPauseMs);
             continue;
         }

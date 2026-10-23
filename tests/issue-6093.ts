@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6093
+// Test for upstream issues #6093
 //
 // Scrollbars = smart drew nothing: the overlay scrollbar was shown, but
 // SetWindowPos put it after (i.e. below) the main frame, so the frame painted
@@ -17,7 +17,7 @@ import {
   isWindowVisible,
   sleep,
 } from "./winapi.ts";
-import { withControlledSumatra } from "./control.ts";
+import { withControlledApp } from "./control.ts";
 import { sendCommand, waitForFrame } from "./win-automation.ts";
 
 const SCROLLBAR_CLASS = "SUMATRA_OVERLAY_SCROLLBAR";
@@ -45,7 +45,7 @@ export async function testit(): Promise<void> {
     ].join("\n"),
   );
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

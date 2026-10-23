@@ -1,4 +1,4 @@
-// Ad-hoc regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5958
+// Ad-hoc regression test for upstream issues #5958
 //
 // CmdToggleKeyboardHelp ("?") created the help window but nothing showed up on
 // screen: the window is an owned WS_POPUP, GetParent() returns its owner, so
@@ -32,7 +32,7 @@ import {
   sleep,
   type Rect,
 } from "./winapi.ts";
-import { launchSumatra, sendCommand, waitForFrame, killAndWait } from "./win-automation.ts";
+import { launchApp, sendCommand, waitForFrame, killAndWait } from "./win-automation.ts";
 
 const HELP_TITLE = "Keyboard Shortcuts";
 
@@ -86,7 +86,7 @@ function fmtRow(a: number[]): string {
 }
 
 export async function testit(): Promise<void> {
-  const proc = launchSumatra([]);
+  const proc = launchApp([]);
   const pid = proc.pid!;
   try {
     const frame = await waitForFrame(pid);

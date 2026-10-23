@@ -71,7 +71,7 @@ export type Target = {
   strict: boolean;
   /** -profile: compile with /callcap so orig's PerfLog sees every function */
   callcap?: boolean;
-  /** compile C++ with exceptions on (orig SumatraPDF default); gpui and mupdf are off */
+  /** compile C++ with exceptions on (orig SwiftLeaf default); gpui and mupdf are off */
   exceptions?: boolean;
   /** third-party libs orig compiles optimized even in debug builds */
   alwaysOptimize?: boolean;
@@ -1145,7 +1145,7 @@ export const targets: Target[] = [
     },
   },
   {
-    // orig's engines_files() (compiled into SumatraPDF there) as its own lib:
+    // orig's engines_files() (compiled into SwiftLeaf there) as its own lib:
     // the document engines and the model code they need. No UI.
     name: "engines",
     kind: "staticlib",
@@ -1154,7 +1154,7 @@ export const targets: Target[] = [
     defines: [
       "LIBARCHIVE_STATIC",
       "CMARK_GFM_STATIC_DEFINE",
-      // orig's SumatraPDF project: don't honor a PDF's "don't copy text" flag
+      // orig's SwiftLeaf project: don't honor a PDF's "don't copy text" flag
       "DISABLE_DOCUMENT_RESTRICTIONS",
     ],
     includes: [
@@ -1243,7 +1243,7 @@ export const targets: Target[] = [
     exceptions: true,
   },
   {
-    // minimal host for SumatraPDF -plugin mode (orig src/tools/plugin-test.cpp)
+    // minimal host for SwiftLeaf -plugin mode (orig src/tools/plugin-test.cpp)
     name: "plugin-test",
     kind: "app",
     sources: ["src/ng/tools/plugin-test.cpp"],
@@ -1334,7 +1334,7 @@ export const targets: Target[] = [
     exceptions: true,
   },
   {
-    name: "SumatraPDF",
+    name: "SwiftLeaf",
     kind: "app",
     callcap: true,
     sources: [
@@ -1484,7 +1484,7 @@ export function targetsFor(plat: Platform): Target[] {
 }
 
 /** The default build: the app plus everything it depends on. */
-export const defaultTarget = "SumatraPDF";
+export const defaultTarget = "SwiftLeaf";
 
 // Suffix a platform-specific source carries and the platforms it builds on.
 // A unit test of a platform file carries the same suffix before `_ut`

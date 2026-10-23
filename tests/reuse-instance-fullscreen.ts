@@ -2,7 +2,7 @@
 // handed over to it (-reuse-instance) instead of being dropped.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, runStandalone, tmpPath } from "./util.ts";
 import { sleep } from "./winapi.ts";
 
@@ -49,7 +49,7 @@ export async function testit(): Promise<void> {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SumatraPDF-settings.txt"), SETTINGS);
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle();

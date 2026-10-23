@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5964
+// Test for upstream issues #5964
 //
 // A PDF prepared for signing has an empty signature field. Clicking it used to
 // do nothing - the only way to sign was to find Sign Document in a menu. Now a

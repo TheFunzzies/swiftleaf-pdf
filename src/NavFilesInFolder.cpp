@@ -36,7 +36,7 @@
 #include "FilterHighlightDraw.h"
 #include "NavFilesInFolder.h"
 
-// A modeless directory browser listing sub-directories and files SumatraPDF
+// A modeless directory browser listing sub-directories and files SwiftLeaf
 // can open (judged by extension). Enter / double-click replaces the document
 // in the current tab or descends into a directory; Ctrl + Enter / Ctrl +
 // double-click switches to the tab already showing the file or opens it in a

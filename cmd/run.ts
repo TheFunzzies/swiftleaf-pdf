@@ -11,7 +11,7 @@ interface RunOptions {
 
 const usage = `Usage: bun cmd/run.ts <-dbg | -rel> [-asan] [-clean]
 
-Build and run SumatraPDF.
+Build and run SwiftLeaf.
 
   -dbg     debug build
   -rel     release build
@@ -75,7 +75,7 @@ async function build(opts: RunOptions): Promise<void> {
 function runWindows(opts: RunOptions): void {
   const dir = opts.config === "release" ? "rel64" : "dbg64";
   const outDir = opts.asan ? `${dir}_asan` : dir;
-  const exe = join("out", outDir, opts.asan ? "SumatraPDF-static.exe" : "SumatraPDF.exe");
+  const exe = join("out", outDir, opts.asan ? "SumatraPDF-static.exe" : "Swiftleaf.exe");
   const proc = spawn(exe, ["-for-testing"], { cwd: ".", detached: true, stdio: "ignore" });
   proc.unref();
 }

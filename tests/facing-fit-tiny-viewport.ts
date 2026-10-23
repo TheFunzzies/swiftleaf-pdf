@@ -70,7 +70,7 @@ export async function testit(): Promise<void> {
     await client.waitForRenderIdle(1000).catch(() => {});
     await Promise.race([proc.exited, sleep(500)]);
     if (proc.exitCode !== null) {
-      throw new Error(`SumatraPDF exited with code ${proc.exitCode} painting a too-narrow facing / fit page view`);
+      throw new Error(`SwiftLeaf exited with code ${proc.exitCode} painting a too-narrow facing / fit page view`);
     }
 
     moveWindow(frame, r.left, r.top, r.right - r.left, dy);

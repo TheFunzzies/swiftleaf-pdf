@@ -1,9 +1,7 @@
 /* Copyright 2026 the Swiftleaf PDF authors.
    License: GPLv3 */
 
-// Material Design 3 color roles for Swiftleaf's chrome (ribbon, navigation
-// rail, status bar), from the teal seed color. The dark scheme is used when the
-// app's theme is dark. https://m3.material.io/styles/color/roles
+// Color roles for Swiftleaf's ribbon, navigation rail and status bar.
 
 struct M3Scheme {
     Color primary;
@@ -30,4 +28,5 @@ bool M3IsDark();
 // Material's state layers: the content color over a container at a set opacity
 constexpr int kM3HoverOpacity = 8;
 constexpr int kM3PressedOpacity = 12;
+constexpr int kChromeCornerDiameter = 12;
 Color M3StateLayer(Color container, Color content, int opacityPct);

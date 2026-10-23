@@ -9,8 +9,9 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlCommand } from "./control.ts";
+import { waitCommentsPanel } from "./comments-panel.ts";
 import { runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util";
-import { sleep } from "./winapi";
+import { setProcessDpiAware, sleep } from "./winapi";
 import { killAndWait, launchControlled, waitForExit } from "./win-automation";
 
 function makePdf(): string {
@@ -37,6 +38,7 @@ function makePdf(): string {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("annot-filter-close-window");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -55,10 +57,7 @@ export async function testit(): Promise<void> {
     await client.request(ControlCommand.TestInvokeCommand, ["CmdPrevTab"]);
     await client.request(ControlCommand.TestInvokeCommand, ["CmdToggleEditPDF"]);
     await client.request(ControlCommand.TestInvokeCommand, ["CmdFindAnnotation"]);
-    const opened = await client.request(ControlCommand.TestAnnotFilter, []);
-    if (!/floatVisible=1/.test(String(opened[1] ?? ""))) {
-      throw new Error(`annot-filter-close-window: the Annotations window did not open: ${String(opened[1] ?? "")}`);
-    }
+    await waitCommentsPanel(client, frame, true);
     await sleep(300 * SLOW_BUILD_FACTOR);
 
     await client.request(ControlCommand.TestInvokeCommand, ["WM_CLOSE"]);

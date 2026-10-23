@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control.ts";
 import { SETTINGS_FILE_NAME, assemblePdf, cmdId, runStandalone, tmpPath } from "./util.ts";
-import { getClientRect, packCoords, sendMessage, sleep, WM_COMMAND } from "./winapi.ts";
+import { setProcessDpiAware, getClientRect, packCoords, sendMessage, sleep, WM_COMMAND } from "./winapi.ts";
 import { clickAt, findCanvas, killAndWait, launchControlled, sendCommandSync } from "./win-automation.ts";
 
 type Square = { x: number; y: number; dx: number; dy: number; w: number; h: number };
@@ -95,6 +95,7 @@ function countFilledShapes(pdf: string): number {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("annot-copy-paste");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });

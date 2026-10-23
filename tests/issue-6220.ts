@@ -210,7 +210,7 @@ async function runVariant(name: string, v: Variant): Promise<void> {
 }
 
 export async function testit(): Promise<void> {
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   try {
     const only = process.env.ISSUE_6220_VARIANT;
     // deep into the page, so the next page is the most visible one
@@ -225,7 +225,7 @@ export async function testit(): Promise<void> {
       await runVariant(name, v);
     }
   } finally {
-    await killProcessesNamed("SumatraPDF.exe");
+    await killProcessesNamed("Swiftleaf.exe");
   }
 }
 

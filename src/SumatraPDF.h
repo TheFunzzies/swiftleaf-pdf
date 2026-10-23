@@ -17,7 +17,7 @@ constexpr const char* kWebsiteURL = "https://github.com/TheFunzzies/swiftleaf-pd
 constexpr const char* kReleasesURL = "https://github.com/TheFunzzies/swiftleaf-pdf/releases";
 // Swiftleaf's user guide: the README
 constexpr const char* kManualURL = "https://github.com/TheFunzzies/swiftleaf-pdf#readme";
-constexpr const char* kContributeTranslationsURL = "https://www.sumatrapdfreader.org/docs/Contribute-translation";
+constexpr const char* kContributeTranslationsURL = "https://github.com/TheFunzzies/swiftleaf-pdf";
 
 #ifndef kCrashReportUrl
 #define kCrashReportUrl "https://github.com/TheFunzzies/swiftleaf-pdf/issues"

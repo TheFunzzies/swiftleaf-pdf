@@ -2,7 +2,7 @@
 // displayed".
 //
 // A link annotation can describe itself in /Contents ("Text to be displayed for
-// the annotation ... in human-readable form", PDF 1.7 12.5.2). SumatraPDF shows
+// the annotation ... in human-readable form", PDF 1.7 12.5.2). SwiftLeaf shows
 // the URL for links that go outside the document, but a link to a place inside
 // the document has no URL and showed nothing at all, so its /Contents never
 // reached the reader.
@@ -12,10 +12,10 @@
 // must still offer their URL rather than their /Contents.
 
 import { writeFileSync } from "node:fs";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath, assemblePdf } from "./util";
 
-const URL = "https://www.sumatrapdfreader.org";
+const URL = "https://github.com/TheFunzzies/swiftleaf-pdf";
 
 // one page, four link annotations: to a page inside the document and to a URL,
 // each with and without a /Border, all four with a /Contents
@@ -42,7 +42,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-1724.pdf");
   writeFileSync(pdf, makePdf(), "latin1");
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const res = await client.request(ControlCommand.TestPageLinks, [pdf, 1]);
     const out = String(res[1] ?? res[0] ?? "");
     const values = [...out.matchAll(/^kind=(\S+) page=(-?\d+).* value=(.*)$/gm)].map((m) => ({

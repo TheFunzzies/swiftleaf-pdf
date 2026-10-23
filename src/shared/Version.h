@@ -6,16 +6,16 @@
 
 // CURR_VERSION can be over-written externally
 #ifndef CURR_VERSION
-#define CURR_VERSION 0.3.4
+#define CURR_VERSION 0.4.0
 #endif
 #ifndef CURR_VERSION_COMMA
-#define CURR_VERSION_COMMA 0, 3, 4
+#define CURR_VERSION_COMMA 0, 4, 0
 #endif
 
 // this is sth. like "3.5"
 #define CURR_VERSION_MAJOR_STRA QM(CURR_VERSION)
 
-// VER_QUALIFIER allows people who recompile SumatraPDF to add
+// VER_QUALIFIER allows people who recompile SwiftLeaf to add
 // a distinguishing string at the end of the version number
 // (e.g. version 2.3.2z or 2.4opt)
 

@@ -892,7 +892,7 @@ class Win11PrintSession {
     EventRegistrationToken optionToken{};
     WStr jobTitle;
 
-    // Sumatra's Advanced print options go into the dialog's "More settings"
+    // SwiftLeaf's Advanced print options go into the dialog's "More settings"
     // pane as custom options; PrintDocumentSource reads them back when it lays
     // the pages out. The printer's own settings are standard options the dialog
     // already knows how to show; ShowAdvancedOptions says which (kStdOptions).
@@ -1131,7 +1131,7 @@ class Win11PrintSession {
 
         this->hwnd = hwnd;
         TempStr baseName = path::GetBaseNameTemp(engine->FilePath());
-        jobTitle = wstr::Dup(ToWStrTemp(baseName ? baseName : StrL("SumatraPDF document")));
+        jobTitle = wstr::Dup(ToWStrTemp(baseName ? baseName : StrL("SwiftLeaf document")));
 
         hr = GetActivationFactory(RuntimeClass_Windows_Graphics_Printing_PrintManager, interop);
         if (SUCCEEDED(hr)) {

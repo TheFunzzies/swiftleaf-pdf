@@ -1819,8 +1819,10 @@ void CreateToc(MainWindow* win) {
     auto* vbox = new VBox();
     vbox->alignMain = MainAxisAlign::MainStart;
     vbox->alignCross = CrossAxisAlign::Stretch;
-    vbox->AddChild(filterEdit);
-    vbox->AddChild(new Spacer(0, 2)); // gap under the search field
+    // inset from the panel's edges so the field's rounded border shows
+    int gap = DpiScale(8);
+    vbox->AddChild(new Padding(filterEdit, Insets{gap, gap, 0, gap}));
+    vbox->AddChild(new Spacer(0, gap)); // gap under the search field
     vbox->AddChild(treeView, 1);
     win->tocViewLayout = vbox;
 

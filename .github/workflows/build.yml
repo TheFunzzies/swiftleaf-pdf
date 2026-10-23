@@ -25,6 +25,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Check branding
+        run: bun tools/swiftleaf/check-branding.ts
+
       - name: Set up MSBuild
         uses: microsoft/setup-msbuild@v2
 

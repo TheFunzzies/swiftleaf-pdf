@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5846
+// Test for upstream issues #5846
 //
 // NormalizeURLTemp must collapse consecutive ../../ parent segments so EPUB
 // images like ../../cover.jpg from OEBPS/html/ resolve to cover.jpg (ZIP root).

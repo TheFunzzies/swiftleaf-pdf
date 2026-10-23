@@ -7,7 +7,7 @@
 // Runs on its own empty -appdata: the first check is about where the window
 // goes when nothing is remembered yet, and HelpWindowPos in the settings the
 // exe under test happens to load (a portable SumatraPDF-settings.txt next to
-// out/<build>/SumatraPDF.exe, say) would short-circuit that placement.
+// out/<build>/Swiftleaf.exe, say) would short-circuit that placement.
 //
 // Run: bun tests/issue-6013.ts [--no-build]
 
@@ -27,7 +27,7 @@ import {
 } from "./winapi.ts";
 import { killAndWait, launchControlled, sendCommandSync } from "./win-automation.ts";
 
-const HELP_TITLE = "SumatraPDF Documentation";
+const HELP_TITLE = "SwiftLeaf Documentation";
 
 function findHelpWindow(pid: number): number {
   let found = 0;

@@ -29,7 +29,7 @@ import {
 } from "./winapi.ts";
 import { killAndWait, launchControlled, sendCommand } from "./win-automation.ts";
 
-const HELP_TITLE = "SumatraPDF Documentation";
+const HELP_TITLE = "SwiftLeaf Documentation";
 
 function findHelpWindow(pid: number): number {
   let found = 0;

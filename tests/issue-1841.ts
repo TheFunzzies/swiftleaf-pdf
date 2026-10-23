@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/1841
+// Test for upstream issues #1841
 //
 // PageUp / PageDown with the focus in the bookmarks tree paged through the
 // tree, and since a selection change navigates, a short outline jumped the

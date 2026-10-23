@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control";
 import { SETTINGS_FILE_NAME, assemblePdf, runStandalone, tmpPath } from "./util";
 import {
+  setProcessDpiAware,
   captureWindowToPng,
   clientToScreen,
   getClientRect,
@@ -128,6 +129,7 @@ async function moveAndWaitForHover(
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("pdf-edit-toolbar-interaction");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });

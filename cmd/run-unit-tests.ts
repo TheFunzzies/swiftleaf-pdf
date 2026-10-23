@@ -70,13 +70,13 @@ interface UnitTestConfig {
   logName: string;
 }
 
-// unit tests are compiled into SumatraPDF only in Debug builds, so every
+// unit tests are compiled into SwiftLeaf only in Debug builds, so every
 // config here is Debug
 function configFor(kind: BuildKind): UnitTestConfig {
   if (kind === "dbg32") {
     return {
       platform: "Win32",
-      target: "SumatraPDF",
+      target: "SwiftLeaf",
       exeName: "Swiftleaf.exe",
       outDir: join("out", "dbg32"),
       logName: "unit-tests-dbg32.txt",
@@ -93,7 +93,7 @@ function configFor(kind: BuildKind): UnitTestConfig {
   }
   return {
     platform: "x64",
-    target: "SumatraPDF",
+    target: "SwiftLeaf",
     exeName: "Swiftleaf.exe",
     outDir: join("out", "dbg64"),
     logName: "unit-tests-dbg.txt",

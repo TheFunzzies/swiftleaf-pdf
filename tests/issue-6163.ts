@@ -33,7 +33,7 @@ function splitArgs(s: string): string[] {
 
 // launch with `args`, scroll down `nScrolls` times, return what the command copies
 async function copyLocation(args: string[], nScrolls: number): Promise<string> {
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   const { proc, client, frame } = await launchControlled(args);
   try {
     await client.setNotificationsEnabled(false);

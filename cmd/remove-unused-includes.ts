@@ -1,4 +1,4 @@
-// Systematically test whether #include lines in SumatraPDF .cpp sources are needed.
+// Systematically test whether #include lines in SwiftLeaf .cpp sources are needed.
 // For each include: write a temp .cpp with that include removed, compile with cl.exe
 // (Release|Win32 flags) in parallel, then apply removals that compile successfully.
 //
@@ -12,7 +12,7 @@ import { basename, dirname, join } from "node:path";
 import { detectVisualStudio2026 } from "./util";
 
 const vcxprojPath = join("vs2022", "SumatraPDF.vcxproj");
-const objDir = join("out", "rel32", "obj", "x86", "Release", "SumatraPDF", "remove-unused");
+const objDir = join("out", "rel32", "obj", "x86", "Release", "SwiftLeaf", "remove-unused");
 
 interface IncludeLine {
   lineIndex: number;
@@ -265,7 +265,7 @@ async function main() {
     const normalized = fileFilter.replace(/\\/g, "/");
     files = files.filter((f) => f === normalized);
     if (files.length === 0) {
-      throw new Error(`--file ${fileFilter} is not a SumatraPDF .cpp source`);
+      throw new Error(`--file ${fileFilter} is not a SwiftLeaf .cpp source`);
     }
   }
 

@@ -17,7 +17,7 @@
 // typed text, then selects the capitalized match.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 // filler pages deliberately avoid the substring "The" so the search only finds
@@ -87,7 +87,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-find-match-select.pdf");
   writeFileSync(pdfPath, buildPdf(PAGES));
 
-  const result = await withControlledSumatra(EXE, (client) => requestWithRetry(client), [pdfPath]);
+  const result = await withControlledApp(EXE, (client) => requestWithRetry(client), [pdfPath]);
   console.log(`find-match-select: ${result}`);
 }
 

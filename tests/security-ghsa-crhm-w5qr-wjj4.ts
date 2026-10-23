@@ -9,7 +9,7 @@
 
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 // What the exe needs beside it once copied out of the build directory. The
@@ -55,7 +55,7 @@ async function assertPolicies(name: string, ini: string, want: Partial<PolicyBit
   rmSync(appDir, { recursive: true, force: true });
   mkdirSync(appDir, { recursive: true });
 
-  const testExe = join(appDir, "SumatraPDF.exe");
+  const testExe = join(appDir, "Swiftleaf.exe");
   copyFileSync(EXE, testExe);
   for (const dll of SIDE_BY_SIDE_DLLS) {
     if (existsSync(dll)) {
@@ -64,7 +64,7 @@ async function assertPolicies(name: string, ini: string, want: Partial<PolicyBit
   }
   writeFileSync(join(appDir, "sumatrapdfrestrict.ini"), ini);
 
-  await withControlledSumatra(
+  await withControlledApp(
     testExe,
     async (client) => {
       const res = await client.request(ControlCommand.TestGetPolicies);

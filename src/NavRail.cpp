@@ -27,9 +27,11 @@
 #include "Translations.h"
 #include "SidebarPanel.h"
 #include "AnnotFilterToolbar.h"
+#include "DocumentPanel.h"
 #include "FindBar.h"
 #include "Material.h"
 #include "Ribbon.h"
+#include "LucideIcons.h"
 #include "NavRail.h"
 
 #define TABLER_SVG(body)                                                                                             \
@@ -58,6 +60,8 @@ enum class NavItemKind {
     Search,
     Favorites,
     Settings,
+    Layers,
+    Attachments,
 };
 
 struct NavItemDef {
@@ -73,9 +77,11 @@ struct NavItemDef {
 // clang-format off
 // Foxit order: bookmarks first, then pages; icons only, the name is the tooltip
 static const NavItemDef gNavItems[] = {
+    {NavItemKind::Comments, gLucideMessageSquare, CmdFindAnnotation, TrN("Comments"), TrN("Comments"), true, false},
     {NavItemKind::Bookmarks, gIconBookmark, CmdToggleBookmarks, TrN("Bookmarks"), TrN("Bookmarks"), true, false},
     {NavItemKind::Thumbnails, gIconThumbs, CmdToggleThumbnails, TrN("Pages"), TrN("Page thumbnails"), true, false},
-    {NavItemKind::Comments, gIconComments, CmdFindAnnotation, TrN("Comments"), TrN("All comments in the PDF"), true, false},
+    {NavItemKind::Layers, gLucideLayers, 0, TrN("Layers"), TrN("Show or hide PDF layers"), true, false},
+    {NavItemKind::Attachments, gLucidePaperclip, 0, TrN("Attachments"), TrN("Files embedded in this PDF"), true, false},
     {NavItemKind::Search, nullptr, CmdFindFirst, TrN("Search"), TrN("Find text"), true, false},
     {NavItemKind::Favorites, gIconStar, CmdFavoriteToggle, TrN("Favorites"), TrN("Favorite documents and pages"), false, false},
     {NavItemKind::Settings, gIconSettings, CmdOptions, TrN("Settings"), TrN("Options"), false, true},
@@ -159,10 +165,21 @@ bool ShouldShowNavRail(MainWindow* win) {
 
 static void OnItemClicked(NavRailVirt* rail, VirtMouseEvent* ev) {
     VirtCtrl* w = ev->target;
-    if (!w || !w->IsEnabled()) {
+    if (!w || !w->IsEnabled() || w->GetKind() != kindNavRailItem) {
         return;
     }
-    HwndPostCommand(rail->win->hwndFrame, w->id);
+    auto* item = (NavRailItem*)w;
+    switch (item->def->kind) {
+        case NavItemKind::Layers:
+            ToggleDocumentPanel(rail->win, DocumentPanelMode::Layers);
+            break;
+        case NavItemKind::Attachments:
+            ToggleDocumentPanel(rail->win, DocumentPanelMode::Attachments);
+            break;
+        default:
+            HwndPostCommand(rail->win->hwndFrame, w->id);
+            break;
+    }
     ev->didHandle = true;
 }
 
@@ -194,7 +211,7 @@ static void BuildLayout(NavRailVirt* rail) {
         item->def = &d;
         item->font = rail->font;
         item->id = d.cmdId;
-        item->SetTooltip(trans::GetTranslation(d.label));
+        item->SetTooltip(trans::GetTranslation(d.tip));
         item->onClick = MkFunc1(OnItemClicked, rail);
         SetItemIcons(item);
         VecAppend(rail->items, item);
@@ -276,6 +293,10 @@ static bool IsItemActive(MainWindow* win, NavItemKind kind) {
             return IsFloatingAnnotListVisible(win);
         case NavItemKind::Search:
             return IsFindBarVisible(win);
+        case NavItemKind::Layers:
+            return IsDocumentPanelVisible(win, DocumentPanelMode::Layers);
+        case NavItemKind::Attachments:
+            return IsDocumentPanelVisible(win, DocumentPanelMode::Attachments);
         case NavItemKind::Settings:
             return false;
     }
@@ -290,9 +311,10 @@ void NavRailUpdate(MainWindow* win) {
     bool docLoaded = win->IsDocLoaded();
     for (NavRailItem* item : rail->items) {
         bool active = IsItemActive(win, item->def->kind);
-        bool enabled = !item->def->needsDoc || docLoaded;
-        if (item->def->kind == NavItemKind::Comments) {
-            enabled = enabled && win->CurrentTab() && IsPdfDoc(win->CurrentTab());
+        bool enabled = item->def->cmdId && (!item->def->needsDoc || docLoaded);
+        if (item->def->kind == NavItemKind::Comments || item->def->kind == NavItemKind::Layers ||
+            item->def->kind == NavItemKind::Attachments) {
+            enabled = docLoaded && win->CurrentTab() && IsPdfDoc(win->CurrentTab());
         }
         if (item->isActive == active && item->IsEnabled() == enabled) {
             continue;

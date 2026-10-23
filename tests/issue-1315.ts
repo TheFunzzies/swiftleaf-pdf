@@ -5,7 +5,7 @@
 // The fixture is built here (tiny 1-page PDF inside a 2-record BOOKMOBI).
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { waitForFrame } from "./win-automation.ts";
 import { EXE, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
 
@@ -94,7 +94,7 @@ export async function testit(): Promise<void> {
   const azw4Path = tmpPath("issue-1315.azw4");
   writeFileSync(azw4Path, buildAzw4(buildPdf()));
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

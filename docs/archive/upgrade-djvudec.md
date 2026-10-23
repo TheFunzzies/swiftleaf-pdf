@@ -1,6 +1,6 @@
 # Upgrading djvudec
 
-How to update SumatraPDF's vendored plain-C DjVu decoder (`ext/djvudec/djvu.c` +
+How to update SwiftLeaf's vendored plain-C DjVu decoder (`ext/djvudec/djvu.c` +
 `ext/djvudec/djvu.h`) from the upstream dist.
 
 ## Upstream source
@@ -11,7 +11,7 @@ How to update SumatraPDF's vendored plain-C DjVu decoder (`ext/djvudec/djvu.c` +
   older 2011 decoder with a different API (`djvudec.h`).
 
 The amalgamated files are generated upstream by `bun cmd/build-dist.ts`. Never
-edit `ext/djvudec/djvu.c` or `ext/djvudec/djvu.h` by hand in SumatraPDF.
+edit `ext/djvudec/djvu.c` or `ext/djvudec/djvu.h` by hand in SwiftLeaf.
 
 ## Steps
 
@@ -66,7 +66,7 @@ Pay special attention to:
 - **Removed/renamed functions** — update `src/EngineDjvuDec.cpp` and exports
 - **`djvu_init()`** — must be called once before concurrent decode (bilinear
   scaler table). `djvu_doc_open` also calls it, but that is not enough when
-  render threads race on first open. SumatraPDF guards this in
+  render threads race on first open. SwiftLeaf guards this in
   `EngineDjvuDec.cpp` via `DjvuDecInitOnce()` (SRWLOCK, same pattern as
   `EngineDjVu.cpp`).
 
@@ -82,7 +82,7 @@ Current integration points:
 
 ### 5. Update DLL exports (if API changed)
 
-djvudec is statically linked into `libsumatrapdf.dll`; `SumatraPDF.exe` imports
+djvudec is statically linked into `libsumatrapdf.dll`; `Swiftleaf.exe` imports
 `djvu_*` symbols from that DLL via `src/libsumatrapdf.def`.
 
 When new public functions are added, append them to the `; djvudec exports`
@@ -123,7 +123,7 @@ djvu_page_links_destroy
 Review `src/EngineDjvuDec.cpp` for any API mismatches. Common cases:
 
 - New init function → ensure a once-guarded call before concurrent use
-- New metadata/render helpers → wire up if SumatraPDF should expose them
+- New metadata/render helpers → wire up if SwiftLeaf should expose them
 - Changed struct fields → fix accessors
 
 After editing `src/EngineDjvuDec.cpp`, run:
@@ -141,7 +141,7 @@ bun cmd/build.ts -dbg
 Test with:
 
 ```bash
-./out/dbg64/SumatraPDF.exe -for-testing <path-to>.djvu
+./out/dbg64/Swiftleaf.exe -for-testing <path-to>.djvu
 ```
 
 Use a `.djvu` from `C:\Users\kjk\OneDrive\!sumatra\bugs\` if available.

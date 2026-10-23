@@ -45,7 +45,7 @@
 
 #include "SumatraLog.h"
 
-constexpr const char* kSettingsDocsUrl = "https://www.sumatrapdfreader.org/settings/settings3-7.html";
+constexpr const char* kSettingsDocsUrl = "https://github.com/TheFunzzies/swiftleaf-pdf";
 
 // a single editable setting; the pending (possibly edited) value is kept
 // here and only written back on Save. The field is addressed by its offset
@@ -694,7 +694,7 @@ void AdvancedSettingsView::OnOpenFile(AdvancedSettingsView*, gp::Ctx* cx, const 
 }
 
 void AdvancedSettingsView::OnHelp(AdvancedSettingsView*, gp::Ctx* cx, const gp::ClickEvent*) {
-    SumatraLaunchBrowser(StrL("https://www.sumatrapdfreader.org/settings/settings3-7.html"));
+    SumatraLaunchBrowser(StrL("https://github.com/TheFunzzies/swiftleaf-pdf"));
     gp::Notify(cx);
 }
 

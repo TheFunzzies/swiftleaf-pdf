@@ -29,7 +29,7 @@ const ROOT = resolve(join(import.meta.dir, ".."));
 const CACHE_DIR = join(ROOT, ".work", "crashes");
 const WIN_SYM_CACHE = join(homedir(), ".symbols");
 const MS_SYMBOL_SERVER = "https://msdl.microsoft.com/download/symbols";
-const PROD_SERVER = "https://www.sumatrapdfreader.org";
+const PROD_SERVER = "https://github.com/TheFunzzies/swiftleaf-pdf";
 const LOCAL_SERVER = "http://127.0.0.1:9321";
 // the crash server hosts minidumps per app under /app/<app>/
 const APP = "sumatrapdf";
@@ -628,7 +628,7 @@ function extractZipPdb(archive: Uint8Array, destDir: string): void {
   }
 }
 
-function hasSumatraPdbs(dir: string): boolean {
+function hasAppPdbs(dir: string): boolean {
   return existsSync(join(dir, "SumatraPDF.pdb")) && existsSync(join(dir, "libsumatrapdf.pdb"));
 }
 
@@ -637,7 +637,7 @@ function localDbgSymDir(version: string): string {
     return "";
   }
   for (const d of [join(ROOT, "out", "dbg64"), join(ROOT, "out", "dbg64_asan")]) {
-    if (hasSumatraPdbs(d)) {
+    if (hasAppPdbs(d)) {
       return d;
     }
   }
@@ -673,7 +673,7 @@ async function ensureSymbols(row: DumpRow, retry = false): Promise<string> {
   }
   const key = symbolCacheKey(row.version);
   const dir = symbolsDir(row.version);
-  if (hasSumatraPdbs(dir)) {
+  if (hasAppPdbs(dir)) {
     return dir;
   }
   const missingPath = join(dir, kMissingPdb);
@@ -697,7 +697,7 @@ async function ensureSymbols(row: DumpRow, retry = false): Promise<string> {
         writeFileSync(zipPath, await fetchBytes(url));
       }
       extractZipPdb(readFileSync(zipPath), dir);
-      if (!hasSumatraPdbs(dir)) {
+      if (!hasAppPdbs(dir)) {
         throw new Error(`pdb zip missing SumatraPDF.pdb or libsumatrapdf.pdb (${url})`);
       }
     } catch (e) {
@@ -721,17 +721,17 @@ async function ensureSymbols(row: DumpRow, retry = false): Promise<string> {
 
 const inFlightExe = new Map<string, Promise<string>>();
 
-// cdb needs SumatraPDF.exe to map the image (the dump has no code pages), otherwise
+// cdb needs Swiftleaf.exe to map the image (the dump has no code pages), otherwise
 // it prints "Unable to load image ... Win32 error 0n2" and can't disassemble.
 // A missing exe only degrades the analysis: returns "" (remembered in exe-missing.txt)
 async function ensureExe(row: DumpRow, retry = false): Promise<string> {
   const local = localDbgSymDir(row.version);
-  if (local && existsSync(join(local, "SumatraPDF.exe"))) {
+  if (local && existsSync(join(local, "Swiftleaf.exe"))) {
     return local;
   }
   const key = symbolCacheKey(row.version);
   const dir = symbolsDir(row.version);
-  const exePath = join(dir, "SumatraPDF.exe");
+  const exePath = join(dir, "Swiftleaf.exe");
   if (existsSync(exePath) && statSync(exePath).size > 0) {
     return dir;
   }
@@ -772,7 +772,7 @@ async function ensureExe(row: DumpRow, retry = false): Promise<string> {
 }
 
 // the dump identifies the image by the path it ran from, so a renamed exe
-// ("SumatraPDF-prerel-64 (3).exe") doesn't match our cached SumatraPDF.exe and
+// ("SumatraPDF-prerel-64 (3).exe") doesn't match our cached Swiftleaf.exe and
 // cdb can't unwind past inlined frames. Give it a dir with a copy under that name.
 function crashedExeName(id: string): string {
   if (!isLogExtracted(id)) {
@@ -783,7 +783,7 @@ function crashedExeName(id: string): string {
     return "";
   }
   const name = m[1].split(/[\\/]/).pop() ?? "";
-  return name === "SumatraPDF.exe" ? "" : name;
+  return name === "Swiftleaf.exe" ? "" : name;
 }
 
 function renamedExeDir(id: string, exeDir: string): string {
@@ -791,7 +791,7 @@ function renamedExeDir(id: string, exeDir: string): string {
   if (!name) {
     return "";
   }
-  const src = join(exeDir, "SumatraPDF.exe");
+  const src = join(exeDir, "Swiftleaf.exe");
   if (!existsSync(src)) {
     return "";
   }
@@ -955,7 +955,7 @@ async function runAnalysis(row: DumpRow, reanalyze: boolean): Promise<void> {
   writeSummary(row.id);
 }
 
-const kNoSymbolsMark = "=== no SumatraPDF symbols ===";
+const kNoSymbolsMark = "=== no SwiftLeaf symbols ===";
 
 async function analyze(server: string, row: DumpRow, reanalyze: boolean): Promise<void> {
   if (!reanalyze && isAnalyzed(row.id)) {
@@ -1293,7 +1293,7 @@ function crashesIndexHtml(): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sumatra PDF crashes</title>
+  <title>SwiftLeaf PDF crashes</title>
   <script>
     const log = console.log;
     document.addEventListener("alpine:init", initAlpine);
@@ -1355,7 +1355,7 @@ function crashesIndexHtml(): string {
   </style>
 </head>
 <body>
-  <div class="self-center mt-2">SumatraPDF Crashes</div>
+  <div class="self-center mt-2">SwiftLeaf Crashes</div>
   <div x-data="{currDay: $store.crashes.currDay}" class="flex self-center gap-4 mt-2"
     x-init="$watch('$store.crashes.currDay', value => { currDay = value; })">
     <template x-for="day in $store.crashes.days">

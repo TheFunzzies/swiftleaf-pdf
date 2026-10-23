@@ -1,5 +1,6 @@
 # Build Swiftleaf (Swiftleaf.exe) with MSBuild and print only errors / warnings.
 #   powershell -File tools/swiftleaf/build.ps1 [-Config Release|Debug] [-Target SumatraPDF]
+# The MSBuild project that produces Swiftleaf.exe keeps its upstream name.
 param(
     [string]$Config = "Release",
     [string]$Target = "SumatraPDF"

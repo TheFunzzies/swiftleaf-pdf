@@ -142,13 +142,13 @@ void ThemeApplyPlatformColors() {
     gColsBtnDefault[kColBtnBorder] = hotEdge;
     gColsBtnDefault[kColBtnTextDisabled] = disabled;
 
-    // Swiftleaf: Material buttons, the default one filled in primary, the
-    // others outlined with primary text; disabled ones on a faint container
+    // Swiftleaf: the default button filled in the accent, the others outlined
+    // in neutral text; disabled ones on a faint container
     const M3Scheme& m3 = M3();
     Color dlgBg = DarkModeDialogBgColor();
-    gColsBtn[kColBtnText] = m3.primary;
+    gColsBtn[kColBtnText] = m3.onSurface;
     gColsBtn[kColBtnBg] = kColorTransparent;
-    gColsBtn[kColBtnBgHover] = M3StateLayer(dlgBg, m3.primary, kM3HoverOpacity);
+    gColsBtn[kColBtnBgHover] = m3.surfaceContainerHigh;
     gColsBtn[kColBtnBorder] = m3.outline;
     gColsBtn[kColBtnBgDisabled] = dlgBg;
     gColsBtnDefault[kColBtnText] = m3.onPrimary;
@@ -157,15 +157,15 @@ void ThemeApplyPlatformColors() {
     gColsBtnDefault[kColBtnBorder] = m3.primary;
     gColsBtnDefault[kColBtnBgDisabled] = M3StateLayer(dlgBg, m3.onSurface, 12);
 
-    gColsIconBtn[kColIconBtnBgHover] = AccentColor(ctlBg, 20);
-    gColsIconBtn[kColIconBtnBgSelected] = AccentColor(ctlBg, 36);
+    gColsIconBtn[kColIconBtnBgHover] = m3.surfaceContainerHigh;
+    gColsIconBtn[kColIconBtnBgSelected] = m3.secondaryContainer;
     gColsIconBtn[kColIconBtnChevron] = text;
     gColsIconBtn[kColIconBtnChevronDisabled] = disabled;
 
     gColsListBox[kColListText] = text;
     gColsListBox[kColListBg] = ctlBg;
-    gColsListBox[kColListSel] = AccentColor(ctlBg, 25);
-    gColsListBox[kColListSelFocused] = AccentColor(ctlBg, 45);
+    gColsListBox[kColListSel] = m3.secondaryContainer;
+    gColsListBox[kColListSelFocused] = m3.secondaryContainer;
     gColsListBox[kColListScrollbar] = AccentColor(ctlBg, 60);
 
     gColsSplitter[kColSplitterBg] = ctlBg;

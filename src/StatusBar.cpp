@@ -30,7 +30,7 @@
 #include "Toolbar.h"
 #include "StatusBar.h"
 
-#define TABLER_SVG(body)                                                                                            \
+#define TABLER_SVG(body)                                                                                             \
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" stroke-width=\"1\" " \
     "stroke=\"currentColor\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\">" body "</svg>"
 
@@ -41,12 +41,12 @@ static const char* gIconFirst = TABLER_SVG(R"(<path d="M11 7l-5 5l5 5" /><path d
 static const char* gIconLast = TABLER_SVG(R"(<path d="M7 7l5 5l-5 5" /><path d="M13 7l5 5l-5 5" />)");
 static const char* gIconFacing =
     TABLER_SVG(R"(<rect x="3" y="4" width="18" height="16" rx="2" /><path d="M12 4v16" />)");
-static const char* gIconFitWidth = TABLER_SVG(
-    R"(<path d="M4 12v-6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v6" /><path d="M10 18h-7" /><path d="M21 18h-7" />)"
-    R"(<path d="M6 15l-3 3l3 3" /><path d="M18 15l3 3l-3 3" />)");
-static const char* gIconFitPage = TABLER_SVG(
-    R"(<path d="M12 20h-6a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h6" /><path d="M18 4v17" />)"
-    R"(<path d="M15 18l3 3l3 -3" /><path d="M15 7l3 -3l3 3" />)");
+static const char* gIconFitWidth =
+    TABLER_SVG(R"(<path d="M4 12v-6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v6" /><path d="M10 18h-7" /><path d="M21 18h-7" />)"
+               R"(<path d="M6 15l-3 3l3 3" /><path d="M18 15l3 3l-3 3" />)");
+static const char* gIconFitPage =
+    TABLER_SVG(R"(<path d="M12 20h-6a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h6" /><path d="M18 4v17" />)"
+               R"(<path d="M15 18l3 3l3 -3" /><path d="M15 7l3 -3l3 3" />)");
 
 struct StatusBarButtonDef {
     const char* icon;
@@ -241,8 +241,8 @@ static void BuildLayout(StatusBarVirt* sb) {
 
     auto* row = new HBox();
     row->alignCross = CrossAxisAlign::CrossCenter;
-    row->AddChild(left);
     row->AddChild(new VirtSpacer(0, 0), 1);
+    row->AddChild(left);
     row->AddChild(right);
     sb->host->SetLayout(new Padding(row, Insets{1, DpiScale(8), 0, DpiScale(8)}));
 }

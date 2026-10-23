@@ -20,9 +20,9 @@
 // Artifex Software, Inc., 39 Mesa Street, Suite 108A, San Francisco,
 // CA 94129, USA, for further information.
 
-// SumatraPDF: compiled instead of source/fitz/noto.c. Same font table
+// SwiftLeaf: compiled instead of source/fitz/noto.c. Same font table
 // (font-table.h), but no font data is linked into the binary: it comes from a
-// loader set with fz_set_builtin_font_loader(), which SumatraPDF serves from the
+// loader set with fz_set_builtin_font_loader(), which SwiftLeaf serves from the
 // fonts\ entries of its embedded archive (src/EmbeddedResources.cpp). A table
 // entry the loader has no file for is skipped, so the set of built-in fonts is
 // whatever cmd/pack-embedded-prebuild.cmd packs, not a TOFU_* define.

@@ -1,7 +1,7 @@
 // #5512: percentage zoom can normalize mixed-size pages to one displayed width.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, withControlledSumatra } from "./control.ts";
+import { ControlClient, withControlledApp } from "./control.ts";
 import { sendCommandSync, waitForFrame } from "./win-automation.ts";
 import { cmdId, EXE, runStandalone, tmpPath } from "./util.ts";
 
@@ -56,7 +56,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-5512.pdf");
   writeFileSync(pdfPath, buildPdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

@@ -3,7 +3,7 @@
 // on MuPDF's widget list, not the markup-annot list.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath, assemblePdf } from "./util.ts";
 
 function makePdf(): string {
@@ -32,7 +32,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-2083.pdf");
   writeFileSync(pdf, makePdf(), "latin1");
 
-  const raw = await withControlledSumatra(
+  const raw = await withControlledApp(
     EXE,
     async (client: ControlClient) => {
       const res = await client.request(ControlCommand.TestPageComments, [pdf, 1]);

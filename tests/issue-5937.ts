@@ -5,7 +5,7 @@
 // which is how exporters often draw lines, must still be darkened.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath, assemblePdf } from "./util.ts";
 
 const AREA_GRAY = 153; // 0.6 gray, as a big filled rectangle
@@ -50,7 +50,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-5937.pdf");
   writeFileSync(pdf, makePdf(), "latin1");
 
-  const raw = await withControlledSumatra(
+  const raw = await withControlledApp(
     EXE,
     async (client: ControlClient) => {
       const res = await client.request(ControlCommand.TestCadEnhanceColors, [pdf, 1, ZOOM_PERCENT]);

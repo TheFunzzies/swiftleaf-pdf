@@ -2,7 +2,7 @@
    License: GPLv3 */
 
 // sumatrapdf-tool.exe runs the mupdf-derived command-line tools (draw,
-// convert, info, ...). Unlike SumatraPDF.exe - a GUI (Windows subsystem) app
+// convert, info, ...). Unlike Swiftleaf.exe - a GUI (Windows subsystem) app
 // that can't write to a console or be piped reliably - this is a console
 // subsystem app, so it behaves well under cmd.exe / PowerShell.
 //
@@ -49,7 +49,7 @@ char** fz_argv_from_wargv(int argc, wchar_t** wargv);
 void fz_free_argv(int argc, char** argv);
 }
 
-// src/EmbeddedResources.cpp: mupdf's built-in fonts, from SumatraPDF.exe next to us
+// src/EmbeddedResources.cpp: mupdf's built-in fonts, from Swiftleaf.exe next to us
 void InstallEmbeddedFontLoader();
 
 // must match premake5.lua and src/SumatraPDF.cpp

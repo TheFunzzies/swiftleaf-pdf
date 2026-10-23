@@ -1,4 +1,4 @@
-// High-level GUI automation actions for driving SumatraPDF in ad-hoc tests,
+// High-level GUI automation actions for driving SwiftLeaf in ad-hoc tests,
 // built on the raw winapi.ts wrappers. winapi.ts is the FFI / raw-message layer;
 // this file is the "do a thing" layer (launch the app, find its windows, click a
 // spot, type into the form-field editor, open a context menu, screenshot).
@@ -138,8 +138,8 @@ export function windowPosArgs(): string[] {
   return ["-window-pos", `${p.dx}x${p.dy}@${p.x}x${p.y}`];
 }
 
-// Launch SumatraPDF.exe with -for-testing: a fresh instance that won't
-// interfere with a running SumatraPDF, doesn't restore the previous session
+// Launch Swiftleaf.exe with -for-testing: a fresh instance that won't
+// interfere with a running SwiftLeaf, doesn't restore the previous session
 // (only opens files passed on the cmd-line) and doesn't save settings. Use
 // proc.pid with waitForFrame() to get the window.
 //
@@ -147,7 +147,7 @@ export function windowPosArgs(): string[] {
 // faster to render and to capture than a full-screen one. Pass { defaultWindowPos: true } in a test that is
 // about the window's own size or state - fullscreen, maximized, minimized,
 // restoring a remembered position - so the app picks the position itself.
-export function launchSumatra(args: string[], opts?: { defaultWindowPos?: boolean }): Bun.Subprocess {
+export function launchApp(args: string[], opts?: { defaultWindowPos?: boolean }): Bun.Subprocess {
   const posArgs = opts?.defaultWindowPos || args.includes("-window-pos") ? [] : windowPosArgs();
   return Bun.spawn([EXE, "-for-testing", ...posArgs, ...args], { stdout: "ignore", stderr: "ignore" });
 }
@@ -175,7 +175,7 @@ export async function launchControlled(
     sendMessage(sharedSession.frame, WM_COMMAND, cmdId("CmdToggleEditPDF"), 0);
     const command = `[Open("${path}", 0, 1, 0)]`;
     if (!sendCopyDataW(sharedSession.frame, 0x44646557, command)) {
-      throw new Error("could not open the next document in the shared SumatraPDF process");
+      throw new Error("could not open the next document in the shared SwiftLeaf process");
     }
     const client = await ControlClient.connect(sharedSession.pipe);
     await client.waitForRenderIdle();
@@ -198,7 +198,7 @@ export async function launchControlled(
     const frame = await waitForFrame(proc.pid!);
     if (!frame) {
       client.close();
-      throw new Error("SumatraPDF main window did not appear");
+      throw new Error("SwiftLeaf main window did not appear");
     }
     if (sharedSessionRequested) {
       sharedSession = { proc, pipe, frame };

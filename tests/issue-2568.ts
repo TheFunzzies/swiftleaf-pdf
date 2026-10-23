@@ -1,7 +1,7 @@
 // #2568: Explorer Space-bar preview (`-quicklook`) must load the file as a
 // normal document so the overlay window is actually showing a page.
 import { writeFileSync } from "node:fs";
-import { ControlCommand, withControlledSumatra } from "./control";
+import { ControlCommand, withControlledApp } from "./control";
 import { EXE, runStandalone, tmpPath } from "./util";
 
 function makePdf(): Buffer {
@@ -38,7 +38,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-2568.pdf");
   writeFileSync(pdf, makePdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle();

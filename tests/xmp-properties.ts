@@ -7,7 +7,7 @@
 // Run: bun tests/xmp-properties.ts [--no-build]
 
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, runStandalone } from "./util.ts";
 
 function parseProps(raw: string): Record<string, string> {
@@ -23,7 +23,7 @@ function parseProps(raw: string): Record<string, string> {
 }
 
 async function propertiesOf(pdf: string): Promise<Record<string, string>> {
-  return withControlledSumatra(
+  return withControlledApp(
     EXE,
     async (client) => {
       const deadline = Date.now() + 20_000;

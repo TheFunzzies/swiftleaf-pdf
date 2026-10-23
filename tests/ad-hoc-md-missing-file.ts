@@ -6,7 +6,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 async function currentPageNo(client: ControlClient): Promise<number> {
@@ -29,7 +29,7 @@ export async function testit(): Promise<void> {
   // a sibling the old code would have collected and opened instead
   writeFileSync(join(dir, "sibling.md"), "# Sibling\n");
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       const pageNo = await currentPageNo(client);

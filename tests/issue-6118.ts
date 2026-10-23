@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6118
+// Test for upstream issues #6118
 //
 // With EscToExit on, Esc while adding an annotation cancelled the placement,
 // and the next Esc closed the document. Esc is the cancel key the placement

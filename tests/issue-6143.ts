@@ -6,7 +6,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { withControlledSumatra } from "./control.ts";
+import { withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 function settings(): string {
@@ -16,7 +16,7 @@ function settings(): string {
 }
 
 async function openMd(path: string, appdata: string, label: string): Promise<void> {
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle();

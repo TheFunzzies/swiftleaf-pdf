@@ -1,11 +1,11 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6039
+// Test for upstream issues #6039
 //
 // Page Grid was painted only for fixed-page documents even though EPUBs use
 // the same paginated canvas and page-coordinate transforms.
 
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { withControlledSumatra } from "./control.ts";
+import { withControlledApp } from "./control.ts";
 import { EXE, ROOT, cmdId, runStandalone, tmpPath } from "./util.ts";
 import { captureWindowPixels, sleep } from "./winapi.ts";
 import { findCanvas, sendCommand, waitForFrame } from "./win-automation.ts";
@@ -30,7 +30,7 @@ export async function testit(): Promise<void> {
   rmSync(appdata, { recursive: true, force: true });
   mkdirSync(appdata, { recursive: true });
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

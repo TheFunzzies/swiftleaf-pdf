@@ -2,7 +2,7 @@
    License: GPLv3 */
 
 // ng: settings round-trip. The settings file format is part of the port's
-// contract (agents.md), so the golden file in docs/test is orig's default
+// contract (docs/development.md), so the golden file in docs/test is orig's default
 // serialization and must survive a load + save unchanged.
 
 #include "base/Base.h"

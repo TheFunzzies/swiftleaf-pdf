@@ -60,7 +60,7 @@ static int CalcDlgWidth(PlatformFont* font, Str path, int minW, int padding) {
     return dlgW;
 }
 
-// the Sumatra app icon, shown in each tool dialog's title bar / taskbar
+// the SwiftLeaf app icon, shown in each tool dialog's title bar / taskbar
 static HICON GetAppIcon() {
     return LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(GetAppIconID()));
 }
@@ -1375,7 +1375,7 @@ static bool ConvertImageCollectionToPdf(EngineBase* engine, Str destPath) {
         return false;
     }
 
-    TempStr producer = fmt("SumatraPDF %s", currentVersion);
+    TempStr producer = fmt("SwiftLeaf %s", currentVersion);
     PdfCreator::SetProducerName(producer);
     // Formats PDF cannot re-wrap (WebP, JXL, HEIC, AVIF, TGA, …): decode via
     // the same codecs we use for viewing, then PNG + zopfli before embed.

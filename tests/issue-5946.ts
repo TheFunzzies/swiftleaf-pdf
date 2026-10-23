@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5946
+// Test for upstream issues #5946
 //
 // First-open zoom for comic archives:
 //   ComicBookUI.DefaultZoom unset -> fit page (not the global DefaultZoom)
@@ -9,7 +9,7 @@
 
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, runStandalone, tmpPath } from "./util.ts";
 
 const CBZ = join(ROOT, "tests", "issue-1201.cbz");
@@ -71,7 +71,7 @@ async function openZoom(file: string, extra: string, label: string): Promise<str
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SumatraPDF-settings.txt"), `${SETTINGS_HEAD}${extra}\n`);
-  return withControlledSumatra(EXE, (client) => queryZoom(client), ["-appdata", dir, file]);
+  return withControlledApp(EXE, (client) => queryZoom(client), ["-appdata", dir, file]);
 }
 
 export async function testit(): Promise<void> {

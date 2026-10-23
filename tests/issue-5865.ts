@@ -132,7 +132,7 @@ async function runOnce(
     await body(frame, canvas, proc.pid!);
     sendCommand(frame, cmdId("CmdExit"));
     if (!(await waitForExit(proc))) {
-      throw new Error("issue-5865: SumatraPDF didn't exit after CmdExit");
+      throw new Error("issue-5865: SwiftLeaf didn't exit after CmdExit");
     }
   } finally {
     client.close();

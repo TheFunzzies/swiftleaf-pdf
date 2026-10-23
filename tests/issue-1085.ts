@@ -4,7 +4,7 @@
 // HighlightLinkDestination = true turns it on.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const SETTINGS = `UiLanguage = en
@@ -88,7 +88,7 @@ async function run(highlightOn: boolean, destNo: number): Promise<Mark> {
   writeFileSync(join(dir, "SumatraPDF-settings.txt"), `${SETTINGS}HighlightLinkDestination = ${highlightOn}\n`);
   const pdf = join(dir, "dests.pdf");
   writeFileSync(pdf, makePdf());
-  return withControlledSumatra(
+  return withControlledApp(
     EXE,
     async (client) => {
       await followDest(client, destNo);

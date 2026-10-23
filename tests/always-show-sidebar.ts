@@ -5,7 +5,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { assemblePdf, EXE, runStandalone, tmpPath } from "./util.ts";
 
 function makePdf(): string {
@@ -38,7 +38,7 @@ async function tocVisibleOnOpen(pdf: string, alwaysShow: boolean): Promise<boole
   ].join("\n");
   writeFileSync(join(appdata, "SumatraPDF-settings.txt"), settings);
   let vis = false;
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle();

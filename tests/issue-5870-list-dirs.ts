@@ -11,7 +11,7 @@ import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT, runStandalone, tmpPath } from "./util";
 import { getWindowRect, postMessage, readWindowDCColumn, sleep, waitForWindowIdle } from "./winapi";
-import { findCanvas, launchSumatra, waitForFrame, killAndWait } from "./win-automation";
+import { findCanvas, launchApp, waitForFrame, killAndWait } from "./win-automation";
 
 const WM_VSCROLL = 0x0115;
 const SB_PAGEDOWN = 3;
@@ -68,7 +68,7 @@ export async function testit(): Promise<void> {
       `HomePageViewMode = list\nFileStates [\n${states.join("\n")}\n]\n`,
   );
 
-  const proc = launchSumatra([...WINDOW_POS, "-appdata", dir]);
+  const proc = launchApp([...WINDOW_POS, "-appdata", dir]);
   try {
     const frame = await waitForFrame(proc.pid!);
     if (!frame) {

@@ -10,14 +10,14 @@ import { runLogged } from "./util";
 //   bun cmd/dbg.ts                            # cdb if available, else WinDbg
 //   bun cmd/dbg.ts -windbg                    # WinDbg GUI
 //   bun cmd/dbg.ts -clean                     # clean the ASan output first
-//   bun cmd/dbg.ts -- -for-testing foo.pdf    # args after -- go to SumatraPDF
+//   bun cmd/dbg.ts -- -for-testing foo.pdf    # args after -- go to SwiftLeaf
 //   bun cmd/dbg.ts -windbg -- -for-testing foo.pdf
 //
 // Pass -for-testing when opening a document to poke at: it starts a fresh
 // instance and won't overwrite the settings you actually use.
 
 const exePath = join("out", "dbg64_asan", "SumatraPDF-static.exe");
-const usage = `Usage: bun cmd/dbg.ts [-windbg] [-clean] [-- <SumatraPDF args>]`;
+const usage = `Usage: bun cmd/dbg.ts [-windbg] [-clean] [-- <SwiftLeaf args>]`;
 
 class CliError extends Error {}
 
@@ -174,7 +174,7 @@ export function findDebugger(preferWindbg = false): { exe: string; flags: string
   return null;
 }
 
-// Arguments before "--" configure dbg.ts; those after it go to SumatraPDF.
+// Arguments before "--" configure dbg.ts; those after it go to SwiftLeaf.
 function parseCli(): { preferWindbg: boolean; clean: boolean; app: string[] } | undefined {
   const args = process.argv.slice(2);
   if (args.length === 1 && ["-h", "-help", "--help"].includes(args[0])) {

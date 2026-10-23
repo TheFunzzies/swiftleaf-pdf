@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5866
+// Test for upstream issues #5866
 //
 // Leaving full screen (F11) left parts of the document painted over the caption
 // row: the tab bar and toolbar kept whatever pixels were on screen, so the page
@@ -127,7 +127,7 @@ export async function testit(): Promise<void> {
     });
     frame = await waitForFrame(proc.pid!, 8000);
     if (!frame) {
-      throw new Error("SumatraPDF frame window not found");
+      throw new Error("SwiftLeaf frame window not found");
     }
     // settle for first paint / maximized layout (not full-page render)
     const before = await sampleStableChrome(frame);

@@ -1,9 +1,9 @@
-// A host that embeds a normal SumatraPDF window (reparents it as WS_CHILD, like
+// A host that embeds a normal SwiftLeaf window (reparents it as WS_CHILD, like
 // Total Commander's lister) gets native scrollbars at runtime. That override
 // must not be written back to the settings file: before the fix, one embedded
 // run turned the user's Scrollbars = smart into windows.
 //
-// A second SumatraPDF instance serves as the host; only its frame hwnd is used.
+// A second SwiftLeaf instance serves as the host; only its frame hwnd is used.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { runStandalone, writeAppdata } from "./util.ts";

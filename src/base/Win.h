@@ -328,6 +328,7 @@ void RestoreDCState(SavedDCState* state);
 //--- clipboard
 
 bool OpenClipboardForUpdate();
+HWND GetClipboardOwnerWnd();
 void CloseClipboardAfterUpdate();
 bool CopyTextToClipboard(Str s);
 bool AppendTextToClipboard(Str s);

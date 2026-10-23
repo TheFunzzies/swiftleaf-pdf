@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5694
+// Test for upstream issues #5694
 //
 // Find can be limited to a page range. "ALPHA" is on pages 1, 2 and 3 of the
 // fixture; restricting to 2-2 must return only page 2.
@@ -6,7 +6,7 @@
 // Run:  bun tests/issue-5694.ts [--no-build]   (or via tests/run-almost-all.ts)
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 function makePdf(): Buffer {
@@ -85,7 +85,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-5694.pdf");
   writeFileSync(pdf, makePdf());
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     expectPages(await search(client, pdf, 0, 0), [1, 2, 3], "all pages");
     expectPages(await search(client, pdf, 2, 2), [2], "only page 2");
     expectPages(await search(client, pdf, 2, 3), [2, 3], "pages 2-3");

@@ -13,7 +13,7 @@
 
 #include "gui/win/HtmlWindow.h"
 
-// An important (to Sumatra) use case is displaying CHM documents. First we used
+// An important (to SwiftLeaf) use case is displaying CHM documents. First we used
 // IE's built-in support form CHM documents (using its: protocol
 // http://msdn.microsoft.com/en-us/library/aa164814(v=office.10).aspx).
 // However, that doesn't work for CHM documents from network drives

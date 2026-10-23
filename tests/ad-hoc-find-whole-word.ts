@@ -8,7 +8,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { cmdId, runStandalone, tmpPath } from "./util.ts";
-import { launchSumatra, waitForFrame, sendCommand, killAndWait } from "./win-automation.ts";
+import { launchApp, waitForFrame, sendCommand, killAndWait } from "./win-automation.ts";
 import { sleep, enumWindows, getWindowPid, captureWindowToPng, getClassName } from "./winapi.ts";
 
 const CmdFindFirst = cmdId("CmdFindFirst");
@@ -35,7 +35,7 @@ export async function testit(): Promise<void> {
     console.log(`SKIP: ${PDF} not found`);
     return;
   }
-  const proc = launchSumatra([PDF]);
+  const proc = launchApp([PDF]);
   try {
     const frame = await waitForFrame(proc.pid!);
     await sleep(1500);

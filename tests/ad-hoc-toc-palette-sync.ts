@@ -13,7 +13,7 @@
 import { writeFileSync } from "node:fs";
 import { cmdId, runStandalone, tmpPath } from "./util.ts";
 import {
-  launchSumatra,
+  launchApp,
   waitForFrame,
   findChildByClass,
   sendCommand,
@@ -84,11 +84,11 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-5716-bookmarks.pdf");
   writeFileSync(pdfPath, makeBookmarkedPdf());
 
-  const proc = launchSumatra([pdfPath]);
+  const proc = launchApp([pdfPath]);
   try {
     const frame = await waitForFrame(proc.pid);
     if (!frame) {
-      throw new Error("SumatraPDF frame window didn't appear");
+      throw new Error("SwiftLeaf frame window didn't appear");
     }
     moveWindow(frame, 40, 20, 1000, 760);
     await sleep(1200);

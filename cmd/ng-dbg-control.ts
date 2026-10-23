@@ -1,6 +1,6 @@
 // Command-line client for the app's automation channel (`-dbg-control <pipe>`,
 // src/SumatraControl.cpp). Orig drives the same protocol from tests/control.ts;
-// this is the small half of it: launch (or attach to) SumatraPDF, send one
+// this is the small half of it: launch (or attach to) SwiftLeaf, send one
 // command, print the reply.
 //
 //   bun cmd/ng-dbg-control.ts [-exe <path>] [-pipe <name>] [--] <cmd> [args...]
@@ -141,7 +141,7 @@ function pipePath(name: string): string {
 }
 
 function defaultExe(): string {
-  if (process.platform === "win32") return "out/win/dbg/SumatraPDF.exe";
+  if (process.platform === "win32") return "out/win/dbg/Swiftleaf.exe";
   return process.platform === "darwin" ? "out/mac/dbg/SumatraPDF" : "out/linux/dbg/SumatraPDF";
 }
 
@@ -223,7 +223,7 @@ async function main(): Promise<void> {
   if (!Number.isFinite(cmd) || cmd <= 0) usage();
   const args: Arg[] = cmdArgs.map((a) => (/^-?\d+$/.test(a) ? Number(a) : a));
 
-  if (!pipe) pipe = `sumatra-ctl-${process.pid}-${Date.now()}`;
+  if (!pipe) pipe = `swiftleaf-ctl-${process.pid}-${Date.now()}`;
   let child: ReturnType<typeof spawn> | undefined;
   if (!attach) {
     child = spawn(exe, ["-for-testing", ...files, "-dbg-control", pipe], { stdio: "ignore", detached: false });

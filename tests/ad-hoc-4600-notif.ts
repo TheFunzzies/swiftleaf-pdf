@@ -5,7 +5,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { makeMinimalPdf, tmpPath } from "./util.ts";
 import { makeFixtures } from "./ad-hoc-issue-4600.ts";
-import { captureWindowToPng, killAndWait, killProcessesNamed, launchSumatra, waitForFrame } from "./win-automation.ts";
+import { captureWindowToPng, killAndWait, killProcessesNamed, launchApp, waitForFrame } from "./win-automation.ts";
 import { moveWindow, setForegroundWindow, showWindow, sleep, SW_RESTORE } from "./winapi.ts";
 
 async function shot(doc: string, fontName: string, tag: string): Promise<void> {
@@ -16,7 +16,7 @@ async function shot(doc: string, fontName: string, tag: string): Promise<void> {
     join(appdata, "SumatraPDF-settings.txt"),
     [`EBookUI [`, `\tFontName = ${fontName}`, `]`, `RestoreSession = false`, ``].join("\n"),
   );
-  const proc = launchSumatra(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", doc]);
+  const proc = launchApp(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", doc]);
   try {
     const frame = await waitForFrame(proc.pid!);
     showWindow(frame, SW_RESTORE);
@@ -32,7 +32,7 @@ async function shot(doc: string, fontName: string, tag: string): Promise<void> {
 
 export async function testit(): Promise<void> {
   makeFixtures();
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   const epub = join(tmpPath("epub-font"), "none.epub");
   const pdf = tmpPath("issue-4600.pdf");
   writeFileSync(pdf, makeMinimalPdf("font test"));
@@ -67,7 +67,7 @@ async function shotPerFile(doc: string, globalFont: string, fileFont: string, ta
       ``,
     ].join("\n"),
   );
-  const proc = launchSumatra(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", doc]);
+  const proc = launchApp(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", doc]);
   try {
     const frame = await waitForFrame(proc.pid!);
     showWindow(frame, SW_RESTORE);

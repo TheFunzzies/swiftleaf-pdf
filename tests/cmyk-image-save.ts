@@ -6,7 +6,7 @@
 //
 // Run: bun tests/cmyk-image-save.ts [--no-build]   (or via tests/run-almost-all.ts)
 
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 function parseResult(raw: string): Record<string, number> {
@@ -31,7 +31,7 @@ export async function testit(): Promise<void> {
   const jpegPath = tmpPath("cmyk-image-save.jpg");
   const tiffPath = tmpPath("cmyk-image-save.tif");
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const res = await client.request(ControlCommand.TestCmykImageSave, [jpegPath, tiffPath]);
     const raw = String(res[1] ?? "");
     if (res[0] !== 0) {

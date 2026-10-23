@@ -6,7 +6,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlClient, ControlCommand } from "./control.ts";
 import { SETTINGS_FILE_NAME, assemblePdf, cmdId, runStandalone, tmpPath } from "./util.ts";
-import { findTopWindow, getControlText, packCoords, sendMessage, WM_COMMAND } from "./winapi.ts";
+import { setProcessDpiAware, findTopWindow, getControlText, packCoords, sendMessage, WM_COMMAND } from "./winapi.ts";
 import {
   clickAt,
   findCanvas,
@@ -59,6 +59,7 @@ async function selectedContents(client: ControlClient): Promise<string | null> {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("annot-contents-click-away");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });

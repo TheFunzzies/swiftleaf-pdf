@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6062
+// Test for upstream issues #6062
 //
 // Closing the last document with NoHomeTab leaves an empty window. The page
 // box still showed the last page number and the canvas scrollbar stayed up.

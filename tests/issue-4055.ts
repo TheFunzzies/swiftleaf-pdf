@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/4055
+// Test for upstream issues #4055
 //
 // Feature: DefaultDisplayMode = page aspect picks layout and zoom from
 // page 1 on first open of a PDF (no remembered FileState):
@@ -13,7 +13,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { cmdId, EXE, runStandalone, tmpPath } from "./util.ts";
 import { sendCommandSync, waitForFrame } from "./win-automation.ts";
 
@@ -83,7 +83,7 @@ async function run(pdf: string, extra: string, label: string): Promise<ModeState
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SumatraPDF-settings.txt"), `${SETTINGS_HEAD}${extra}\n`);
-  return withControlledSumatra(EXE, (client) => queryMode(client), ["-appdata", dir, pdf]);
+  return withControlledApp(EXE, (client) => queryMode(client), ["-appdata", dir, pdf]);
 }
 
 export async function testit(): Promise<void> {
@@ -96,7 +96,7 @@ export async function testit(): Promise<void> {
   rmSync(aspectDir, { recursive: true, force: true });
   mkdirSync(aspectDir, { recursive: true });
   writeFileSync(join(aspectDir, "SumatraPDF-settings.txt"), `${SETTINGS_HEAD}DefaultDisplayMode = page aspect\n`);
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

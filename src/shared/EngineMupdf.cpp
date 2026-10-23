@@ -293,7 +293,7 @@ static NO_INLINE RectF FzGetRectF(fz_link* link) {
     return {};
 }
 
-// Map a MuPDF/Adobe link destination to Sumatra rect + zoom for ScrollTo.
+// Map a MuPDF/Adobe link destination to SwiftLeaf rect + zoom for ScrollTo.
 // zoomOut: 0 = leave zoom; >0 absolute fraction (1 = 100%); negative =
 // virtual modes (kZoomFitPage / FitWidth / FitContent). (issue #5828)
 static void DestFromFzLinkDest(const fz_link_dest& ldest, RectF* rectOut, float* zoomOut) {
@@ -426,7 +426,7 @@ static int ResolveLinkChapterOnly(fz_context* ctx, fz_document* doc, Str uri) {
 
 // MuPDF html/md link URIs for relative hrefs are built with an empty base file,
 // so e.g. [other](other.md) becomes "/other.md". Treat those like the HTML
-// ebook engine: launch a local file Sumatra can open.
+// ebook engine: launch a local file SwiftLeaf can open.
 static void SkipLeadingPathSeparators(Str& path) {
     while (len(path) > 0 && (path.s[0] == '/' || path.s[0] == '\\')) {
         path.s++;
@@ -2442,7 +2442,7 @@ extern "C" char* pdf_parse_link_dest(fz_context* ctx, pdf_document* doc, pdf_obj
 // every other subtype). A PDF can just as well navigate from a pushbutton form
 // field: a /Widget annotation with a GoTo or URI action, which is how documents
 // produced by Acrobat draw "back to where you came from" arrows. Those are
-// followed by Acrobat and by browsers, and by SumatraPDF up to 3.1.2. Give them
+// followed by Acrobat and by browsers, and by SwiftLeaf up to 3.1.2. Give them
 // the same fz_links a /Link annotation gets, so they hover, click, and follow
 // like any other link (fixes #1914).
 static fz_link* MakePushButtonWidgetLinks(fz_context* ctx, pdf_document* doc, pdf_page* pdfpage, int pageNo) {
@@ -3867,7 +3867,7 @@ bool EngineMupdf::Load(Str path, PasswordUI* pwdUI) {
     return FinishLoading();
 }
 
-// is implemented in SumatraPDF.exe, PdfFilter and PdfPreview
+// is implemented in Swiftleaf.exe, PdfFilter and PdfPreview
 // TODO: allow setting per
 extern EBookUI* GetEBookUI();
 // per-document overrides (FileStates -> EBookUI), null unless the document has them
@@ -5204,7 +5204,7 @@ TocItem* EngineMupdf::BuildTocTree(TocItem* parent, fz_outline* outline, int& id
 }
 
 // Outline entries can ask for a color (/C) and for bold / italic (/F), and
-// SumatraPDF draws the bookmarks tree with them. fz_load_outline() throws that
+// SwiftLeaf draws the bookmarks tree with them. fz_load_outline() throws that
 // away: converting the outline iterator into fz_outline nodes copies the title,
 // the uri and is_open but not flags / r / g / b, so every entry comes out
 // unstyled (regression since we moved to that mupdf API, issue #3560). Walking
@@ -5746,7 +5746,7 @@ static IPageElement* NewFzComment(Str comment, int pageNo, RectF rect) {
     return res;
 }
 
-// An old SumatraPDF round-trip bug grew the line separator in annotation
+// An old SwiftLeaf round-trip bug grew the line separator in annotation
 // contents by one CR on every save: "\r\n" became "\r\r\n", then "\r\r\r\n" and
 // so on. GDI draws each of those as its own break, so a short note renders as a
 // tall column of blank lines (issue #2873). No producer writes a CR run before a
@@ -9487,7 +9487,7 @@ static void InvalidateFzPageAfterContentChange(EngineMupdf* e, FzPageInfo* pi) {
 }
 
 // Apply every /Redact annotation: rewrite the page content, drop the marks,
-// and return the Sumatra wrappers that MuPDF deleted (caller must Detach +
+// and return the SwiftLeaf wrappers that MuPDF deleted (caller must Detach +
 // DeleteAnnotation). Incremental save is unsafe afterwards; pdfdoc->redacted
 // already forces a full rewrite in EngineMupdfSaveUpdated.
 bool EngineMupdfApplyRedactions(EngineBase* engine, Vec<Annotation*>& deletedOut) {
@@ -10552,21 +10552,236 @@ void EngineMupdfToggleCadEnhance(EngineBase* engine) {
 // caller must free
 Str EngineMupdfLoadAttachment(EngineBase* engine, int attachmentNo) {
     EngineMupdf* epdf = AsEngineMupdf(engine);
-    if (!epdf->pdfdoc) {
+    if (!epdf || !epdf->pdfdoc) {
         return {};
     }
-
+    ScopedRecursiveMutex scope(&epdf->docLock);
     return PdfLoadAttachment(epdf->Ctx(), epdf->pdfdoc, attachmentNo);
 }
 
 Str EngineMupdfLoadAnnotAttachment(EngineBase* engine, int objNum) {
     EngineMupdf* epdf = AsEngineMupdf(engine);
-    if (!epdf->pdfdoc) {
+    if (!epdf || !epdf->pdfdoc) {
         return {};
     }
     ScopedRecursiveMutex scope(&epdf->docLock);
     return PdfLoadAnnotationAttachment(epdf->Ctx(), epdf->pdfdoc, objNum);
 }
+
+// Counts terminal form fields in the AcroForm tree. A radio group is one
+// field with several widget kids, so counting leaf field nodes (rather than
+// widgets) matches what a reader calls a field.
+static void CountFormFieldNode(fz_context* ctx, pdf_obj* node, void* arg, pdf_obj** /*inherited*/) {
+    int* count = (int*)arg;
+    if (!pdf_is_dict(ctx, node) || !pdf_dict_get(ctx, node, PDF_NAME(T))) {
+        return;
+    }
+    // a field with field children is a branch; count only its leaves (a
+    // merged field/widget has no kids and counts once)
+    pdf_obj* kids = pdf_dict_get(ctx, node, PDF_NAME(Kids));
+    int n = pdf_array_len(ctx, kids);
+    for (int i = 0; i < n; i++) {
+        pdf_obj* kid = pdf_array_get(ctx, kids, i);
+        if (pdf_is_dict(ctx, kid) && pdf_dict_get(ctx, kid, PDF_NAME(T))) {
+            return;
+        }
+    }
+    (*count)++;
+}
+
+int EngineMupdfCountFormFields(EngineBase* engine) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return 0;
+    }
+    fz_context* ctx = epdf->Ctx();
+    int count = 0;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        pdf_obj* fields = pdf_dict_getp(ctx, pdf_trailer(ctx, epdf->pdfdoc), "Root/AcroForm/Fields");
+        if (fields) {
+            pdf_walk_tree(ctx, fields, PDF_NAME(Kids), CountFormFieldNode, nullptr, &count, nullptr, nullptr);
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        count = 0;
+    }
+    return count;
+}
+
+//--- PDF layers (optional content groups)
+
+int EngineMupdfGetLayerCount(EngineBase* engine) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return 0;
+    }
+    fz_context* ctx = epdf->Ctx();
+    int n = 0;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        n = pdf_count_layers(ctx, epdf->pdfdoc);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        n = 0;
+    }
+    return n;
+}
+
+// caller must free
+Str EngineMupdfGetLayerName(EngineBase* engine, int layer) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return {};
+    }
+    fz_context* ctx = epdf->Ctx();
+    Str name;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        name = str::Dup(Str(pdf_layer_name(ctx, epdf->pdfdoc, layer)));
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        name = {};
+    }
+    return name;
+}
+
+bool EngineMupdfIsLayerEnabled(EngineBase* engine, int layer) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return false;
+    }
+    fz_context* ctx = epdf->Ctx();
+    bool enabled = false;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        enabled = pdf_layer_is_enabled(ctx, epdf->pdfdoc, layer) != 0;
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        enabled = false;
+    }
+    return enabled;
+}
+
+// Toggling a layer changes which content a page run emits, so every page's
+// cached display list (and its extracted text) has to go.
+bool EngineMupdfSetLayerEnabled(EngineBase* engine, int layer, bool enabled) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return false;
+    }
+    fz_context* ctx = epdf->Ctx();
+    bool ok = false;
+    {
+        ScopedRecursiveMutex scope(&epdf->docLock);
+        fz_try(ctx) {
+            pdf_enable_layer(ctx, epdf->pdfdoc, layer, enabled ? 1 : 0);
+            ok = true;
+        }
+        fz_catch(ctx) {
+            fz_report_error(ctx);
+            ok = false;
+        }
+    }
+    if (!ok) {
+        return false;
+    }
+    {
+        ScopedRecursiveMutex pagesScope(&epdf->pagesLock);
+        ScopedMutex renderScope(&epdf->renderLock);
+        ForEachPageInfo(epdf, [epdf](FzPageInfo* pi) { InvalidateFzPageAfterContentChange(epdf, pi); });
+    }
+    for (int pageNo = 1; pageNo <= epdf->pageCount; pageNo++) {
+        epdf->InvalidateTextForPage(pageNo);
+    }
+    return true;
+}
+
+//--- Embedded files (attachments)
+
+// Snapshot metadata in one traversal. No PDF objects escape the document lock.
+void EngineMupdfGetAttachments(EngineBase* engine, Vec<PdfAttachment>& out) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return;
+    }
+    fz_context* ctx = epdf->Ctx();
+    pdf_obj* dict = nullptr;
+    fz_var(dict);
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        dict = pdf_load_name_tree(ctx, epdf->pdfdoc, PDF_NAME(EmbeddedFiles));
+        int count = pdf_dict_len(ctx, dict);
+        for (int i = 0; i < count; i++) {
+            pdf_obj* fs = pdf_dict_get_val(ctx, dict, i);
+            fz_try(ctx) {
+                pdf_filespec_params params = {};
+                pdf_get_filespec_params(ctx, fs, &params);
+                const char* name = params.filename;
+                if (!name || !name[0]) {
+                    name = pdf_to_text_string(ctx, pdf_dict_get_key(ctx, dict, i));
+                }
+                VecAppend(out, PdfAttachment{str::Dup(Str(name)), params.size >= 0 ? params.size : -1});
+            }
+            fz_catch(ctx) {
+                fz_report_error(ctx);
+                // Keep the row number aligned with EngineMupdfLoadAttachment.
+                VecAppend(out, PdfAttachment{{}, -1});
+            }
+        }
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, dict);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+}
+
+#if IS_DEBUG
+bool EngineMupdf_UnitTestPanelData() {
+    const char* objs[] = {
+        "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(a) 4 0 R (bad) 11 0 R (c) 5 0 R] >> >> "
+        "/AcroForm << "
+        "/Fields [10 0 R] >> /OCProperties << /OCGs [8 0 R 9 0 R] /D << /BaseState /ON /Order [8 0 R 9 0 R] /RBGroups "
+        "[[8 0 R 9 0 R]] >> >> >>",
+        "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [10 0 R] >>",
+        "<< /Type /Filespec /F (../evil.html) /EF << /F 6 0 R >> >>",
+        "<< /Type /Filespec /F (../evil.html) /EF << /F 7 0 R >> >>",
+        "<< /Type /EmbeddedFile /Length 3 /Params << /Size 3 >> >>\nstream\nabc\nendstream",
+        "<< /Type /EmbeddedFile /Length 3 /Params << /Size 3 >> >>\nstream\nxyz\nendstream",
+        "<< /Type /OCG /Name (First) >>",
+        "<< /Type /OCG /Name (Second) >>",
+        "<< /Type /Annot /Subtype /Widget /FT /Tx /T (field) /Rect [10 10 100 30] /P 3 0 R >>",
+        "<< /Type /Filespec /F (bad.txt) /EF 42 >>",
+    };
+    EngineBase* engine = CreateEngineMupdfFromData(AssemblePdfTemp(objs, dimof(objs)), StrL("panel.pdf"), nullptr);
+    if (!engine) return false;
+    Vec<PdfAttachment> metadata;
+    EngineMupdfGetAttachments(engine, metadata);
+    bool ok = len(metadata) == 3;
+    Str first = EngineMupdfLoadAttachment(engine, 1);
+    Str third = EngineMupdfLoadAttachment(engine, 3);
+    ok = ok && str::Eq(first, StrL("abc")) && str::Eq(third, StrL("xyz"));
+    str::Free(first);
+    str::Free(third);
+    ok = ok && EngineMupdfCountFormFields(engine) == 1 && EngineMupdfGetLayerCount(engine) == 2;
+    ok = ok && EngineMupdfSetLayerEnabled(engine, 0, false) && !EngineMupdfIsLayerEnabled(engine, 0);
+    ok = ok && EngineMupdfIsLayerEnabled(engine, 1);
+    SafeEngineRelease(&engine);
+    // Snapshot strings must remain valid after the document is gone.
+    ok = ok && str::Eq(metadata[0].name, StrL("../evil.html")) && metadata[0].size == 3;
+    ok = ok && len(metadata[1].name) == 0 && metadata[1].size == -1;
+    ok = ok && str::Eq(metadata[2].name, StrL("../evil.html")) && metadata[2].size == 3;
+    for (PdfAttachment& attachment : metadata) str::Free(attachment.name);
+    return ok;
+}
+#endif
 
 static Annotation* FindAnnotAtPos(const Vec<Annotation*>& annots, PointF pos, float padding,
                                   Annotation* preferred = nullptr) {
@@ -10773,11 +10988,12 @@ NO_INLINE void MarkNotificationAsModified(EngineMupdf* e, Annotation* annot, Ann
         if (annot->type == AnnotationType::Redact) {
             e->createdRedactMark = true;
         }
-        int sizeBefore = len(pageInfo->annotations);
-        int pos = VecFind(pageInfo->annotations, annot);
+        auto& list = annot->type == AnnotationType::Widget ? pageInfo->widgets : pageInfo->annotations;
+        int sizeBefore = len(list);
+        int pos = VecFind(list, annot);
         ReportIf(pos >= 0); // shouldn't exist
-        VecAppend(pageInfo->annotations, annot);
-        int sizeNow = len(pageInfo->annotations);
+        VecAppend(list, annot);
+        int sizeNow = len(list);
         ReportIf(sizeBefore != sizeNow - 1);
     } else {
         ReportIf(change != AnnotationChange::Modify);

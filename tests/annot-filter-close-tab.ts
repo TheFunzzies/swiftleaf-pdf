@@ -9,8 +9,9 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlCommand } from "./control.ts";
+import { waitCommentsPanel } from "./comments-panel.ts";
 import { runStandalone, tmpPath } from "./util";
-import { sleep } from "./winapi";
+import { setProcessDpiAware, sleep } from "./winapi";
 import { killAndWait, launchControlled } from "./win-automation";
 
 // two Text annotations, enough for the list to have rows to paint
@@ -38,6 +39,7 @@ function makePdf(): string {
 }
 
 export async function testit(): Promise<void> {
+  setProcessDpiAware();
   const dir = tmpPath("annot-filter-close-tab");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -50,12 +52,10 @@ export async function testit(): Promise<void> {
     await client.setNotificationsEnabled(false);
     await client.request(ControlCommand.TestInvokeCommand, ["CmdToggleEditPDF"]);
     await client.request(ControlCommand.TestInvokeCommand, ["CmdFindAnnotation"]);
-    const opened = await client.request(ControlCommand.TestAnnotFilter, []);
-    if (!/floatVisible=1/.test(String(opened[1] ?? ""))) {
-      throw new Error(`annot-filter-close-tab: the Annotations window did not open: ${String(opened[1] ?? "")}`);
-    }
+    await waitCommentsPanel(client, frame, true);
 
     await client.request(ControlCommand.TestInvokeCommand, ["CmdClose"]);
+    await waitCommentsPanel(client, frame, false);
 
     for (let i = 0; i < 3; i++) {
       await client.request(ControlCommand.TestAnnotFilter, ["paint"]);
@@ -67,6 +67,10 @@ export async function testit(): Promise<void> {
     // a round trip proves the UI thread is still alive and serving; it must
     // not need a document, there is none left
     await client.setNotificationsEnabled(false);
+    const cleared = String((await client.request(ControlCommand.TestAnnotFilter, []))[1] ?? "");
+    if (!/nAll=0 nVisible=0 sel=-1/.test(cleared)) {
+      throw new Error(`annot-filter-close-tab: closed tab left cached annotations\n${cleared}`);
+    }
   } finally {
     client.close();
     await killAndWait(proc);

@@ -22,7 +22,7 @@ import {
   TVM_GETCOUNT,
   WM_CLOSE,
 } from "./winapi";
-import { killAndWait, launchSumatra, sendCommand, waitForExit, waitForFrame, waitForTitle } from "./win-automation";
+import { killAndWait, launchApp, sendCommand, waitForExit, waitForFrame, waitForTitle } from "./win-automation";
 
 const nFiles = 400;
 const headingsPerFile = 3;
@@ -74,7 +74,7 @@ async function waitForTocCount(frame: number, want: number, timeoutMs = 30000): 
 }
 
 function launch(dir: string, file: string): Bun.Subprocess {
-  return launchSumatra([join(dir, file)]);
+  return launchApp([join(dir, file)]);
 }
 
 async function waitForTocTree(frame: number, timeoutMs = 8000): Promise<number> {

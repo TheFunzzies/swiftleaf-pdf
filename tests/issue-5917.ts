@@ -29,7 +29,7 @@ function makeFolder(name: string, names: string[]): string {
   return dir;
 }
 
-// which document the window shows, from its title ("<file> - SumatraPDF")
+// which document the window shows, from its title ("<file> - SwiftLeaf")
 function loadedFile(frame: number): string {
   return getWindowText(frame).split(" - ")[0].trim();
 }

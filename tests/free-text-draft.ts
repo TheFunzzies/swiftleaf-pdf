@@ -107,6 +107,8 @@ export async function testit(): Promise<void> {
     captureWindowToPng(canvas, join(dir, "accepted.png"));
     const rect = /type=FreeText[^\n]*screen=(-?\d+),(-?\d+),(\d+),(\d+)/.exec(raw);
     if (!rect) throw new Error(`Missing accepted text rectangle\n${raw}`);
+    const reopenPoint = clientToScreen(canvas, +rect[1]! + 5, +rect[2]! + 5);
+    setCursorPos(reopenPoint.x, reopenPoint.y);
     const pos = packCoords(+rect[1]! + 5, +rect[2]! + 5);
     sendMessage(canvas, WM_LBUTTONDOWN, MK_LBUTTON, pos);
     sendMessage(canvas, WM_LBUTTONUP, 0, pos);
@@ -133,6 +135,35 @@ export async function testit(): Promise<void> {
       const beforeScreen = beforeDrag?.slice(1, 5).join(",") ?? "missing";
       throw new Error(`Accepted text did not move by the drag delta\n${raw}\nbeforeScreen=${beforeScreen}`);
     }
+    // Exercise overlapping resize hit zones even on large/high-DPI desktops.
+    // The center of a short text box must still move it, preserving its size.
+    sendCommandSync(frame, cmdId("CmdZoom25"));
+    raw = await dump();
+    const tiny = /type=FreeText[^\n]*screen=(-?\d+),(-?\d+),(\d+),(\d+)/.exec(raw);
+    if (!tiny) throw new Error(`Missing zoomed-out text rectangle\n${raw}`);
+    const tinyStart = { x: +tiny[1]! + Math.floor(+tiny[3]! / 2), y: +tiny[2]! + Math.floor(+tiny[4]! / 2) };
+    const tinyEnd = { x: tinyStart.x + 20, y: tinyStart.y + 15 };
+    const tinyScreen = clientToScreen(canvas, tinyEnd.x, tinyEnd.y);
+    setCursorPos(tinyScreen.x, tinyScreen.y);
+    sendMessage(canvas, WM_LBUTTONDOWN, MK_LBUTTON, packCoords(tinyStart.x, tinyStart.y));
+    sendMessage(canvas, WM_MOUSEMOVE, MK_LBUTTON, packCoords(tinyEnd.x, tinyEnd.y));
+    sendMessage(canvas, WM_LBUTTONUP, 0, packCoords(tinyEnd.x, tinyEnd.y));
+    raw = await dump();
+    const tinyMoved = /type=FreeText[^\n]*screen=(-?\d+),(-?\d+),(\d+),(\d+)/.exec(raw);
+    if (
+      !tinyMoved ||
+      Math.abs(+tinyMoved[1]! - +tiny[1]! - 20) > 2 ||
+      Math.abs(+tinyMoved[2]! - +tiny[2]! - 15) > 2 ||
+      Math.abs(+tinyMoved[3]! - +tiny[3]!) > 1 ||
+      Math.abs(+tinyMoved[4]! - +tiny[4]!) > 1
+    ) {
+      throw new Error(
+        `Zoomed-out FreeText drag must move without resizing\n${raw}\nbeforeScreen=${tiny.slice(1).join(",")}`,
+      );
+    }
+    sendCommandSync(frame, cmdId("CmdUndo"));
+    sendCommandSync(frame, cmdId("CmdZoomFitPage"));
+    await client.waitForRenderIdle();
     sendCommandSync(frame, cmdId("CmdUndo"));
     raw = await dump();
     want(raw, /annotations=1/, "Undoing movement keeps the annotation");
