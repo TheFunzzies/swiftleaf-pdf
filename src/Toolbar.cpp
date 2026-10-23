@@ -57,6 +57,7 @@
 #include "PageOrganize.h"
 #include "StatusBar.h"
 #include "NavRail.h"
+#include "DocumentPanel.h"
 #include "Material.h"
 #include "LucideIcons.h"
 #include "ToolsPanel.h"
@@ -1631,6 +1632,8 @@ void UpdateToolbarAfterThemeChange(MainWindow* win) {
     StatusBarAfterThemeChange(win);
     NavRailAfterThemeChange(win);
     ToolsPanelAfterThemeChange(win);
+    DocumentPanelAfterThemeChange(win);
+    FormBannerAfterThemeChange(win);
     VirtHost* host = ToolbarHost(win);
     if (host) {
         host->bgColor = TbBgColor();
@@ -4058,6 +4061,8 @@ void CreateToolbar(MainWindow* win) {
     CreateStatusBar(win);
     CreateNavRail(win);
     CreateToolsPanel(win);
+    CreateDocumentPanel(win);
+    CreateFormBanner(win);
 
     DocController* ctrl = win->ctrl;
     UpdateToolbarPageText(win, ctrl ? ctrl->PageCount() : -1);
@@ -4080,6 +4085,8 @@ void CreateToolbar(MainWindow* win) {
 
 void DestroyToolbar(MainWindow* win) {
     DestroyStatusBar(win);
+    DestroyFormBanner(win);
+    DestroyDocumentPanel(win);
     DestroyToolsPanel(win);
     DestroyNavRail(win);
     ToolbarVirt* tb = win->toolbarVirt;

@@ -1422,6 +1422,7 @@
     <ClInclude Include="..\src\MergePdf.h" />
     <ClInclude Include="..\src\NavRail.h" />
     <ClInclude Include="..\src\ToolsPanel.h" />
+    <ClInclude Include="..\src\DocumentPanel.h" />
     <ClInclude Include="..\src\LucideIcons.h" />
     <ClInclude Include="..\src\Notifications.h" />
     <ClInclude Include="..\src\OverlayScrollbar.h" />
@@ -1653,6 +1654,7 @@
     <ClCompile Include="..\src\NavFilesInFolder.cpp" />
     <ClCompile Include="..\src\NavRail.cpp" />
     <ClCompile Include="..\src\ToolsPanel.cpp" />
+    <ClCompile Include="..\src\DocumentPanel.cpp" />
     <ClCompile Include="..\src\LucideIcons.cpp" />
     <ClCompile Include="..\src\Notifications.cpp" />
     <ClCompile Include="..\src\OverlayScrollbar.cpp" />

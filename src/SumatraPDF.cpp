@@ -52,6 +52,7 @@
 #include "StatusBar.h"
 #include "NavRail.h"
 #include "ToolsPanel.h"
+#include "DocumentPanel.h"
 #include "SignatureCreate.h"
 #include "Ribbon.h"
 #include "Material.h"
@@ -3222,6 +3223,7 @@ static void CreateFrameLayout(MainWindow* win) {
     win->navRailSlot = new HwndSlot();
     win->toolsPanelSlot = new HwndSlot();
     win->commentsPanelSlot = new HwndSlot();
+    win->documentPanelSlot = new HwndSlot();
     CreateCaptionLayout(win);
 
     // the webview is expensive to resize, so this one only moves the panes
@@ -3248,6 +3250,7 @@ static void CreateFrameLayout(MainWindow* win) {
     row->AddChild(content, 1);
     row->AddChild(win->aiChatSplitter);
     row->AddChild(win->aiChatSlot);
+    row->AddChild(win->documentPanelSlot);
     row->AddChild(win->commentsPanelSlot);
     row->AddChild(win->navRailSlot);
     win->frameLayout = row;
@@ -8041,6 +8044,13 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     SetVis(win->toolsPanelSlot, showTools);
     win->toolsPanelSlot->dx = toolsDx;
     ShowWindow(win->hwndToolsPanel, showTools ? SW_SHOW : SW_HIDE);
+    bool showDocumentPanel = gSettings->showDocumentPanel && win->hwndDocumentPanel && curTab && IsPdfDoc(curTab) &&
+                             !win->presentation && !win->isFullScreen && !win->isQuickLook;
+    int documentPanelDx = showDocumentPanel ? DocumentPanelDx() : 0;
+    SetVis(win->documentPanelSlot, showDocumentPanel);
+    win->documentPanelSlot->dx = documentPanelDx;
+    if (showDocumentPanel) DocumentPanelUpdate(win);
+    if (win->hwndDocumentPanel) ShowWindow(win->hwndDocumentPanel, showDocumentPanel ? SW_SHOW : SW_HIDE);
     int statusBarDy = showStatusBar ? HwndWindowRect(win->hwndStatusBar).dy : 0;
 
     int tabHeight = GetTabbarHeight(win->hwndFrame);
@@ -8086,8 +8096,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
         }
         // never too narrow; max leaves kMinDocCanvasDx for the document
         // (was hard-capped at half the frame, which cut long favorite names)
-        int maxSidebarDx =
-            std::max(kSidebarMinDx, rc.dx - toolsDx - navRailDx - (showComments ? DpiScale(300) : 0) - kMinDocCanvasDx);
+        int sidePanelsDx = (showComments ? DpiScale(300) : 0) + documentPanelDx;
+        int maxSidebarDx = std::max(kSidebarMinDx, rc.dx - toolsDx - navRailDx - sidePanelsDx - kMinDocCanvasDx);
         sidebarDxApplied = limitValue(sidebarDxApplied, kSidebarMinDx, maxSidebarDx);
         win->sidebarDx = sidebarDxApplied; // remember what's applied
     }
@@ -8172,6 +8182,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     BindSlot(win->toolbarBottomSlot, win->hwndToolbar, &dh, updateToolbars && showToolbar && toolbarBottom);
     BindSlot(win->statusBarSlot, win->hwndStatusBar, &dh, updateToolbars && showStatusBar);
     BindSlot(win->commentsPanelSlot, win->hwndCommentsPanel, &dh, showComments);
+    BindSlot(win->documentPanelSlot, win->hwndDocumentPanel, &dh, showDocumentPanel);
     BindSlot(win->toolsPanelSlot, win->hwndToolsPanel, &dh, showTools);
     BindSlot(win->navRailSlot, win->hwndNavRail, &dh, updateToolbars && showNavRail);
     HWND topHwnd = win->sidebarTop->hwnd;
@@ -8209,7 +8220,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
         win->tabsSlot,          win->menuSlot,         win->toolbarTopSlot, win->toolbarBottomSlot,
         win->capMenuSlot,       win->capTabsRow1,      win->capTabsRow2,    win->sidebarTopSlot,
         win->sidebarBottomSlot, win->favoritesTabSlot, win->canvasSlot,     win->aiChatSlot,
-        win->statusBarSlot,     win->navRailSlot,      win->toolsPanelSlot, win->commentsPanelSlot};
+        win->statusBarSlot,     win->navRailSlot,      win->toolsPanelSlot, win->commentsPanelSlot,
+        win->documentPanelSlot};
     for (HwndSlot* s : chromeSlots) {
         ClearSlotDefer(s);
     }
@@ -8245,6 +8257,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
 
     dh.End();
     PositionAnnotationStrip(win);
+    FormBannerUpdate(win);
 
     if (isSplitterDrag) {
         if (discardCanvasBits) {

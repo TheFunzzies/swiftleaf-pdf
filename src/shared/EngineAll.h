@@ -235,6 +235,14 @@ bool EngineMupdfCadEnhanceActive(EngineBase* engine);
 void EngineMupdfInvalidateDarkMode(EngineBase* engine);
 Str EngineMupdfLoadAttachment(EngineBase*, int attachmentNo);
 Str EngineMupdfLoadAnnotAttachment(EngineBase*, int objNum);
+int EngineMupdfCountFormFields(EngineBase*);
+int EngineMupdfGetLayerCount(EngineBase*);
+Str EngineMupdfGetLayerName(EngineBase*, int layer);
+bool EngineMupdfIsLayerEnabled(EngineBase*, int layer);
+bool EngineMupdfSetLayerEnabled(EngineBase*, int layer, bool enabled);
+int EngineMupdfGetAttachmentCount(EngineBase*);
+Str EngineMupdfGetAttachmentName(EngineBase*, int attachmentNo);
+i64 EngineMupdfGetAttachmentSize(EngineBase*, int attachmentNo);
 TempStr EngineMupdfGetPdfInfo(Str path);
 TempStr EngineMupdfGetPdfOutline(Str path);
 

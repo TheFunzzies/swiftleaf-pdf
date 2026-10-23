@@ -268,6 +268,11 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     HWND hwndCommentsPanel = nullptr;
     HWND hwndToolsPanel = nullptr;
     struct ToolsPanelVirt* toolsPanel = nullptr;
+    // Swiftleaf Layers / Attachments panel and the form-field banner
+    HWND hwndDocumentPanel = nullptr;
+    struct DocumentPanelVirt* documentPanel = nullptr;
+    HWND hwndFormBanner = nullptr;
+    struct FormBannerVirt* formBanner = nullptr;
     HWND hwndNavRail = nullptr;
     struct NavRailVirt* navRail = nullptr;
     HWND hwndMenuReBar = nullptr;
@@ -508,6 +513,7 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     HwndSlot* toolbarBottomSlot = nullptr;
     HwndSlot* statusBarSlot = nullptr;
     HwndSlot* commentsPanelSlot = nullptr;
+    HwndSlot* documentPanelSlot = nullptr;
     HwndSlot* toolsPanelSlot = nullptr;
     HwndSlot* navRailSlot = nullptr;
     // tabs-in-titlebar caption: VirtCtrl buttons + HwndSlots for tabs/menu

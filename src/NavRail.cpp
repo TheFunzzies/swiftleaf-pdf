@@ -27,6 +27,7 @@
 #include "Translations.h"
 #include "SidebarPanel.h"
 #include "AnnotFilterToolbar.h"
+#include "DocumentPanel.h"
 #include "FindBar.h"
 #include "Material.h"
 #include "Ribbon.h"
@@ -79,8 +80,8 @@ static const NavItemDef gNavItems[] = {
     {NavItemKind::Comments, gLucideMessageSquare, CmdFindAnnotation, TrN("Comments"), TrN("Comments"), true, false},
     {NavItemKind::Bookmarks, gIconBookmark, CmdToggleBookmarks, TrN("Bookmarks"), TrN("Bookmarks"), true, false},
     {NavItemKind::Thumbnails, gIconThumbs, CmdToggleThumbnails, TrN("Pages"), TrN("Page thumbnails"), true, false},
-    {NavItemKind::Layers, gLucideLayers, 0, TrN("Layers"), TrN("Layer browsing is not available in SwiftLeaf"), true, false},
-    {NavItemKind::Attachments, gLucidePaperclip, 0, TrN("Attachments"), TrN("Open attachments from their icons on the page"), true, false},
+    {NavItemKind::Layers, gLucideLayers, 0, TrN("Layers"), TrN("Show or hide PDF layers"), true, false},
+    {NavItemKind::Attachments, gLucidePaperclip, 0, TrN("Attachments"), TrN("Files embedded in this PDF"), true, false},
     {NavItemKind::Search, nullptr, CmdFindFirst, TrN("Search"), TrN("Find text"), true, false},
     {NavItemKind::Favorites, gIconStar, CmdFavoriteToggle, TrN("Favorites"), TrN("Favorite documents and pages"), false, false},
     {NavItemKind::Settings, gIconSettings, CmdOptions, TrN("Settings"), TrN("Options"), false, true},
@@ -164,10 +165,21 @@ bool ShouldShowNavRail(MainWindow* win) {
 
 static void OnItemClicked(NavRailVirt* rail, VirtMouseEvent* ev) {
     VirtCtrl* w = ev->target;
-    if (!w || !w->IsEnabled()) {
+    if (!w || !w->IsEnabled() || w->GetKind() != kindNavRailItem) {
         return;
     }
-    HwndPostCommand(rail->win->hwndFrame, w->id);
+    auto* item = (NavRailItem*)w;
+    switch (item->def->kind) {
+        case NavItemKind::Layers:
+            ToggleDocumentPanel(rail->win, DocumentPanelMode::Layers);
+            break;
+        case NavItemKind::Attachments:
+            ToggleDocumentPanel(rail->win, DocumentPanelMode::Attachments);
+            break;
+        default:
+            HwndPostCommand(rail->win->hwndFrame, w->id);
+            break;
+    }
     ev->didHandle = true;
 }
 
@@ -282,7 +294,9 @@ static bool IsItemActive(MainWindow* win, NavItemKind kind) {
         case NavItemKind::Search:
             return IsFindBarVisible(win);
         case NavItemKind::Layers:
+            return IsDocumentPanelVisible(win, DocumentPanelMode::Layers);
         case NavItemKind::Attachments:
+            return IsDocumentPanelVisible(win, DocumentPanelMode::Attachments);
         case NavItemKind::Settings:
             return false;
     }
@@ -298,8 +312,9 @@ void NavRailUpdate(MainWindow* win) {
     for (NavRailItem* item : rail->items) {
         bool active = IsItemActive(win, item->def->kind);
         bool enabled = item->def->cmdId && (!item->def->needsDoc || docLoaded);
-        if (item->def->kind == NavItemKind::Comments) {
-            enabled = enabled && win->CurrentTab() && IsPdfDoc(win->CurrentTab());
+        if (item->def->kind == NavItemKind::Comments || item->def->kind == NavItemKind::Layers ||
+            item->def->kind == NavItemKind::Attachments) {
+            enabled = docLoaded && win->CurrentTab() && IsPdfDoc(win->CurrentTab());
         }
         if (item->isActive == active && item->IsEnabled() == enabled) {
             continue;

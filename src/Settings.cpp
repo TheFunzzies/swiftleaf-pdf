@@ -914,6 +914,8 @@ static const FieldInfo gSettingsFields[] = {
     {offsetof(Settings, sidebarOnRight), SettingType::Bool, false},
     {offsetof(Settings, showToolsPanel), SettingType::Bool, true},
     {offsetof(Settings, showCommentsPanel), SettingType::Bool, false},
+    {offsetof(Settings, showDocumentPanel), SettingType::Bool, false},
+    {offsetof(Settings, documentPanelMode), SettingType::Int, 0},
     {offsetof(Settings, sidebarWindowSize), SettingType::String, (intptr_t)""},
     {offsetof(Settings, showLinks), SettingType::Bool, false},
     {offsetof(Settings, highlightFormFields), SettingType::Bool, true},
@@ -1041,7 +1043,7 @@ static const FieldInfo gSettingsFields[] = {
 };
 const StructInfo gSettingsInfo = {
     sizeof(Settings),
-    165,
+    167,
     gSettingsFields,
     "\0\0DefaultDisplayMode\0DefaultZoom\0DisableJavaScript\0AllowExternalImages\0EnableTeXEnhancements\0EscToExit\0Ful"
     "lPathInTitle\0InverseSearchCmdLine\0LazyLoading\0MainWindowBackground\0NoHomeTab\0HomePageSortByFrequentlyRead\0Ho"
@@ -1049,7 +1051,8 @@ const StructInfo gSettingsInfo = {
     "toreSession\0ReuseInstance\0ShowMenubar\0ShowMenubarWithTabs\0ShowPageNumberInTabs\0ShowHomePageReadingProgress\0S"
     "howChaptersInEbooks\0ShowTips\0CustomColors\0ShowToolbar\0Toolbar\0ToolbarPosition\0SearchUIFloating\0ShowFavorite"
     "s\0SidebarBottomView\0SortFavoritesByName\0ShowToc\0AlwaysShowSidebar\0SidebarOnRight\0ShowToolsPanel\0ShowComment"
-    "sPanel\0SidebarWindowSize\0ShowLinks\0HighlightFormFields\0ClickEdgeToTurnPage\0DisableLinks\0ExplorerQuickLook\0R"
+    "sPanel\0ShowDocumentPanel\0DocumentPanelMode\0SidebarWindowSize\0ShowLinks\0HighlightFormFields\0ClickEdgeTo"
+    "TurnPage\0DisableLinks\0ExplorerQuickLook\0R"
     "ememberViewOffsetOnPageTurn\0MouseWheelTurnsPage\0ScrollEdgeTurnsPage\0ShowDocumentFocusIndicator\0ShowAnnotationN"
     "otification\0ShowFileNavigateHint\0ShowAnnotationAuthorInTooltip\0ShowTocPageNumbers\0AutoGenerateTOC\0ShowStartPa"
     "ge\0SidebarDx\0Scrollbars\0ScrollbarInSinglePage\0SmoothScroll\0ScrollLineAmount\0SaveMemory\0PaddingAfterLastPage"
@@ -1104,7 +1107,8 @@ const StructInfo gSettingsInfo = {
     "true, every document with bookmarks opens with the Bookmarks sidebar, even one that was closed with it hidden\0if "
     "true, put the bookmarks / favorites sidebar on the right of the window (left is the default; right-to-left UI "
     "languages already put it on the right)\0if true, show the All tools panel on the left of the window\0if true, "
-    "show the Comments panel on the right of PDF documents\0valid values: (empty), keep, grow\0if true, draw a blue "
+    "show the Comments panel on the right of PDF documents\0if true, show the Layers / Attachments panel on the right of "
+    "PDF documents\0which panel to show: 0 layers, 1 attachments\0valid values: (empty), keep, grow\0if true, draw a blue "
     "border around links in the document\0if true, highlight empty fillable PDF form fields in pale blue so they are "
     "easy to find\0if true, a click (not a drag) on the left fifth of the page area goes to the previous page and a "
     "click on the right fifth goes to the next page (reversed in manga / right-to-left mode). Links, annotations and "

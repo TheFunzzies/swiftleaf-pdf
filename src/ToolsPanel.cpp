@@ -33,6 +33,8 @@ struct ToolDef {
     const char* icon;
     Str label;
     int cmd;
+    // why a command-less row is disabled; empty for rows with a command
+    Str unavailableTip;
 };
 static const ToolDef tools[] = {
     {gLucideFileOutput, TrN("Export a PDF"), CmdConvertPdfToImages},
@@ -42,11 +44,13 @@ static const ToolDef tools[] = {
     {gLucideCombine, TrN("Combine files"), CmdMergePDF},
     {gLucideLayoutGrid, TrN("Organize pages"), CmdToggleThumbnails},
     {gLucideMessageSquareText, TrN("Add comments"), CmdFindAnnotation},
-    {gLucideScanText, TrN("Scan & OCR"), 0},
+    {gLucideScanText, TrN("Scan & OCR"), 0,
+     TrN("OCR is not available in this build: Tesseract and Leptonica support were not compiled in.")},
     {gLucideShield, TrN("Protect a PDF"), CmdPdfEncrypt},
     {gLucideRectangleHorizontal, TrN("Redact a PDF"), CmdCreateAnnotRedact},
     {gLucideFileArchive, TrN("Compress a PDF"), CmdPdfCompress},
-    {gLucideTextCursorInput, TrN("Prepare a form"), 0},
+    {gLucideTextCursorInput, TrN("Prepare a form"), 0,
+     TrN("Creating new PDF form fields is not supported by the bundled PDF engine.")},
     {gLucideStamp, TrN("Add a stamp"), CmdCreateAnnotStamp},
     {gLucideBadgeCheck, TrN("Use a certificate"), CmdSignDocument},
 };
@@ -179,7 +183,11 @@ void CreateToolsPanel(MainWindow* win) {
         b->isRtl = IsUIRtl();
         b->SetLabel(trans::GetTranslation(d.label));
         b->id = d.cmd;
-        b->SetTooltip(d.cmd ? trans::GetTranslation(d.label) : Tr("This tool is not available in SwiftLeaf"));
+        if (len(d.unavailableTip) > 0) {
+            b->SetTooltip(trans::GetTranslation(d.unavailableTip));
+        } else {
+            b->SetTooltip(trans::GetTranslation(d.label));
+        }
         b->onClick = MkFunc1(OnTool, win);
         VecAppend(panel->rows, b);
         col->AddChild(b);

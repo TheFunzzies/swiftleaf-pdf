@@ -43,6 +43,7 @@
 #include "AnnotEditToolbar.h"
 #include "AnnotTextPopup.h"
 #include "AnnotFilterToolbar.h"
+#include "DocumentPanel.h"
 #include "FindBar.h"
 #include "FindWindow.h"
 #include "SearchAndDDE.h"
@@ -400,6 +401,7 @@ void MainWindow::UpdateCanvasSize() {
     RelayoutNotifications(hwndCanvas);
     ReadAloudPlaybackBarRelayout(hwndCanvas);
     ReadingAutoScrollRelayout(hwndCanvas);
+    FormBannerUpdate(this);
 }
 
 Size MainWindow::GetViewPortSize() const {

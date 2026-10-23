@@ -2115,3 +2115,9 @@ EXPORTS
 	fz_font_is_serif
 	fz_font_is_monospaced
 	fz_font_name
+
+; Swiftleaf: document panel (PDF optional content layers)
+	pdf_count_layers
+	pdf_layer_name
+	pdf_layer_is_enabled
+	pdf_enable_layer

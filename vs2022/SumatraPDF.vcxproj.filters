@@ -150,6 +150,9 @@
     <ClInclude Include="..\src\NavRail.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\DocumentPanel.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\LucideIcons.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -750,6 +753,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\NavRail.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\DocumentPanel.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\LucideIcons.cpp">

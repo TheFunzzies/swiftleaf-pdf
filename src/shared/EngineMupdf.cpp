@@ -10552,20 +10552,248 @@ void EngineMupdfToggleCadEnhance(EngineBase* engine) {
 // caller must free
 Str EngineMupdfLoadAttachment(EngineBase* engine, int attachmentNo) {
     EngineMupdf* epdf = AsEngineMupdf(engine);
-    if (!epdf->pdfdoc) {
+    if (!epdf || !epdf->pdfdoc) {
         return {};
     }
-
+    ScopedRecursiveMutex scope(&epdf->docLock);
     return PdfLoadAttachment(epdf->Ctx(), epdf->pdfdoc, attachmentNo);
 }
 
 Str EngineMupdfLoadAnnotAttachment(EngineBase* engine, int objNum) {
     EngineMupdf* epdf = AsEngineMupdf(engine);
-    if (!epdf->pdfdoc) {
+    if (!epdf || !epdf->pdfdoc) {
         return {};
     }
     ScopedRecursiveMutex scope(&epdf->docLock);
     return PdfLoadAnnotationAttachment(epdf->Ctx(), epdf->pdfdoc, objNum);
+}
+
+// Counts terminal form fields in the AcroForm tree. A radio group is one
+// field with several widget kids, so counting leaf field nodes (rather than
+// widgets) matches what a reader calls a field.
+static void CountFormFieldNode(fz_context* ctx, pdf_obj* node, void* arg, pdf_obj** /*inherited*/) {
+    int* count = (int*)arg;
+    if (!pdf_is_dict(ctx, node) || !pdf_dict_get(ctx, node, PDF_NAME(T))) {
+        return;
+    }
+    // a field with field children is a branch; count only its leaves (a
+    // merged field/widget has no kids and counts once)
+    pdf_obj* kids = pdf_dict_get(ctx, node, PDF_NAME(Kids));
+    int n = pdf_array_len(ctx, kids);
+    for (int i = 0; i < n; i++) {
+        pdf_obj* kid = pdf_array_get(ctx, kids, i);
+        if (pdf_is_dict(ctx, kid) && pdf_dict_get(ctx, kid, PDF_NAME(T))) {
+            return;
+        }
+    }
+    (*count)++;
+}
+
+int EngineMupdfCountFormFields(EngineBase* engine) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return 0;
+    }
+    fz_context* ctx = epdf->Ctx();
+    int count = 0;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        pdf_obj* fields = pdf_dict_getp(ctx, pdf_trailer(ctx, epdf->pdfdoc), "Root/AcroForm/Fields");
+        if (fields) {
+            pdf_walk_tree(ctx, fields, PDF_NAME(Kids), CountFormFieldNode, nullptr, &count, nullptr, nullptr);
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        count = 0;
+    }
+    return count;
+}
+
+//--- PDF layers (optional content groups)
+
+int EngineMupdfGetLayerCount(EngineBase* engine) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return 0;
+    }
+    fz_context* ctx = epdf->Ctx();
+    int n = 0;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        n = pdf_count_layers(ctx, epdf->pdfdoc);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        n = 0;
+    }
+    return n;
+}
+
+// caller must free
+Str EngineMupdfGetLayerName(EngineBase* engine, int layer) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return {};
+    }
+    fz_context* ctx = epdf->Ctx();
+    Str name;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        name = str::Dup(Str(pdf_layer_name(ctx, epdf->pdfdoc, layer)));
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        name = {};
+    }
+    return name;
+}
+
+bool EngineMupdfIsLayerEnabled(EngineBase* engine, int layer) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return false;
+    }
+    fz_context* ctx = epdf->Ctx();
+    bool enabled = false;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        enabled = pdf_layer_is_enabled(ctx, epdf->pdfdoc, layer) != 0;
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        enabled = false;
+    }
+    return enabled;
+}
+
+// Toggling a layer changes which content a page run emits, so every page's
+// cached display list (and its extracted text) has to go.
+bool EngineMupdfSetLayerEnabled(EngineBase* engine, int layer, bool enabled) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return false;
+    }
+    fz_context* ctx = epdf->Ctx();
+    bool ok = false;
+    {
+        ScopedRecursiveMutex scope(&epdf->docLock);
+        fz_try(ctx) {
+            pdf_enable_layer(ctx, epdf->pdfdoc, layer, enabled ? 1 : 0);
+            ok = true;
+        }
+        fz_catch(ctx) {
+            fz_report_error(ctx);
+            ok = false;
+        }
+    }
+    if (!ok) {
+        return false;
+    }
+    {
+        ScopedRecursiveMutex pagesScope(&epdf->pagesLock);
+        ScopedMutex renderScope(&epdf->renderLock);
+        ForEachPageInfo(epdf, [epdf](FzPageInfo* pi) { InvalidateFzPageAfterContentChange(epdf, pi); });
+    }
+    for (int pageNo = 1; pageNo <= epdf->pageCount; pageNo++) {
+        epdf->InvalidateTextForPage(pageNo);
+    }
+    return true;
+}
+
+//--- Embedded files (attachments)
+
+// The attachment number is 1-based and follows the same /EmbeddedFiles name
+// tree order as EngineMupdfLoadAttachment().
+int EngineMupdfGetAttachmentCount(EngineBase* engine) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc) {
+        return 0;
+    }
+    fz_context* ctx = epdf->Ctx();
+    int n = 0;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        pdf_obj* dict = pdf_load_name_tree(ctx, epdf->pdfdoc, PDF_NAME(EmbeddedFiles));
+        if (dict) {
+            n = pdf_dict_len(ctx, dict);
+            pdf_drop_obj(ctx, dict);
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        n = 0;
+    }
+    return n;
+}
+
+// caller must free
+Str EngineMupdfGetAttachmentName(EngineBase* engine, int attachmentNo) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc || attachmentNo < 1) {
+        return {};
+    }
+    fz_context* ctx = epdf->Ctx();
+    Str name;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        pdf_obj* dict = pdf_load_name_tree(ctx, epdf->pdfdoc, PDF_NAME(EmbeddedFiles));
+        if (dict) {
+            int idx = attachmentNo - 1;
+            if (idx < pdf_dict_len(ctx, dict)) {
+                pdf_obj* fs = pdf_dict_get_val(ctx, dict, idx);
+                pdf_filespec_params params = {};
+                pdf_get_filespec_params(ctx, fs, &params);
+                const char* filename = params.filename;
+                if (!filename || !filename[0]) {
+                    pdf_obj* key = pdf_dict_get_key(ctx, dict, idx);
+                    if (key) {
+                        filename = pdf_to_text_string(ctx, key);
+                    }
+                }
+                if (filename) {
+                    name = str::Dup(Str(filename));
+                }
+            }
+            pdf_drop_obj(ctx, dict);
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        name = {};
+    }
+    return name;
+}
+
+// -1 when the size isn't recorded in the file spec.
+i64 EngineMupdfGetAttachmentSize(EngineBase* engine, int attachmentNo) {
+    EngineMupdf* epdf = AsEngineMupdf(engine);
+    if (!epdf || !epdf->pdfdoc || attachmentNo < 1) {
+        return -1;
+    }
+    fz_context* ctx = epdf->Ctx();
+    i64 size = -1;
+    ScopedRecursiveMutex scope(&epdf->docLock);
+    fz_try(ctx) {
+        pdf_obj* dict = pdf_load_name_tree(ctx, epdf->pdfdoc, PDF_NAME(EmbeddedFiles));
+        if (dict) {
+            int idx = attachmentNo - 1;
+            if (idx < pdf_dict_len(ctx, dict)) {
+                pdf_obj* fs = pdf_dict_get_val(ctx, dict, idx);
+                pdf_filespec_params params = {};
+                pdf_get_filespec_params(ctx, fs, &params);
+                if (params.size >= 0) {
+                    size = params.size;
+                }
+            }
+            pdf_drop_obj(ctx, dict);
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        size = -1;
+    }
+    return size;
 }
 
 static Annotation* FindAnnotAtPos(const Vec<Annotation*>& annots, PointF pos, float padding,
