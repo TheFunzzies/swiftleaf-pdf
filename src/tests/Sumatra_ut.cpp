@@ -716,6 +716,31 @@ static void FormAuthoringTest() {
             }
         }
         valid = count == 5 && pdf_array_len(ctx, roots) == 4 && radioOn == 1;
+#if OS_WIN
+        TempStr target = GetTempFilePathTemp(StrL("atomic-pdf"));
+        utassert(file::WriteFile(target, StrL("previous file")));
+        HANDLE lockedTarget = CreateFileW(CWStrTemp(target), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                          OPEN_EXISTING, 0, nullptr);
+        utassert(lockedTarget != INVALID_HANDLE_VALUE);
+        bool rejected = false;
+        fz_var(rejected);
+        fz_try(ctx) {
+            pdf_save_document(ctx, doc, CStrTemp(target), nullptr);
+        }
+        fz_catch(ctx) {
+            rejected = true;
+        }
+        utassert(rejected);
+        Str previous = file::ReadFile(target);
+        utassert(str::Eq(previous, StrL("previous file")));
+        str::Free(previous);
+        CloseHandle(lockedTarget);
+        pdf_save_document(ctx, doc, CStrTemp(target), nullptr);
+        EngineBase* published = CreateEngineMupdfFromFile(target, FileType::PDF, 96);
+        utassert(published && EngineMupdfCountFormFields(published) == 4);
+        SafeEngineRelease(&published);
+        file::Delete(target);
+#endif
     }
     fz_always(ctx) {
         fz_drop_page(ctx, (fz_page*)page);

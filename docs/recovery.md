@@ -6,7 +6,9 @@ existing, write through). A failed serialization, flush or replacement leaves
 the destination intact. A process killed before replacement leaves the previous
 version; after replacement it leaves the complete new version. This includes
 annotation/form Save, Save As, PDF creation/conversion, merge, page extraction,
-compression, encryption/decryption and page-organizer replacement/undo.
+compression, encryption/decryption and page-organizer replacement/undo. The
+Windows MuPDF file saver also stages command-line PDF output; stdout stays a
+stream. Its vendored change is recorded in `ext/patches/0052-atomic-pdf-save.patch`.
 
 The destination directory must allow creating and renaming files. Staging needs
 space for another complete PDF. Network/server filesystems must implement atomic
