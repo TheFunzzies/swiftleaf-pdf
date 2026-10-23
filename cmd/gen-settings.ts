@@ -1911,6 +1911,7 @@ const globalPrefs: Field[] = [
   )
     .internal()
     .ver("3.7"),
+  field("OcrLanguage", Str, "", "Windows OCR language tag; empty uses profile languages").internal(),
   field("TranslateFromLang", Str, "", "remembered source language for selection translation; empty means Auto")
     .internal()
     .ver("3.7"),

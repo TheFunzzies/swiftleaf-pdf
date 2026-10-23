@@ -19,6 +19,8 @@
 #include "gui/GuiColors.h"
 #include "gui/VirtCtrl.h"
 #include "Settings.h"
+#include "AppSettings.h"
+#include "Flags.h"
 #include "DocController.h"
 #include "EngineBase.h"
 #include "EngineAll.h"
@@ -67,14 +69,33 @@ struct OcrReader {
         if (SUCCEEDED(init)) RoUninitialize();
     }
 
-    HRESULT Open() {
+    HRESULT Open(Str tag = {}) {
         if (FAILED(init)) return init;
         AutoReleaseComPtr<ocr::IOcrEngineStatics> factory;
         HRESULT hr = OcrFactory(RuntimeClass_Windows_Media_Ocr_OcrEngine, factory);
         if (FAILED(hr)) return hr;
         hr = factory->get_MaxImageDimension(&maxDimension);
         if (FAILED(hr)) return hr;
-        hr = factory->TryCreateFromUserProfileLanguages(&engine);
+        if (len(tag)) {
+            AutoReleaseComPtr<ABI::Windows::Globalization::ILanguageFactory> languages;
+            hr = OcrFactory(RuntimeClass_Windows_Globalization_Language, languages);
+            if (FAILED(hr)) return hr;
+            OcrString languageTag;
+            TempWStr wide = ToWStrTemp(tag);
+            hr = WindowsCreateString(wide.s, (UINT32)len(wide), &languageTag.value);
+            if (FAILED(hr)) return hr;
+            AutoReleaseComPtr<ABI::Windows::Globalization::ILanguage> language;
+            hr = languages->CreateLanguage(languageTag.value, &language);
+            if (FAILED(hr)) return hr;
+            hr = factory->TryCreateFromLanguage(language, &engine);
+            if (FAILED(hr)) return hr;
+            if (!engine.Get()) {
+                noLanguage = true;
+                return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+            }
+        } else {
+            hr = factory->TryCreateFromUserProfileLanguages(&engine);
+        }
         if (FAILED(hr)) return hr;
         // A pack can be installed without being in the user's preferred languages.
         if (!engine.Get()) {
@@ -101,7 +122,7 @@ struct OcrReader {
         return OcrFactory(RuntimeClass_Windows_Storage_Streams_Buffer, buffers);
     }
 
-    HRESULT Recognize(Pixmap* px, HANDLE cancel, str::Builder& text) {
+    HRESULT Recognize(Pixmap* px, HANDLE cancel, str::Builder& text, Vec<PdfOcrWord>& words) {
         if (!px || !px->data || px->format != PixmapFormat::BGRA8 || px->width <= 0 || px->height <= 0 ||
             (UINT32)px->width > maxDimension || (UINT32)px->height > maxDimension)
             return E_INVALIDARG;
@@ -167,6 +188,26 @@ struct OcrReader {
             const WCHAR* s = WindowsGetStringRawBuffer(value.value, &n);
             text.Append(ToUtf8Temp(WStr(s, (int)n)));
             text.Append(StrL("\r\n"));
+            AutoReleaseComPtr<ABI::Windows::Foundation::Collections::IVectorView<ocr::OcrWord*>> lineWords;
+            hr = line->get_Words(&lineWords);
+            if (FAILED(hr)) return hr;
+            UINT32 wordCount = 0;
+            hr = lineWords->get_Size(&wordCount);
+            if (FAILED(hr)) return hr;
+            for (UINT32 j = 0; j < wordCount; j++) {
+                AutoReleaseComPtr<ocr::IOcrWord> word;
+                hr = lineWords->GetAt(j, &word);
+                if (FAILED(hr)) return hr;
+                ABI::Windows::Foundation::Rect box;
+                hr = word->get_BoundingRect(&box);
+                if (FAILED(hr)) return hr;
+                OcrString wordText;
+                hr = word->get_Text(&wordText.value);
+                if (FAILED(hr)) return hr;
+                const WCHAR* chars = WindowsGetStringRawBuffer(wordText.value, &n);
+                PdfOcrWord item{str::Dup(ToUtf8Temp(WStr(chars, (int)n))), {box.X, box.Y, box.Width, box.Height}};
+                VecAppend(words, item);
+            }
         }
         return S_OK;
     }
@@ -188,12 +229,20 @@ struct OcrJob {
     int first = 1;
     int last = 1;
     int rotation = 0;
+    Vec<int> pages;
+    Str language;
+    Str destination;
+    EngineBase* output = nullptr;
+    bool saveOnly = false;
     HRESULT error = S_OK;
     bool noLanguage = false;
     str::Builder text;
 
     ~OcrJob() {
         if (source) source->Release();
+        if (output) output->Release();
+        str::Free(language);
+        str::Free(destination);
         if (cancel) CloseHandle(cancel);
     }
     void Release() {
@@ -202,20 +251,39 @@ struct OcrJob {
 };
 
 static void RunOcr(OcrJob* job) {
+    if (job->saveOnly) {
+        // Write beside the destination, then publish atomically. Cancellation or
+        // a failed write never replaces the user's existing file.
+        TempStr dir = path::GetDirTemp(job->destination);
+        WCHAR temporary[MAX_PATH];
+        bool made = GetTempFileNameW(ToWStrTemp(dir).s, L"ocr", 0, temporary) != 0;
+        bool ok = made && EngineMupdfSaveCopy(job->output, ToUtf8Temp(temporary));
+        bool cancelled = WaitForSingleObject(job->cancel, 0) == WAIT_OBJECT_0;
+        if (ok && !cancelled) {
+            ok = MoveFileExW(temporary, ToWStrTemp(job->destination).s,
+                             MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+        }
+        if (made) DeleteFileW(temporary);
+        job->error = cancelled ? HRESULT_FROM_WIN32(ERROR_CANCELLED) : ok ? S_OK : E_FAIL;
+        InterlockedExchange(&job->done, 1);
+        job->Release();
+        return;
+    }
     OcrReader reader;
-    job->error = reader.Open();
+    job->error = reader.Open(job->language);
     job->noLanguage = reader.noLanguage;
     EngineBase* engine = nullptr;
     if (SUCCEEDED(job->error)) {
         engine = job->source->Clone();
         if (!engine) job->error = E_FAIL;
     }
-    for (int page = job->first; SUCCEEDED(job->error) && page <= job->last; page++) {
+    for (int index = 0; SUCCEEDED(job->error) && index < len(job->pages); index++) {
+        int page = job->pages[index];
         if (WaitForSingleObject(job->cancel, 0) == WAIT_OBJECT_0) {
             job->error = HRESULT_FROM_WIN32(ERROR_CANCELLED);
             break;
         }
-        InterlockedExchange(&job->page, page);
+        InterlockedExchange(&job->page, index + 1);
         float zoom = OcrZoom(engine->PageMediabox(page), engine->fileDPI, reader.maxDimension);
         if (zoom <= 0) {
             job->error = E_INVALIDARG;
@@ -224,14 +292,19 @@ static void RunOcr(OcrJob* job) {
         RenderPageArgs args(page, zoom, job->rotation, nullptr, RenderTarget::Export);
         Pixmap* px = PixmapToBgra(engine->RenderPage(args));
         str::Builder pageText;
-        job->error = reader.Recognize(px, job->cancel, pageText);
+        Vec<PdfOcrWord> words;
+        job->error = reader.Recognize(px, job->cancel, pageText, words);
         FreePixmap(px);
+        if (SUCCEEDED(job->error) && engine->kind == kindEngineMupdf &&
+            !EngineMupdfAddOcrText(engine, page, zoom, job->rotation, words))
+            job->error = E_FAIL;
+        for (auto& word : words) str::Free(word.text);
         if (FAILED(job->error)) break;
         if (job->first != job->last) job->text.Append(fmt("--- %s %d ---\r\n", StrL("Page"), page));
         job->text.Append(ToStr(pageText));
         job->text.Append(StrL("\r\n"));
     }
-    if (engine) engine->Release();
+    job->output = engine;
     logf("OCR finished: pages %d-%d, HRESULT 0x%x, bytes %d\n", job->first, job->last, (uint)job->error,
          len(ToStr(job->text)));
     InterlockedExchange(&job->done, 1);
@@ -246,6 +319,10 @@ struct OcrDialog : WindowBase {
     VirtButton* copy = nullptr;
     VirtButton* save = nullptr;
     VirtButton* all = nullptr;
+    VirtButton* selected = nullptr;
+    Edit* range = nullptr;
+    DropDown* language = nullptr;
+    StrVec languageTags;
     VirtButton* cancel = nullptr;
     int current = 1;
     int pageCount = 0;
@@ -294,8 +371,42 @@ void OcrDialog::Cancel(VirtMouseEvent*) {
 void OcrDialog::Start(VirtMouseEvent* ev) {
     if (running) return;
     bool allPages = ev && ev->target == all;
-    job->first = allPages ? 1 : current;
-    job->last = allPages ? pageCount : current;
+    VecReset(job->pages);
+    if (ev && ev->target == selected) {
+        Vec<PageRange> ranges;
+        bool valid = ParsePageRanges(range->GetTextTemp(), ranges) && len(ranges) > 0;
+        for (auto& r : ranges) {
+            int end = r.end == INT_MAX ? pageCount : r.end;
+            if (r.start < 1 || end > pageCount || r.start > end) {
+                valid = false;
+                break;
+            }
+            for (int page = r.start; page <= end; page++) {
+                if (VecFind(job->pages, page) < 0) VecAppend(job->pages, page);
+            }
+        }
+        if (!valid || len(job->pages) == 0) {
+            status->SetText(Tr("Enter valid page numbers, for example 1-3, 5."));
+            return;
+        }
+    } else {
+        for (int page = allPages ? 1 : current; page <= (allPages ? pageCount : current); page++)
+            VecAppend(job->pages, page);
+    }
+    job->first = job->pages[0];
+    job->last = job->pages[len(job->pages) - 1];
+    int choice = CbGetCurrentSelection(language);
+    Str tag = choice >= 0 && choice < len(languageTags) ? languageTags[choice] : Str();
+    str::ReplacePtr(&job->language, str::Dup(tag));
+    if (gSettings && !str::Eq(gSettings->ocrLanguage, tag)) {
+        str::ReplacePtr(&gSettings->ocrLanguage, str::Dup(tag));
+        ScheduleSaveSettings();
+    }
+    if (job->output) {
+        job->output->Release();
+        job->output = nullptr;
+    }
+    job->saveOnly = false;
     job->error = S_OK;
     job->noLanguage = false;
     ResetEvent(job->cancel);
@@ -306,6 +417,9 @@ void OcrDialog::Start(VirtMouseEvent* ev) {
     copy->SetIsEnabled(false);
     save->SetIsEnabled(false);
     all->SetIsEnabled(false);
+    selected->SetIsEnabled(false);
+    language->SetIsEnabled(false);
+    range->SetIsEnabled(false);
     start->SetIsEnabled(false);
     cancel->SetText(Tr("Cancel"));
     running = true;
@@ -324,15 +438,28 @@ void OcrDialog::Start(VirtMouseEvent* ev) {
 void OcrDialog::Poll(WindowBase::TimerEvent*) {
     if (!InterlockedCompareExchange(&job->done, 0, 0)) {
         int page = InterlockedCompareExchange(&job->page, 0, 0);
-        if (page) status->SetText(fmt(Tr("OCR: page %d of %d").s, page - job->first + 1, job->last - job->first + 1));
+        if (job->saveOnly)
+            status->SetText(Tr("Saving searchable PDF..."));
+        else if (page)
+            status->SetText(fmt(Tr("OCR: page %d of %d").s, page, len(job->pages)));
         return;
     }
     KillTimer(hwnd, 1);
     running = false;
     start->SetIsEnabled(true);
     all->SetIsEnabled(pageCount > 1);
+    selected->SetIsEnabled(true);
+    language->SetIsEnabled(true);
+    range->SetIsEnabled(true);
     cancel->SetText(Tr("Close"));
     cancel->SetIsEnabled(true);
+    if (job->saveOnly) {
+        status->SetText(job->error == HRESULT_FROM_WIN32(ERROR_CANCELLED) ? Tr("Save cancelled. Destination unchanged.")
+                        : FAILED(job->error) ? Tr("Couldn't save the searchable PDF. Destination unchanged.")
+                                             : Tr("Searchable PDF saved. Reopen it to search or copy text."));
+        save->SetIsEnabled(true);
+        return;
+    }
     if (job->noLanguage) {
         status->SetText(
             Tr("No Windows OCR language pack is installed. In Windows Settings > Time & language > Language & region, "
@@ -352,7 +479,7 @@ void OcrDialog::Poll(WindowBase::TimerEvent*) {
     result->SetText(text);
     bool hasText = !str::IsEmptyOrWhiteSpace(text);
     copy->SetIsEnabled(hasText && HasPermission(Perm::CopySelection));
-    save->SetIsEnabled(hasText && CanAccessDisk());
+    save->SetIsEnabled(SUCCEEDED(job->error) && job->output && job->source->kind == kindEngineMupdf && CanAccessDisk());
 }
 
 void OcrDialog::Copy(VirtMouseEvent*) {
@@ -363,14 +490,14 @@ void OcrDialog::Copy(VirtMouseEvent*) {
 
 void OcrDialog::Save(VirtMouseEvent*) {
     if (!CanAccessDisk() || saving) return;
-    WCHAR path[MAX_PATH] = L"OCR.txt";
+    WCHAR path[MAX_PATH] = L"Searchable.pdf";
     OPENFILENAMEW ofn{};
     ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = hwnd;
     ofn.lpstrFile = path;
     ofn.nMaxFile = dimof(path);
-    ofn.lpstrFilter = L"Text files (*.txt)\0*.txt\0\0";
-    ofn.lpstrDefExt = L"txt";
+    ofn.lpstrFilter = L"PDF files (*.pdf)\0*.pdf\0\0";
+    ofn.lpstrDefExt = L"pdf";
     ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
     saving = true;
     bool picked = GetSaveFileNameW(&ofn);
@@ -380,9 +507,30 @@ void OcrDialog::Save(VirtMouseEvent*) {
         return;
     }
     if (!picked) return;
-    if (!file::WriteFile(ToUtf8Temp(path), ToStr(job->text))) {
-        MessageBoxWarning(hwnd, Tr("Couldn't save the OCR text."), Tr("Scan & OCR"));
+    if (path::IsSame(ToUtf8Temp(path), job->source->FilePath())) {
+        MessageBoxWarning(hwnd, Tr("Choose a new file name for the searchable PDF."), Tr("Scan & OCR"));
+        return;
     }
+    str::ReplacePtr(&job->destination, str::Dup(ToUtf8Temp(path)));
+    job->saveOnly = true;
+    ResetEvent(job->cancel);
+    InterlockedExchange(&job->done, 0);
+    running = true;
+    start->SetIsEnabled(false);
+    all->SetIsEnabled(false);
+    selected->SetIsEnabled(false);
+    save->SetIsEnabled(false);
+    cancel->SetText(Tr("Cancel"));
+    status->SetText(Tr("Saving searchable PDF..."));
+    InterlockedIncrement(&job->refs);
+    ThreadHandle thread = StartThread(MkFunc0(RunOcr, job), StrL("Save OCR"));
+    if (!thread) {
+        job->Release();
+        job->error = E_FAIL;
+        InterlockedExchange(&job->done, 1);
+    }
+    SafeCloseThreadHandle(&thread);
+    SetTimer(hwnd, 1, 100, nullptr);
 }
 
 bool OcrDialog::Create(MainWindow* win) {
@@ -428,7 +576,48 @@ bool OcrDialog::Create(MainWindow* win) {
     SendMessageW(result->hwnd, EM_SETLIMITTEXT, 0, 0);
     box->AddChild(result, 1);
     box->AddChild(NewVirtText(
-        {.s = Tr("Text can be selected and copied, or saved as UTF-8. The PDF is unchanged."), .font = font}));
+        {.s = Tr("Save a searchable PDF copy after OCR. Review recognized text for mistakes."), .font = font}));
+    box->AddChild(NewVirtText({.s = Tr("OCR language"), .font = font}));
+    language = new DropDown();
+    language->Create({.parent = hwnd, .font = font});
+    StrVec names;
+    names.Append(Tr("Automatic (Windows profile)"));
+    languageTags.Append(StrL(""));
+    HRESULT init = RoInitialize(RO_INIT_SINGLETHREADED);
+    {
+        AutoReleaseComPtr<ocr::IOcrEngineStatics> factory;
+        if (SUCCEEDED(OcrFactory(RuntimeClass_Windows_Media_Ocr_OcrEngine, factory))) {
+            AutoReleaseComPtr<
+                ABI::Windows::Foundation::Collections::IVectorView<ABI::Windows::Globalization::Language*>>
+                available;
+            UINT32 count = 0;
+            if (SUCCEEDED(factory->get_AvailableRecognizerLanguages(&available)) &&
+                SUCCEEDED(available->get_Size(&count))) {
+                for (UINT32 i = 0; i < count; i++) {
+                    AutoReleaseComPtr<ABI::Windows::Globalization::ILanguage> item;
+                    OcrString tag, name;
+                    if (FAILED(available->GetAt(i, &item)) || FAILED(item->get_LanguageTag(&tag.value)) ||
+                        FAILED(item->get_DisplayName(&name.value)))
+                        continue;
+                    languageTags.Append(ToUtf8Temp(WindowsGetStringRawBuffer(tag.value, nullptr)));
+                    names.Append(ToUtf8Temp(WindowsGetStringRawBuffer(name.value, nullptr)));
+                }
+            }
+        }
+    }
+    if (SUCCEEDED(init)) RoUninitialize();
+    language->SetItems(names);
+    int choice = 0;
+    for (int i = 1; i < len(languageTags); i++) {
+        if (gSettings && str::EqI(languageTags[i], gSettings->ocrLanguage)) choice = i;
+    }
+    CbSetCurrentSelection(language, choice);
+    box->AddChild(language);
+    box->AddChild(NewVirtText({.s = Tr("Selected pages (for example 1-3, 5)"), .font = font}));
+    range = new Edit();
+    range->Create({.parent = hwnd, .font = font, .withBorder = true});
+    range->SetText(fmt("%d", current));
+    box->AddChild(range);
     auto* buttons = new HBox();
     buttons->gap = DpiScale(8);
     box->AddChild(buttons);
@@ -439,11 +628,14 @@ bool OcrDialog::Create(MainWindow* win) {
     all->onClick = MkMethod1<OcrDialog, VirtMouseEvent*, &OcrDialog::Start>(this);
     all->SetIsEnabled(job->last > 1);
     buttons->AddChild(all);
+    selected = NewThemedButton(hwnd, Tr("Selected pages"), font, false);
+    selected->onClick = MkMethod1<OcrDialog, VirtMouseEvent*, &OcrDialog::Start>(this);
+    buttons->AddChild(selected);
     copy = NewThemedButton(hwnd, Tr("Copy text"), font, false);
     copy->onClick = MkMethod1<OcrDialog, VirtMouseEvent*, &OcrDialog::Copy>(this);
     copy->SetIsEnabled(false);
     buttons->AddChild(copy);
-    save = NewThemedButton(hwnd, Tr("Save as .txt..."), font, false);
+    save = NewThemedButton(hwnd, Tr("Save PDF..."), font, false);
     save->onClick = MkMethod1<OcrDialog, VirtMouseEvent*, &OcrDialog::Save>(this);
     save->SetIsEnabled(false);
     buttons->AddChild(save);
@@ -451,7 +643,7 @@ bool OcrDialog::Create(MainWindow* win) {
     cancel->onClick = MkMethod1<OcrDialog, VirtMouseEvent*, &OcrDialog::Cancel>(this);
     buttons->AddChild(cancel);
     layout = new Padding(box, DpiScaledInsets(16));
-    RECT rect = {0, 0, DpiScale(760), DpiScale(540)};
+    RECT rect = {0, 0, DpiScale(880), DpiScale(700)};
     AdjustWindowRectEx(&rect, args.style, FALSE, 0);
     SetWindowPos(hwnd, nullptr, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER);
     UpdateTheme();
@@ -501,7 +693,9 @@ static void OcrSmokeTest(bool* ok) {
     DeleteDC(dc);
     AutoCloseHandle cancel(CreateEventW(nullptr, TRUE, FALSE, nullptr));
     str::Builder text;
-    hr = reader.Recognize(px, cancel, text);
+    Vec<PdfOcrWord> words;
+    hr = reader.Recognize(px, cancel, text, words);
+    for (auto& word : words) str::Free(word.text);
     FreePixmap(px);
     *ok = SUCCEEDED(hr) && str::Contains(ToStr(text), StrL("12345"));
     printf("OCR smoke: HRESULT 0x%x, text: %.*s\n", (uint)hr, len(ToStr(text)), ToStr(text).s);
