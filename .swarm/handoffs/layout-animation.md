@@ -23,6 +23,8 @@ Base: `a19ef51` (contextual left panel).
 - Fixed older contextual test's fixed-pixel narrow widths to follow actual DPI (150% desktop).
 - Reject rail resize when minimum panel width cannot fit, preserving saved preference.
 
+- Applied the document minimum to native window tracking too, so a 200% resize gesture cannot bypass the DIP budget.
+
 ## Next
 
 - Finish final Debug rebuild.

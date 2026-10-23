@@ -14370,7 +14370,8 @@ constexpr LONG kWinMinDy = 320;
 
 static LRESULT OnFrameGetMinMaxInfo(MINMAXINFO* info) {
     // limit windows min width to prevent render loop when siderbar is too big
-    info->ptMinTrackSize.x = kWinMinDx - kSidebarMinDx + gSettings->sidebarDx;
+    int documentMin = DpiScale(kDocumentMinWidth + 2 * kPanelHandleWidth) + 2 * kFrameBorderSize;
+    info->ptMinTrackSize.x = std::max(documentMin, kWinMinDx - kSidebarMinDx + gSettings->sidebarDx);
     info->ptMinTrackSize.y = kWinMinDy;
     return 0;
 }
