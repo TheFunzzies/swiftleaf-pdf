@@ -141,6 +141,23 @@ static Kind kindEdit = "edit";
 // 1px non-client underline for withBottomBorder (must not sit in the client
 // area: edit client paint on typing would overwrite a WM_PAINT GetDC line)
 static constexpr int kEditBottomBorderDy = 1;
+// framed edits have rounded corners: the diameter of the corner circles
+static constexpr int kEditCornerDiameter = 12;
+
+// clips the window to a rounded rect, so the frame's corners show what is
+// behind the edit
+static void EditApplyRoundedRegion(HWND hwnd) {
+    RECT wr{};
+    GetWindowRect(hwnd, &wr);
+    int w = wr.right - wr.left;
+    int h = wr.bottom - wr.top;
+    if (w <= 0 || h <= 0) {
+        return;
+    }
+    int d = std::min(DpiScale(kEditCornerDiameter), std::min(w, h));
+    // the region owns the handle once set
+    SetWindowRgn(hwnd, CreateRoundRectRgn(0, 0, w + 1, h + 1, d, d), TRUE);
+}
 
 // space between the text and the left / right edges of the client area, in
 // (already DPI-scaled) pixels
@@ -270,6 +287,9 @@ HWND Edit::Create(const CreateArgs& args) {
         SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
     }
+    if (createdWithFrame) {
+        EditApplyRoundedRegion(hwnd);
+    }
 
     if (args.cueText) {
         EditSetCueText(hwnd, args.cueText);
@@ -323,6 +343,9 @@ void Edit::WndProc(ControlBase::WndProcEvent* ev) {
         case WM_SIZE: {
             LRESULT res = WndProcDefault(hwnd, msg, wp, lp);
             ApplyTextPadding();
+            if (createdWithFrame) {
+                EditApplyRoundedRegion(hwnd);
+            }
             ev->result = res;
             ev->didHandle = true;
             return;
@@ -470,10 +493,14 @@ void Edit::WndProc(ControlBase::WndProcEvent* ev) {
                 }
                 Color col = gColsEdit[kColEditBottomBorder];
                 if (createdWithFrame) {
-                    RECT fr{0, 0, w, h};
-                    HBRUSH br = CreateSolidBrush(col);
-                    FrameRect(hdc, &fr, br);
-                    DeleteObject(br);
+                    HPEN pen = CreatePen(PS_INSIDEFRAME, 1, col);
+                    HGDIOBJ oldPen = SelectObject(hdc, pen);
+                    HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+                    int d = std::min(DpiScale(kEditCornerDiameter), std::min(w, h));
+                    RoundRect(hdc, 0, 0, w, h, d, d);
+                    SelectObject(hdc, oldBrush);
+                    SelectObject(hdc, oldPen);
+                    DeleteObject(pen);
                 } else {
                     HPEN pen = CreatePen(PS_SOLID, 1, col);
                     HGDIOBJ old = SelectObject(hdc, pen);
