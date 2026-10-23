@@ -88,6 +88,7 @@ struct RibbonButton : VirtIconButton {
     Color textColorDisabled = kColorUnset;
     // too little room for the page: icon only (the label is in the tooltip)
     bool compact = false;
+    bool alignStart = false;
     bool isRtl = false;
 
     RibbonButton();

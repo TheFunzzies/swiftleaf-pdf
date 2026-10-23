@@ -260,11 +260,18 @@ static void RebuildList(AnnotFilterToolbar* f) {
     }
     VecSort(f->visibleAnnots, [](Annotation* const* a, Annotation* const* b) { return (*a)->pageNo - (*b)->pageNo; });
     Vec<Annotation*> ordered;
-    for (auto* a : f->visibleAnnots) {
-        if (!AnnotationReplyTo(a)) AppendCommentThread(ordered, f->visibleAnnots, a, 0);
+    int page = -1;
+    for (auto* first : f->visibleAnnots) {
+        if (page == first->pageNo) continue;
+        page = first->pageNo;
+        for (auto* a : f->visibleAnnots) {
+            if (a->pageNo == page && !AnnotationReplyTo(a)) AppendCommentThread(ordered, f->visibleAnnots, a, 0);
+        }
+        // Keep orphaned, filtered-parent and cyclic replies on their page.
+        for (auto* a : f->visibleAnnots) {
+            if (a->pageNo == page) AppendCommentThread(ordered, f->visibleAnnots, a, 0);
+        }
     }
-    // Keep orphaned, filtered-parent and malformed cyclic replies visible.
-    for (auto* a : f->visibleAnnots) AppendCommentThread(ordered, f->visibleAnnots, a, 0);
     f->visibleAnnots = std::move(ordered);
     if (f->floatWnd) {
         ApplyVisibleToList(f, f->floatWnd->listBox, caret, keepSel, prevScrollY);
@@ -841,6 +848,7 @@ void AnnotFilterWindow::UpdateTheme() {
     auto colBg = ThemeWindowControlBackgroundColor();
     auto colTxt = ThemeWindowTextColor();
     SetColors(colTxt, colBg);
+    if (title) title->SetColor(kColText, colTxt);
     if (edit) {
         edit->SetColors(colTxt, colBg);
     }

@@ -731,6 +731,7 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
     int runDx = iconDx + (showLabel ? gap + textDx : 0);
     // the split chevron stays at the right edge, where the hit test expects it
     int x = r.x + (r.dx - dropDx - runDx) / 2;
+    if (alignStart) x = isRtl ? r.Right() - padding.right - runDx : r.x + padding.left;
     int iconY = r.y + (r.dy - iconDy) / 2;
     int cursor = isRtl ? x + runDx : x;
     // advance the cursor by dx; in RTL it walks leftward

@@ -8,6 +8,8 @@ AUTHORS
 COPYING
 COPYING.BSD
 docs/upstream-readme.md
+# Historical identifier migration notes.
+docs/rename-notes.md
 CHANGELOG.md
 ext/**
 

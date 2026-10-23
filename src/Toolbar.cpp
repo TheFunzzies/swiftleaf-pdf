@@ -922,6 +922,7 @@ void ToolbarUpdateStateForWindow(MainWindow* win, bool setButtonsVisibility) {
     }
 
     UpdateRibbonItemsState(win, ctx, annotButtonsEnabled);
+    ToolsPanelUpdate(win);
     StatusBarUpdate(win);
     NavRailUpdate(win);
 

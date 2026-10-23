@@ -8086,7 +8086,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
         }
         // never too narrow; max leaves kMinDocCanvasDx for the document
         // (was hard-capped at half the frame, which cut long favorite names)
-        int maxSidebarDx = std::max(kSidebarMinDx, rc.dx - kMinDocCanvasDx);
+        int maxSidebarDx =
+            std::max(kSidebarMinDx, rc.dx - toolsDx - navRailDx - (showComments ? DpiScale(300) : 0) - kMinDocCanvasDx);
         sidebarDxApplied = limitValue(sidebarDxApplied, kSidebarMinDx, maxSidebarDx);
         win->sidebarDx = sidebarDxApplied; // remember what's applied
     }
@@ -8101,7 +8102,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
             Rect side = ChildPosWithinParent(sideHwnd);
             if (!side.IsEmpty()) {
                 int right = rc.x + rc.dx;
-                // the navigation rail sits left of the sidebar
+                // the tools panel sits left of the sidebar
                 rc.x = side.x - toolsDx;
                 rc.dx = std::max(0, right - rc.x);
                 if (isFrameResize) {

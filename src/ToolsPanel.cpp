@@ -63,6 +63,8 @@ static const ToolDef stripTools[] = {
 struct ToolsPanelVirt {
     VirtHost* host = nullptr;
     Vec<RibbonButton*> rows;
+    VirtText* title = nullptr;
+    VirtButton* more = nullptr;
     VirtHost* strip = nullptr;
     Vec<RibbonButton*> stripRows;
 };
@@ -106,6 +108,11 @@ void ToolsPanelAfterThemeChange(MainWindow* win) {
     auto* panel = win->toolsPanel;
     if (!panel) return;
     panel->host->bgColor = RibbonPanelBgColor();
+    panel->title->SetColor(kColText, ThemeWindowTextColor());
+    panel->more->SetColor(kColBtnText, RibbonAccentColor());
+    panel->more->SetColor(kColBtnBg, kColorTransparent);
+    panel->more->SetColor(kColBtnBorder, kColorTransparent);
+    panel->more->SetColor(kColBtnBgHover, M3().surfaceContainerHigh);
     for (int i = 0; i < len(panel->rows); i++) {
         auto* b = panel->rows[i];
         b->textColor = ThemeWindowTextColor();
@@ -161,12 +168,15 @@ void CreateToolsPanel(MainWindow* win) {
     col->alignCross = CrossAxisAlign::Stretch;
     col->gap = DpiScale(6);
     auto header = NewLabelWithClose(win->hwndFrame, GetAppFont(), MkFunc1(OnClose, win));
+    panel->title = header.label;
     header.label->SetText(Tr("All tools"));
     col->AddChild(header.box);
     col->AddChild(new VirtSpacer(0, DpiScale(12)));
     for (const auto& d : tools) {
         auto* b = new RibbonButton();
         b->font = GetAppFont();
+        b->alignStart = true;
+        b->isRtl = IsUIRtl();
         b->SetLabel(trans::GetTranslation(d.label));
         b->id = d.cmd;
         b->SetTooltip(d.cmd ? trans::GetTranslation(d.label) : Tr("This tool is not available in SwiftLeaf"));
@@ -174,15 +184,13 @@ void CreateToolsPanel(MainWindow* win) {
         VecAppend(panel->rows, b);
         col->AddChild(b);
     }
-    auto* more = new RibbonButton();
-    more->font = GetAppFont();
-    more->SetLabel(Tr("View more"));
-    more->textColor = RibbonAccentColor();
+    auto* more = new VirtButton(Tr("View more"), GetAppFont());
+    panel->more = more;
     more->id = CmdCommandPalette;
     more->onClick = MkFunc1(OnTool, win);
     col->AddChild(more);
-    col->AddChild(new VirtSpacer(0, 0), 1);
-    panel->host->SetLayout(new Padding(col, DpiScaledInsets(16, 16)));
+    auto* scroll = new ScrollBox(new Padding(col, DpiScaledInsets(16, 16)));
+    panel->host->SetLayout(scroll);
     args.parent = win->hwndCanvas;
     args.className = WStrL(L"SWIFTLEAF_ANNOTATION_STRIP");
     args.initialSize = {DpiScale(44), DpiScale(260)};
