@@ -1457,12 +1457,18 @@ static ResizeHandle GetResizeHandleAt(MainWindow* win, Point pt, Annotation* ann
     Rect rect = dm->CvtToScreen(pageNo, GetRect(annot));
     int hs = kResizeHandleSize;
 
-    bool nearLeft = pt.x >= rect.x - hs && pt.x <= rect.x + hs;
-    bool nearRight = pt.x >= rect.x + rect.dx - hs && pt.x <= rect.x + rect.dx + hs;
-    bool nearTop = pt.y >= rect.y - hs && pt.y <= rect.y + hs;
-    bool nearBottom = pt.y >= rect.y + rect.dy - hs && pt.y <= rect.y + rect.dy + hs;
-    bool betweenX = pt.x >= rect.x + hs && pt.x <= rect.x + rect.dx - hs;
-    bool betweenY = pt.y >= rect.y + hs && pt.y <= rect.y + rect.dy - hs;
+    // At fit-page zoom a single-line FreeText can be shorter than two hit
+    // radii. Keep the middle half available for moving instead of letting the
+    // top/bottom (or left/right) resize zones consume its entire interior.
+    int hsX = std::min(hs, std::max(0, rect.dx / 4));
+    int hsY = std::min(hs, std::max(0, rect.dy / 4));
+
+    bool nearLeft = pt.x >= rect.x - hs && pt.x <= rect.x + hsX;
+    bool nearRight = pt.x >= rect.x + rect.dx - hsX && pt.x <= rect.x + rect.dx + hs;
+    bool nearTop = pt.y >= rect.y - hs && pt.y <= rect.y + hsY;
+    bool nearBottom = pt.y >= rect.y + rect.dy - hsY && pt.y <= rect.y + rect.dy + hs;
+    bool betweenX = pt.x > rect.x + hsX && pt.x < rect.x + rect.dx - hsX;
+    bool betweenY = pt.y > rect.y + hsY && pt.y < rect.y + rect.dy - hsY;
 
     // clang-format off
     // corners have priority over edges
