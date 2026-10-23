@@ -17,7 +17,7 @@ import (
 The big idea is to start collecting regression tests for bugs we fixed.
 
 Each test is a command we run on a file. A command can be any executable but
-for simplicity we'll probably just add more functionality to SumatraPDF.exe.
+for simplicity we'll probably just add more functionality to Swiftleaf.exe.
 
 Test succeeds if the output is same as expected.
 */
@@ -31,7 +31,7 @@ type Test struct {
 	ExpectedOutput string
 
 	// computed values
-	CmdName  string // e.g. SumatraPDF.exe
+	CmdName  string // e.g. Swiftleaf.exe
 	CmdPath  string // e.g. rel64\SumatraPDF.exe
 	CmdArgs  []string
 	FilePath string

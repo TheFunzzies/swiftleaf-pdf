@@ -159,14 +159,14 @@ constexpr const WCHAR* kCanvasClassName = L"SUMATRA_PDF_CANVAS";
 
 constexpr const char* kRestrictionsFileName = "sumatrapdfrestrict.ini";
 
-constexpr const char* kSumatraWindowTitle = kAppName;
-constexpr const WCHAR* kSumatraWindowTitleW = L"Swiftleaf";
+constexpr const char* kSumatraWindowTitle = "SwiftLeaf";
+constexpr const WCHAR* kSumatraWindowTitleW = L"SwiftLeaf";
 
 // used to show it in debug, but is not very useful,
 // so always disable
 
 // in plugin mode, the window's frame isn't drawn and closing and
-// fullscreen are disabled, so that SumatraPDF can be displayed
+// fullscreen are disabled, so that SwiftLeaf can be displayed
 // embedded (e.g. in a web browser)
 Str gPluginURL; // owned by Flags in WinMain
 bool gMyWindowWasEmbedded = false;
@@ -248,7 +248,7 @@ static void LogRedraw(Str what, HWND hwnd, const RECT* rc = nullptr) {
 }
 
 // in restricted mode, some features can be disabled (such as
-// opening files, printing, following URLs), so that SumatraPDF
+// opening files, printing, following URLs), so that SwiftLeaf
 // can be used as a PDF reader on locked down systems
 static Perm gPolicyRestrictions = Perm::All;
 // only the listed protocols will be passed to the OS for
@@ -396,8 +396,8 @@ void InitializePolicies(bool restrict) {
         return;
     }
 
-    // allow to restrict SumatraPDF's functionality from an INI file in the
-    // same directory as SumatraPDF.exe (see ../docs/sumatrapdfrestrict.ini)
+    // allow to restrict SwiftLeaf's functionality from an INI file in the
+    // same directory as Swiftleaf.exe (see ../docs/sumatrapdfrestrict.ini)
     // (if the file isn't there, everything is allowed)
     TempStr restrictPath = GetPathInExeDirTemp(Str(kRestrictionsFileName));
     if (!file::Exists(restrictPath)) {
@@ -3590,9 +3590,9 @@ static void MaybeShowDefaultAppNotification(MainWindow* win) {
         return;
     }
 
-    // "SumatraPDF is no longer the default app for opening [pdf](CmdFixDefaultApp .pdf), ..."
+    // "SwiftLeaf is no longer the default app for opening [pdf](CmdFixDefaultApp .pdf), ..."
     str::Builder sb;
-    sb.Append(StrL("SumatraPDF is no longer the default app for opening "));
+    sb.Append(StrL("SwiftLeaf is no longer the default app for opening "));
     int nShow = std::min(len(missing), kMaxDefaultAppLinks);
     for (int i = 0; i < nShow; i++) {
         if (i > 0) {
@@ -6563,7 +6563,7 @@ static bool FilePickerIsSumatraPDF() {
     return gSettings && str::EqI(gSettings->filePicker, StrL("sumatrapdf"));
 }
 
-// Show in folder: Explorer (and select the file) unless File / Open / Use SumatraPDF
+// Show in folder: Explorer (and select the file) unless File / Open / Use SwiftLeaf
 // file picker is on, in which case open Navigate Files in Folder on that dir.
 void ShowFileInFolder(MainWindow* win, Str path) {
     if (!win || len(path) == 0) {
@@ -10933,7 +10933,7 @@ static void ListPrintersShowResult(ListPrintersResult* d) {
 
     RemoveNotificationsForGroup(parent, kNotifActionResponse);
     // ShowTextInWindow copies text into the edit control before returning.
-    ShowTextInWindow(StrL("SumatraPDF - Printers"), text);
+    ShowTextInWindow(StrL("SwiftLeaf - Printers"), text);
     str::Free(text);
 }
 
@@ -11597,7 +11597,7 @@ void LaunchDocumentation(Str docURI) {
         }
 
         SimpleBrowserCreateArgs args;
-        args.title = StrL("SumatraPDF Documentation");
+        args.title = StrL("SwiftLeaf Documentation");
         args.url = localUrl;
         HWND parentFrame = ManualBrowserParentFrame();
         gManualBrowserParentHwnd = parentFrame;
@@ -16029,7 +16029,7 @@ static bool IsSimpleOpenCase(const Flags& i, bool isFirstWin) {
     return true;
 }
 
-// Send just the path + newWindow flag to an already-running SumatraPDF via
+// Send just the path + newWindow flag to an already-running SwiftLeaf via
 // WM_COPYDATA. Receiver (OnCopyData) handles it asynchronously so this
 // SendMessageW returns fast. Returns true if the message was handled.
 static bool SendOpenFileToExistingInstance(HWND targetHwnd, Str fullPath, u32 newWindow) {
@@ -16085,9 +16085,9 @@ static void OpenUsingDDE(HWND targetHwnd, Str path, Flags& i, bool isFirstWin) {
         newWindow = 2;
     }
 
-    // Common case: Explorer double-clicks a file while SumatraPDF is already
+    // Common case: Explorer double-clicks a file while SwiftLeaf is already
     // running (reuseInstance). Use the simpler kCopyDataOpen format; the
-    // receiver loads async so Explorer's child SumatraPDF process can exit
+    // receiver loads async so Explorer's child SwiftLeaf process can exit
     // instantly instead of blocking on the file load.
     if (targetHwnd && !i.reuseDdeInstance && IsSimpleOpenCase(i, isFirstWin)) {
         if (SendOpenFileToExistingInstance(targetHwnd, fullPath, newWindow)) {
@@ -16938,7 +16938,7 @@ static bool IsInstallerButNotInstalled() {
 // if not, at least I can add logging to figure out why it fails
 constexpr int kBtnIdLearnMore = 100;
 static Str kFailedToLoadURL() {
-    return StrL("https://www.sumatrapdfreader.org/docs/Failed-to-load-libmupdf");
+    return StrL("https://github.com/TheFunzzies/swiftleaf-pdf");
 }
 
 static HRESULT CALLBACK LoadLibsumatrapdfDialogCallback(HWND /*hwnd*/, UINT msg, WPARAM wParam, LPARAM lParam,
@@ -17262,13 +17262,13 @@ static bool LoadLibsumatrapdf(bool showErrorDialog) {
     TempStr msg;
     if (IsLibsumatrapdfAppControlError(err)) {
         msg = fmt(
-            R"(SumatraPDF failed to load libsumatrapdf.dll (error code %d).
+            R"(SwiftLeaf failed to load libsumatrapdf.dll (error code %d).
 
 Windows Application Control blocked the file (WDAC, AppLocker, or Smart App Control). The DLL is present on disk but the OS policy will not allow it to load.
 
 Try:
 • Settings → Privacy & security → Windows Security → App & browser control: check Smart App Control and reputation-based protection
-• If this is a work or school PC, ask IT to allowlist SumatraPDF.exe and libsumatrapdf.dll
+• If this is a work or school PC, ask IT to allowlist Swiftleaf.exe and libsumatrapdf.dll
 • Unblock the files (right-click → Properties → Unblock) if they show "downloaded from the Internet"
 • Move the portable folder out of Downloads and try again, or install from the official website
 
@@ -17276,14 +17276,14 @@ For more information see <a href="%s">Failed to load libsumatrapdf.dll</a>.)",
             (int)err, kFailedToLoadURL());
     } else {
         msg = fmt(
-            R"(SumatraPDF failed to load libsumatrapdf.dll (error code %d).
+            R"(SwiftLeaf failed to load libsumatrapdf.dll (error code %d).
 
-This is often caused by antivirus software blocking or quarantining libsumatrapdf.dll when SumatraPDF extracts it.
+This is often caused by antivirus software blocking or quarantining libsumatrapdf.dll when SwiftLeaf extracts it.
 
 Try:
-• Add an exclusion for the SumatraPDF folder and %%LocalAppData%%\SumatraPDF-data
-• Temporarily disable real-time antivirus protection, then start SumatraPDF again
-• Re-download SumatraPDF from the official website
+• Add an exclusion for the SwiftLeaf folder and %%LocalAppData%%\Swiftleaf-data
+• Temporarily disable real-time antivirus protection, then start SwiftLeaf again
+• Re-download SwiftLeaf from the official website
 
 For more information see <a href="%s">Failed to load libsumatrapdf.dll</a>.)",
             (int)err, kFailedToLoadURL());
@@ -17354,11 +17354,11 @@ static bool ForceRunningAsInstaller() {
     }
 
     Str corruptedInstallationConsole = StrL(R"(
-Looks like corrupted installation of SumatraPDF.
+Looks like corrupted installation of SwiftLeaf.
 
-Learn more at https://www.sumatrapdfreader.org/docs/Corrupted-installation
+Learn more at https://github.com/TheFunzzies/swiftleaf-pdf
 )");
-    Str corruptedInstallation = StrL(R"(Looks like corrupted installation of SumatraPDF.
+    Str corruptedInstallation = StrL(R"(Looks like corrupted installation of SwiftLeaf.
 )");
     bool ok = RedirectIOToExistingConsole();
     if (ok) {
@@ -17378,7 +17378,7 @@ Learn more at https://www.sumatrapdfreader.org/docs/Corrupted-installation
     dialogConfig.pszWindowTitle = title;
     dialogConfig.pszMainInstruction = CWStrTemp(corruptedInstallation);
     dialogConfig.pszContent =
-        LR"(Learn more at <a href="https://www.sumatrapdfreader.org/docs/Corrupted-installation">www.sumatrapdfreader.org/docs/Corrupted-installation</a>.)";
+        LR"(Learn more at <a href="https://github.com/TheFunzzies/swiftleaf-pdf">github.com/TheFunzzies/swiftleaf-pdf</a>.)";
     dialogConfig.nDefaultButton = IDOK;
     dialogConfig.dwFlags = (TASKDIALOG_FLAGS)flags;
     dialogConfig.cxWidth = 0;
@@ -17419,7 +17419,7 @@ static void ShowInstallerHelp() {
     bool ok = RedirectIOToExistingConsole();
     if (ok) {
         // if we're launched from console, print help to consle window
-        printf("%s\n%s\n", msg.s, "See more at https://www.sumatrapdfreader.org/docs/Installer-cmd-line-arguments");
+        printf("%s\n%s\n", msg.s, "See more at https://github.com/TheFunzzies/swiftleaf-pdf");
         return;
     }
 
@@ -17434,7 +17434,7 @@ static void ShowInstallerHelp() {
     dialogConfig.pszWindowTitle = L"Swiftleaf installer usage";
     dialogConfig.pszMainInstruction = CWStrTemp(msg);
     dialogConfig.pszContent =
-        LR"(<a href="https://www.sumatrapdfreader.org/docs/Installer-cmd-line-arguments">Read more on website</a>)";
+        LR"(<a href="https://github.com/TheFunzzies/swiftleaf-pdf">Read more on website</a>)";
     dialogConfig.nDefaultButton = IDOK;
     dialogConfig.dwFlags = (TASKDIALOG_FLAGS)flags;
     dialogConfig.pfCallback = TaskdialogHandleLinkscallback;
@@ -17573,7 +17573,7 @@ static i64 GetDirLastActivityAgeSec(Str dirPath, const ULARGE_INTEGER& now) {
 
 // delete stale build dirs and legacy top-level dirs from previous layouts
 // PdfPreview.dll writes one log per preview-host session when logging is enabled
-// but, being a restricted shell host, doesn't prune them -- so SumatraPDF.exe
+// but, being a restricted shell host, doesn't prune them -- so Swiftleaf.exe
 // keeps only the newest `keep` here (the logs live in our per-build data dir).
 struct PreviewLogFile {
     Str path;
@@ -17655,7 +17655,7 @@ static void DeleteStaleFilesAsync() {
     DeleteOldPdfPreviewLogs(32);
 
     // WebView2 can keep its browser process alive for several seconds after
-    // SumatraPDF exits. Each process therefore gets its own profile directory;
+    // SwiftLeaf exits. Each process therefore gets its own profile directory;
     // remove profiles whose owning process no longer exists. If WebView2 still
     // has a file open, this harmlessly fails and a later startup retries.
     TempStr currentWebViewDir = GetWebViewDataDirTemp();
@@ -17919,7 +17919,7 @@ static SeqStrings gToolDescs =
 constexpr int kNoMutool = -1234321; // arbitrary negative value that won't collide with any mutool exit code
 
 // Returns the index into gToolNames if the command line invokes one of the
-// mupdf-derived command-line tools (e.g. `SumatraPDF.exe info file.pdf`), else
+// mupdf-derived command-line tools (e.g. `Swiftleaf.exe info file.pdf`), else
 // -1. CommandLineToArgvW always returns the program path as argv[0], so the tool
 // name (if any) is argv[1]. This must not depend on how the exe path was spelled
 // on the command line (absolute, relative, short, just the name via PATH).
@@ -17998,7 +17998,7 @@ static WStr SkipFirstArg(WStr cmdLine) {
 // our standard handles, so console output and redirection (`> out.txt`, `| more`)
 // keep working. Returns the child's exit code, or kNoMutool when delegation
 // doesn't apply (the caller then runs the tool in-process). The static
-// SumatraPDF.exe (no embedded resources) always runs the tool in-process.
+// Swiftleaf.exe (no embedded resources) always runs the tool in-process.
 static int MaybeDelegateToToolExe() {
     if (!HasEmbeddedLibsumatrapdf()) {
         return kNoMutool;
@@ -18087,12 +18087,12 @@ static int MaybeRunMutool() {
             // Emit the message via raw WriteFile (CRT fwrite is what's broken
             // here) to the inherited stderr handle so it survives the bad pipe.
             if (WasLaunchedByPowershellWithPipeRedirect()) {
-                static Str msg = StrL(R"(SumatraPDF: command-line tools don't work when their output is redirected by
-PowerShell (e.g. `SumatraPDF.exe info file.pdf > out.txt` or `... | more`).
+                static Str msg = StrL(R"(SwiftLeaf: command-line tools don't work when their output is redirected by
+PowerShell (e.g. `Swiftleaf.exe info file.pdf > out.txt` or `... | more`).
 PowerShell pipes a GUI app's output through a pipe that drops the data.
 
 Run the command from cmd.exe instead, e.g.:
-    cmd /c "SumatraPDF.exe info file.pdf > out.txt"
+    cmd /c "Swiftleaf.exe info file.pdf > out.txt"
 )");
                 HANDLE hErr = GetStdHandle(STD_ERROR_HANDLE);
                 if (hErr && hErr != INVALID_HANDLE_VALUE) {
@@ -18208,7 +18208,7 @@ static void GetProgramInfo(str::Builder& b) {
     b.Append(StrL("\n"));
 
     if (gitCommidId) {
-        b.Append(fmt("Git: %s (https://github.com/sumatrapdfreader/sumatrapdf/commit/%s)\n", gitCommidId, gitCommidId));
+        b.Append(fmt("Git: %s (https://github.com/TheFunzzies/swiftleaf-pdf/commit/%s)\n", gitCommidId, gitCommidId));
     }
 }
 
@@ -18223,11 +18223,11 @@ static void ShowCrashHandlerMessage() {
         return;
     }
 
-    Str msg = Tr("SumatraPDF crashed.\n\nPress 'Cancel' to see the crash report.");
+    Str msg = Tr("SwiftLeaf crashed.\n\nPress 'Cancel' to see the crash report.");
     uint flags = MB_ICONERROR | MB_OK | MB_OKCANCEL | MbRtlReadingMaybe();
     flags |= MB_SETFOREGROUND | MB_TOPMOST;
 
-    int res = MsgBox(nullptr, msg, Tr("SumatraPDF crashed"), flags);
+    int res = MsgBox(nullptr, msg, Tr("SwiftLeaf crashed"), flags);
     if (IDCANCEL != res) {
         log(StrL("ShowCrashHandlerMessage: res != IDCANCEL\n"));
         return;
@@ -18717,7 +18717,7 @@ int APIENTRY WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevIns
             }
         };
         if (!HasEmbeddedLibsumatrapdf()) {
-            printExtractErr(StrL("this is not a SumatraPDF installer, -x option not available"));
+            printExtractErr(StrL("this is not a SwiftLeaf installer, -x option not available"));
             HandleRedirectedConsoleOnShutdown();
             return 1;
         }
@@ -18982,7 +18982,7 @@ ContinueOpenWindow:
     restoreSession =
         SettingsRestoreSession() && (len(*gInitialSessionData) > 0) && !NeedsWindowEmbeddingHacks() && !flags.quickLook;
     if (!SettingsUseTabs() && (existingInstanceHwnd != nullptr)) {
-        // do not restore a session if tabs are disabled and SumatraPDF is already running
+        // do not restore a session if tabs are disabled and SwiftLeaf is already running
         // TODO: maybe disable restoring if tabs are disabled?
         restoreSession = false;
         logf("not restoring a session because the same exe is already running and tabs are disabled\n");
@@ -19257,7 +19257,7 @@ Exit:
     // Only a bare -log opens the log at exit, as a convenience for finding it.
     // -log-to-file says where it goes, so opening it just spawns a stray editor
     // window per run (and, depending on the .txt association, could even launch
-    // another non-testing SumatraPDF that saves settings), which is never what
+    // another non-testing SwiftLeaf that saves settings), which is never what
     // an automated test driving the app wants.
     bool openLogAtExit = !logFileBecauseDebug && !gForTesting && len(flags.logFile) == 0;
     if (openLogAtExit) {

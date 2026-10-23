@@ -21,7 +21,7 @@
 void AppShellDisableAutoTermination() {
     NSProcessInfo* info = [NSProcessInfo processInfo];
     info.automaticTerminationSupportEnabled = NO;
-    [info disableAutomaticTermination:@"SumatraPDF"];
+    [info disableAutomaticTermination:@"SwiftLeaf"];
 }
 
 // Backing pixels per point. The canvas is drawn in points, so a tile rendered

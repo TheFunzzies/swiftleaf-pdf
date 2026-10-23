@@ -148,7 +148,7 @@ Str gPluginURL;
 constexpr const char* kRestrictionsFileName = "sumatrapdfrestrict.ini";
 
 // in restricted mode, some features can be disabled (such as
-// opening files, printing, following URLs), so that SumatraPDF
+// opening files, printing, following URLs), so that SwiftLeaf
 // can be used as a PDF reader on locked down systems
 static Perm gPolicyRestrictions = Perm::All;
 // only the listed protocols will be passed to the OS for
@@ -174,8 +174,8 @@ void InitializePolicies(bool restrict) {
         return;
     }
 
-    // allow to restrict SumatraPDF's functionality from an INI file in the
-    // same directory as SumatraPDF.exe (see ../docs/sumatrapdfrestrict.ini)
+    // allow to restrict SwiftLeaf's functionality from an INI file in the
+    // same directory as Swiftleaf.exe (see ../docs/sumatrapdfrestrict.ini)
     // (if the file isn't there, everything is allowed)
     TempStr restrictPath = GetPathInExeDirTemp(Str(kRestrictionsFileName));
     if (!file::Exists(restrictPath)) {
@@ -889,7 +889,7 @@ void LaunchDocumentation(Str docURI) {
         args.win = win;
         args.pos = ManualBrowserPlacementRect(win);
         args.onPosChanged = SaveManualBrowserPos;
-        args.title = StrL("SumatraPDF Documentation");
+        args.title = StrL("SwiftLeaf Documentation");
         args.url = DocURIToLocalManualUrlTemp(docURI);
         args.resourceUriPrefix = Str(kManualVirtualHost);
         args.resourceProvider.getData = ManualGetData;
@@ -1130,7 +1130,7 @@ void RememberDefaultWindowPosition(MainWindow* win) {
 
 // --- window title and menu --------------------------------------------------
 
-constexpr const char* kSumatraWindowTitle = "SumatraPDF";
+constexpr const char* kSumatraWindowTitle = "SwiftLeaf";
 
 // orig's SetFrameTitleForTab: the path (GetTabTitle() follows FullPathInTitle
 // and names an embedded file), then the document's title
@@ -1882,9 +1882,9 @@ void ShowDefaultAppNotification(MainWindow* win, const StrVec& missing) {
         return;
     }
 
-    // "SumatraPDF is no longer the default app for opening [pdf](CmdFixDefaultApp .pdf), ..."
+    // "SwiftLeaf is no longer the default app for opening [pdf](CmdFixDefaultApp .pdf), ..."
     str::Builder sb;
-    sb.Append(StrL("SumatraPDF is no longer the default app for opening "));
+    sb.Append(StrL("SwiftLeaf is no longer the default app for opening "));
     int nShow = std::min(len(missing), kMaxDefaultAppLinks);
     for (int i = 0; i < nShow; i++) {
         if (i > 0) {
@@ -4778,7 +4778,7 @@ void CopyFilePath(WindowTab* tab) {
 
 static bool FilePickerIsSumatraPDF();
 
-// Show in folder: Explorer (and select the file) unless File / Use SumatraPDF
+// Show in folder: Explorer (and select the file) unless File / Use SwiftLeaf
 // file picker is on, in which case open Navigate Files in Folder on that dir
 void ShowFileInFolder(MainWindow* win, Str path) {
     if (!win || len(path) == 0 || gPluginMode || !CanAccessDisk()) {
@@ -5588,7 +5588,7 @@ static void ListPrintersShowResult(ListPrintersResult* d) {
 
     if (IsMainWindowValidAndNotClosing(win)) {
         RemoveNotificationsForGroup(win, kNotifActionResponse);
-        ShowTextInWindow(win, StrL("SumatraPDF - Printers"), text);
+        ShowTextInWindow(win, StrL("SwiftLeaf - Printers"), text);
     }
     str::Free(text);
 }
@@ -8117,7 +8117,7 @@ static bool IsSimpleOpenCase(const Flags& i, bool isFirstWin) {
     return true;
 }
 
-// Send just the path + newWindow flag to an already-running SumatraPDF via
+// Send just the path + newWindow flag to an already-running SwiftLeaf via
 // WM_COPYDATA. Receiver (OnCopyData) handles it asynchronously so this
 // SendMessageW returns fast. Returns true if the message was handled.
 static bool SendOpenFileToExistingInstance(HWND targetHwnd, Str fullPath, u32 newWindow) {
@@ -8170,9 +8170,9 @@ static void OpenUsingDDE(HWND targetHwnd, Str path, Flags& i, bool isFirstWin) {
     // 2 forces opening a new window
     u32 newWindow = i.inNewWindow ? 2 : 0;
 
-    // Common case: Explorer double-clicks a file while SumatraPDF is already
+    // Common case: Explorer double-clicks a file while SwiftLeaf is already
     // running (reuseInstance). Use the simpler kCopyDataOpen format; the
-    // receiver loads async so Explorer's child SumatraPDF process can exit
+    // receiver loads async so Explorer's child SwiftLeaf process can exit
     // instantly instead of blocking on the file load.
     if (targetHwnd && !i.reuseDdeInstance && IsSimpleOpenCase(i, isFirstWin)) {
         if (SendOpenFileToExistingInstance(targetHwnd, fullPath, newWindow)) {

@@ -1,7 +1,7 @@
 /* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
    License: GPLv3 */
 
-// SumatraPDF's half of the screenshot feature: the global hotkey, the dialog
+// SwiftLeaf's half of the screenshot feature: the global hotkey, the dialog
 // that sets it, and the hooks the shared capture code calls back into.
 // Capturing and the picker overlay live in ScreenshotCapture.cpp.
 

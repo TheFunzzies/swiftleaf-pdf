@@ -1,7 +1,7 @@
 /* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
    License: GPLv3 */
 
-// SumatraPDF's half of the screenshot feature: where the files go and the
+// SwiftLeaf's half of the screenshot feature: where the files go and the
 // dialog that sets the hotkey. ng: orig's capture (ScreenshotCapture.cpp) walks
 // the desktop's top-level windows, blits them and shows a layered picker
 // overlay. All UI here is gpui, so what CmdScreenshot does instead is render

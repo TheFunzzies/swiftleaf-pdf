@@ -448,7 +448,7 @@ WindowBase* WindowBase::AsWindowBase() {
 
 // What a window does when the system theme or colors changed: take the colors
 // the OS draws its own UI in and repaint. An app with a theme of its own has
-// already replaced the gui/ defaults with its palette (SumatraPDF does that in
+// already replaced the gui/ defaults with its palette (SwiftLeaf does that in
 // SumatraUpdateTheme()), and gGuiColorsFromSystem says so, so we leave those
 // alone and only repaint.
 // kColWin* resolved like VirtCtrl::GetColor(): the window's own textColor /

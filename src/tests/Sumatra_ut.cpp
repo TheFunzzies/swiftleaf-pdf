@@ -106,7 +106,7 @@ static void ParseFileArgsTest() {
 static void ParseCommandLineTest() {
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bench foo.pdf", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bench foo.pdf", i);
         utassert(2 == len(i.pathsToBenchmark));
         utassert(str::Eq(StrL("foo.pdf"), i.pathsToBenchmark[0]));
         utassert(len(i.pathsToBenchmark[1]) == 0);
@@ -114,7 +114,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bench foo.pdf -fwdsearch-width 5", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bench foo.pdf -fwdsearch-width 5", i);
         utassert(len(i.globalPrefArgs) == 2);
         Str s = i.globalPrefArgs[0];
         utassert(str::Eq(s, StrL("-fwdsearch-width")));
@@ -127,7 +127,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bench bar.pdf loadonly", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bench bar.pdf loadonly", i);
         utassert(2 == len(i.pathsToBenchmark));
         utassert(str::Eq(StrL("bar.pdf"), i.pathsToBenchmark[0]));
         utassert(str::Eq(StrL("loadonly"), i.pathsToBenchmark[1]));
@@ -135,7 +135,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bench bar.pdf 1 -set-color-range 0x123456 #abCDef", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bench bar.pdf 1 -set-color-range 0x123456 #abCDef", i);
         utassert(len(i.globalPrefArgs) == 3);
         utassert(2 == len(i.pathsToBenchmark));
         utassert(str::Eq(StrL("bar.pdf"), i.pathsToBenchmark[0]));
@@ -144,7 +144,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bench bar.pdf 1-5,3   -bench some.pdf 1,3,8-34", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bench bar.pdf 1-5,3   -bench some.pdf 1,3,8-34", i);
         utassert(4 == len(i.pathsToBenchmark));
         utassert(str::Eq(StrL("bar.pdf"), i.pathsToBenchmark[0]));
         utassert(str::Eq(StrL("1-5,3"), i.pathsToBenchmark[1]));
@@ -154,7 +154,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -presentation -bgcolor 0xaa0c13 foo.pdf -invert-colors bar.pdf", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -presentation -bgcolor 0xaa0c13 foo.pdf -invert-colors bar.pdf", i);
         utassert(true == i.enterPresentation);
         utassert(true == i.invertColors);
         utassert(2 == len(i.fileNames));
@@ -164,7 +164,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -bg-color 0xaa0c13 -invertcolors rosanna.pdf", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -bg-color 0xaa0c13 -invertcolors rosanna.pdf", i);
         utassert(true == i.invertColors);
         utassert(1 == len(i.fileNames));
         utassert(0 == i.fileNames.Find(StrL("rosanna.pdf")));
@@ -172,7 +172,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), LR"(SumatraPDF.exe "foo \" bar \\.pdf" un\"quoted.pdf)", i);
+        ParseFlags(GetPermArena(), LR"(Swiftleaf.exe "foo \" bar \\.pdf" un\"quoted.pdf)", i);
         utassert(2 == len(i.fileNames));
         utassert(0 == i.fileNames.Find(StrL(R"(foo " bar \\.pdf)")));
         utassert(1 == i.fileNames.Find(StrL(R"(un"quoted.pdf)")));
@@ -182,7 +182,7 @@ static void ParseCommandLineTest() {
         Flags i;
         ParseFlags(
             GetPermArena(),
-            L"SumatraPDF.exe -page 37 -view continuousfacing -zoom fitcontent -scroll 45,1234         -reuse-instance",
+            L"Swiftleaf.exe -page 37 -view continuousfacing -zoom fitcontent -scroll 45,1234         -reuse-instance",
             i);
         utassert(0 == len(i.fileNames));
         utassert(i.pageNumber == 37);
@@ -193,7 +193,7 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), LR"(SumatraPDF.exe -view "single page" -zoom 237.45 -scroll -21,-1)", i);
+        ParseFlags(GetPermArena(), LR"(Swiftleaf.exe -view "single page" -zoom 237.45 -scroll -21,-1)", i);
         utassert(0 == len(i.fileNames));
         utassert(i.startView == DisplayMode::SinglePage);
         utassert(i.startZoom == 237.45f);
@@ -202,14 +202,14 @@ static void ParseCommandLineTest() {
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -zoom 35%", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -zoom 35%", i);
         utassert(0 == len(i.fileNames));
         utassert(i.startZoom == 35.f);
     }
 
     {
         Flags i;
-        ParseFlags(GetPermArena(), L"SumatraPDF.exe -zoom fit-content", i);
+        ParseFlags(GetPermArena(), L"Swiftleaf.exe -zoom fit-content", i);
         utassert(i.startZoom == kZoomFitContent);
         utassert(0 == len(i.fileNames));
     }

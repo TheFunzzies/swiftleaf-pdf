@@ -134,7 +134,7 @@ int CmdIdFromVirtualZoom(float) {
     return CmdZoomCustom;
 }
 
-// Favorites.cpp is UI now (step 9a) and lives in the SumatraPDF target;
+// Favorites.cpp is UI now (step 9a) and lives in the SwiftLeaf target;
 // CommandAvailability only asks whether there are any
 bool HasFavorites() {
     return false;
@@ -177,7 +177,7 @@ void CanvasDrawTileOutline(gpui::PaintCtx*, Rect) {}
 
 void CanvasFreeTileImage(BitmapCacheEntry*) {}
 
-// ExternalViewers.cpp is in the SumatraPDF target (it needs WindowTab); the
+// ExternalViewers.cpp is in the SwiftLeaf target (it needs WindowTab); the
 // command policy asks it whether a viewer is there (step 10b)
 struct WindowTab;
 struct CustomCommand;

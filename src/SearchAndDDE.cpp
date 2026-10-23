@@ -2243,7 +2243,7 @@ bool OnInverseSearch(MainWindow* win, int x, int y) {
     args.hwndParent = win->hwndCanvas;
     args.msg = Tr("Cannot start the inverse search command. Check its command line in Settings.");
     if (len(cmdLine) > 0) {
-        // resolve relative paths with relation to SumatraPDF.exe's directory
+        // resolve relative paths with relation to Swiftleaf.exe's directory
         TempStr appDir = GetSelfExeDirTemp();
         AutoCloseHandle process(LaunchProcessInDir(cmdLine, appDir));
         if (!process) {
@@ -3406,7 +3406,7 @@ LRESULT OnCopyData(HWND hwnd, WPARAM wp, LPARAM lp) {
 
     if (cds->dwData == kCopyDataOpen) {
         // Simple-open fast path used by the reuseInstance handshake: the
-        // sibling SumatraPDF that Explorer just spawned is blocked in
+        // sibling SwiftLeaf that Explorer just spawned is blocked in
         // SendMessageW. Copy the path out, post an async task, return
         // immediately so the sender unblocks and exits.
         if (cds->cbData < sizeof(SumatraOpenCopyData) + 1) {

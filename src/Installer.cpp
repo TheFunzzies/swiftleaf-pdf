@@ -143,7 +143,7 @@ static bool IsDiskFullError(DWORD err) {
 }
 
 // Write a file during install/upgrade. libsumatrapdf.dll is often locked by
-// SumatraPDF.exe, dllhost/prevhost (preview), or PdfFilter; a plain
+// Swiftleaf.exe, dllhost/prevhost (preview), or PdfFilter; a plain
 // CreateFile(CREATE_ALWAYS) then fails and leaves the old DLL (size mismatch
 // with the new exe). Retry: direct write, temp+rename, kill holders, delete.
 static bool WriteInstallerFileRobust(Str path, Str data) {
@@ -269,7 +269,7 @@ static TempStr WriteInstallerFileFailureMsgTemp(Str filePath) {
 // blocked, show a dialog that retries every 3s (or silent retries for ~60s).
 
 static Str kInstallDocsURL() {
-    return StrL("https://www.sumatrapdfreader.org/docs/Installation");
+    return StrL("https://github.com/TheFunzzies/swiftleaf-pdf");
 }
 
 // Wait until a service is stopped (or timeout / query failure).
@@ -627,11 +627,11 @@ static TempStr FormatMoveAsideDialogContentTemp(Str fileName, Str path) {
                   "Common causes:\n"
                   "• Windows Search Indexer (loads PdfFilter.dll for PDF search)\n"
                   "• File Explorer PDF preview (loads PdfPreview.dll / libsumatrapdf.dll)\n"
-                  "• Another SumatraPDF window or PDF application\n\n"
+                  "• Another SwiftLeaf window or PDF application\n\n"
                   "What to try:\n"
                   "• Close Explorer windows that show a PDF preview pane\n"
                   "• Stop the \"Windows Search\" service temporarily (services.msc)\n"
-                  "• Close all SumatraPDF and other PDF apps\n\n"
+                  "• Close all SwiftLeaf and other PDF apps\n\n"
                   "The installer keeps retrying every few seconds. Click Abort to cancel.\n\n"
                   "More help: <a href=\"%s\">Installation documentation</a>")
                    .s,
@@ -656,13 +656,13 @@ static void NotifyMoveAsideFailed(Str fileName, Str path, bool userAborted) {
         } else if (elevated) {
             NotifyFailed(fmt(Tr("Could not update %s: access denied (antivirus, Controlled Folder Access, or "
                                 "file ACL). Exclude the install folder, reboot and retry, or choose a different "
-                                "folder. See https://www.sumatrapdfreader.org/docs/Installation")
+                                "folder. See https://github.com/TheFunzzies/swiftleaf-pdf")
                                  .s,
                              fileName));
         } else {
             NotifyFailed(fmt(Tr("Could not update %s: access denied. Run the installer as administrator, "
                                 "or choose a folder you can write to. "
-                                "See https://www.sumatrapdfreader.org/docs/Installation")
+                                "See https://github.com/TheFunzzies/swiftleaf-pdf")
                                  .s,
                              fileName));
         }
@@ -673,7 +673,7 @@ static void NotifyMoveAsideFailed(Str fileName, Str path, bool userAborted) {
     } else {
         NotifyFailed(fmt(Tr("Could not update %s because it is in use by another program. "
                             "Stop Windows Search / close Explorer previews and try again. "
-                            "See https://www.sumatrapdfreader.org/docs/Installation")
+                            "See https://github.com/TheFunzzies/swiftleaf-pdf")
                              .s,
                          fileName));
     }
@@ -745,7 +745,7 @@ static bool ShowMoveAsideBlockedDialog(Str path, Str copyPath, Str fileName) {
     }
     cfg.cbSize = sizeof(cfg);
     cfg.hwndParent = gWnd ? gWnd->hwnd : nullptr;
-    cfg.pszWindowTitle = L"Swiftleaf";
+    cfg.pszWindowTitle = L"SwiftLeaf";
     cfg.pszMainInstruction = CWStrTemp(fmt(Tr("Cannot update %s").s, fileName));
     cfg.pszContent = CWStrTemp(content);
     cfg.dwFlags = (TASKDIALOG_FLAGS)flags;
@@ -864,7 +864,7 @@ static bool PrepareInstallDirByRenaming(Str installDir, bool silent, bool skipEx
         }
     }
     // The exe itself: a just-killed (TerminateProcess is async) or relaunched
-    // instance can still map SumatraPDF.exe, which would make CopySelfToDir's
+    // instance can still map Swiftleaf.exe, which would make CopySelfToDir's
     // overwrite fail with a sharing violation. Rename it aside too - renaming a
     // mapped image is allowed even though overwriting/deleting it is not.
     // Skip when -x extracts into this exe's own directory: we keep the running
@@ -899,7 +899,7 @@ static void DeleteInstallCopyLeftovers(Str destDir) {
 }
 
 // After a failed upgrade that renamed install files to *.copy, put the previous
-// install back so the user is not left without SumatraPDF.exe / companion DLLs.
+// install back so the user is not left without Swiftleaf.exe / companion DLLs.
 // Also undoes a partial PrepareInstallDirByRenaming when a later rename fails.
 static void RestoreInstallCopyFiles(Str installDir) {
     logf("RestoreInstallCopyFiles('%s')\n", installDir);
@@ -1074,21 +1074,21 @@ static bool CopySelfToDir(Str destDir) {
     logf("  failed to copy '%s' to '%s' lastError=%u\n", exePath, dstPath, lastErr);
     if (lastErr == ERROR_ACCESS_DENIED) {
         NotifyFailed(
-            Tr("Couldn't copy SumatraPDF.exe to the installation directory (access denied). "
+            Tr("Couldn't copy Swiftleaf.exe to the installation directory (access denied). "
                "Temporarily disable antivirus or Controlled Folder Access for this folder, "
                "run the installer as administrator, or choose a different install folder. "
-               "See https://www.sumatrapdfreader.org/docs/Installation"));
+               "See https://github.com/TheFunzzies/swiftleaf-pdf"));
     } else if (lastErr == ERROR_SHARING_VIOLATION || lastErr == ERROR_LOCK_VIOLATION) {
         NotifyFailed(
-            Tr("Couldn't copy SumatraPDF.exe to the installation directory (file in use). "
-               "Close all SumatraPDF windows and Explorer PDF previews, then try again. "
-               "See https://www.sumatrapdfreader.org/docs/Installation"));
+            Tr("Couldn't copy Swiftleaf.exe to the installation directory (file in use). "
+               "Close all SwiftLeaf windows and Explorer PDF previews, then try again. "
+               "See https://github.com/TheFunzzies/swiftleaf-pdf"));
     } else if (IsDiskFullError(lastErr)) {
         NotifyFailed(
-            Tr("Not enough free disk space to copy SumatraPDF.exe to the installation directory.\n\n"
+            Tr("Not enough free disk space to copy Swiftleaf.exe to the installation directory.\n\n"
                "Free up space on this drive and try again."));
     } else {
-        NotifyFailed(Tr("Couldn't copy SumatraPDF.exe to the installation directory"));
+        NotifyFailed(Tr("Couldn't copy Swiftleaf.exe to the installation directory"));
     }
     return false;
 }
@@ -1516,7 +1516,7 @@ static HRESULT CALLBACK InstallationFailedDialogCallback(HWND /*hwnd*/, UINT msg
         case TDN_BUTTON_CLICKED:
             if ((int)wParam == kBtnIdShowInstallLog) {
                 Str logText = gLogBuf ? ToStr(*gLogBuf) : StrL("(no log available)");
-                ShowTextInWindowDialog(Tr("SumatraPDF installation log"), logText);
+                ShowTextInWindowDialog(Tr("SwiftLeaf installation log"), logText);
                 return S_FALSE; // keep TaskDialog open
             }
             break;
@@ -1546,7 +1546,7 @@ static void ShowInstallationFailedUi(HWND hwndParent) {
     }
     dialogConfig.cbSize = sizeof(TASKDIALOGCONFIG);
     dialogConfig.hwndParent = hwndParent;
-    dialogConfig.pszWindowTitle = L"Swiftleaf";
+    dialogConfig.pszWindowTitle = L"SwiftLeaf";
     dialogConfig.pszMainInstruction = L"Installation failed";
     dialogConfig.pszContent = CWStrTemp(content);
     dialogConfig.nDefaultButton = IDOK;
@@ -1591,10 +1591,10 @@ static void OnInstallationFinished(Flags* cli) {
     DeleteWnd(&gWnd->progressBar);
     auto isRtl = IsUIRtl();
     if (!cli->fastInstall) {
-        gWnd->btnRunSumatra = CreateDefaultButton(gWnd->hwnd, Tr("Start SumatraPDF"), isRtl);
+        gWnd->btnRunSumatra = CreateDefaultButton(gWnd->hwnd, Tr("Start SwiftLeaf"), isRtl);
         gWnd->btnRunSumatra->onClick = MkFunc0Void(OnButtonStartSumatra);
     }
-    SetMsg(Tr("Thank you! SumatraPDF has been installed."), kColorMsgOk);
+    SetMsg(Tr("Thank you! SwiftLeaf has been installed."), kColorMsgOk);
     gMsgError = gFirstError;
     HwndRepaintNow(gWnd->hwnd);
 
@@ -1803,7 +1803,7 @@ static void OnButtonBrowse(InstallerWnd* wnd) {
         installDir = path::GetDirTemp(installDir);
     }
 
-    auto caption = Tr("Select the folder where SumatraPDF should be installed:");
+    auto caption = Tr("Select the folder where SwiftLeaf should be installed:");
     TempStr installPath = BrowseForFolderTemp(wnd->hwnd, installDir, caption);
     if (len(installPath) == 0) {
         HwndSetFocus(wnd->btnBrowseDir->hwnd);
@@ -1857,7 +1857,7 @@ static void CreateInstallerWindowControls(InstallerWnd* wnd, Flags* cli) {
     bool isRtl = IsUIRtl();
     bool showInstallButton = !cli->fastInstall;
 
-    wnd->btnInstall = CreateDefaultButton(hwnd, Tr("Install SumatraPDF"), isRtl);
+    wnd->btnInstall = CreateDefaultButton(hwnd, Tr("Install SwiftLeaf"), isRtl);
     wnd->btnInstall->onClick = MkFunc0(OnButtonInstall, wnd);
     ShowAndEnable(wnd->btnInstall, showInstallButton);
 
@@ -1919,7 +1919,7 @@ static void CreateInstallerWindowControls(InstallerWnd* wnd, Flags* cli) {
     wnd->editInstallationDir->SetText(cli->installDir);
 
     wnd->staticInstDir = NewVirtText({
-        .s = Tr("Install SumatraPDF in &folder:"),
+        .s = Tr("Install SwiftLeaf in &folder:"),
         .font = GetDefaultGuiFont(),
         .textColor = kColBlack,
         .isRtl = IsUIRtl(),
@@ -2094,7 +2094,7 @@ static bool CreateInstallerWnd(Flags* cli) {
         RegisterClassExW(&wcex);
     }
 
-    TempStr title = fmt(Tr("SumatraPDF %s Installer").s, StrL(CURR_VERSION_STRA));
+    TempStr title = fmt(Tr("SwiftLeaf %s Installer").s, StrL(CURR_VERSION_STRA));
     DWORD exStyle = 0;
     if (trans::IsCurrLangRtl()) {
         exStyle = WS_EX_LAYOUTRTL;
@@ -2120,7 +2120,7 @@ static bool CreateInstallerWnd(Flags* cli) {
 }
 
 static bool CreateInstallerWindow(Flags* cli) {
-    gDefaultMsg = Tr("Thank you for choosing SumatraPDF!");
+    gDefaultMsg = Tr("Thank you for choosing SwiftLeaf!");
     if (!CreateInstallerWnd(cli)) {
         return false;
     }
@@ -2309,7 +2309,7 @@ static bool EnsureEnoughDiskSpaceForInstall(Str installDir, const lzma::SimpleAr
     }
     int freeMb = (int)(freeBytes / (1024ull * 1024ull));
     int needMb = (int)((need + (1024ll * 1024) - 1) / (1024ll * 1024));
-    NotifyFailed(fmt(Tr("Not enough free disk space to install SumatraPDF.\n\n"
+    NotifyFailed(fmt(Tr("Not enough free disk space to install SwiftLeaf.\n\n"
                         "Required: about %d MB free\nAvailable: %d MB\n\n"
                         "Free up space on this drive and try again.")
                          .s,
@@ -2349,7 +2349,7 @@ bool ExtractInstallerFiles(Str dir) {
     }
 
     if (skipSelfExe) {
-        logf("ExtractInstallerFiles: dest is this exe's directory, not copying SumatraPDF.exe\n");
+        logf("ExtractInstallerFiles: dest is this exe's directory, not copying Swiftleaf.exe\n");
     } else {
         ok = CopySelfToDir(dir);
         if (!ok) {
@@ -2389,10 +2389,10 @@ static bool ShouldInstallMismatchedArch(HWND hwndParent) {
         flags |= TDF_RTL_LAYOUT;
     }
     dialogConfig.cbSize = sizeof(TASKDIALOGCONFIG);
-    s = Tr("Installing 32-bit SumatraPDF on 64-bit OS");
+    s = Tr("Installing 32-bit SwiftLeaf on 64-bit OS");
     dialogConfig.pszWindowTitle = CWStrTemp(s);
     // dialogConfig.pszMainInstruction = mainInstr;
-    s = Tr("You're installing 32-bit SumatraPDF on 64-bit OS.\nWould you like to download\n64-bit version?");
+    s = Tr("You're installing 32-bit SwiftLeaf on 64-bit OS.\nWould you like to download\n64-bit version?");
     dialogConfig.pszContent = CWStrTemp(s);
     dialogConfig.nDefaultButton = kBtnIdContinue;
     dialogConfig.dwFlags = (TASKDIALOG_FLAGS)flags;
@@ -2409,7 +2409,7 @@ static bool ShouldInstallMismatchedArch(HWND hwndParent) {
     auto hr = TaskDialogIndirect(&dialogConfig, &buttonPressedId, nullptr, nullptr);
     ReportIf(hr == E_INVALIDARG);
     if (buttonPressedId == kBtnIdDownload) {
-        Str url = StrL("https://www.sumatrapdfreader.org/download-free-pdf-viewer");
+        Str url = StrL("https://github.com/TheFunzzies/swiftleaf-pdf");
         if (gIsPreReleaseBuild) {
             url = StrL("https://www.sumatrapdfreader.org/prerelease");
         }
@@ -2444,7 +2444,7 @@ int RunInstaller() {
         bool removeLog = !gCli->runInstallNow;
         StartLogToFile(installerLogPath, removeLog);
     }
-    logf("------------- Starting SumatraPDF installation\n");
+    logf("------------- Starting SwiftLeaf installation\n");
     LogParentProcessChain();
     if (!gCli->silent && !IsProcessAndOsArchSame()) {
         logf("quitting because !IsProcessAndOsArchSame()\n");

@@ -55,7 +55,7 @@ bool InstallPreviewDll(Str dllPath, bool allUsers) {
         Str ext2 = prev.ext2;
         ok = true;
 
-        TempStr displayName = fmt("SumatraPDF Preview (*%s)", ext);
+        TempStr displayName = fmt("SwiftLeaf Preview (*%s)", ext);
         // register class
         TempStr key = fmt("Software\\Classes\\CLSID\\%s", clsid);
         ok &= LoggedWriteRegStr(hkey, key, {}, displayName);
@@ -183,11 +183,11 @@ void SetPdfPreviewLoggingEnabled(bool enable) {
     logf("SetPdfPreviewLoggingEnabled: %d\n", (int)enable);
 }
 
-// Per-build data dir, keyed on the sha1 of the SumatraPDF.exe sitting next to
-// this module: in SumatraPDF.exe that's the running exe, in PdfPreview.dll it's
-// the sibling exe -- either way it resolves to the same directory SumatraPDF.exe
+// Per-build data dir, keyed on the sha1 of the Swiftleaf.exe sitting next to
+// this module: in Swiftleaf.exe that's the running exe, in PdfPreview.dll it's
+// the sibling exe -- either way it resolves to the same directory Swiftleaf.exe
 // uses (see GetSumatraBuildSpecificDirTemp), so logs land next to its crashinfo/logs.
-// per-build data dir, same one SumatraPDF.exe uses (...\SumatraPDF-data\<sha1>)
+// per-build data dir, same one Swiftleaf.exe uses (...\SumatraPDF-data\<sha1>)
 TempStr GetPdfPreviewLogDirTemp() {
     TempStr exeDir = GetSelfExeDirTemp();
     if (len(exeDir) == 0) {

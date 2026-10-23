@@ -524,7 +524,7 @@ Vec<SessionData*>* gInitialSessionData = nullptr;
 #if defined(SUMATRA_NG)
 // ng: orig's SaveSettings() calls UpdateTabFileDisplayStateForTab() for every
 // tab, then RememberSessionState() + SyncInitialSessionData(). All three need
-// MainWindow / WindowTab, which live in the SumatraPDF target because `app`
+// MainWindow / WindowTab, which live in the SwiftLeaf target because `app`
 // also links into the console tools, so the shell installs them here.
 // src/SessionState.cpp has orig's code.
 void (*gRememberSessionStateFn)() = nullptr;
@@ -987,7 +987,7 @@ bool LoadSettings() {
     return true;
 }
 
-// refresh the preferences when a different SumatraPDF process saves them
+// refresh the preferences when a different SwiftLeaf process saves them
 // or if they are edited by the user using a text editor
 #if !defined(SUMATRA_NG)
 // a reload that waits for document load threads to finish

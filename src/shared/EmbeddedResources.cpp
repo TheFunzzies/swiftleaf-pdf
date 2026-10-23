@@ -30,7 +30,7 @@ static bool gEmbeddedTried = false;
 
 #if OS_WIN
 // PdfPreview.dll, PdfFilter.dll and sumatrapdf-tool.exe carry no archive of
-// their own: they read the one in SumatraPDF.exe installed next to them.
+// their own: they read the one in Swiftleaf.exe installed next to them.
 static HMODULE GetArchiveModule() {
     HMODULE self = (HMODULE)&__ImageBase;
     if (FindResourceW(self, MAKEINTRESOURCEW(IDR_EMBEDDED_PAK), RT_RCDATA)) {

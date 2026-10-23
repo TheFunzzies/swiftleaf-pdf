@@ -426,7 +426,7 @@ void EbookSettingsWnd::OnCancel(VirtMouseEvent*) {
 
 // back to no customization at the current scope: for one document that means
 // inheriting everything from the global section (OK then drops its block), for
-// all ebooks it means the values SumatraPDF ships with
+// all ebooks it means the values SwiftLeaf ships with
 void EbookSettingsWnd::OnReset(VirtMouseEvent*) {
     bool thisFile = radioThisFile && radioThisFile->IsChecked();
     if (thisFile) {

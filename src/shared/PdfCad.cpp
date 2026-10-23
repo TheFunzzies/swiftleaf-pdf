@@ -357,7 +357,7 @@ static int ScoreHeuristic(fz_context* ctx, pdf_document* doc, int pageCount, flo
 
     // Illustrated books / art catalogs: prominent images with normal text (not CAD).
     // Without this, full-bleed scanned pages look like "raster CAD" and the
-    // grayscale enhance pass ruins color (Sumatra #5806; sumatrapdf-plus 3.5.16).
+    // grayscale enhance pass ruins color (SwiftLeaf #5806; sumatrapdf-plus 3.5.16).
     if (stats.maxImageCoverage >= 0.15f && stats.textOps >= 40) {
         score -= 65;
     }

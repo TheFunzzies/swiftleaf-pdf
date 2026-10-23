@@ -120,8 +120,9 @@ static void ParseTranslationsTxt(Str d, Str langCode) {
     }
 }
 
-// Swiftleaf: the UI strings (and their translations) name the app
-// "SumatraPDF". Pairs of original, rebranded string, made once per string.
+// SwiftLeaf: the UI strings name the app "SwiftLeaf"; translations (made for the
+// upstream app) still say "SwiftLeaf" and are rebranded here.
+// Pairs of original, rebranded string, made once per string.
 static StrVec* gRebrandedCache = nullptr;
 
 static Str Rebrand(Str s) {
@@ -138,7 +139,7 @@ static Str Rebrand(Str s) {
         }
     }
     c->Append(s);
-    c->Append(str::ReplaceTemp(s, StrL("SumatraPDF"), StrL(kAppName)));
+    c->Append(str::ReplaceTemp(s, StrL("SumatraPDF"), StrL("SwiftLeaf")));
     return c->At(len(*c) - 1);
 }
 
@@ -162,11 +163,15 @@ static Str GetTranslationRaw(Str s) {
     int n = len(*c);
     ReportDebugIf(n % 2 != 0);
     n = n / 2;
+    // the translation keys were made for the upstream app, which called itself
+    // "SwiftLeaf": match a rebranded source string against its original key
+    Str legacy = str::Contains(s, StrL("SwiftLeaf")) ? Str(str::ReplaceTemp(s, StrL("SwiftLeaf"), StrL("SumatraPDF"))) : s;
     int sLen = len(s);
+    int legacyLen = len(legacy);
     for (int i = 0; i < n; i++) {
         int idx = i * 2;
         Str s2 = c->At(idx);
-        if (s2.len == sLen && str::Eq(s, s2)) {
+        if ((s2.len == sLen && str::Eq(s, s2)) || (s2.len == legacyLen && str::Eq(legacy, s2))) {
             Str tr = c->At(idx + 1);
             if (len(tr) == 0) {
                 logf("Didn't find translation for '%s'\n", s);

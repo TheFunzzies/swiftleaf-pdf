@@ -103,7 +103,7 @@ static bool IsHelpListedCmd(int cmdId) {
     return false;
 }
 
-// fallback shortcuts for platforms without an accelerator table (the SumatraPDF
+// fallback shortcuts for platforms without an accelerator table (the SwiftLeaf
 // data source looks up the real bindings instead). {id, ""} means "no default".
 // clang-format off
 static const struct {

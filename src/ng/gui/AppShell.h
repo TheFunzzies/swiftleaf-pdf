@@ -141,7 +141,7 @@ void AppShellPreventSleep(bool on);
 // the native handle of a window, or null; orig's MainWindow::hwndFrame
 HWND AppShellNativeHwnd(MainWindow* win);
 MainWindow* AppShellWindowFromHwnd(HWND hwnd);
-// the top-level windows of another SumatraPDF process: `procId`, or with 0 any
+// the top-level windows of another SwiftLeaf process: `procId`, or with 0 any
 // process running this exe (orig: FindWindowW(kFrameClassName))
 void AppShellFindOtherInstanceWindows(DWORD procId, Vec<HWND>& out);
 #endif

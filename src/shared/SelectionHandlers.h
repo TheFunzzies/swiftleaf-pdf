@@ -8,7 +8,7 @@ struct WindowTab;
 // written before Method existed keep working unchanged.
 enum class SelectionSendMethod {
     Get,            // substitute into the URL and open it in the browser
-    Post,           // http POST from inside SumatraPDF
+    Post,           // http POST from inside SwiftLeaf
     PostViaBrowser, // auto-submitting html form opened in the browser
 };
 

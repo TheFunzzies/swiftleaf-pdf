@@ -1,8 +1,8 @@
 /* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
    License: GPLv3 */
 
-// Plugin test: hosts SumatraPDF in plugin mode inside a child window.
-// Activated with -test-plugin [<SumatraPDF.exe>] [<URL>] <filename.ext>
+// Plugin test: hosts SwiftLeaf in plugin mode inside a child window.
+// Activated with -test-plugin [<Swiftleaf.exe>] [<URL>] <filename.ext>
 // Only available in debug builds.
 
 #include "base/Base.h"
@@ -10,7 +10,7 @@
 #include "base/Win.h"
 #include "base/CmdLineArgs.h"
 
-constexpr const WCHAR* kPluginTestName = L"SumatraPDF Plugin Test";
+constexpr const WCHAR* kPluginTestName = L"SwiftLeaf Plugin Test";
 
 struct PluginStartData {
     Str sumatraPath;
@@ -42,7 +42,7 @@ static LRESULT CALLBACK PluginParentWndProc(HWND hwnd, UINT msg, WPARAM wp, LPAR
         if (pi.hThread) {
             CloseHandle(pi.hThread);
         }
-        // start a timer to detect if SumatraPDF fails to attach
+        // start a timer to detect if SwiftLeaf fails to attach
         SetTimer(hwnd, kPluginCheckTimerID, kPluginTimeoutMs, nullptr);
     } else if (WM_TIMER == msg && wp == kPluginCheckTimerID) {
         KillTimer(hwnd, kPluginCheckTimerID);
@@ -86,7 +86,7 @@ static LRESULT CALLBACK PluginParentWndProc(HWND hwnd, UINT msg, WPARAM wp, LPAR
             hFont = (HFONT)SelectObject(hDC, hFont);
             SetTextColor(hDC, 0x000000);
             SetBkMode(hDC, TRANSPARENT);
-            WStr text = gPluginTimedOut ? WStr(L"Error: SumatraPDF didn't attach") : WStr(L"Waiting for SumatraPDF...");
+            WStr text = gPluginTimedOut ? WStr(L"Error: SwiftLeaf didn't attach") : WStr(L"Waiting for SwiftLeaf...");
             DrawText(hDC, text.s, -1, &rcClient, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
             DeleteObject(SelectObject(hDC, hFont));
             DeleteObject(brushBg);
@@ -104,7 +104,7 @@ static LRESULT CALLBACK PluginParentWndProc(HWND hwnd, UINT msg, WPARAM wp, LPAR
     return DefWindowProc(hwnd, msg, wp, lp);
 }
 
-// Parse args after -test-plugin: [<SumatraPDF.exe>] [<URL>] <filename.ext>
+// Parse args after -test-plugin: [<Swiftleaf.exe>] [<URL>] <filename.ext>
 void TestPlugin(WStr cmdLine) {
     StrNode* argList = ParseCmdLine(cmdLine);
     AutoFreeStrNode freeArgList(argList);
@@ -131,8 +131,8 @@ void TestPlugin(WStr cmdLine) {
     }
 
     if (len(args) == 0) {
-        MsgBox(nullptr, StrL("Syntax: SumatraPDF.exe -test-plugin [<SumatraPDF.exe>] [<URL>] <filename.ext>"),
-               StrL("SumatraPDF Plugin Test"), MB_OK | MB_ICONINFORMATION);
+        MsgBox(nullptr, StrL("Syntax: Swiftleaf.exe -test-plugin [<Swiftleaf.exe>] [<URL>] <filename.ext>"),
+               StrL("SwiftLeaf Plugin Test"), MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -147,8 +147,8 @@ void TestPlugin(WStr cmdLine) {
     }
 
     if (len(args) < 3) {
-        MsgBox(nullptr, StrL("Syntax: SumatraPDF.exe -test-plugin [<SumatraPDF.exe>] [<URL>] <filename.ext>"),
-               StrL("SumatraPDF Plugin Test"), MB_OK | MB_ICONINFORMATION);
+        MsgBox(nullptr, StrL("Syntax: Swiftleaf.exe -test-plugin [<Swiftleaf.exe>] [<URL>] <filename.ext>"),
+               StrL("SwiftLeaf Plugin Test"), MB_OK | MB_ICONINFORMATION);
         return;
     }
 

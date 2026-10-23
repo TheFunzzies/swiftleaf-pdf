@@ -248,7 +248,7 @@ static EngineBase* CreateEngineForKind(FileType kind, FileType contentHintKind, 
     }
     int dpi = DpiGet();
     EngineBase* engine = nullptr;
-    // markdown has no native SumatraPDF engine; always use mupdf (cmark-gfm),
+    // markdown has no native SwiftLeaf engine; always use mupdf (cmark-gfm),
     // regardless of gEnableEpubWithPdfEngine.
     if (kind == FileType::PDF || kind == FileType::Xps || kind == FileType::Markdown || IsOfficeFileType(kind)) {
         return CreateEngineMupdfFromFile(path, kind, dpi, pwdUI);

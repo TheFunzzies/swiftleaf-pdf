@@ -74,7 +74,7 @@ static const Str updateInfoURLs[] = {
 #ifdef PRE_RELEASE_VER
 #define kWebisteDownloadPageURL "https://www.sumatrapdfreader.org/prerelease"
 #else
-#define kWebisteDownloadPageURL "https://www.sumatrapdfreader.org/download-free-pdf-viewer"
+#define kWebisteDownloadPageURL "https://github.com/TheFunzzies/swiftleaf-pdf"
 #endif
 #endif
 // clang-format on
@@ -388,7 +388,7 @@ static void NotifyUserOfUpdate(UpdateInfo* updateInfo) {
     logf("NotifyUserOfUpdate: %s -> %s\n", StrL(CURR_VERSION_STRA), ver);
 
     uint flags = MbYesNo | MbIconInformation;
-    MsgBox(updateInfo->win, content, Tr("SumatraPDF Update"), flags,
+    MsgBox(updateInfo->win, content, Tr("SwiftLeaf Update"), flags,
            MkFunc1<UpdateInfo, int>(OnInstallAnswer, updateInfo));
 }
 
@@ -559,7 +559,7 @@ static void NotifySuspiciousUpdate(MainWindow* win, Str dlURL) {
         fmt("Suspicious update.\n\nDownload link should come from %s but is %s.\n\nVisit the website to download the "
             "latest version?",
             kExpectedDlHost, dlURL);
-    MsgBox(win, content, Tr("SumatraPDF Update"), MbYesNo | MbIconWarning, MkFunc1Void(OnVisitWebsiteAnswer));
+    MsgBox(win, content, Tr("SwiftLeaf Update"), MbYesNo | MbIconWarning, MkFunc1Void(OnVisitWebsiteAnswer));
 }
 
 // Shown only for a user-initiated update check that couldn't download/parse the
@@ -570,7 +570,7 @@ static void NotifyUpdateCheckFailed(MainWindow* win, DWORD err) {
     TempStr msg = fmt(Tr("Couldn't download update information (error %#x).").s, err);
     TempStr content = fmt("%s\n\n%s\n\n%s", Tr("Couldn't check for updates"), msg,
                           StrL("Visit the website to download the latest version?"));
-    MsgBox(win, content, Tr("SumatraPDF Update"), MbYesNo | MbIconWarning, MkFunc1Void(OnVisitWebsiteAnswer));
+    MsgBox(win, content, Tr("SwiftLeaf Update"), MbYesNo | MbIconWarning, MkFunc1Void(OnVisitWebsiteAnswer));
 }
 
 static DWORD MaybeStartUpdateDownload(MainWindow* win, HttpRsp* rsp, UpdateCheck updateCheckType) {
