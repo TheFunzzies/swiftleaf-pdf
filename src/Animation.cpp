@@ -7,6 +7,7 @@
 static Vec<Animation*> gAnimations;
 static Vec<HWND> gResizeWindows;
 static UINT_PTR gAnimationTimer = 0;
+static int gClientAreaAnimation = -1;
 constexpr int kAnimationMs = 160;
 
 int AnimationDuration(bool clientAreaAnimation, bool resizing) {
@@ -18,11 +19,17 @@ float AnimationEase(float progress) {
     return 1 - left * left * left;
 }
 
-bool AnimationAllowed(HWND hwnd) {
+void AnimationSettingsChanged() {
     BOOL enabled = FALSE;
     bool ok = SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &enabled, 0) != FALSE;
+    gClientAreaAnimation = ok && enabled;
+}
+
+bool AnimationAllowed(HWND hwnd) {
+    if (!hwnd || !IsWindowVisible(hwnd)) return false;
+    if (gClientAreaAnimation < 0) AnimationSettingsChanged();
     HWND frame = GetAncestor(hwnd, GA_ROOT);
-    return hwnd && IsWindowVisible(hwnd) && AnimationDuration(ok && enabled, VecFind(gResizeWindows, frame) >= 0) != 0;
+    return AnimationDuration(gClientAreaAnimation != 0, VecFind(gResizeWindows, frame) >= 0) != 0;
 }
 
 static void StopIdleTimer() {

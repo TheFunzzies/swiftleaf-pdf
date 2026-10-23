@@ -15741,6 +15741,7 @@ static LRESULT CALLBACK WndProcSumatraFrame(HWND hwnd, UINT msg, WPARAM wp, LPAR
 
         case WM_SETTINGCHANGE:
             // Windows switched between light and dark mode: re-resolve the
+            AnimationSettingsChanged();
             // System theme (no-op unless Theme = System)
             if (lp && str::EqI(ToUtf8Temp((const WCHAR*)lp), StrL("ImmersiveColorSet"))) {
                 UpdateThemeAfterSystemColorChange();

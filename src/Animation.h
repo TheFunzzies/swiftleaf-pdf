@@ -4,6 +4,7 @@
 int AnimationDuration(bool clientAreaAnimation, bool resizing);
 float AnimationEase(float progress);
 bool AnimationAllowed(HWND);
+void AnimationSettingsChanged();
 void AnimationSuspend(HWND, bool suspend);
 void AnimationForget(HWND);
 int AnimationCount(HWND);
