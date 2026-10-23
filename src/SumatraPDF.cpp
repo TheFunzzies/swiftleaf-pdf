@@ -2564,6 +2564,7 @@ static void ReplaceDocumentInCurrentTab(LoadArgs* args, DocController* ctrl, Fil
     AbortFinding(args->win, true);
 
     DocController* prevCtrl = win->ctrl;
+    DocumentPanelForgetTab(tab);
     tab->ctrl = ctrl;
     win->ctrl = tab->ctrl;
 
@@ -9526,7 +9527,7 @@ void AdvanceFocus(MainWindow* win) {
     bool hasToolbar = !win->isFullScreen && !win->presentation && gSettings->showToolbar && win->IsDocLoaded();
     int direction = IsShiftPressed() ? -1 : 1;
 
-    constexpr int kMaxWindows = 6;
+    constexpr int kMaxWindows = 7;
     HWND tabOrder[kMaxWindows] = {win->hwndFrame};
     int nWindows = 1;
     if (hasToolbar && ShowChapterUi(win->ctrl) && win->chapterEdit) {
@@ -9543,6 +9544,9 @@ void AdvanceFocus(MainWindow* win) {
     }
     if (win->uiState.sidebarBottomVisible) {
         tabOrder[nWindows++] = SidebarPanelFocusHwnd(win->sidebarBottom);
+    }
+    if (win->hwndFormBanner && HwndIsVisible(win->hwndFormBanner)) {
+        tabOrder[nWindows++] = win->hwndFormBanner;
     }
     ReportIf(nWindows > kMaxWindows);
 
@@ -13460,7 +13464,9 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             break;
 
         case CmdMoveFrameFocus:
-            if (!HwndIsFocused(win->hwndFrame)) {
+            if (win->hwndFormBanner && HwndIsVisible(win->hwndFormBanner)) {
+                AdvanceFocus(win);
+            } else if (!HwndIsFocused(win->hwndFrame)) {
                 HwndSetFocus(win->hwndFrame);
             } else if (win->uiState.sidebarTopVisible) {
                 FocusSidebarPanel(win->sidebarTop);
@@ -16628,6 +16634,15 @@ static HACCEL FindAcceleratorsForHwnd(HWND hwnd, HWND* hwndAccel, bool* forwardS
 static WPARAM gIgnoreRepeatKey = 0;
 
 static bool MaybeTranslateAccelerator(MSG& msg) {
+    // The focused banner owns its activation/navigation keys, just like an edit.
+    // Enter and Space otherwise accelerate to document scrolling.
+    if (msg.message == WM_KEYDOWN && !IsCtrlPressed() && !IsAltPressed()) {
+        MainWindow* win = FindMainWindowByHwnd(msg.hwnd);
+        if (win && msg.hwnd == win->hwndFormBanner &&
+            (msg.wParam == VK_RETURN || msg.wParam == VK_SPACE || msg.wParam == VK_TAB || msg.wParam == VK_ESCAPE)) {
+            return false;
+        }
+    }
     // TODO: why mouse events?
     bool doAccels = ((msg.message >= WM_KEYFIRST && msg.message <= WM_KEYLAST) ||
                      (msg.message >= WM_MOUSEFIRST && msg.message <= WM_MOUSELAST));

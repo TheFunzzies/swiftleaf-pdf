@@ -86,6 +86,14 @@ static void TransparentImageTest() {
 
     Str dib = ReadClipboardFormat(CF_DIBV5);
     utassert(len(dib) > (int)sizeof(BITMAPV5HEADER));
+    // Assertions report failure but continue; never dereference missing data.
+    if (len(dib) <= (int)sizeof(BITMAPV5HEADER)) {
+        CloseClipboard();
+        str::Free(png);
+        str::Free(dib);
+        FreePixmap(p);
+        return;
+    }
     auto* bi = (BITMAPV5HEADER*)dib.s;
     utassert(bi->bV5BitCount == 32);
     utassert(bi->bV5AlphaMask == 0xff000000);
@@ -95,6 +103,8 @@ static void TransparentImageTest() {
     utassert(bits[3] == 255);                              // first pixel: opaque
     utassert(bits[(((size_t)p->width - 1) * 4) + 3] == 0); // last pixel of row 0: transparent
     CloseClipboard();
+    str::Free(png);
+    str::Free(dib);
 
     FreePixmap(p);
 }

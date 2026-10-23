@@ -240,9 +240,12 @@ int EngineMupdfGetLayerCount(EngineBase*);
 Str EngineMupdfGetLayerName(EngineBase*, int layer);
 bool EngineMupdfIsLayerEnabled(EngineBase*, int layer);
 bool EngineMupdfSetLayerEnabled(EngineBase*, int layer, bool enabled);
-int EngineMupdfGetAttachmentCount(EngineBase*);
-Str EngineMupdfGetAttachmentName(EngineBase*, int attachmentNo);
-i64 EngineMupdfGetAttachmentSize(EngineBase*, int attachmentNo);
+struct PdfAttachment {
+    Str name; // owned by the caller
+    i64 size = -1;
+};
+// One name-tree traversal; entries follow EngineMupdfLoadAttachment's 1-based order.
+void EngineMupdfGetAttachments(EngineBase*, Vec<PdfAttachment>&);
 TempStr EngineMupdfGetPdfInfo(Str path);
 TempStr EngineMupdfGetPdfOutline(Str path);
 

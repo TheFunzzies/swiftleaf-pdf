@@ -5,6 +5,8 @@
 // banner that points out interactive form fields when a document has them.
 
 struct MainWindow;
+struct WindowTab;
+void DocumentPanelForgetTab(WindowTab*);
 
 enum class DocumentPanelMode {
     Layers = 0,

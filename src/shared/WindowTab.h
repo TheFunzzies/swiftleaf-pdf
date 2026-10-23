@@ -153,10 +153,8 @@ struct WindowTab {
     // state of the table of contents
     bool showToc = false;
     bool showTocPresentation = false;
-    // form-field banner: -1 until counted; the engine pointer says when a
-    // different document (or a reload) needs a fresh count
+    // Reset before controller replacement/destruction, never keyed by address.
     int formFieldCount = -1;
-    EngineBase* formFieldCountEngine = nullptr;
     bool formBannerDismissed = false;
 #if defined(SUMATRA_NG)
     SidebarContent sidebarContent = SidebarContent::Bookmarks;

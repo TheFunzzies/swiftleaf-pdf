@@ -41,6 +41,8 @@ void CssParser_UnitTests();
 void DictTest();
 void DirRemoveAllTest();
 void FileUtilTest();
+void DocumentPanel_UnitTests();
+bool EngineMupdf_UnitTestPanelData();
 void UpdateTempFileTests();
 void GuessFileTypeTest();
 void JsonTest();
@@ -584,6 +586,8 @@ int RunAppUnitTests(bool forAi) {
         SetupForAi();
     }
     printf("Running unit tests\n");
+    DocumentPanel_UnitTests();
+    utassert(EngineMupdf_UnitTestPanelData());
 
     ArchiveTest();
     AppendStoreTest();

@@ -10703,98 +10703,80 @@ bool EngineMupdfSetLayerEnabled(EngineBase* engine, int layer, bool enabled) {
 
 //--- Embedded files (attachments)
 
-// The attachment number is 1-based and follows the same /EmbeddedFiles name
-// tree order as EngineMupdfLoadAttachment().
-int EngineMupdfGetAttachmentCount(EngineBase* engine) {
+// Snapshot metadata in one traversal. No PDF objects escape the document lock.
+void EngineMupdfGetAttachments(EngineBase* engine, Vec<PdfAttachment>& out) {
     EngineMupdf* epdf = AsEngineMupdf(engine);
     if (!epdf || !epdf->pdfdoc) {
-        return 0;
+        return;
     }
     fz_context* ctx = epdf->Ctx();
-    int n = 0;
+    pdf_obj* dict = nullptr;
+    fz_var(dict);
     ScopedRecursiveMutex scope(&epdf->docLock);
     fz_try(ctx) {
-        pdf_obj* dict = pdf_load_name_tree(ctx, epdf->pdfdoc, PDF_NAME(EmbeddedFiles));
-        if (dict) {
-            n = pdf_dict_len(ctx, dict);
-            pdf_drop_obj(ctx, dict);
+        dict = pdf_load_name_tree(ctx, epdf->pdfdoc, PDF_NAME(EmbeddedFiles));
+        int count = pdf_dict_len(ctx, dict);
+        for (int i = 0; i < count; i++) {
+            pdf_obj* fs = pdf_dict_get_val(ctx, dict, i);
+            pdf_filespec_params params = {};
+            pdf_get_filespec_params(ctx, fs, &params);
+            const char* name = params.filename;
+            if (!name || !name[0]) {
+                name = pdf_to_text_string(ctx, pdf_dict_get_key(ctx, dict, i));
+            }
+            VecAppend(out, PdfAttachment{str::Dup(Str(name)), params.size >= 0 ? params.size : -1});
         }
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, dict);
     }
     fz_catch(ctx) {
         fz_report_error(ctx);
-        n = 0;
+        for (PdfAttachment& attachment : out) {
+            str::Free(attachment.name);
+        }
+        VecClear(out);
     }
-    return n;
 }
 
-// caller must free
-Str EngineMupdfGetAttachmentName(EngineBase* engine, int attachmentNo) {
-    EngineMupdf* epdf = AsEngineMupdf(engine);
-    if (!epdf || !epdf->pdfdoc || attachmentNo < 1) {
-        return {};
+#if IS_DEBUG
+bool EngineMupdf_UnitTestPanelData() {
+    const char* objs[] = {
+        "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(a) 4 0 R (b) 5 0 R] >> >> /AcroForm << "
+        "/Fields [10 0 R] >> /OCProperties << /OCGs [8 0 R 9 0 R] /D << /BaseState /ON /Order [8 0 R 9 0 R] /RBGroups "
+        "[[8 0 R 9 0 R]] >> >> >>",
+        "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [10 0 R] >>",
+        "<< /Type /Filespec /F (../evil.html) /EF << /F 6 0 R >> >>",
+        "<< /Type /Filespec /F (../evil.html) /EF << /F 7 0 R >> >>",
+        "<< /Type /EmbeddedFile /Length 3 /Params << /Size 3 >> >>\nstream\nabc\nendstream",
+        "<< /Type /EmbeddedFile /Length 3 /Params << /Size 3 >> >>\nstream\nxyz\nendstream",
+        "<< /Type /OCG /Name (First) >>",
+        "<< /Type /OCG /Name (Second) >>",
+        "<< /Type /Annot /Subtype /Widget /FT /Tx /T (field) /Rect [10 10 100 30] /P 3 0 R >>",
+    };
+    EngineBase* engine = CreateEngineMupdfFromData(AssemblePdfTemp(objs, dimof(objs)), StrL("panel.pdf"), nullptr);
+    if (!engine) return false;
+    Vec<PdfAttachment> metadata;
+    EngineMupdfGetAttachments(engine, metadata);
+    bool ok = len(metadata) == 2;
+    Str first = EngineMupdfLoadAttachment(engine, 1);
+    Str second = EngineMupdfLoadAttachment(engine, 2);
+    ok = ok && str::Eq(first, StrL("abc")) && str::Eq(second, StrL("xyz"));
+    str::Free(first);
+    str::Free(second);
+    ok = ok && EngineMupdfCountFormFields(engine) == 1 && EngineMupdfGetLayerCount(engine) == 2;
+    ok = ok && EngineMupdfSetLayerEnabled(engine, 0, false) && !EngineMupdfIsLayerEnabled(engine, 0);
+    ok = ok && EngineMupdfIsLayerEnabled(engine, 1);
+    SafeEngineRelease(&engine);
+    // Snapshot strings must remain valid after the document is gone.
+    for (PdfAttachment& attachment : metadata) {
+        ok = ok && str::Eq(attachment.name, StrL("../evil.html")) && attachment.size == 3;
+        str::Free(attachment.name);
     }
-    fz_context* ctx = epdf->Ctx();
-    Str name;
-    ScopedRecursiveMutex scope(&epdf->docLock);
-    fz_try(ctx) {
-        pdf_obj* dict = pdf_load_name_tree(ctx, epdf->pdfdoc, PDF_NAME(EmbeddedFiles));
-        if (dict) {
-            int idx = attachmentNo - 1;
-            if (idx < pdf_dict_len(ctx, dict)) {
-                pdf_obj* fs = pdf_dict_get_val(ctx, dict, idx);
-                pdf_filespec_params params = {};
-                pdf_get_filespec_params(ctx, fs, &params);
-                const char* filename = params.filename;
-                if (!filename || !filename[0]) {
-                    pdf_obj* key = pdf_dict_get_key(ctx, dict, idx);
-                    if (key) {
-                        filename = pdf_to_text_string(ctx, key);
-                    }
-                }
-                if (filename) {
-                    name = str::Dup(Str(filename));
-                }
-            }
-            pdf_drop_obj(ctx, dict);
-        }
-    }
-    fz_catch(ctx) {
-        fz_report_error(ctx);
-        name = {};
-    }
-    return name;
+    return ok;
 }
-
-// -1 when the size isn't recorded in the file spec.
-i64 EngineMupdfGetAttachmentSize(EngineBase* engine, int attachmentNo) {
-    EngineMupdf* epdf = AsEngineMupdf(engine);
-    if (!epdf || !epdf->pdfdoc || attachmentNo < 1) {
-        return -1;
-    }
-    fz_context* ctx = epdf->Ctx();
-    i64 size = -1;
-    ScopedRecursiveMutex scope(&epdf->docLock);
-    fz_try(ctx) {
-        pdf_obj* dict = pdf_load_name_tree(ctx, epdf->pdfdoc, PDF_NAME(EmbeddedFiles));
-        if (dict) {
-            int idx = attachmentNo - 1;
-            if (idx < pdf_dict_len(ctx, dict)) {
-                pdf_obj* fs = pdf_dict_get_val(ctx, dict, idx);
-                pdf_filespec_params params = {};
-                pdf_get_filespec_params(ctx, fs, &params);
-                if (params.size >= 0) {
-                    size = params.size;
-                }
-            }
-            pdf_drop_obj(ctx, dict);
-        }
-    }
-    fz_catch(ctx) {
-        fz_report_error(ctx);
-        size = -1;
-    }
-    return size;
-}
+#endif
 
 static Annotation* FindAnnotAtPos(const Vec<Annotation*>& annots, PointF pos, float padding,
                                   Annotation* preferred = nullptr) {
