@@ -309,6 +309,7 @@ static void RunOcr(OcrJob* job) {
         job->text.Append(ToStr(pageText));
         job->text.Append(StrL("\r\n"));
     }
+    if (WaitForSingleObject(job->cancel, 0) == WAIT_OBJECT_0) job->error = HRESULT_FROM_WIN32(ERROR_CANCELLED);
     job->output = engine;
     logf("OCR finished: pages %d-%d, HRESULT 0x%x, bytes %d\n", job->first, job->last, (uint)job->error,
          len(ToStr(job->text)));
@@ -484,7 +485,8 @@ void OcrDialog::Poll(WindowBase::TimerEvent*) {
     result->SetText(text);
     bool hasText = !str::IsEmptyOrWhiteSpace(text);
     copy->SetIsEnabled(hasText && HasPermission(Perm::CopySelection));
-    save->SetIsEnabled(SUCCEEDED(job->error) && job->output && EngineMupdfIsPdf(job->source) && CanAccessDisk());
+    save->SetIsEnabled(hasText && SUCCEEDED(job->error) && job->output && EngineMupdfIsPdf(job->source) &&
+                       CanAccessDisk());
 }
 
 void OcrDialog::Copy(VirtMouseEvent*) {
@@ -821,6 +823,7 @@ static void OcrSmokeTest(bool* ok) {
     {
         PdfCreator creator;
         Gdiplus::Bitmap* bitmap = NewGdiplusBitmapFromPixmap(px);
+        px = nullptr; // the bitmap owns the pixels, including on failure
         *ok = *ok && bitmap && creator.AddPageFromGdiplusBitmap(bitmap, 72) && creator.SaveToFile(source);
         delete bitmap;
     }

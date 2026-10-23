@@ -12,7 +12,14 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cmdId, runStandalone, tmpPath } from "./util.ts";
-import { launchApp, waitForFrame, sendCommand, findCanvas, killAndWait, killProcessesNamed } from "./win-automation.ts";
+import {
+  launchApp,
+  waitForFrame,
+  sendCommand,
+  findCanvas,
+  killAndWait,
+  killProcessesNamed,
+} from "./win-automation.ts";
 import {
   sleep,
   enumWindows,
