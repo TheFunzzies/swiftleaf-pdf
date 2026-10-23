@@ -46,8 +46,10 @@ void Animation::Snap(float next) {
 
 static void CALLBACK AnimationTick(HWND, UINT, UINT_PTR, DWORD) {
     ULONGLONG now = GetTickCount64();
-    for (int i = len(gAnimations) - 1; i >= 0; i--) {
-        auto* a = gAnimations[i];
+    auto animations = gAnimations;
+    for (int i = len(animations) - 1; i >= 0; i--) {
+        auto* a = animations[i];
+        if (VecFind(gAnimations, a) < 0) continue;
         float elapsed = (float)(now - a->start) / kAnimationMs;
         bool finish = elapsed >= 1 || !AnimationAllowed(a->hwnd);
         a->value = finish ? a->target : a->from + (a->target - a->from) * AnimationEase(elapsed);
@@ -80,11 +82,14 @@ float Animation::To(HWND window, float next) {
 
 void AnimationSuspend(HWND hwnd, bool suspend) {
     HWND frame = GetAncestor(hwnd, GA_ROOT);
+    if (!frame) return;
     if (suspend && VecFind(gResizeWindows, frame) < 0) VecAppend(gResizeWindows, frame);
     if (!suspend) VecRemove(gResizeWindows, frame);
     if (!suspend) return;
-    for (int i = len(gAnimations) - 1; i >= 0; i--) {
-        auto* a = gAnimations[i];
+    auto animations = gAnimations;
+    for (int i = len(animations) - 1; i >= 0; i--) {
+        auto* a = animations[i];
+        if (VecFind(gAnimations, a) < 0) continue;
         if (GetAncestor(a->hwnd, GA_ROOT) != frame) continue;
         HWND window = a->hwnd;
         auto onTick = a->onTick;
@@ -142,6 +147,21 @@ void Animation_UnitTests() {
     a.Snap(20);
     utassert(a.To(nullptr, 40) == 40 && !a.running);
     utassert(gAnimationTimer == 0 && len(gAnimations) == 0);
+    {
+        Animation removed, remover;
+        int ticks = 0;
+        removed.onTick = [](void* p) { ++*(int*)p; };
+        removed.context = &ticks;
+        remover.onTick = [](void* p) { ((Animation*)p)->Snap(42); };
+        remover.context = &removed;
+        VecAppend(gAnimations, &removed);
+        VecAppend(gAnimations, &remover);
+        AnimationTick(nullptr, 0, 0, 0);
+        utassert(ticks == 0 && removed.value == 42);
+        utassert(len(gAnimations) == 0);
+        AnimationSuspend(nullptr, true);
+        utassert(len(gResizeWindows) == 0);
+    }
     utassert(AnimationBlend(MkRgb(0, 0, 0), MkRgb(200, 100, 60), .5f) == MkRgb(100, 50, 30));
 }
 #endif
