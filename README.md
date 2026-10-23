@@ -74,4 +74,5 @@ kept in `docs/upstream-readme.md`). Its interface is inspired by
 by [Okular](https://invent.kde.org/graphics/okular).
 
 GPLv3 (see `COPYING`), with parts under BSD (`COPYING.BSD`) and MuPDF under
-AGPLv3. Icons are [Tabler Icons](https://tabler.io/icons) (MIT).
+AGPLv3. Icons are [Tabler Icons](https://tabler.io/icons) (MIT) and
+[Lucide](https://lucide.dev) (ISC), the set PDFCraft uses. See `THIRD_PARTY.md`.

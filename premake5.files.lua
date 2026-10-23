@@ -413,6 +413,7 @@ function sumatrapdf_files()
     "EditText.*",
     "StatusBar.*",
     "NavRail.*",
+    "LucideIcons.*",
     "Material.*",
     "TranslationLangs.cpp",
     "Translations.*",
