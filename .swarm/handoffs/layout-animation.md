@@ -13,6 +13,8 @@ Base: `a19ef51` (contextual left panel).
 - Added layout budget/threshold tests at 100/150/200% and settings serialization round-trip.
 - Debug build found pre-existing hand-edited document settings absent from generator; added generator definitions. Rebuild pending; new files registered in premake and both VS projects.
 
+- Added shared 160ms cubic ease-out animator: one idle-stopped timer, owned animation state, reduce-motion policy, interruption and teardown. Unit tests cover policy, easing, instant updates and idle timer.
+
 ## Next
 
 - Finish compile verification; implement shared reduce-motion-aware animator.
