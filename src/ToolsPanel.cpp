@@ -65,6 +65,10 @@ static const ToolDef stripTools[] = {
 struct ToolsPanelVirt {
     VirtHost* host = nullptr;
     Vec<RibbonButton*> rows;
+    Vec<VirtCtrl*> sources;
+    Vec<VirtText*> headings;
+    ScrollBox* scroll = nullptr;
+    int page = -1;
     VirtText* title = nullptr;
     VirtButton* more = nullptr;
     VirtHost* strip = nullptr;
@@ -81,6 +85,7 @@ bool ShouldShowToolsPanel(MainWindow* win) {
 }
 
 void ToggleToolsPanel(MainWindow* win) {
+    if (win->toolsPanel && win->toolsPanel->host->HasFocus()) HwndSetFocus(win->hwndFrame);
     gSettings->showToolsPanel = !gSettings->showToolsPanel;
     ScheduleSaveSettings();
     ScheduleUiUpdate(win, kUiForceRelayout);
@@ -88,6 +93,11 @@ void ToggleToolsPanel(MainWindow* win) {
 
 static void OnClose(MainWindow* win, VirtMouseEvent* ev) {
     ToggleToolsPanel(win);
+    ev->didHandle = true;
+}
+
+static void OnMore(MainWindow* win, VirtMouseEvent* ev) {
+    ShowToolsPanelMenu(win, win->toolsPanel->host->ToScreen(ev->target->BoundsInWindow()), true);
     ev->didHandle = true;
 }
 
@@ -111,14 +121,16 @@ void ToolsPanelAfterThemeChange(MainWindow* win) {
     if (!panel) return;
     panel->host->bgColor = RibbonPanelBgColor();
     panel->title->SetColor(kColText, ThemeWindowTextColor());
-    panel->more->SetColor(kColBtnText, RibbonAccentColor());
-    panel->more->SetColor(kColBtnBg, kColorTransparent);
-    panel->more->SetColor(kColBtnBorder, kColorTransparent);
-    panel->more->SetColor(kColBtnBgHover, M3().surfaceContainerHigh);
+    if (panel->more) panel->more->SetColor(kColBtnText, RibbonAccentColor());
+    if (panel->more) panel->more->SetColor(kColBtnBg, kColorTransparent);
+    if (panel->more) panel->more->SetColor(kColBtnBorder, kColorTransparent);
+    if (panel->more) panel->more->SetColor(kColBtnBgHover, M3().surfaceContainerHigh);
+    for (auto* heading : panel->headings) heading->SetColor(kColText, M3().onSurfaceVariant);
     for (int i = 0; i < len(panel->rows); i++) {
         auto* b = panel->rows[i];
         b->textColor = ThemeWindowTextColor();
         b->textColorDisabled = ThemeWindowTextDisabledColor();
+        if (panel->page != (int)RibbonPage::Home) continue;
         b->pixmap =
             RibbonIconPixmap(Str(tools[i].icon), DpiScale(20), RibbonIconColor(tools[i].cmd), RibbonPanelBgColor());
         b->pixmapDisabled =
@@ -139,15 +151,145 @@ void ToolsPanelAfterThemeChange(MainWindow* win) {
 }
 
 void ToolsPanelUpdate(MainWindow* win) {
-    if (!win->toolsPanel) return;
+    auto* panel = win->toolsPanel;
+    if (!panel) return;
     auto ctx = NewAppCommandCtx(win);
-    for (auto* b : win->toolsPanel->stripRows) {
+    for (auto* b : panel->stripRows) {
         b->SetIsEnabled(GetCommandVisibility(b->id, ctx, CommandSurface::Toolbar) == CommandVisibility::Show);
     }
-    for (auto* b : win->toolsPanel->rows) {
-        bool enabled = b->id && GetCommandVisibility(b->id, ctx, CommandSurface::Toolbar) == CommandVisibility::Show;
+    for (int i = 0; i < len(panel->rows); i++) {
+        auto* b = panel->rows[i];
+        auto* source = panel->sources[i];
+        bool enabled =
+            source ? source->IsEnabled() && source->GetVisibility() == Visibility::Visible
+                   : b->id && GetCommandVisibility(b->id, ctx, CommandSurface::Toolbar) == CommandVisibility::Show;
         b->SetIsEnabled(enabled);
+        if (auto* icon = AsVirtIconButton(source)) {
+            b->isSelected = icon->isSelected;
+            b->pixmap = icon->pixmap;
+            b->pixmapDisabled = icon->pixmapDisabled;
+        }
+        if (source) b->SetTooltip(source->tooltip);
+        b->Invalidate();
     }
+}
+
+static void OnRowFocus(MainWindow* win, VirtFocusEvent* ev) {
+    if (!ev->gotFocus) return;
+    auto* panel = win->toolsPanel;
+    auto* scroll = panel->scroll;
+    Rect r = ev->w->BoundsInWindow();
+    int top = scroll->bounds.y;
+    int bottom = scroll->bounds.Bottom();
+    if (r.y < top)
+        scroll->ScrollBy(r.y - top);
+    else if (r.Bottom() > bottom)
+        scroll->ScrollBy(r.Bottom() - bottom);
+}
+
+static void OnRowKey(MainWindow* win, VirtKeyEvent* ev) {
+    auto* panel = win->toolsPanel;
+    auto* w = ev->target;
+    if (ev->vkey == VK_ESCAPE) {
+        HideToolbarHoverDropdown(win);
+        HwndSetFocus(win->hwndFrame);
+    } else if (ev->vkey == VK_RIGHT || ev->vkey == VK_APPS || (ev->isAlt && ev->vkey == VK_DOWN)) {
+        ToolbarToolOptions(win, w->id);
+    } else if (ev->vkey == VK_RETURN || ev->vkey == VK_SPACE) {
+        VirtMouseEvent click;
+        click.target = w;
+        w->onClick.Call(&click);
+    } else if (ev->vkey == VK_DOWN || ev->vkey == VK_UP || ev->vkey == VK_HOME || ev->vkey == VK_END) {
+        Vec<TabStop> stops;
+        CollectTabStops(panel->host->layout, stops);
+        int idx = -1;
+        for (int i = 0; i < len(stops); i++)
+            if (stops[i].vwnd == w) idx = i;
+        int count = len(stops);
+        if (!count) return;
+        int next = ev->vkey == VK_HOME  ? 0
+                   : ev->vkey == VK_END ? count - 1
+                                        : (idx + (ev->vkey == VK_UP ? count - 1 : 1)) % count;
+        panel->host->vroot->SetFocus(stops[next].vwnd);
+    } else
+        return;
+    ev->didHandle = true;
+}
+
+static void SetupRow(MainWindow* win, VirtCtrl* row) {
+    row->SetFlag(vwfFocusable, true);
+    row->onKeyDown = MkFunc1(OnRowKey, win);
+    row->onFocusChanged = MkFunc1(OnRowFocus, win);
+}
+
+void ToolsPanelShowPage(MainWindow* win) {
+    auto* panel = win->toolsPanel;
+    if (!panel || panel->page == win->ribbonPage) return;
+    panel->page = win->ribbonPage;
+    VecReset(panel->rows);
+    VecReset(panel->sources);
+    VecReset(panel->headings);
+    panel->more = nullptr;
+    auto* col = new VBox();
+    col->alignCross = CrossAxisAlign::Stretch;
+    col->gap = DpiScale(4);
+    auto header = NewLabelWithClose(win->hwndFrame, GetAppFont(), MkFunc1(OnClose, win));
+    panel->title = header.label;
+    auto page = (RibbonPage)panel->page;
+    int mode = RibbonModeForPage(page);
+    Str title =
+        mode >= 0 && RibbonModePage((RibbonMode)mode) == page ? RibbonModeName((RibbonMode)mode) : RibbonPageName(page);
+    panel->title->SetText(title);
+    header.closeBtn->SetTooltip(Tr("Close tools panel"));
+    SetupRow(win, header.closeBtn);
+    col->AddChild(header.box);
+    col->AddChild(new VirtSpacer(0, DpiScale(8)));
+    if (page == RibbonPage::Home) {
+        for (const auto& d : tools) {
+            auto* b = new RibbonButton();
+            b->SetLabel(trans::GetTranslation(d.label));
+            b->id = d.cmd;
+            b->SetTooltip(trans::GetTranslation(len(d.unavailableTip) ? d.unavailableTip : d.label));
+            b->onClick = MkFunc1(OnTool, win);
+            VecAppend(panel->rows, b);
+            VecAppend(panel->sources, (VirtCtrl*)nullptr);
+            col->AddChild(b);
+        }
+        panel->more = new VirtButton(Tr("View more"), GetAppFont());
+        panel->more->onClick = MkFunc1(OnMore, win);
+        SetupRow(win, panel->more);
+        col->AddChild(panel->more);
+    } else {
+        Vec<ToolbarPageTool> defs;
+        ToolbarPageTools(win, panel->page, defs);
+        for (auto& d : defs) {
+            if (len(d.group)) {
+                auto* heading = new VirtText(trans::GetTranslation(d.group), GetScaledPlatformFont(GetAppFont(), 90));
+                heading->padding = DpiScaledInsets(8, 10);
+                VecAppend(panel->headings, heading);
+                col->AddChild(heading);
+            }
+            auto* b = new RibbonButton();
+            auto* source = AsRibbonButton(d.source);
+            auto* text = AsVirtButton(d.source);
+            b->SetLabel(source ? source->label : text ? text->s : d.source->tooltip);
+            b->id = d.source->id;
+            ToolbarSetupToolRow(win, b);
+            VecAppend(panel->rows, b);
+            VecAppend(panel->sources, d.source);
+            col->AddChild(b);
+        }
+    }
+    for (auto* b : panel->rows) {
+        b->font = GetAppFont();
+        b->alignStart = true;
+        b->isRtl = IsUIRtl();
+        SetupRow(win, b);
+    }
+    panel->scroll = new ScrollBox(new Padding(col, DpiScaledInsets(16, 12)));
+    panel->host->SetLayout(panel->scroll);
+    ToolsPanelAfterThemeChange(win);
+    ToolsPanelUpdate(win);
 }
 
 void CreateToolsPanel(MainWindow* win) {
@@ -166,37 +308,7 @@ void CreateToolsPanel(MainWindow* win) {
     win->toolsPanel = panel;
     win->hwndToolsPanel = panel->host->native;
     panel->host->onPaintBackground = MkFunc1(PaintBackground, panel);
-    auto* col = new VBox();
-    col->alignCross = CrossAxisAlign::Stretch;
-    col->gap = DpiScale(6);
-    auto header = NewLabelWithClose(win->hwndFrame, GetAppFont(), MkFunc1(OnClose, win));
-    panel->title = header.label;
-    header.label->SetText(Tr("All tools"));
-    col->AddChild(header.box);
-    col->AddChild(new VirtSpacer(0, DpiScale(12)));
-    for (const auto& d : tools) {
-        auto* b = new RibbonButton();
-        b->font = GetAppFont();
-        b->alignStart = true;
-        b->isRtl = IsUIRtl();
-        b->SetLabel(trans::GetTranslation(d.label));
-        b->id = d.cmd;
-        if (len(d.unavailableTip) > 0) {
-            b->SetTooltip(trans::GetTranslation(d.unavailableTip));
-        } else {
-            b->SetTooltip(trans::GetTranslation(d.label));
-        }
-        b->onClick = MkFunc1(OnTool, win);
-        VecAppend(panel->rows, b);
-        col->AddChild(b);
-    }
-    auto* more = new VirtButton(Tr("View more"), GetAppFont());
-    panel->more = more;
-    more->id = CmdCommandPalette;
-    more->onClick = MkFunc1(OnTool, win);
-    col->AddChild(more);
-    auto* scroll = new ScrollBox(new Padding(col, DpiScaledInsets(16, 16)));
-    panel->host->SetLayout(scroll);
+    ToolsPanelShowPage(win);
     args.parent = win->hwndCanvas;
     args.className = WStrL(L"SWIFTLEAF_ANNOTATION_STRIP");
     args.initialSize = {DpiScale(44), DpiScale(260)};
@@ -237,6 +349,88 @@ void ShowTopBarMenu(MainWindow* win, Rect anchor) {
     FreeMenuOwnerDrawInfoData(menu);
     DestroyMenu(menu);
     if (cmd) HwndPostCommand(win->hwndFrame, cmd);
+}
+
+Rect ToolsPanelButtonRect(MainWindow* win, int cmdId) {
+    auto* panel = win ? win->toolsPanel : nullptr;
+    if (!panel || !panel->host->IsVisible()) return {};
+    for (auto* b : panel->rows) {
+        if (b->id != cmdId) continue;
+        Rect r = b->VisibleRectInWindow();
+        return r.IsEmpty() ? Rect{} : panel->host->ToScreen(r);
+    }
+    return {};
+}
+
+static void AppendToolMenu(HMENU menu, Str label, int cmd, bool enabled, bool selected) {
+    UINT flags = MF_STRING | (enabled ? MF_ENABLED : MF_GRAYED) | (selected ? MF_CHECKED : MF_UNCHECKED);
+    TempStr escaped = str::ReplaceTemp(label, StrL("&"), StrL("&&"));
+    AppendMenuW(menu, flags, cmd, CWStrTemp(escaped));
+}
+
+static HMENU PageToolMenu(MainWindow* win, int page) {
+    HMENU menu = CreatePopupMenu();
+    Vec<ToolbarPageTool> defs;
+    ToolbarPageTools(win, page, defs);
+    for (auto& d : defs) {
+        if (len(d.group)) AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        auto* b = AsRibbonButton(d.source);
+        auto* text = AsVirtButton(d.source);
+        auto* icon = AsVirtIconButton(d.source);
+        Str label = b ? b->label : text ? text->s : d.source->tooltip;
+        bool enabled = d.source->IsEnabled() && d.source->GetVisibility() == Visibility::Visible;
+        AppendToolMenu(menu, label, d.source->id, enabled, icon && icon->isSelected);
+    }
+    return menu;
+}
+
+void ShowToolsPanelMenu(MainWindow* win, Rect anchor, bool allPages) {
+    ToolbarUpdateStateForWindow(win, true);
+    HideToolbarHoverDropdown(win);
+    HMENU menu;
+    if (win->ribbonPage != (int)RibbonPage::Home && !allPages) {
+        menu = PageToolMenu(win, win->ribbonPage);
+    } else {
+        menu = CreatePopupMenu();
+        auto ctx = NewAppCommandCtx(win);
+        for (const auto& d : tools) {
+            bool enabled = GetCommandVisibility(d.cmd, ctx, CommandSurface::Toolbar) == CommandVisibility::Show;
+            AppendToolMenu(menu, trans::GetTranslation(d.label), d.cmd, enabled, false);
+        }
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        for (int page = 0; page < RibbonPageCount(); page++) {
+            HMENU sub = PageToolMenu(win, page);
+            AppendMenuW(menu, MF_POPUP, (UINT_PTR)sub, CWStrTemp(RibbonPageName((RibbonPage)page)));
+        }
+    }
+    int cmd =
+        TrackPopupMenu(menu, TPM_RETURNCMD | TPM_LEFTALIGN, anchor.x, anchor.Bottom(), 0, win->hwndFrame, nullptr);
+    DestroyMenu(menu);
+    ToolbarNoteDropdownClosed();
+    if (cmd) ToolbarPostCommand(win, cmd);
+}
+
+TempStr ToolsPanelStateTemp(MainWindow* win) {
+    str::Builder out;
+    auto* panel = win->toolsPanel;
+    if (!panel) return {};
+    out.Append(fmt("toolsPanel page=%d visible=%d title=%s\n", panel->page, panel->host->IsVisible() ? 1 : 0,
+                   panel->title->s));
+    out.Append(fmt("ribbon height=%d stripVisible=0\n", win->toolbarVirt->ribbonDy));
+    for (int i = 0; i < len(win->toolbarVirt->ribbonTabs); i++) {
+        auto* tab = win->toolbarVirt->ribbonTabs[i];
+        Rect r = tab->BoundsInWindow();
+        out.Append(fmt("ribbon-tab=%d active=%d rect=%d,%d,%d,%d text=%s\n", i, tab->isActive ? 1 : 0, r.x, r.y,
+                       r.Right(), r.Bottom(), tab->label));
+    }
+    for (int i = 0; i < len(panel->rows); i++) {
+        auto* b = panel->rows[i];
+        Rect r = b->BoundsInWindow();
+        out.Append(fmt("panel-row=%d cmd=%d enabled=%d checked=%d rect=%d,%d,%d,%d text=%s tip=%s\n", i, b->id,
+                       b->IsEnabled() ? 1 : 0, b->isSelected ? 1 : 0, r.x, r.y, r.Right(), r.Bottom(), b->label,
+                       b->tooltip));
+    }
+    return ToStrTemp(out);
 }
 
 void PositionAnnotationStrip(MainWindow* win) {

@@ -20,6 +20,16 @@ struct VirtIconButton;
 struct Edit;
 struct ILayout;
 struct RibbonTab;
+struct RibbonButton;
+
+struct ToolbarPageTool {
+    VirtCtrl* source = nullptr;
+    Str group;
+};
+
+void ToolbarPageTools(MainWindow*, int page, Vec<ToolbarPageTool>&);
+void ToolbarSetupToolRow(MainWindow*, RibbonButton*);
+void ToolbarToolOptions(MainWindow*, int cmdId);
 
 void CreateToolbar(MainWindow*);
 void ReCreateToolbar(MainWindow* win);
@@ -181,6 +191,7 @@ struct ToolbarVirt {
     int ribbonTabRowDy = 0;
     int ribbonDy = 0;
     bool ribbonAnnotsVisible = false;
+    bool ribbonSelectingPage = false;
     // PDFCraft top bar: ribbonTabs are its mode tabs (RibbonMode). topBarItems
     // are Menu, the search box and the icon buttons at the right end
     Vec<VirtCtrl*> topBarItems;

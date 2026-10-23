@@ -250,16 +250,15 @@ static bool IsOnShownRibbonPage(MainWindow* win, VirtCtrl* w) {
     if (!tb || len(tb->ribbonPanels) == 0) {
         return true;
     }
-    int page = win->ribbonPage;
     if (VecContains(tb->items, w)) {
-        return IsRibbonNavCmd(w->id) || page == (int)RibbonPage::Home;
+        return IsRibbonNavCmd(w->id);
     }
     if (VecContains(tb->annotationItems, w)) {
-        return page == (int)RibbonPage::Comment;
+        return false;
     }
     int idx = VecFind(tb->ribbonItems, w);
     if (idx >= 0) {
-        return tb->ribbonItemPages[idx] == page;
+        return false;
     }
     return true;
 }
@@ -502,6 +501,7 @@ void SetToolbarButtonCheckedState(MainWindow* win, int cmdId, bool isChecked) {
             ib->Invalidate();
         }
     }
+    ToolsPanelUpdate(win);
 }
 
 // some commands are only avialble in certain contexts
@@ -718,9 +718,9 @@ static void SetRibbonAnnotationsVisible(MainWindow* win, bool visible, bool docS
     }
     tb->ribbonAnnotsVisible = visible;
     bool onEditPage = RibbonPageEditsPdf((RibbonPage)win->ribbonPage);
-    if (visible && !onEditPage) {
+    if (visible && !onEditPage && !tb->ribbonSelectingPage) {
         SetRibbonPage(win, (int)RibbonPage::Comment, false);
-    } else if (!visible && onEditPage && docSupportsAnnots) {
+    } else if (!visible && onEditPage && docSupportsAnnots && !tb->ribbonSelectingPage) {
         SetRibbonPage(win, (int)RibbonPage::Home, false);
     }
     if (visible) {
@@ -1683,6 +1683,8 @@ static Rect ToolbarButtonRect(MainWindow* win, int cmdId) {
 // returns an empty rect when the toolbar isn't visible (e.g. fullscreen /
 // presentation) so the caller can fall back to a different anchor.
 Rect GetToolbarButtonScreenRect(MainWindow* win, int cmdId) {
+    Rect panelRect = ToolsPanelButtonRect(win, cmdId);
+    if (!panelRect.IsEmpty()) return panelRect;
     VirtHost* host = ToolbarHost(win);
     if (!host || !host->IsVisible()) {
         return {};
@@ -1754,6 +1756,7 @@ TempStr ToolbarButtonsResultTemp(int* exitCodeOut) {
                        bi.toolTip, tip));
     }
     out.Append(AnnotFilterToolbarStateTemp(win));
+    out.Append(ToolsPanelStateTemp(win));
     out.Append(HoverDropdownStateTemp(win));
     *exitCodeOut = 0;
     return ToStrTemp(out);
@@ -1809,7 +1812,7 @@ static void OnToolbarButtonClicked(MainWindow* win, VirtMouseEvent* ev) {
         if (ib->hasDropdown) {
             int dropDx = ib->DropdownDx();
             if (dropDx > 0 && ev->pt.x >= w->bounds.dx - dropDx) {
-                ShowTtsVoiceMenu(win, GetToolbarButtonScreenRect(win, cmdId));
+                ShowToolbarButtonDropdown(win, cmdId);
                 ev->didHandle = true;
                 return;
             }
@@ -3612,13 +3615,14 @@ static void OnRibbonTabClicked(MainWindow* win, VirtMouseEvent* ev) {
     }
     ev->didHandle = true;
     RibbonMode mode = (RibbonMode)(w->id - kRibbonTabIdBase);
-    if (mode == RibbonMode::AllTools) ToggleToolsPanel(win);
     SetRibbonPage(win, (int)RibbonModePage(mode), true);
+    if (!ShouldShowToolsPanel(win) || HwndClientRect(win->hwndFrame).dx < DpiScale(700)) {
+        ShowToolsPanelMenu(win, win->toolbarVirt->host->ToScreen(w->BoundsInWindow()));
+    }
 }
 
 static int RibbonHeightForPage(ToolbarVirt* tb, int page) {
-    bool hasPanel = RibbonPageHasPanel((RibbonPage)page);
-    return tb->ribbonTabRowDy + (hasPanel ? tb->ribbonPanelsDy : 0) + 1;
+    return tb->ribbonTabRowDy + 1;
 }
 
 static void ShowRibbonPage(ToolbarVirt* tb, int page) {
@@ -3635,8 +3639,7 @@ static void ShowRibbonPage(ToolbarVirt* tb, int page) {
         tb->ribbonPanels[i]->SetVisibility(i == page ? Visibility::Visible : Visibility::Collapse);
     }
     if (tb->ribbonPanelsRow) {
-        bool hasPanel = RibbonPageHasPanel((RibbonPage)page);
-        tb->ribbonPanelsRow->SetVisibility(hasPanel ? Visibility::Visible : Visibility::Collapse);
+        tb->ribbonPanelsRow->SetVisibility(Visibility::Collapse);
     }
     tb->ribbonDy = RibbonHeightForPage(tb, page);
 }
@@ -3699,6 +3702,7 @@ static void SetRibbonPage(MainWindow* win, int page, bool userAction) {
     int prevDy = tb->ribbonDy;
     win->ribbonPage = page;
     ShowRibbonPage(tb, page);
+    ToolsPanelShowPage(win);
     if (changed) {
         HideToolbarHoverDropdown(win);
         VirtHost* host = tb->host;
@@ -3718,7 +3722,9 @@ static void SetRibbonPage(MainWindow* win, int page, bool userAction) {
     }
     bool wantEdit = RibbonPageEditsPdf((RibbonPage)page);
     if (wantEdit != win->pdfAnnotationsToolbarEnabled) {
+        tb->ribbonSelectingPage = true;
         SetPdfAnnotationsToolbarEnabled(win, wantEdit);
+        tb->ribbonSelectingPage = false;
     }
     ToolbarUpdateStateForWindow(win, true);
 }
@@ -3731,6 +3737,48 @@ static RibbonButton* NewRibbonButton(MainWindow* win, Str svg, int cmdId, Str la
     b->SetLabel(label);
     ApplyRibbonButtonStyle(b, svg, cmdId);
     return b;
+}
+
+void ToolbarSetupToolRow(MainWindow* win, RibbonButton* row) {
+    row->onClick = MkFunc1(OnToolbarButtonClicked, win);
+    row->hasDropdown = row->id == CmdToggleReadAloud || FindHoverReg(win->toolbarVirt, row->id) != nullptr;
+}
+
+void ToolbarToolOptions(MainWindow* win, int cmdId) {
+    ShowToolbarButtonDropdown(win, cmdId);
+}
+
+void ToolbarPageTools(MainWindow* win, int page, Vec<ToolbarPageTool>& out) {
+    auto* tb = win->toolbarVirt;
+    if (!tb) return;
+    if (page == (int)RibbonPage::Home || page == (int)RibbonPage::Comment) {
+        auto& items = page == (int)RibbonPage::Home ? tb->items : tb->annotationItems;
+        for (auto* source : items) {
+            if (source && source->id && !IsRibbonNavCmd(source->id) && source->id != WarningMsgId) {
+                VecAppend(out, ToolbarPageTool{source, {}});
+            }
+        }
+        return;
+    }
+    const RibbonItemDef* defs = nullptr;
+    int count = 0;
+    RibbonPageItems((RibbonPage)page, &defs, &count);
+    Str group;
+    for (int i = 0; i < count; i++) {
+        const auto& d = defs[i];
+        if (!d.icon) {
+            group = d.label;
+            continue;
+        }
+        for (int j = 0; j < len(tb->ribbonItems); j++) {
+            auto* source = tb->ribbonItems[j];
+            if (tb->ribbonItemPages[j] == page && source->id == d.cmdId) {
+                VecAppend(out, ToolbarPageTool{source, group});
+                group = {};
+                break;
+            }
+        }
+    }
 }
 
 static HBox* NewRibbonPanel() {
