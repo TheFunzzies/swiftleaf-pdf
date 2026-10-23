@@ -625,6 +625,10 @@ Color RibbonAccentColor() {
     return M3().primary;
 }
 
+static Color RibbonFocusColor() {
+    return ThemeUsesHighContrastColors() ? SysHighlightBgColor() : RibbonAccentColor();
+}
+
 // Separate the tab strip from the tools without tinting the document chrome.
 Color RibbonTabRowBgColor() {
     return M3().surfaceContainerLow;
@@ -722,7 +726,7 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
         ctx.gfx->FillRoundedRect(r, diameter, container);
     }
 
-    if (HasFlag(vwfFocused)) ctx.gfx->DrawRect(r, RibbonAccentColor(), DpiScale(1));
+    if (HasFlag(vwfFocused)) ctx.gfx->DrawRect(r, RibbonFocusColor(), DpiScale(1));
 
     Pixmap* px = (!enabled && pixmapDisabled) ? pixmapDisabled : pixmap;
     int iconDx = px ? px->width : RibbonLargeIconSize();
@@ -766,7 +770,7 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
         float pt = 11.f * (float)DpiGet() / 96.f;
         PlatformFont* chevronFont = GetPlatformFont(StrL("Segoe UI"), pt, PlatformFontStyle::Regular);
         Rect drop{r.Right() - dropDx, iconY, dropDx, iconDy};
-        ctx.gfx->DrawText(StrL("â¾"), drop, gfxTextCenter | gfxTextVCenter, chevronFont, col);
+        ctx.gfx->DrawText(StrL("\xE2\x96\xBE"), drop, gfxTextCenter | gfxTextVCenter, chevronFont, col);
     }
 }
 
@@ -883,7 +887,7 @@ void RibbonTab::Paint(VirtPaintCtx& ctx) {
     hi.y += DpiScale(4);
     hi.dy -= DpiScale(4) + DpiScale(kRibbonTabUnderlineDy);
     ctx.gfx->FillRoundedRect(hi, DpiScale(6), animatedBg->Get(GetHwnd(), hover));
-    if (HasFlag(vwfFocused)) ctx.gfx->DrawRect(r, RibbonAccentColor(), DpiScale(1));
+    if (HasFlag(vwfFocused)) ctx.gfx->DrawRect(r, RibbonFocusColor(), DpiScale(1));
     // PDFCraft: neutral active text for underlined mode bar
     Color col = isActive ? m3.onSurface : m3.onSurfaceVariant;
     Rect rText = r;

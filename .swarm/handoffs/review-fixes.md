@@ -19,15 +19,15 @@ Existing edits in three `ext/darkmodelib` resource files are excluded.
 | 11 | CONFIRMED + FIXED | Arrow/Home/End navigation traverses all enabled virtual top-bar tab stops, including Menu/Search/Properties/Save/Print. | `83348d0` |
 | 12 | CONFIRMED + FIXED | Keep View more visible and keyboard-focusable as an icon-only ribbon button in rail mode. | `ac8b61e` |
 | 13 | FALSE-POSITIVE | `RibbonTabRow` is an HBox, not a VirtCtrl. Layout containers receive/store HWND-client bounds; `lastBounds.x` is already window-relative. | — |
-| 14 | CONFIRMED + FIXED | Check the focused control through the layout tree, preserving ancestor visibility/enabled and skip-tab-stop checks without allocating another Vec. | Avoid allocating focus lists during relayout (this commit) |
+| 14 | CONFIRMED + FIXED | Check the focused control through the layout tree, preserving ancestor visibility/enabled and skip-tab-stop checks without allocating another Vec. | `1acbd9c` |
 | 15 | FALSE-POSITIVE | `showLabel = !compact && len(label) > 0` already guards `PlatformFontMeasureText`. | — |
 | 16 | CONFIRMED + FIXED | Return before recording a null root. Regression covers null suspension. | `adabab5` |
-| 17 | CONFIRMED, pending | Focus outlines use the Material accent without a system high-contrast override. | pending |
+| 17 | CONFIRMED + FIXED | Use the system highlight color for focus outlines in high-contrast mode. | Honor high contrast and fix option arrows (this commit) |
 | 18 | CONFIRMED, deferred | Fade rewrites every pixel. Direct AlphaBlend would violate Gfx layering and Direct2D flush ordering; defer the optional backend opacity API change. | — |
 | 19 | CONFIRMED + FIXED | Collapse the tools splitter in rail mode and exclude it from the applied handle width. | `ac8b61e` |
 | 20 | CONFIRMED + FIXED | Expose selected toggle buttons as CHECKED. | `88a7505` |
 | 21 | CONFIRMED + FIXED | Forward the annotation strip WM_GETOBJECT messages. | `88a7505` |
 
-Older commits: `7dd532a` and `1c588b4` inspected. Host identity guard, top-bar/panel focus notifications, disabled-panel focus fallback and removal of leading menu separators ported by hand; arrow encoding remains pending. The older hover-option keyboard hook targets code absent here. Unrelated test formatting excluded.
+Older commits: `7dd532a` and `1c588b4` inspected. Host identity guard, top-bar/panel focus notifications, disabled-panel focus fallback and removal of leading menu separators ported by hand; explicit UTF-8 option-arrow encoding ported. The older hover-option keyboard hook targets code absent here. Unrelated test formatting excluded.
 
 Validation: pending. Regression tests added before fixes for callback removal and COM null output pointers.
