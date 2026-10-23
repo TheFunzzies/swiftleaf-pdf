@@ -26,6 +26,7 @@
 #include "EngineBase.h"
 #include "EngineAll.h"
 #include "PdfCreator.h"
+#include "ProgressUpdateUI.h"
 #include "TextSelection.h"
 #include "TextSearch.h"
 #include "DisplayModel.h"
@@ -723,7 +724,7 @@ static bool OcrRoundTrip(int pageRotation, int viewRotation) {
     PdfOcrWord word{StrL("Searchable"), {80, 90, 220, 36}};
     VecAppend(words, word);
     VecAppend(words, PdfOcrWord{StrL("caf\xc3\xa9"), {80, 160, 100, 36}});
-    Str dest = str::Dup(path::GetTempFilePathTemp(StrL("ocr")));
+    Str dest = str::Dup(GetTempFilePathTemp(StrL("ocr")));
     bool ok = EngineMupdfAddOcrText(engine, 1, zoom, viewRotation, words) && EngineMupdfSaveCopy(engine, dest);
     engine->Release();
     engine = ok ? CreateEngineMupdfFromFile(dest, FileType::PDF, 96) : nullptr;
@@ -764,7 +765,7 @@ static bool OcrCancelSaveTest() {
     Str fixture = OcrFixture(0);
     auto* job = new OcrJob();
     job->output = CreateEngineMupdfFromData(fixture, StrL("ocr.pdf"), nullptr);
-    job->destination = str::Dup(path::GetTempFilePathTemp(StrL("ocr")));
+    job->destination = str::Dup(GetTempFilePathTemp(StrL("ocr")));
     Str sentinel = StrL("Keep existing destination");
     bool ok = job->cancel && job->output && file::WriteFile(job->destination, sentinel);
     if (ok) {
@@ -815,8 +816,8 @@ static void OcrSmokeTest(bool* ok) {
     hr = reader.Recognize(px, cancel, text, words);
     *ok = SUCCEEDED(hr) && str::Contains(ToStr(text), StrL("12345"));
     // Start with a scanned (image-only) PDF, then save/reopen the actual OCR boxes.
-    Str source = str::Dup(path::GetTempFilePathTemp(StrL("ocr")));
-    Str dest = str::Dup(path::GetTempFilePathTemp(StrL("ocr")));
+    Str source = str::Dup(GetTempFilePathTemp(StrL("ocr")));
+    Str dest = str::Dup(GetTempFilePathTemp(StrL("ocr")));
     {
         PdfCreator creator;
         Gdiplus::Bitmap* bitmap = NewGdiplusBitmapFromPixmap(px);
