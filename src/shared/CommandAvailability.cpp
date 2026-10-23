@@ -533,6 +533,11 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
         return ctx.allowToggleMenuBar ? CommandVisibility::Show : CommandVisibility::Hide;
     }
 
+#if !defined(SUMATRA_NG)
+    if (cmdId >= CmdPrepareForm && cmdId <= CmdCreateFormSignature && (!ctx.supportsAnnots || !ctx.isPdf)) {
+        return CommandVisibility::Hide;
+    }
+#endif
     if (!ctx.supportsAnnots) {
         if ((cmdId >= (int)CmdCreateAnnotFirst) && (cmdId <= (int)CmdCreateAnnotLast)) {
             return CommandVisibility::Hide;

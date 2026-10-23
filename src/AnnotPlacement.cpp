@@ -36,6 +36,7 @@
 #include "Translations.h"
 #include "SvgIcons.h"
 
+#include "FormAuthoring.h"
 #include "AnnotPlacement.h"
 
 static Kind kNotifPointAnnotationPlacement = "notifTextAnnotationPlacement";
@@ -182,6 +183,7 @@ static int OrigCommandId(int cmdId) {
 }
 
 AnnotPlacementKind PlacementKindFromCommand(int cmdId) {
+    if (IsFormAuthoringCommand(OrigCommandId(cmdId))) return AnnotPlacementKind::Shape;
     switch (OrigCommandId(cmdId)) {
         case CmdCreateAnnotText:
             return AnnotPlacementKind::Text;
@@ -385,6 +387,11 @@ static bool HasPreview(AnnotPlacementKind kind) {
 }
 
 static Str PlacementNotification(AnnotPlacementKind kind, bool circle, int cmdId) {
+    if (IsFormAuthoringCommand(OrigCommandId(cmdId))) {
+        return Tr(
+            "Draw a form field. Drag or click twice. **Esc** to cancel. Use Edit PDF to select, move and resize "
+            "fields.");
+    }
     if (OrigCommandId(cmdId) == CmdCreateAnnotRedact) {
         return Tr("Mark content for redaction. Drag or click twice. **Esc** to cancel.");
     }
@@ -1419,8 +1426,9 @@ bool AnnotationPlacementFillCreate(MainWindow* win, AnnotationType type, Point& 
             args.inkPoints = &p.points;
             return true;
         case AnnotPlacementKind::Shape: {
-            bool validType =
-                type == AnnotationType::Square || type == AnnotationType::Circle || type == AnnotationType::Redact;
+            bool validType = type == AnnotationType::Square || type == AnnotationType::Circle ||
+                             type == AnnotationType::Redact ||
+                             (type == AnnotationType::Widget && IsFormAuthoringCommand(p.cmdId));
             if (!validType) {
                 return false;
             }

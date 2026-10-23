@@ -21,6 +21,7 @@ import { setTestWindowLayout } from "./winapi.ts";
 import { beginSharedControlledSession, endSharedControlledSession } from "./win-automation.ts";
 import { testit as lintCommandIds } from "./lint-command-ids.ts";
 import { testit as jpegXlPdf } from "./jpeg-xl-pdf.ts";
+import { testit as formAuthoring } from "./form-authoring.ts";
 import { testit as buildCli } from "./build-cli.ts";
 import { testit as ngEmbedded } from "./ng-embedded.ts";
 import { testit as combiningMarkFirst } from "./combining-mark-first.ts";
@@ -400,6 +401,7 @@ export const tests: NamedTest[] = [
   ["free-text-transparent", freeTextTransparent],
   ["free-text-custom-style", freeTextCustomStyle],
   ["jpeg-xl-pdf", jpegXlPdf],
+  ["form-authoring", formAuthoring],
   ["annotation clipboard tests", annotationClipboardTests],
   ["issue-6276", issue6276],
   ["issue-6269", issue6269],

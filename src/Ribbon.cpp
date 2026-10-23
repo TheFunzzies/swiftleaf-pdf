@@ -265,6 +265,7 @@ static const RibbonItemDef gOrganizeItems[] = {
 };
 
 static const RibbonItemDef gFormsSignItems[] = {
+    {gIconForms, CmdPrepareForm, TrN("Prepare a Form"), TrN("Draw a field, then choose its type and properties")},
     {gIconForms, CmdToggleHighlightFormFields, TrN("Highlight Fields"), TrN("Highlight form fields")},
     {gIconTypewriter, CmdCreateAnnotFreeText, TrN("Typewriter"), TrN("Type text anywhere on the page")},
     {nullptr, 0, {}},

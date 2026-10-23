@@ -2121,3 +2121,18 @@ EXPORTS
 	pdf_layer_name
 	pdf_layer_is_enabled
 	pdf_enable_layer
+
+; Swiftleaf: AcroForm authoring
+	pdf_array_find
+	pdf_dict_put_int
+	pdf_dict_put_name
+	pdf_dict_put_text_string
+	pdf_dict_put_array
+	pdf_dict_put_dict
+	pdf_array_push_real
+	pdf_array_push_text_string
+	pdf_add_new_dict
+	pdf_dirty_annot
+	pdf_choice_field_option_count
+	pdf_choice_field_option
+	pdf_lookup_field

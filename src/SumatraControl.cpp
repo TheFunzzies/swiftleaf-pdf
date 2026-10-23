@@ -702,6 +702,19 @@ static TempStr MarkupAnnotsResultTemp(Str action, int x, int y, int* exitCodeOut
     }
     out.Append(fmt("n=%d\n", n));
     out.Append(fmt("annotations=%d\n", len(annots)));
+    Vec<Annotation*> widgets;
+    EngineMupdfGetPageWidgets(engine, 1, widgets);
+    out.Append(fmt("formFields=%d widgets=%d\n", EngineMupdfCountFormFields(engine), len(widgets)));
+    for (Annotation* widget : widgets) {
+        FormFieldProperties props;
+        if (!GetFormFieldProperties(widget, props)) continue;
+        RectF r = GetBounds(widget);
+        Rect screen = dm->CvtToScreen(1, r);
+        out.Append(
+            fmt("widget type=%d name=%s value=%s default=%s required=%d readonly=%d size=%g screen=%d,%d,%d,%d\n",
+                (int)props.kind, props.name, GetWidgetValue(widget), props.defaultValue, props.required, props.readOnly,
+                props.fontSize, screen.x, screen.y, screen.dx, screen.dy));
+    }
     {
         int textLen = 0;
         Str pageText = engine->GetTextForPage(1, &textLen);
