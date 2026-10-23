@@ -136,7 +136,9 @@ struct PdfMergePage {
     // degrees (a multiple of 90) added to the page's rotation
     int rotate = 0;
 };
-bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePage>& pages, Str destPath);
+#include "PdfDocumentTools.h"
+bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePage>& pages, Str destPath,
+                         u32* warningsOut = nullptr);
 
 // Swiftleaf Edit Text: a run of text lines on a page and its style
 struct PdfTextRun {
