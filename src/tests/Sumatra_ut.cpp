@@ -26,6 +26,7 @@
 #include "Commands.h"
 #include "SvgIcons.h"
 #include "AppUnitTests.h"
+#include "Ocr.h"
 
 // must be last to over-write assert()
 #include "base/tests/UtAssert.h"
@@ -586,6 +587,7 @@ int RunAppUnitTests(bool forAi) {
         SetupForAi();
     }
     printf("Running unit tests\n");
+    utassert(Ocr_UnitTests());
     DocumentPanel_UnitTests();
     utassert(EngineMupdf_UnitTestPanelData());
 

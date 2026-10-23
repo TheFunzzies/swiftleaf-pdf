@@ -235,6 +235,7 @@ static const RibbonItemDef gEditItems[] = {
     {gIconRedo, CmdRedo, TrN("Redo")},
     {nullptr, 0, {}},
     {gIconCompress, CmdPdfCompress, TrN("Compress"), TrN("Save a smaller copy of the PDF")},
+    {gIconExtractText, CmdScanOcr, TrN("Scan & OCR"), TrN("Recognize text on scanned pages")},
     {gIconExtractText, CmdDocumentExtractText, TrN("To Text"), TrN("Extract the text of the document")},
     {nullptr, 0, {}},
     {gIconSave, CmdSaveAnnotations, TrN("Save"), TrN("Save changes to the PDF")},

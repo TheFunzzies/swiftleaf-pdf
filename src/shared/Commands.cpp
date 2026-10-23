@@ -353,6 +353,7 @@ const CommandInfo gCommands[] = {
     {CmdToolSelect, "CmdToolSelect\0", StrL("Select Tool")},
     {CmdToolSnapshot, "CmdToolSnapshot\0", StrL("Snapshot Tool")},
     {CmdCreateSignature, "CmdCreateSignature\0", StrL("Create Signature")},
+    {CmdScanOcr, "CmdScanOcr\0", StrL("Scan & OCR...")},
 };
 const int gCommandsCount = dimofi(gCommands);
 
