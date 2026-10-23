@@ -873,7 +873,7 @@ static const StructInfo gPointInfo = {
 
 static const FieldInfo gSettingsFields[] = {
     {(size_t)-1, SettingType::Comment,
-     (intptr_t)"For documentation, see https://www.sumatrapdfreader.org/settings/settings3-7.html"},
+     (intptr_t)"For documentation, see https://www.sumatrapdfreader.org/settings/settings0-3-4.html"},
     {(size_t)-1, SettingType::Comment, 0},
     {offsetof(Settings, defaultDisplayMode), SettingType::String, (intptr_t)"automatic"},
     {offsetof(Settings, defaultZoom), SettingType::String, (intptr_t)"fit page"},
@@ -912,6 +912,8 @@ static const FieldInfo gSettingsFields[] = {
     {offsetof(Settings, showToc), SettingType::Bool, true},
     {offsetof(Settings, alwaysShowSidebar), SettingType::Bool, false},
     {offsetof(Settings, sidebarOnRight), SettingType::Bool, false},
+    {offsetof(Settings, showToolsPanel), SettingType::Bool, true},
+    {offsetof(Settings, showCommentsPanel), SettingType::Bool, false},
     {offsetof(Settings, sidebarWindowSize), SettingType::String, (intptr_t)""},
     {offsetof(Settings, showLinks), SettingType::Bool, false},
     {offsetof(Settings, highlightFormFields), SettingType::Bool, true},
@@ -1039,28 +1041,29 @@ static const FieldInfo gSettingsFields[] = {
 };
 const StructInfo gSettingsInfo = {
     sizeof(Settings),
-    163,
+    165,
     gSettingsFields,
     "\0\0DefaultDisplayMode\0DefaultZoom\0DisableJavaScript\0AllowExternalImages\0EnableTeXEnhancements\0EscToExit\0Ful"
     "lPathInTitle\0InverseSearchCmdLine\0LazyLoading\0MainWindowBackground\0NoHomeTab\0HomePageSortByFrequentlyRead\0Ho"
     "mePageViewMode\0FilePicker\0PrinterUI\0ReloadModifiedDocuments\0RememberOpenedFiles\0RememberStatePerDocument\0Res"
     "toreSession\0ReuseInstance\0ShowMenubar\0ShowMenubarWithTabs\0ShowPageNumberInTabs\0ShowHomePageReadingProgress\0S"
     "howChaptersInEbooks\0ShowTips\0CustomColors\0ShowToolbar\0Toolbar\0ToolbarPosition\0SearchUIFloating\0ShowFavorite"
-    "s\0SidebarBottomView\0SortFavoritesByName\0ShowToc\0AlwaysShowSidebar\0SidebarOnRight\0SidebarWindowSize\0ShowLink"
-    "s\0HighlightFormFields\0ClickEdgeToTurnPage\0DisableLinks\0ExplorerQuickLook\0RememberViewOffsetOnPageTurn\0MouseW"
-    "heelTurnsPage\0ScrollEdgeTurnsPage\0ShowDocumentFocusIndicator\0ShowAnnotationNotification\0ShowFileNavigateHint\0"
-    "ShowAnnotationAuthorInTooltip\0ShowTocPageNumbers\0AutoGenerateTOC\0ShowStartPage\0SidebarDx\0Scrollbars\0Scrollba"
-    "rInSinglePage\0SmoothScroll\0ScrollLineAmount\0SaveMemory\0PaddingAfterLastPage\0IgnoreDestinationZoom\0HighlightL"
-    "inkDestination\0CitationHoverDelay\0ReadAloudVoiceId\0ReadAloudSpeed\0ReadingAutoScrollSpeed\0ReadingBar\0FastScro"
-    "llOverScrollbar\0PreventSleepInFullscreen\0TabWidth\0Theme\0HelpTheme\0LastLightTheme\0LastDarkTheme\0DocumentColo"
-    "rsFollowTheme\0TocDy\0ToolbarCustomLayout\0ToolbarShowReadAloud\0ToolbarSize\0TreeFontName\0TreeFontSize\0UIFontSi"
-    "ze\0DisableAntiAlias\0EngineeringDrawingEnhance\0DisableAutoLinks\0UseSysColors\0UseTabs\0SelectionToolbar\0Select"
-    "ionToolbarLayout\0TabsMru\0CtrlTabSimple\0ZoomLevels\0ZoomIncrement\0\0FixedPageUI\0\0EBookUI\0\0ComicBookUI\0\0Im"
-    "ageUI\0\0ChmUI\0\0MarkdownUI\0\0HtmlUI\0\0ClaudeCode\0\0GrokBuild\0\0CodexBuild\0\0AntiGravity\0\0AIChatSidebarDx"
-    "\0\0TranslateToLang\0TranslateFromLang\0TranslateEngine\0\0Annotations\0\0ExternalViewers\0\0ForwardSearch\0\0Prin"
-    "terDefaults\0\0Fullscreen\0\0SelectionHandlers\0\0TextSnippets\0\0Shortcuts\0\0Themes\0\0TabGroups\0\0CustomScreen"
-    "DPI\0\0\0DefaultPasswords\0UiLanguage\0VersionToSkip\0WindowState\0WindowPos\0SearchUIWindowPos\0HelpWindowPos\0Fi"
-    "leStates\0SessionData\0ReopenOnce\0TimeOfLastUpdateCheck\0OpenCountWeek\0PropWinPos\0CheckForUpdates\0\0",
+    "s\0SidebarBottomView\0SortFavoritesByName\0ShowToc\0AlwaysShowSidebar\0SidebarOnRight\0ShowToolsPanel\0ShowComment"
+    "sPanel\0SidebarWindowSize\0ShowLinks\0HighlightFormFields\0ClickEdgeToTurnPage\0DisableLinks\0ExplorerQuickLook\0R"
+    "ememberViewOffsetOnPageTurn\0MouseWheelTurnsPage\0ScrollEdgeTurnsPage\0ShowDocumentFocusIndicator\0ShowAnnotationN"
+    "otification\0ShowFileNavigateHint\0ShowAnnotationAuthorInTooltip\0ShowTocPageNumbers\0AutoGenerateTOC\0ShowStartPa"
+    "ge\0SidebarDx\0Scrollbars\0ScrollbarInSinglePage\0SmoothScroll\0ScrollLineAmount\0SaveMemory\0PaddingAfterLastPage"
+    "\0IgnoreDestinationZoom\0HighlightLinkDestination\0CitationHoverDelay\0ReadAloudVoiceId\0ReadAloudSpeed\0ReadingAu"
+    "toScrollSpeed\0ReadingBar\0FastScrollOverScrollbar\0PreventSleepInFullscreen\0TabWidth\0Theme\0HelpTheme\0LastLigh"
+    "tTheme\0LastDarkTheme\0DocumentColorsFollowTheme\0TocDy\0ToolbarCustomLayout\0ToolbarShowReadAloud\0ToolbarSize\0T"
+    "reeFontName\0TreeFontSize\0UIFontSize\0DisableAntiAlias\0EngineeringDrawingEnhance\0DisableAutoLinks\0UseSysColors"
+    "\0UseTabs\0SelectionToolbar\0SelectionToolbarLayout\0TabsMru\0CtrlTabSimple\0ZoomLevels\0ZoomIncrement\0\0FixedPag"
+    "eUI\0\0EBookUI\0\0ComicBookUI\0\0ImageUI\0\0ChmUI\0\0MarkdownUI\0\0HtmlUI\0\0ClaudeCode\0\0GrokBuild\0\0CodexBuild"
+    "\0\0AntiGravity\0\0AIChatSidebarDx\0\0TranslateToLang\0TranslateFromLang\0TranslateEngine\0\0Annotations\0\0Extern"
+    "alViewers\0\0ForwardSearch\0\0PrinterDefaults\0\0Fullscreen\0\0SelectionHandlers\0\0TextSnippets\0\0Shortcuts\0\0T"
+    "hemes\0\0TabGroups\0\0CustomScreenDPI\0\0\0DefaultPasswords\0UiLanguage\0VersionToSkip\0WindowState\0WindowPos\0Se"
+    "archUIWindowPos\0HelpWindowPos\0FileStates\0SessionData\0ReopenOnce\0TimeOfLastUpdateCheck\0OpenCountWeek\0PropWin"
+    "Pos\0CheckForUpdates\0\0",
     "\0\0default layout of pages. valid values: automatic, single page, facing, book view, continuous, continuous "
     "facing, continuous book view, page aspect. page aspect (3.7+): first open of a PDF, XPS, DjVu or PostScript file "
     "uses page 1 — taller than wide is continuous + fit width, wider than tall is single page + fit page; a remembered "
@@ -1100,10 +1103,11 @@ const StructInfo gSettingsInfo = {
     "sorted by page number\0if true, show the table of contents (Bookmarks) sidebar when the document has one\0if "
     "true, every document with bookmarks opens with the Bookmarks sidebar, even one that was closed with it hidden\0if "
     "true, put the bookmarks / favorites sidebar on the right of the window (left is the default; right-to-left UI "
-    "languages already put it on the right)\0valid values: (empty), keep, grow\0if true, draw a blue border around "
-    "links in the document\0if true, highlight empty fillable PDF form fields in pale blue so they are easy to "
-    "find\0if true, a click (not a drag) on the left fifth of the page area goes to the previous page and a click on "
-    "the right fifth goes to the next page (reversed in manga / right-to-left mode). Links, annotations and "
+    "languages already put it on the right)\0if true, show the All tools panel on the left of the window\0if true, "
+    "show the Comments panel on the right of PDF documents\0valid values: (empty), keep, grow\0if true, draw a blue "
+    "border around links in the document\0if true, highlight empty fillable PDF form fields in pale blue so they are "
+    "easy to find\0if true, a click (not a drag) on the left fifth of the page area goes to the previous page and a "
+    "click on the right fifth goes to the next page (reversed in manga / right-to-left mode). Links, annotations and "
     "presentation-mode clicks are unchanged\0if true, document links are ignored so you can select and read (useful "
     "for drawings with many links); if false, clicking a link follows it\0if true, Space in File Explorer (or on the "
     "desktop) previews the selected file in a popup window, like macOS Quick Look. Esc or Space closes it; Left / "

@@ -1148,6 +1148,10 @@ struct Settings {
     // window (left is the default; right-to-left UI languages already put
     // it on the right)
     bool sidebarOnRight;
+    // if true, show the All tools panel on the left of the window
+    bool showToolsPanel;
+    // if true, show the Comments panel on the right of PDF documents
+    bool showCommentsPanel;
     // what showing / hiding the bookmarks / favorites sidebar does to the
     // window: empty or keep (the window keeps its size and position, the
     // document area shrinks), or grow (the window grows by the sidebar
