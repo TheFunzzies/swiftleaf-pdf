@@ -57,6 +57,9 @@
 #include "PageOrganize.h"
 #include "StatusBar.h"
 #include "NavRail.h"
+#include "Material.h"
+#include "LucideIcons.h"
+#include "ToolsPanel.h"
 #include "Toolbar.h"
 
 // https://docs.microsoft.com/en-us/windows/win32/controls/toolbar-control-reference
@@ -290,6 +293,11 @@ VirtCtrl* ToolbarItemFromPoint(MainWindow* win, Point pt) {
         }
     }
     for (VirtCtrl* w : tb->ribbonTabs) {
+        if (w->BoundsInWindow().Contains(pt)) {
+            return w;
+        }
+    }
+    for (VirtCtrl* w : tb->topBarItems) {
         if (w->BoundsInWindow().Contains(pt)) {
             return w;
         }
@@ -826,6 +834,18 @@ static void UpdateRibbonItemsState(MainWindow* win, AppCommandCtx* ctx, bool ann
         if (ib && ib->isSelected != checked) {
             ib->isSelected = checked;
             ib->Invalidate();
+        }
+    }
+    // the top bar's document buttons; Menu and search are always on
+    for (VirtCtrl* w : tb->topBarItems) {
+        int cmdId = w->id;
+        if (cmdId == TopBarMenuId || cmdId == CmdCommandPalette) {
+            continue;
+        }
+        bool enabled = IsCmdAvailable(win, cmdId, ctx) && IsCmdEnabled(win, cmdId, ctx);
+        if (w->IsEnabled() != enabled) {
+            w->SetIsEnabled(enabled);
+            w->Invalidate();
         }
     }
 }
@@ -1529,6 +1549,14 @@ static void RefreshRibbonIcons(MainWindow* win) {
     for (RibbonTab* t : tb->ribbonTabs) {
         t->textColor = TbTextColor();
     }
+    for (VirtCtrl* w : tb->topBarItems) {
+        if (auto* rb = AsRibbonButton(w)) {
+            ApplyRibbonButtonStyle(rb, Str((const char*)rb->userData), rb->id);
+        } else if (auto* sb = AsRibbonSearchBox(w)) {
+            int sz = RibbonSmallIconSize();
+            sb->icon = GetCachedPixmapForSvg(Str(gLucideSearch), sz, sz, M3().onSurfaceVariant, RibbonPanelBgColor());
+        }
+    }
 }
 
 static void RefreshToolbarIcons(MainWindow* win) {
@@ -1629,6 +1657,11 @@ static VirtCtrl* ToolbarItemForCmd(MainWindow* win, int cmdId) {
         }
     }
     for (VirtCtrl* w : tb->ribbonItems) {
+        if (isShownFor(w)) {
+            return w;
+        }
+    }
+    for (VirtCtrl* w : tb->topBarItems) {
         if (isShownFor(w)) {
             return w;
         }
@@ -3548,12 +3581,14 @@ static VirtCtrl* MakeToolbarSeparator(int rowDy) {
 
 ///--- Swiftleaf ribbon
 
-// The toolbar is a ribbon: a row of page tabs, with page navigation at its far
-// end, above the buttons of the page that is shown.
+// The toolbar is PDFCraft's top bar over a ribbon: Menu, the mode tabs, page
+// navigation, the search box and the document's buttons, above the buttons of
+// the page the mode shows. All tools (Home) shows no buttons row: its tools
+// are in the All tools panel. Menu reaches the pages without a tab.
 //
-//   | Home  Comment  Edit  Organize  Forms & Sign  View     Page: [3] / 12  < > |
-//   |-----------------------------------------------------------------------------|
-//   | [Open] [Save] [Save As] [Print] | [Back] [Fwd] | [Zoom-] [Zoom+] [Fit] ...  |
+//   | [=] Menu | All tools  Read  Edit  Convert  E-Sign   Page: [3] / 12 < >  (Q Find tools...)  i  S  P |
+//   |------------------------------------------------------------------------------------------------------|
+//   | [Fit Width] [Fit Page] [Actual Size] | [Bookmarks] [Thumbnails] ...          (Read: the View page)   |
 //
 // The Home page holds the classic toolbar's buttons (tb->items, in their usual
 // order, so everything that finds a button by index still works) and the
@@ -3564,19 +3599,27 @@ static VirtCtrl* MakeToolbarSeparator(int rowDy) {
 // Home tab used to drag the window instead of showing its page)
 constexpr int kRibbonTabIdBase = 0x7100;
 
+// a mode tab: its id is kRibbonTabIdBase + RibbonMode
 static void OnRibbonTabClicked(MainWindow* win, VirtMouseEvent* ev) {
     VirtCtrl* w = ev->target;
     if (!w) {
         return;
     }
     ev->didHandle = true;
-    SetRibbonPage(win, w->id - kRibbonTabIdBase, true);
+    RibbonMode mode = (RibbonMode)(w->id - kRibbonTabIdBase);
+    SetRibbonPage(win, (int)RibbonModePage(mode), true);
+}
+
+static int RibbonHeightForPage(ToolbarVirt* tb, int page) {
+    bool hasPanel = RibbonPageHasPanel((RibbonPage)page);
+    return tb->ribbonTabRowDy + (hasPanel ? tb->ribbonPanelsDy : 0) + 1;
 }
 
 static void ShowRibbonPage(ToolbarVirt* tb, int page) {
+    int activeMode = RibbonModeForPage((RibbonPage)page);
     for (int i = 0; i < len(tb->ribbonTabs); i++) {
         RibbonTab* t = tb->ribbonTabs[i];
-        bool active = (i == page);
+        bool active = (i == activeMode);
         if (t->isActive != active) {
             t->isActive = active;
             t->Invalidate();
@@ -3585,6 +3628,58 @@ static void ShowRibbonPage(ToolbarVirt* tb, int page) {
     for (int i = 0; i < len(tb->ribbonPanels); i++) {
         tb->ribbonPanels[i]->SetVisibility(i == page ? Visibility::Visible : Visibility::Collapse);
     }
+    if (tb->ribbonPanelsRow) {
+        bool hasPanel = RibbonPageHasPanel((RibbonPage)page);
+        tb->ribbonPanelsRow->SetVisibility(hasPanel ? Visibility::Visible : Visibility::Collapse);
+    }
+    tb->ribbonDy = RibbonHeightForPage(tb, page);
+}
+
+void ToolbarShowRibbonPage(MainWindow* win, int page) {
+    SetRibbonPage(win, page, true);
+}
+
+static void OnTopBarClicked(MainWindow* win, VirtMouseEvent* ev) {
+    VirtCtrl* w = ev->target;
+    ToolbarVirt* tb = win ? win->toolbarVirt : nullptr;
+    if (!w || !tb || !w->IsEnabled()) {
+        return;
+    }
+    ev->didHandle = true;
+    if (w->id == TopBarMenuId) {
+        ShowTopBarMenu(win, tb->host->ToScreen(w->BoundsInWindow()));
+        return;
+    }
+    ToolbarPostCommand(win, w->id);
+}
+
+// an icon (+ optional label) button of the top bar, outside of any ribbon page
+static RibbonButton* NewTopBarButton(MainWindow* win, const char* svg, int cmdId, Str label, Str tip) {
+    auto* b = new RibbonButton();
+    b->font = win->toolbarVirt->ribbonFont;
+    b->isRtl = IsUIRtl();
+    b->id = cmdId;
+    b->userData = (uintptr_t)svg;
+    b->SetLabel(label);
+    ApplyRibbonButtonStyle(b, Str(svg), cmdId);
+    b->SetTooltip(ToolbarTipTemp(cmdId, tip, false));
+    b->onClick = MkFunc1(OnTopBarClicked, win);
+    VecAppend(win->toolbarVirt->topBarItems, (VirtCtrl*)b);
+    return b;
+}
+
+static RibbonSearchBox* NewTopBarSearchBox(MainWindow* win) {
+    ToolbarVirt* tb = win->toolbarVirt;
+    TempStr accel = AppendAccelKeyToMenuStringTemp({}, CmdCommandPalette);
+    Str shortcut = len(accel) > 1 ? Str(accel.s + 1, accel.len - 1) : Str{};
+    auto* sb = new RibbonSearchBox(Tr("Find tools and commands"), shortcut, tb->ribbonFont);
+    sb->id = CmdCommandPalette;
+    int sz = RibbonSmallIconSize();
+    sb->icon = GetCachedPixmapForSvg(Str(gLucideSearch), sz, sz, M3().onSurfaceVariant, RibbonPanelBgColor());
+    sb->SetTooltip(ToolbarTipTemp(CmdCommandPalette, Tr("Find tools and commands"), false));
+    sb->onClick = MkFunc1(OnTopBarClicked, win);
+    VecAppend(tb->topBarItems, (VirtCtrl*)sb);
+    return sb;
 }
 
 // userAction: picked by the user, so also switch edit mode to match the page
@@ -3595,6 +3690,7 @@ static void SetRibbonPage(MainWindow* win, int page, bool userAction) {
     }
     page = limitValue(page, 0, len(tb->ribbonPanels) - 1);
     bool changed = (win->ribbonPage != page);
+    int prevDy = tb->ribbonDy;
     win->ribbonPage = page;
     ShowRibbonPage(tb, page);
     if (changed) {
@@ -3602,6 +3698,11 @@ static void SetRibbonPage(MainWindow* win, int page, bool userAction) {
         VirtHost* host = tb->host;
         if (host->vroot) {
             host->vroot->RequestLayout();
+        }
+        if (tb->ribbonDy != prevDy) {
+            // All tools has no tools row: the document gets the room
+            ToolbarSetHeight(win, tb->ribbonDy);
+            ScheduleUiUpdate(win, kUiForceRelayout);
         }
         host->Relayout();
         host->Invalidate(true);
@@ -3717,26 +3818,35 @@ static void BuildToolbarLayout(MainWindow* win) {
     bool rtl = IsUIRtl();
     int btnDy = RibbonButtonDy(tb->ribbonFont);
 
-    // the tab row: a tab per page, then page navigation at the far end
+    // the top bar: Menu and the mode tabs, then page navigation, the search
+    // box and the document's buttons at the far end
+    VecReset(tb->topBarItems);
+    tb->ribbonPanelsRow = nullptr;
     auto* tabRow = new RibbonTabRow();
     tabRow->alignCross = CrossAxisAlign::CrossCenter;
     tabRow->rtl = rtl;
-    // ribbonTabs is indexed by page; the row shows them in tab order
-    for (int i = 0; i < RibbonPageCount(); i++) {
-        auto* t = new RibbonTab(RibbonPageName((RibbonPage)i), tb->ribbonFont);
+    tabRow->AddChild(NewTopBarButton(win, gLucidePanelLeft, TopBarMenuId, Tr("Menu"), Tr("Panels and all tools")));
+    VirtCtrl* menuSep = MakeToolbarSeparator(btnDy);
+    ApplyToolbarItemColors(menuSep);
+    tabRow->AddChild(menuSep);
+    // ribbonTabs is indexed by RibbonMode
+    for (int i = 0; i < RibbonModeCount(); i++) {
+        auto* t = new RibbonTab(RibbonModeName((RibbonMode)i), tb->ribbonFont);
         t->id = kRibbonTabIdBase + i;
         t->textColor = fg;
         t->onClick = MkFunc1(OnRibbonTabClicked, win);
         VecAppend(tb->ribbonTabs, t);
-    }
-    for (int pos = 0; pos < RibbonPageCount(); pos++) {
-        tabRow->AddChild(tb->ribbonTabs[(int)RibbonPageAtTab(pos)]);
+        tabRow->AddChild(t);
     }
     tabRow->AddChild(new VirtSpacer(0, 0), 1);
     auto* nav = new HBox();
     nav->alignCross = CrossAxisAlign::CrossCenter;
     nav->rtl = rtl;
     tabRow->AddChild(nav);
+    tabRow->AddChild(new Padding(NewTopBarSearchBox(win), Insets{0, DpiScale(8), 0, DpiScale(12)}));
+    tabRow->AddChild(NewTopBarButton(win, gLucideInfo, CmdProperties, {}, Tr("Document properties")));
+    tabRow->AddChild(NewTopBarButton(win, gLucideSave, CmdSaveAnnotations, {}, Tr("Save changes to the PDF")));
+    tabRow->AddChild(NewTopBarButton(win, gLucidePrinter, CmdPrint, {}, Tr("Print")));
 
     // Home: the classic toolbar's buttons, as large ribbon buttons
     HBox* home = NewRibbonPanel();
@@ -3853,17 +3963,17 @@ static void BuildToolbarLayout(MainWindow* win) {
     for (ILayout* panel : tb->ribbonPanels) {
         panels->AddChild(panel);
     }
-    ShowRibbonPage(tb, limitValue(win->ribbonPage, 0, len(tb->ribbonPanels) - 1));
-
     int padX = DpiScale(8);
     int padY = DpiScale(4);
     tb->ribbonTabRowDy = std::max(RibbonTabDy(tb->ribbonFont), tb->rowDy);
-    tb->ribbonDy = tb->ribbonTabRowDy + padY + btnDy + padY + 1;
+    tb->ribbonPanelsDy = padY + btnDy + padY;
+    tb->ribbonPanelsRow = new Padding(panels, Insets{padY, padX, padY + 1, padX});
+    ShowRibbonPage(tb, limitValue(win->ribbonPage, 0, len(tb->ribbonPanels) - 1));
 
     auto* root = new VBox();
     root->alignCross = CrossAxisAlign::Stretch;
     root->AddChild(new Padding(tabRow, Insets{0, padX, 0, DpiScale(4)}));
-    root->AddChild(new Padding(panels, Insets{padY, padX, padY + 1, padX}));
+    root->AddChild(tb->ribbonPanelsRow);
     tb->host->SetLayout(root);
 }
 

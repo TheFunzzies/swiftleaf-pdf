@@ -354,6 +354,52 @@ int RibbonPageCount() {
     return (int)RibbonPage::Count;
 }
 
+static const Str gModeNames[] = {
+    TrN("All tools"), TrN("Read"), TrN("Edit"), TrN("Convert"), TrN("E-Sign"),
+};
+static_assert(dimof(gModeNames) == (int)RibbonMode::Count);
+
+static const RibbonPage gModePages[] = {
+    RibbonPage::Home, RibbonPage::View, RibbonPage::Edit, RibbonPage::Organize, RibbonPage::FormsSign,
+};
+static_assert(dimof(gModePages) == (int)RibbonMode::Count);
+
+int RibbonModeCount() {
+    return (int)RibbonMode::Count;
+}
+
+Str RibbonModeName(RibbonMode mode) {
+    return trans::GetTranslation(gModeNames[(int)mode]);
+}
+
+RibbonPage RibbonModePage(RibbonMode mode) {
+    return gModePages[(int)mode];
+}
+
+// pages without a tab of their own light the tab of the closest mode
+int RibbonModeForPage(RibbonPage page) {
+    switch (page) {
+        case RibbonPage::Comment:
+            return (int)RibbonMode::Edit;
+        case RibbonPage::Protect:
+            return (int)RibbonMode::ESign;
+        default:
+            break;
+    }
+    for (int i = 0; i < (int)RibbonMode::Count; i++) {
+        if (gModePages[i] == page) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Home is All tools: like PDFCraft, its tools are in the left panel and the
+// floating tool strip, so the top bar stands alone
+bool RibbonPageHasPanel(RibbonPage page) {
+    return page != RibbonPage::Home;
+}
+
 Str RibbonPageName(RibbonPage page) {
     return trans::GetTranslation(gPageNames[(int)page]);
 }
@@ -868,7 +914,7 @@ Size RibbonTabRow::Layout(Constraints bc) {
             }
         }
     }
-    // Reclaim tab padding before page navigation is pushed outside the window.
+    // Reclaim tab padding before the right-hand controls are pushed outside the window.
     int width = MinIntrinsicWidth(bc.max.dy);
     if (nTabs > 0 && bc.HasBoundedWidth() && width > bc.max.dx) {
         int sides = nTabs * 2;
@@ -881,4 +927,84 @@ Size RibbonTabRow::Layout(Constraints bc) {
         }
     }
     return HBox::Layout(bc);
+}
+
+//--- RibbonSearchBox
+
+static Kind kindRibbonSearchBox = "ribbonSearchBox";
+
+// PDFCraft: a pill 36 px high, 12 px padding, icon then placeholder
+constexpr int kSearchBoxDx = 300;
+constexpr int kSearchBoxMinDx = 160;
+constexpr int kSearchBoxPadX = 12;
+constexpr int kSearchBoxPadY = 7;
+constexpr int kSearchBoxIconGap = 8;
+
+RibbonSearchBox::RibbonSearchBox(Str ph, Str sc, PlatformFont* f) {
+    kind = kindRibbonSearchBox;
+    placeholder = str::Dup(ph);
+    shortcut = str::Dup(sc);
+    font = f;
+    cursor = CursorId::Hand;
+    onMouseEnter = MkMethod0<RibbonSearchBox, &RibbonSearchBox::OnHoverChanged>(this);
+    onMouseLeave = MkMethod0<RibbonSearchBox, &RibbonSearchBox::OnHoverChanged>(this);
+}
+
+RibbonSearchBox::~RibbonSearchBox() {
+    str::Free(placeholder);
+    str::Free(shortcut);
+}
+
+void RibbonSearchBox::OnHoverChanged() {
+    Invalidate();
+}
+
+Size RibbonSearchBox::GetIdealSize() {
+    int dy = PlatformFontLineHeight(font) + 2 * DpiScale(kSearchBoxPadY);
+    return {DpiScale(kSearchBoxDx), dy};
+}
+
+void RibbonSearchBox::Paint(VirtPaintCtx& ctx) {
+    const M3Scheme& m3 = M3();
+    Rect r = ctx.bounds;
+    if (r.dx < DpiScale(kSearchBoxMinDx)) {
+        // too narrow for the text: the icon alone still opens the palette
+        r.x += r.dx - std::min(r.dx, r.dy);
+        r.dx = std::min(r.dx, r.dy);
+    }
+    bool hot = HasFlag(vwfHovered) || HasFlag(vwfPressed);
+    Color bg = m3.surfaceContainerLowest;
+    Color border = hot ? m3.primary : m3.outline;
+    ctx.gfx->FillRoundedRect(r, r.dy, bg, border);
+
+    int padX = DpiScale(kSearchBoxPadX);
+    int x = r.x + padX;
+    if (icon) {
+        ctx.gfx->DrawPixmap(icon, {x, r.y + (r.dy - icon->height) / 2, icon->width, icon->height});
+        x += icon->width + DpiScale(kSearchBoxIconGap);
+    }
+    int right = r.Right() - padX;
+    if (x >= right) {
+        return;
+    }
+    Color dim = M3StateLayer(bg, m3.onSurface, 55);
+    if (len(shortcut) > 0) {
+        int scDx = PlatformFontMeasureText(font, shortcut).dx;
+        Rect rs{right - scDx, r.y, scDx, r.dy};
+        ctx.gfx->DrawText(shortcut, rs, gfxTextRight | gfxTextVCenter | gfxTextSingleLine, font,
+                          M3StateLayer(bg, m3.onSurface, 40));
+        right -= scDx + DpiScale(kSearchBoxIconGap);
+    }
+    if (right > x) {
+        Rect rt{x, r.y, right - x, r.dy};
+        ctx.gfx->DrawText(placeholder, rt, gfxTextLeft | gfxTextVCenter | gfxTextSingleLine | gfxTextEllipsis, font,
+                          dim);
+    }
+}
+
+RibbonSearchBox* AsRibbonSearchBox(ILayout* l) {
+    if (l && l->GetKind() == kindRibbonSearchBox) {
+        return (RibbonSearchBox*)l;
+    }
+    return nullptr;
 }
