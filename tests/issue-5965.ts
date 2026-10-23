@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5965
+// Test for upstream issues #5965
 //
 // Sign Document used to accept only a .pfx / .p12 file. It now lists
 // certificates from the current user's Windows store and can sign with one
@@ -13,10 +13,10 @@
 
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, ROOT, runStandalone, tmpPath } from "./util.ts";
 
-const kCertSubject = "CN=SumatraPDF StoreSignTest";
+const kCertSubject = "CN=SwiftLeaf StoreSignTest";
 
 function findToolExe(): string | null {
   const candidates = [
@@ -132,7 +132,7 @@ export async function testit(): Promise<void> {
   rmSync(signed, { force: true });
 
   try {
-    await withControlledSumatra(EXE, async (client) => {
+    await withControlledApp(EXE, async (client) => {
       const listed = await client.request(ControlCommand.TestListSigningCerts);
       const listRaw = String(listed[1] ?? "");
       if (listed[0] !== 0) {

@@ -152,7 +152,7 @@ static void GetProgramInfo(str::Builder& b) {
     b.Append(StrL("\n"));
 
     if (gitCommidId) {
-        b.Append(fmt("Git: %s (https://github.com/sumatrapdfreader/sumatrapdf/commit/%s)\n", gitCommidId, gitCommidId));
+        b.Append(fmt("Git: %s (https://github.com/TheFunzzies/swiftleaf-pdf/commit/%s)\n", gitCommidId, gitCommidId));
     }
 }
 
@@ -166,13 +166,13 @@ static void ShowCrashHandlerMessage() {
         return;
     }
 #if OS_WIN
-    Str msg = StrL("SumatraPDF crashed.\n\nPress 'Cancel' to see the crash report.");
+    Str msg = StrL("SwiftLeaf crashed.\n\nPress 'Cancel' to see the crash report.");
     uint flags = MB_ICONERROR | MB_OKCANCEL | MB_SETFOREGROUND | MB_TOPMOST;
-    int res = MessageBoxW(nullptr, CWStrTemp(msg), L"SumatraPDF crashed", flags);
+    int res = MessageBoxW(nullptr, CWStrTemp(msg), L"SwiftLeaf crashed", flags);
     if (IDCANCEL != res) {
         return;
     }
-    LaunchFileShell(StrL("https://www.sumatrapdfreader.org/docs/Submit-crash-report.html"), {}, StrL("open"));
+    LaunchFileShell(StrL("https://github.com/TheFunzzies/swiftleaf-pdf"), {}, StrL("open"));
 #endif
 }
 

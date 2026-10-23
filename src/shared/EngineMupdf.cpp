@@ -293,7 +293,7 @@ static NO_INLINE RectF FzGetRectF(fz_link* link) {
     return {};
 }
 
-// Map a MuPDF/Adobe link destination to Sumatra rect + zoom for ScrollTo.
+// Map a MuPDF/Adobe link destination to SwiftLeaf rect + zoom for ScrollTo.
 // zoomOut: 0 = leave zoom; >0 absolute fraction (1 = 100%); negative =
 // virtual modes (kZoomFitPage / FitWidth / FitContent). (issue #5828)
 static void DestFromFzLinkDest(const fz_link_dest& ldest, RectF* rectOut, float* zoomOut) {
@@ -426,7 +426,7 @@ static int ResolveLinkChapterOnly(fz_context* ctx, fz_document* doc, Str uri) {
 
 // MuPDF html/md link URIs for relative hrefs are built with an empty base file,
 // so e.g. [other](other.md) becomes "/other.md". Treat those like the HTML
-// ebook engine: launch a local file Sumatra can open.
+// ebook engine: launch a local file SwiftLeaf can open.
 static void SkipLeadingPathSeparators(Str& path) {
     while (len(path) > 0 && (path.s[0] == '/' || path.s[0] == '\\')) {
         path.s++;
@@ -2442,7 +2442,7 @@ extern "C" char* pdf_parse_link_dest(fz_context* ctx, pdf_document* doc, pdf_obj
 // every other subtype). A PDF can just as well navigate from a pushbutton form
 // field: a /Widget annotation with a GoTo or URI action, which is how documents
 // produced by Acrobat draw "back to where you came from" arrows. Those are
-// followed by Acrobat and by browsers, and by SumatraPDF up to 3.1.2. Give them
+// followed by Acrobat and by browsers, and by SwiftLeaf up to 3.1.2. Give them
 // the same fz_links a /Link annotation gets, so they hover, click, and follow
 // like any other link (fixes #1914).
 static fz_link* MakePushButtonWidgetLinks(fz_context* ctx, pdf_document* doc, pdf_page* pdfpage, int pageNo) {
@@ -3867,7 +3867,7 @@ bool EngineMupdf::Load(Str path, PasswordUI* pwdUI) {
     return FinishLoading();
 }
 
-// is implemented in SumatraPDF.exe, PdfFilter and PdfPreview
+// is implemented in Swiftleaf.exe, PdfFilter and PdfPreview
 // TODO: allow setting per
 extern EBookUI* GetEBookUI();
 // per-document overrides (FileStates -> EBookUI), null unless the document has them
@@ -5204,7 +5204,7 @@ TocItem* EngineMupdf::BuildTocTree(TocItem* parent, fz_outline* outline, int& id
 }
 
 // Outline entries can ask for a color (/C) and for bold / italic (/F), and
-// SumatraPDF draws the bookmarks tree with them. fz_load_outline() throws that
+// SwiftLeaf draws the bookmarks tree with them. fz_load_outline() throws that
 // away: converting the outline iterator into fz_outline nodes copies the title,
 // the uri and is_open but not flags / r / g / b, so every entry comes out
 // unstyled (regression since we moved to that mupdf API, issue #3560). Walking
@@ -5746,7 +5746,7 @@ static IPageElement* NewFzComment(Str comment, int pageNo, RectF rect) {
     return res;
 }
 
-// An old SumatraPDF round-trip bug grew the line separator in annotation
+// An old SwiftLeaf round-trip bug grew the line separator in annotation
 // contents by one CR on every save: "\r\n" became "\r\r\n", then "\r\r\r\n" and
 // so on. GDI draws each of those as its own break, so a short note renders as a
 // tall column of blank lines (issue #2873). No producer writes a CR run before a
@@ -9487,7 +9487,7 @@ static void InvalidateFzPageAfterContentChange(EngineMupdf* e, FzPageInfo* pi) {
 }
 
 // Apply every /Redact annotation: rewrite the page content, drop the marks,
-// and return the Sumatra wrappers that MuPDF deleted (caller must Detach +
+// and return the SwiftLeaf wrappers that MuPDF deleted (caller must Detach +
 // DeleteAnnotation). Incremental save is unsafe afterwards; pdfdoc->redacted
 // already forces a full rewrite in EngineMupdfSaveUpdated.
 bool EngineMupdfApplyRedactions(EngineBase* engine, Vec<Annotation*>& deletedOut) {

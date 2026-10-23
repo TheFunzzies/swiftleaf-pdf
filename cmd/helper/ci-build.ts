@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, writeFileSync, statSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createHmac, createHash } from "node:crypto";
-import { getGitLinearVersion, extractSumatraVersion, runLogged, getGitSha1, detectVisualStudio2026 } from "../util";
+import { getGitLinearVersion, extractAppVersion, runLogged, getGitSha1, detectVisualStudio2026 } from "../util";
 
 // const { msbuildPath, llvmPdbutilPath } = detectVisualStudio2022();
 // const slnPath = join("vs2022", "SumatraPDF.sln");
@@ -222,7 +222,7 @@ async function buildPreRelease(preRelVer: string, sha1: string, vsplatform: stri
   try {
     const p = `/p:Configuration=Release;Platform=${vsplatform}`;
 
-    // unit tests are compiled into SumatraPDF only in Debug builds (skip for ARM64)
+    // unit tests are compiled into SwiftLeaf only in Debug builds (skip for ARM64)
     if (vsplatform !== "ARM64") {
       const kind = vsplatform === "Win32" ? "-32" : "-dbg";
       await runLogged("bun", [join("cmd", "run-unit-tests.ts"), kind]);
@@ -233,7 +233,7 @@ async function buildPreRelease(preRelVer: string, sha1: string, vsplatform: stri
     const targets = [
       "PdfFilter",
       "PdfPreview",
-      "SumatraPDF",
+      "SwiftLeaf",
       "SumatraPDF-static",
       String.raw`tools\logview`,
       String.raw`tools\MakeLZSA`,
@@ -267,7 +267,7 @@ async function buildSmoke(): Promise<void> {
   await runLogged(msbuildPath, [slnPath, t, p, `/m`]);
 
   const outDir = join("out", "rel64");
-  // unit tests are compiled into the debug SumatraPDF only
+  // unit tests are compiled into the debug SwiftLeaf only
   await runLogged("bun", [join("cmd", "run-unit-tests.ts"), "-dbg"]);
 
   // create PDB LZSA
@@ -369,10 +369,10 @@ export async function buildCi() {
 
   const preRelVer = String(await getGitLinearVersion());
   const sha1 = await getGitSha1();
-  const sumatraVer = extractSumatraVersion();
+  const appVer = extractAppVersion();
   console.log(`preReleaseVer: '${preRelVer}'`);
   console.log(`gitSha1: '${sha1}'`);
-  console.log(`sumatraVersion: '${sumatraVer}'`);
+  console.log(`appVersion: '${appVer}'`);
 
   const eventType = getGitHubEventType();
   console.log(`GitHub event type: ${eventType}`);

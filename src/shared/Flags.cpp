@@ -99,7 +99,7 @@ void ShowPrintersDialog(bool consoleOnly) {
         }
     }
     if (!consoleOnly) {
-        ShowTextInWindowDialog(Tr("SumatraPDF - Show Printers"), ToStr(out));
+        ShowTextInWindowDialog(Tr("SwiftLeaf - Show Printers"), ToStr(out));
     }
 }
 #else
@@ -280,7 +280,7 @@ static Arg GetArg(Str s) {
 
 // https://stackoverflow.com/questions/619158/adobe-reader-command-line-reference
 // https://www.robvanderwoude.com/commandlineswitches.php#Acrobat
-// with Sumatra extensions
+// with SwiftLeaf extensions
 static void ParseAdobeFlags(FileArgs& i, Str s) {
     StrVec parts;
     StrVec parts2;
@@ -347,7 +347,7 @@ static void ParseAdobeFlags(FileArgs& i, Str s) {
         // highlight=lrt,rt,top,btm
         // fdf=URL
 
-        // those are Sumatra additions
+        // those are SwiftLeaf additions
 
         if (str::EqI(name, StrL("annotatt")) && valN > 0) {
             // for annotations that are attachments this is pdf object number
@@ -410,7 +410,7 @@ static void ParseFlagNodes(Arena* a, StrNode* firstArg, Flags& i, Str toolNames)
     for (StrNode* argNode = firstArg; argNode; argNode = nextArg) {
         Str argName = argNode->s;
         nextArg = argNode->next;
-        // we register SumatraPDF with "%1" "%2" "%3" "%4"
+        // we register SwiftLeaf with "%1" "%2" "%3" "%4"
         // for some reason that makes Directory Opus "Open With" provide the file twice
         // and gives "%3" and "%4' on cmd-line.
         // this is a hack to ignore that
@@ -725,7 +725,7 @@ static void ParseFlagNodes(Arena* a, StrNode* firstArg, Flags& i, Str toolNames)
         if (arg == Arg::Plugin) {
             // -plugin [<URL>] <parent HWND>
             // <parent HWND> is a (numeric) window handle to
-            // become the parent of a frameless SumatraPDF
+            // become the parent of a frameless SwiftLeaf
             // (used e.g. for embedding it into a browser plugin)
             if (AdditionalParam(nextArg) && !str::IsDigit(param.s[0])) {
                 i.pluginURL = str::Dup(a, param);

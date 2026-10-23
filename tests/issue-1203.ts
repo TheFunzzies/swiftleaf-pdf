@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/1203
+// Test for upstream issues #1203
 //
 // ClickEdgeToTurnPage: a click (not a drag) on the left fifth of the canvas
 // goes to the previous page, the right fifth to the next page.
@@ -7,7 +7,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { clickAt, findCanvas, waitForFrame } from "./win-automation.ts";
 import { getClientRect } from "./winapi.ts";
 import { EXE, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
@@ -140,7 +140,7 @@ export async function testit(): Promise<void> {
   mkdirSync(onDir, { recursive: true });
   writeFileSync(join(onDir, "SumatraPDF-settings.txt"), `${SETTINGS_HEAD}ClickEdgeToTurnPage = true\n`);
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       await client.setNotificationsEnabled(false);
@@ -166,7 +166,7 @@ export async function testit(): Promise<void> {
   mkdirSync(offDir, { recursive: true });
   writeFileSync(join(offDir, "SumatraPDF-settings.txt"), `${SETTINGS_HEAD}ClickEdgeToTurnPage = false\n`);
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       await client.setNotificationsEnabled(false);

@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/1189
+// Test for upstream issues #1189
 //
 // Search should find words that are split across a line break with a hyphen
 // (end-of-line hyphenation / soft hyphen). The fixture PDF has "hyphen-" on
@@ -9,7 +9,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { EXE, runStandalone } from "./util.ts";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 
 const PDF = join(import.meta.dir, "issue-1189.pdf");
 
@@ -21,7 +21,7 @@ export async function testit(): Promise<void> {
     throw new Error(`test pdf not found: ${PDF}`);
   }
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const search = async (needle: string): Promise<string> => {
       const [, rawArg] = await client.request(ControlCommand.TestSearch, [PDF, needle]);
       return String(rawArg).trim();

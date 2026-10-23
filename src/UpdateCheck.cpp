@@ -1343,7 +1343,7 @@ void UpdateTempFileTests() {
     utassert(IsUpdateTempFileName(StrL("sum17E3.tmp.exe")));
     utassert(IsUpdateTempFileName(StrL("SUM17e3.TMP.EXE")));
     utassert(!IsUpdateTempFileName(StrL("sum17E3.tmp.exe.bak")));
-    utassert(!IsUpdateTempFileName(StrL("SumatraPDF.exe")));
+    utassert(!IsUpdateTempFileName(StrL("Swiftleaf.exe")));
     utassert(!IsUpdateTempFileName(StrL("sum.tmp.exe")));
     utassert(!IsUpdateTempFileName(StrL("sum17E.tmp.exe")));
     utassert(!IsUpdateTempFileName(StrL("sumatra.tmp.exe")));

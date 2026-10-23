@@ -19,7 +19,7 @@ punctuation is dropped, each space becomes its own dash.
 
 ## Links
 
-A [relative link](test.md) and an [external one](https://www.sumatrapdfreader.org/).
+A [relative link](test.md) and an [external one](https://github.com/TheFunzzies/swiftleaf-pdf).
 
 ## Code
 

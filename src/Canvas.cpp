@@ -5164,7 +5164,7 @@ static LRESULT OnGesture(MainWindow* win, UINT msg, WPARAM wp, LPARAM lp) {
             if (gi.dwFlags == GF_END && dm) {
                 // This is in radians
                 double rads = GID_ROTATE_ANGLE_FROM_ARGUMENT(LowerU64(gi.ullArguments));
-                // The angle from the rotate is the opposite of the Sumatra rotate, thus the negative
+                // The angle from the rotate is the opposite of the SwiftLeaf rotate, thus the negative
                 double degrees = -rads * 180 / M_PI;
 
                 // Playing with the app, I found that I often didn't go quit a full 90 or 180

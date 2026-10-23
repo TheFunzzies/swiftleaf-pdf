@@ -3,7 +3,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath, assemblePdf } from "./util.ts";
 
 function makePdf(): string {
@@ -43,7 +43,7 @@ async function readComments(pdf: string, mode: AuthorMode): Promise<string[]> {
   const settings = showAuthor ? "ShowAnnotationAuthorInTooltip = true\n" : "";
   writeFileSync(join(appdata, "SumatraPDF-settings.txt"), settings);
 
-  const raw = await withControlledSumatra(
+  const raw = await withControlledApp(
     EXE,
     async (client: ControlClient) => {
       const res = await client.request(ControlCommand.TestPageComments, [pdf, 1]);

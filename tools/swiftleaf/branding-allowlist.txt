@@ -1,0 +1,110 @@
+# Allowlist for tools/swiftleaf/check-branding.ts
+# Path globs skip a file entirely. "@token X" masks the literal X on every scanned line.
+# Goal: shrink this file to credits only.
+
+# --- Credits / license (permanent) ---
+README.md
+AUTHORS
+COPYING
+COPYING.BSD
+docs/upstream-readme.md
+CHANGELOG.md
+ext/**
+
+# --- TEMP: identifiers (remove when src is renamed) ---
+src/**
+vs2022/**
+premake*.lua
+
+# --- TEMP: tooling that must keep upstream build/target/file names until src is renamed ---
+.clangd
+.clang-tidy
+.vscode/**
+docs/sumatra.css
+docs/test/SumatraPDF-settings.txt
+docs/test/form.pdf
+docs/archive/**
+tests/chm-dump-all-baseline.txt
+tests/issue-5677.pdf
+tools/swiftleaf/check-branding.ts
+tools/swiftleaf/branding-allowlist.txt
+
+# --- TEMP: identifiers that code/build still depends on ---
+@token SumatraPDF-settings.txt
+@token SumatraPDF-static
+@token SumatraPDF-dll
+@token SumatraPDF.sln
+@token SumatraPDF.pdb
+@token SumatraPDF.cpp
+@token SumatraPDF.rc
+@token SumatraPDF.h
+@token SumatraPDF.vcxproj
+@token SumatraPDF.prebuild
+@token SumatraPDF-globals
+@token SumatraPDF-classes
+@token SumatraPDF-documentation
+@token SumatraPDF-all-docs
+@token SumatraPDF_testkit
+@token SumatraPDF_prerel
+@token SumatraPDF_ThumbnailNavigation
+@token SumatraPDF-prerel
+@token /t:SumatraPDF
+@token libsumatrapdf
+@token sumatrapdf-tool
+@token SUMATRA_
+@token SumatraWgDefaultWinClass
+@token SumatraAnnotEditToolbar
+@token SumatraAnnotColorPopup
+@token SumatraToolbarHoverMenu
+@token SumatraScreenshotOverlay
+@token SumatraManualTheme
+@token SumatraAppTheme
+@token SumatraTheme
+@token __sumatra__
+@token SumatraLog
+@token SumatraControl
+@token SumatraConfig
+@token SumatraDialogs
+@token SumatraProperties
+@token SumatraTest
+@token SumatraCrashHandler
+@token Sumatra_ut
+@token SumatraDict
+@token sumatrapdfcache
+@token sumatrapdfrestrict
+@token sumatra_hb_
+@token noto_sumatra
+@token sumatra_bitdepth
+@token sumatra.css
+@token updateSumatraWebsite
+@token sumatra-website
+@token sumatra-screenshots-files
+@token sumatra-next-file-50k
+@token sumatra.log
+@token sumatrapdf.env
+@token sumatrapdf_files
+@token sumatrapdf-build-artifacts
+@token sumatrapdf/sumpdf-
+@token sumatrapdf-plus
+@token SumatraPDF-smaller.ico
+@token ImageEditHostSumatra
+@token CmdOpenFileWithSumatraFilePicker
+@token heap_overflow_sumatrapdf
+@token sumatrapdf.markdown
+@token !sumatra
+@token sumatrapdfreader
+@token assets/sumatrapdf
+@token or sumatrapdf (
+@token os, sumatrapdf
+@token apptranslator.org/app/SumatraPDF
+@token AppTranslator: SumatraPDF
+@token SumatraPDF:Rebuild
+@token obj/SumatraPDF/SumatraPDF.prebuild
+@token obj\/SumatraPDF\/SumatraPDF\.prebuild
+@token \SumatraPDF
+@token dbg/SumatraPDF
+@token \0SumatraPDF
+@token "SUMATRA"
+@token const APP = "sumatrapdf"
+@token SumatraPDF-${
+@token /sumatrapdf\\(src

@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/4839
+// Regression test for upstream issues #4839
 //
 // Selection of rotated PDF text must follow the glyph quads, not an
 // axis-aligned box around them.

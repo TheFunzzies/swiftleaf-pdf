@@ -37,7 +37,7 @@ function exeFromArgv(argv: string[]): string {
   };
   const path = argv[i + 1];
   if (!path || path.startsWith("-")) {
-    bail("expected a path to Swiftleaf.exe or SumatraPDF.exe");
+    bail("expected a path to Swiftleaf.exe or Swiftleaf.exe");
   }
   const full = resolve(path!);
   if (!existsSync(full) || !statSync(full).isFile()) {
@@ -51,8 +51,8 @@ function exeFromArgv(argv: string[]): string {
   const ps = `(Get-Item -LiteralPath '${full.replaceAll("'", "''")}').VersionInfo.ProductName`;
   const p = Bun.spawnSync(["powershell", "-NoProfile", "-Command", ps]);
   const product = p.stdout.toString().trim();
-  if (!/^(Swiftleaf|SumatraPDF)$/i.test(product)) {
-    bail(`not a Swiftleaf or SumatraPDF executable (ProductName is '${product}'): ${full}`);
+  if (!/^(Swiftleaf|SwiftLeaf)$/i.test(product)) {
+    bail(`not a Swiftleaf or SwiftLeaf executable (ProductName is '${product}'): ${full}`);
   }
   return full;
 }
@@ -579,7 +579,7 @@ export async function runTest(name: string, fn: () => void | Promise<void>, opts
     const ctx = await failureContext();
     if (ctx) {
       msg += `
-SumatraPDF stderr:
+SwiftLeaf stderr:
 ${ctx}`;
     }
     throw new Error(`${name} failed after ${formatDuration(performance.now() - t0)}: ${msg}`);
@@ -657,10 +657,10 @@ export async function runSuiteMain(testit: (opts: SuiteOptions) => Promise<void>
   process.exit(0);
 }
 
-// build SumatraPDF.exe the same way cmd/build.ts does
+// build Swiftleaf.exe the same way cmd/build.ts does
 export function buildApp(opts?: { silent?: boolean }): void {
   if (!opts?.silent) {
-    console.log("• building SumatraPDF.exe (cmd/build.ts) ...");
+    console.log("• building Swiftleaf.exe (cmd/build.ts) ...");
   }
   const p = Bun.spawnSync({
     cmd: ["bun", join(ROOT, "cmd", "build.ts"), "-dbg"],

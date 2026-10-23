@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5353
+// Test for upstream issues #5353
 //
 // Verifies -print-settings "portrait" / "landscape" set printer paper orientation.
 //

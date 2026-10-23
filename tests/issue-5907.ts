@@ -43,7 +43,7 @@ async function openAndClose(dir: string): Promise<void> {
     await client.waitForRenderIdle();
     postMessage(frame, WM_CLOSE, 0, 0);
     if (!(await waitForExit(proc))) {
-      throw new Error("issue-5907: SumatraPDF didn't exit after WM_CLOSE");
+      throw new Error("issue-5907: SwiftLeaf didn't exit after WM_CLOSE");
     }
   } finally {
     client.close();

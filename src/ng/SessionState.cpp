@@ -4,7 +4,7 @@
 // ng: the session snapshot and session restore. orig has the snapshot half in
 // AppSettings.cpp and the restore half in SumatraPDF.cpp; both need MainWindow
 // / WindowTab, which the `app` static library must not depend on (it links
-// into the console tools too), so they live here, in the SumatraPDF target.
+// into the console tools too), so they live here, in the SwiftLeaf target.
 // The code is orig's.
 
 #include "base/Base.h"

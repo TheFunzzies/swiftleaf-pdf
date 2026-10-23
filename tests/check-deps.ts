@@ -1,4 +1,4 @@
-// Reports dependencies needed to run SumatraPDF tests, especially LaTeX/SyncTeX
+// Reports dependencies needed to run SwiftLeaf tests, especially LaTeX/SyncTeX
 // integration tests (tests/latex.ts).
 //
 // Run:  bun tests/check-deps.ts
@@ -113,9 +113,9 @@ function checkCore(): Dep[] {
   const deps: Dep[] = [];
   deps.push(
     existsSync(EXE)
-      ? { name: "SumatraPDF.exe (dbg64)", ok: true, detail: EXE }
+      ? { name: "Swiftleaf.exe (dbg64)", ok: true, detail: EXE }
       : {
-          name: "SumatraPDF.exe (dbg64)",
+          name: "Swiftleaf.exe (dbg64)",
           ok: false,
           install: "bun cmd/build.ts -dbg",
         },
@@ -291,7 +291,7 @@ function printLatexSummary(latex: Dep[]): void {
 }
 
 function main(): void {
-  console.log("SumatraPDF test dependencies\n");
+  console.log("SwiftLeaf test dependencies\n");
 
   const core = checkCore();
   const latex = checkLatex();

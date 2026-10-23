@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5065
+// Test for upstream issues #5065
 //
 // Verifies -print-settings "docname=..." sets the Windows print document name.
 //

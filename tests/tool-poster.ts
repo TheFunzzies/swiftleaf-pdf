@@ -1,4 +1,4 @@
-// `SumatraPDF poster` (mupdf's pdfposter) splits each page into tiles. It used
+// `SwiftLeaf poster` (mupdf's pdfposter) splits each page into tiles. It used
 // to fail on every file with "malformed page tree".
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";

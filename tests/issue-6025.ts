@@ -1,4 +1,4 @@
-// #6025: installer SUMATRAPDF letters overflowed the window at 150% on
+// #6025: installer title letters overflowed the window at 150% on
 // Windows 7. GDI+ Font UnitPoint used a different DPI than DpiScale() of the
 // already-sized window. 75% is the revert detector on a 96-DPI machine: GDI+
 // stays at 96 while our layout DPI is 72, so UnitPoint letters stay large and

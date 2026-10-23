@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6245
+// Test for upstream issues #6245
 //
 // Comics with JPEG XL pages were slow to page through and zoom.
 //
@@ -21,7 +21,7 @@ import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
-import { ControlCommand, withControlledSumatra, type ControlClient } from "./control.ts";
+import { ControlCommand, withControlledApp, type ControlClient } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const DATA = join(dirname(fileURLToPath(import.meta.url)), "issue-6245-data");
@@ -123,7 +123,7 @@ export async function testit(): Promise<void> {
   const png = tmpPath("issue-6245.png");
   writeFileSync(png, makeSolidPng(PNG_W, PNG_H, PNG_RGB));
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     for (const zoom of MISMATCH_ZOOMS) {
       const r = await render(client, png, zoom, kClipFullPageTile);
       if (r.w !== r.tileW || r.h !== r.tileH) {

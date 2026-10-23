@@ -27,7 +27,7 @@ void FileUtilTest() {
     Str path1 = StrL("C:\\Program Files\\SumatraPDF\\SumatraPDF.exe");
 
     TempStr baseName = path::GetBaseNameTemp(path1);
-    utassert(str::Eq(baseName, StrL("SumatraPDF.exe")));
+    utassert(str::Eq(baseName, StrL("Swiftleaf.exe")));
 
     TempStr dirName = path::GetDirTemp(path1);
     utassert(str::Eq(dirName, StrL("C:\\Program Files\\SumatraPDF")));

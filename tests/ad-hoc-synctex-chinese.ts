@@ -1,10 +1,10 @@
-// Ad-hoc verification for https://github.com/sumatrapdfreader/sumatrapdf/issues/4567
+// Ad-hoc verification for upstream issues #4567
 // "Forward-search doesn't work when there're Chinese characters in the path."
 //
 // Builds a real LaTeX project inside a directory whose path contains Chinese
 // characters, produces test.pdf + test.synctex, and runs the app's headless
 // forward-search (SourceToDoc via the -dbg-control TestSynctex command). A
-// success means SumatraPDF resolved the source line to a PDF rectangle despite
+// success means SwiftLeaf resolved the source line to a PDF rectangle despite
 // the Chinese path.
 //
 // Notes on encoding (this machine's system ANSI code page is 1252 / Western):

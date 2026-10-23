@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6201
+// Regression test for upstream issues #6201
 //
 // ScrollEdgeTurnsPage = false keeps the wheel on the current page: scrolling a
 // zoomed-in page in single page view stops at its bottom instead of going to

@@ -90,11 +90,11 @@ static MenuDef menuDefFileOpen[] = {
         CmdOpenFileWithOSFilePicker,
     },
     {
-        TrN("Open using &SumatraPDF File Picker..."),
+        TrN("Open using &SwiftLeaf File Picker..."),
         CmdOpenFileWithSumatraFilePicker,
     },
     {
-        TrN("Use SumatraPDF File Picker"),
+        TrN("Use SwiftLeaf File Picker"),
         CmdToggleFilePicker,
     },
     {

@@ -9,9 +9,9 @@
   let mode = "search";
   let docsApi = null;
   const PLACEHOLDER_SEARCH = "Search documentation";
-  const PLACEHOLDER_ASK = "Ask a question about SumatraPDF e.g. 'How to configure keyboard shortcuts'";
+  const PLACEHOLDER_ASK = "Ask a question about SwiftLeaf e.g. 'How to configure keyboard shortcuts'";
   const ASK_PREFIX =
-    "This is a question about SumatraPDF application (https://www.sumatrapdfreader.org/docs/SumatraPDF-all-docs-for-llm-ai.md). Question: ";
+    "This is a question about SwiftLeaf application (https://github.com/TheFunzzies/swiftleaf-pdf). Question: ";
   const AI_URLS = {
     grok: "https://grok.com/?q=",
     chatgpt: "https://chatgpt.com/?q=",

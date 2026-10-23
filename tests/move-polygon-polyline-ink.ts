@@ -1,5 +1,5 @@
 // Polygon, polyline and ink annotations are stored as Vertices / InkList, not a
-// user-settable /Rect. Other PDF editors still let you drag them; Sumatra now
+// user-settable /Rect. Other PDF editors still let you drag them; SwiftLeaf now
 // translates that geometry on move. Dragging an annotation is an Edit PDF mode
 // gesture, so the test turns that mode on first.
 //

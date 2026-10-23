@@ -12,7 +12,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cmdId, runStandalone, tmpPath } from "./util.ts";
 import {
-  launchSumatra,
+  launchApp,
   waitForFrame,
   sendCommand,
   findCanvas,
@@ -83,8 +83,8 @@ export async function testit(): Promise<void> {
     throw new Error(`failed to set clipboard image: ${set.stderr.toString()}`);
   }
 
-  await killProcessesNamed("SumatraPDF.exe");
-  const proc = launchSumatra([pdf]);
+  await killProcessesNamed("Swiftleaf.exe");
+  const proc = launchApp([pdf]);
   try {
     const frame = await waitForFrame(proc.pid!);
     await sleep(1500);

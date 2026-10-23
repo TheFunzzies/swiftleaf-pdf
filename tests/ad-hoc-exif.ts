@@ -104,7 +104,7 @@ function filterComparable(relPath: string, lines: string[]): string[] {
 const SPAWN_TIMEOUT_MS = 120_000;
 
 async function runDumpExif(absPath: string): Promise<string[]> {
-  // stderr must not be piped without being read — SumatraPDF logs there and the
+  // stderr must not be piped without being read — SwiftLeaf logs there and the
   // child will block once the pipe buffer fills (issue #5677-style GUI/pipe issue).
   const proc = Bun.spawn({
     cmd: [EXE, "-for-testing", "-dump-exif", absPath],

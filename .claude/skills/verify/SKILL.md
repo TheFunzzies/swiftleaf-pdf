@@ -1,13 +1,13 @@
 ---
 name: verify
-description: Build, launch and drive SumatraPDF on Windows to verify a change end-to-end (GUI automation, screenshots, log capture).
+description: Build, launch and drive SwiftLeaf on Windows to verify a change end-to-end (GUI automation, screenshots, log capture).
 ---
 
-# Verifying SumatraPDF changes
+# Verifying SwiftLeaf changes
 
 ## Build & launch
 
-- Build: `bun ./cmd/build.ts -dbg` → `out/dbg64/SumatraPDF.exe` (the exe `tests/util.ts` EXE points at; `SumatraPDF-static.exe` is the static target and is usually stale).
+- Build: `bun ./cmd/build.ts -dbg` → `out/dbg64/Swiftleaf.exe` (the exe `tests/util.ts` EXE points at; `SumatraPDF-static.exe` is the static target and is usually stale).
 - If new source files were added to `premake5.files.lua` / `premake5.lua`, run `bun cmd/premake.ts` first to regenerate `vs2022/*.vcxproj`, or the build fails with stale projects / link errors.
 - Always launch with `-for-testing` (fresh instance, no session restore, doesn't touch user settings).
 - Capture engine/app logs: `-log -log-to-file <path>` (collects `logf` output).
@@ -17,11 +17,11 @@ description: Build, launch and drive SumatraPDF on Windows to verify a change en
 Injected SendInput is dropped on this machine; post window messages instead (see project memory `env-gui-automation`). Reuse the checked-in helpers from a bun script:
 
 ```ts
-const { launchSumatra, waitForFrame, findCanvas, sendCommand } = await import("<root>/tests/win-automation.ts");
+const { launchApp, waitForFrame, findCanvas, sendCommand } = await import("<root>/tests/win-automation.ts");
 const { captureWindowToPng, sleep, postMessage } = await import("<root>/tests/winapi.ts");
 const { cmdId } = await import("<root>/tests/util.ts");
 
-const proc = launchSumatra(["-log", "-log-to-file", logPath, pdfPath]);
+const proc = launchApp(["-log", "-log-to-file", logPath, pdfPath]);
 const frame = await waitForFrame(proc.pid!);
 await sleep(2500); // first render
 const canvas = findCanvas(frame);

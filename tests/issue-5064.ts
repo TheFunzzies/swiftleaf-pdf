@@ -4,7 +4,7 @@
 // horizontally after the link is followed (viewport was pinned to the left).
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 function buildWidePdfWithLink(): Buffer {
@@ -56,7 +56,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-5064.pdf");
   writeFileSync(pdfPath, buildWidePdfWithLink());
 
-  const result = await withControlledSumatra(EXE, (client) => requestWithRetry(client, 50), [pdfPath]);
+  const result = await withControlledApp(EXE, (client) => requestWithRetry(client, 50), [pdfPath]);
   console.log(`issue-5064: ${result}`);
 }
 

@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/3731
+// Test for upstream issues #3731
 //
 // A PDF can reference an image stored in a separate file via the stream's /F
 // (file specification) + /FFilter, with an empty embedded stream. mupdf has no
@@ -13,7 +13,7 @@
 
 import { mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 // build a PDF whose only image is an external-file stream (/F + /FFilter), with
@@ -67,7 +67,7 @@ function makeExternalImagePdf(imgName: string, w: number, h: number): Buffer {
 // spuriously push the denied case over the threshold.
 async function renderNonWhite(pdf: string, appdata: string): Promise<number> {
   let n = -1;
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.waitForRenderIdle();

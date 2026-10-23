@@ -1,4 +1,4 @@
-// Clicking a FileAttachment annotation whose file SumatraPDF can't open itself
+// Clicking a FileAttachment annotation whose file SwiftLeaf can't open itself
 // must do something: the file is extracted to the temp dir and handed to the
 // shell, or, for a type the shell isn't allowed to open, shown in the file
 // manager. The temp path used to be rejected as a URL, so nothing happened.

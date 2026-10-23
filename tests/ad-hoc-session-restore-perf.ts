@@ -9,7 +9,7 @@ import { ControlClient, ControlCommand, uniquePipeName } from "./control.ts";
 import { ROOT, tmpPath } from "./util.ts";
 import { killAndWait, waitForExit, waitForFrame, windowPosArgs } from "./win-automation.ts";
 
-const EXE = join(ROOT, "out", "prf64", "SumatraPDF.exe");
+const EXE = join(ROOT, "out", "prf64", "Swiftleaf.exe");
 const PDFS = [
   join(ROOT, "ext", "a-zlib", "zlib.3.pdf"),
   join(ROOT, "tests", "issue-1189.pdf"),
@@ -110,7 +110,7 @@ function printStats(title: string, rows: FnStat[]) {
 }
 
 async function launchProfile(args: string[]): Promise<{ proc: Bun.Subprocess; client: ControlClient }> {
-  const pipe = uniquePipeName("sumatra-prf-restore");
+  const pipe = uniquePipeName("swiftleaf-prf-restore");
   const proc = Bun.spawn([EXE, ...windowPosArgs(), "-dbg-control", pipe, ...args], {
     stdout: "ignore",
     stderr: "pipe",
@@ -122,7 +122,7 @@ async function launchProfile(args: string[]): Promise<{ proc: Bun.Subprocess; cl
   const frame = await waitForFrame(proc.pid!);
   if (!frame) {
     client.close();
-    throw new Error("profile SumatraPDF main window did not appear");
+    throw new Error("profile SwiftLeaf main window did not appear");
   }
   return { proc, client };
 }

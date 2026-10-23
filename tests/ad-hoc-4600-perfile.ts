@@ -10,7 +10,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { EXE, tmpPath } from "./util.ts";
 import { makeFixtures } from "./ad-hoc-issue-4600.ts";
-import { findCanvas, killAndWait, killProcessesNamed, launchSumatra, waitForFrame } from "./win-automation.ts";
+import { findCanvas, killAndWait, killProcessesNamed, launchApp, waitForFrame } from "./win-automation.ts";
 import { captureWindowPixels, moveWindow, setForegroundWindow, showWindow, sleep, SW_RESTORE } from "./winapi.ts";
 
 const EPUB_DIR = tmpPath("epub-font");
@@ -20,7 +20,7 @@ async function render(epub: string, settings: string): Promise<Uint8Array> {
   rmSync(appdata, { recursive: true, force: true });
   mkdirSync(appdata, { recursive: true });
   writeFileSync(join(appdata, "SumatraPDF-settings.txt"), settings);
-  const proc = launchSumatra(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", epub]);
+  const proc = launchApp(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", epub]);
   try {
     const frame = await waitForFrame(proc.pid!);
     if (!frame) {
@@ -71,7 +71,7 @@ function prefs(fileBlock: string, epub: string): string {
 
 export async function testit(): Promise<void> {
   makeFixtures();
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   const epub = join(EPUB_DIR, "none.epub");
 
   // baseline: global FontName only

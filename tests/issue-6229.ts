@@ -6,7 +6,7 @@
 // Run: bun tests/issue-6229.ts [--no-build]
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone } from "./util.ts";
 
 // 400x400, left quarter red, rest blue; regenerate with tests/issue-6229-make-fixture.py
@@ -27,7 +27,7 @@ function isBlue(c: number[]): boolean {
 }
 
 export async function testit(): Promise<void> {
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     for (const zoom of [200, 400]) {
       const res = await client.request(ControlCommand.TestImageRenderEdges, [JPG, zoom, RIGHT_HALF_TILE]);
       const raw = String(res[1] ?? "");

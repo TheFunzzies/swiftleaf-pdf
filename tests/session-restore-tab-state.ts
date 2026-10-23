@@ -61,7 +61,7 @@ SessionData [
 }
 
 export async function testit(): Promise<void> {
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   const dir = tmpPath("session-restore-tab-state");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });

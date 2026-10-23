@@ -11,7 +11,7 @@
 // the context menu performs and verifies the selection text is unchanged.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const LINE = "alpha beta gamma delta epsilon";
@@ -69,7 +69,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-5718.pdf");
   writeFileSync(pdfPath, buildPdf(LINE));
 
-  const result = await withControlledSumatra(EXE, (client) => requestWithRetry(client), [pdfPath]);
+  const result = await withControlledApp(EXE, (client) => requestWithRetry(client), [pdfPath]);
   console.log(`issue-5718: ${result}`);
 }
 

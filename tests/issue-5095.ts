@@ -14,7 +14,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { cmdId, EXE, runStandalone, tmpPath, assemblePdf } from "./util.ts";
 
 type Button = { visible: boolean; idx: number };
@@ -61,7 +61,7 @@ function buttonsByName(dump: string, cmds: string[]): Map<string, Button> {
 }
 
 async function readToolbar(appdata: string, pdf: string, cmds: string[]): Promise<Map<string, Button>> {
-  return withControlledSumatra(
+  return withControlledApp(
     EXE,
     async (client) => {
       const deadline = Date.now() + 15_000;

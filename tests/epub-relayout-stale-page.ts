@@ -32,7 +32,7 @@
 import { deflateRawSync } from "node:zlib";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, withControlledSumatra } from "./control.ts";
+import { ControlClient, withControlledApp } from "./control.ts";
 import { cmdId, EXE, runStandalone, tmpPath, writeAppdata } from "./util.ts";
 import { sendCommandSync, waitForFrame } from "./win-automation.ts";
 
@@ -214,7 +214,7 @@ async function runLayout(l: Layout, epub: string, epub2: string, log: string): P
   let deepPageCount = 0;
   let selParts = 0;
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

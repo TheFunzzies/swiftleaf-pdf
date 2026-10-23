@@ -58,7 +58,7 @@ ${tabState(MISSING_EPUB)}
 }
 
 export async function testit(): Promise<void> {
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   seedSettings();
   const { proc, client } = await launchControlled(["-appdata", APPDATA], { saveSettings: true });
   try {
@@ -80,7 +80,7 @@ export async function testit(): Promise<void> {
       throw new Error(`restore-chm-missing-tab: exit code ${exitCode}, want 0`);
     }
   } finally {
-    await killProcessesNamed("SumatraPDF.exe");
+    await killProcessesNamed("Swiftleaf.exe");
     rmSync(APPDATA, { recursive: true, force: true });
   }
 }

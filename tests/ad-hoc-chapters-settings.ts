@@ -201,12 +201,12 @@ async function testMobi(): Promise<void> {
 }
 
 export async function testit(): Promise<void> {
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   try {
     await testPdf();
     await testMobi();
   } finally {
-    await killProcessesNamed("SumatraPDF.exe");
+    await killProcessesNamed("Swiftleaf.exe");
     rmSync(APPDATA, { recursive: true, force: true });
   }
 }

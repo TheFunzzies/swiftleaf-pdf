@@ -1370,7 +1370,7 @@ void MenuSetChecked(HMENU m, int id, bool isChecked) {
         return;
     }
     // CheckMenuItem(MF_BYCOMMAND) only hits the first item with that id. The
-    // same command can appear twice (e.g. File and Settings "Use SumatraPDF
+    // same command can appear twice (e.g. File and Settings "Use SwiftLeaf
     // File Picker"), so walk the whole menu tree and update every match.
     int n = GetMenuItemCount(m);
     for (int i = 0; i < n; i++) {

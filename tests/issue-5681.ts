@@ -1,6 +1,6 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5681
+// Test for upstream issues #5681
 //
-// `SumatraPDF.exe run` interactive REPL used fgets(stdin) on a GUI app's
+// `Swiftleaf.exe run` interactive REPL used fgets(stdin) on a GUI app's
 // console input, which spuriously returned EOF so the REPL exited and CMD
 // interpreted the next lines as shell commands (`print` -> DOS PRINT, etc.).
 // The fix uses ReadConsole for console stdin (fz_console_readline in mudraw.c).

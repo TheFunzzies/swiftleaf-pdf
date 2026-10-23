@@ -3550,7 +3550,7 @@ bool VirtTreeOnMessage(HWND hwnd, VirtRoot* root, UINT msg, WPARAM wp, LPARAM lp
 
 // A small markup with links, keyboard shortcuts and bold runs, parsed into a
 // VirtRichText: a virtual control that wraps, paints and hit-tests itself.
-// Shared by SumatraPDF's home page and notifications, and by other apps in the
+// Shared by SwiftLeaf's home page and notifications, and by other apps in the
 // family. What it needs from the app is a CommandsContext (see VirtCtrl.h) and a
 // way to open a url.
 

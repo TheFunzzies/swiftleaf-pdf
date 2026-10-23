@@ -1,4 +1,4 @@
-/* SumatraPDF: mupdf's built-in fonts come from this loader, see noto_sumatra.c */
+/* SwiftLeaf: mupdf's built-in fonts come from this loader, see noto_sumatra.c */
 
 #ifdef __cplusplus
 extern "C" {

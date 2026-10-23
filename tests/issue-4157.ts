@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/4157
+// Test for upstream issues #4157
 //
 // Some PDFs put `0 Tc` / `0 Tw` inside a TJ array. MuPDF already applied those
 // operators, then fell through to a syntax error. After 100 such errors it

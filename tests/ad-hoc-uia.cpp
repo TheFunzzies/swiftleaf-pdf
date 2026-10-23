@@ -1,5 +1,5 @@
 // UI Automation *client* used by tests/ad-hoc-uia.ts to check what a screen
-// reader (Narrator, NVDA, ...) can see and read inside SumatraPDF's canvas.
+// reader (Narrator, NVDA, ...) can see and read inside SwiftLeaf's canvas.
 // It is compiled on demand by that test, not by the normal build:
 //   cl /nologo /EHsc /std:c++17 ad-hoc-uia.cpp /Fe<out.exe>
 //      /link ole32.lib oleaut32.lib user32.lib uiautomationcore.lib

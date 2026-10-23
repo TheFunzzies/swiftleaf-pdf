@@ -5,7 +5,7 @@
 // modeless-dialog focus changes in 3.7).
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 // 1x1 red PNG
@@ -37,7 +37,7 @@ export async function testit(): Promise<void> {
   const imagePath = tmpPath("issue-5734.png");
   writeFileSync(imagePath, PNG_1X1);
 
-  const result = await withControlledSumatra(EXE, (client) => requestWithRetry(client, imagePath), [imagePath]);
+  const result = await withControlledApp(EXE, (client) => requestWithRetry(client, imagePath), [imagePath]);
   console.log(`issue-5734: ${result}`);
 }
 

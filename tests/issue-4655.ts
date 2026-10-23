@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/4655
+// Test for upstream issues #4655
 //
 // A non-embedded Type1 font named "YFLGZT+Symbol" (PDF subset tag + Symbol) with
 // Encoding Differences for the math-bracket pieces (bracketlefttp/ex/bt) used
@@ -11,7 +11,7 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { captureWindowPixels, captureWindowToPng } from "./winapi.ts";
 import { findCanvas, sendCommandSync, waitForFrame } from "./win-automation.ts";
 import { cmdId, EXE, runStandalone, tmpPath } from "./util.ts";
@@ -80,7 +80,7 @@ export async function testit(): Promise<void> {
     throw new Error(`issue-4655: fixture not found: ${PDF}`);
   }
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

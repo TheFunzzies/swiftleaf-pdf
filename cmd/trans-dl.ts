@@ -1,5 +1,5 @@
 /**
- * Maintain SumatraPDF translations with apptranslator as the source of truth.
+ * Maintain SwiftLeaf translations with apptranslator as the source of truth.
  *
  * Local cache (gitignored via .work/):
  *   .work/translations.txt       languages complete enough for the binary
@@ -44,7 +44,7 @@ const translationBlacklist: string[] = ["Toggle Windows Previewer", "Toggle Wind
 
 const DEFAULT_SERVER = "https://www.apptranslator.org";
 const LOCAL_SERVER = "http://127.0.0.1:9311";
-const APP_NAME = "SumatraPDF";
+const APP_NAME = "SwiftLeaf";
 
 const workDir = ".work";
 const translationsTxtPath = join(workDir, "translations.txt");
@@ -166,9 +166,9 @@ function extractStringsFromCFilesNoPaths(): string[] {
   return unique;
 }
 
-// home page tips: one per line of the sumatraTips raw string, translated at
+// home page tips: one per line of the appTips raw string, translated at
 // runtime with Tr(line). Their markup ([text](link), (Kbd/...)) must survive
-const tipsPattern = /static Str sumatraTips = StrL\(R"tips\(([\s\S]*?)\)tips"\);/;
+const tipsPattern = /static Str appTips = StrL\(R"tips\(([\s\S]*?)\)tips"\);/;
 
 function extractTips(): string[] {
   const tips: string[] = [];
@@ -176,7 +176,7 @@ function extractTips(): string[] {
     const path = join(dir, "HomePage.cpp");
     if (!existsSync(path)) continue;
     const m = tipsPattern.exec(readFileSync(path, "utf-8"));
-    if (!m) throw new Error(`sumatraTips not found in ${path}`);
+    if (!m) throw new Error(`appTips not found in ${path}`);
     tips.push(
       ...m[1]
         .split("\n")

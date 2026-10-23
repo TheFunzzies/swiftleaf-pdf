@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/3744
+// Test for upstream issues #3744
 //
 // "Go to Next/Previous Favorite" jump to the nearest favorite (bookmark) page
 // after / before the current page (no wrap-around).
@@ -10,7 +10,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 // minimal N-page PDF (content doesn't matter; we assert CurrentPageNo).
@@ -96,7 +96,7 @@ export async function testit(): Promise<void> {
     "ReuseInstance = false\nRestoreSession = false\nShowStartPage = false\nCheckForUpdates = false\n",
   );
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await favNav(client, "add", 10);

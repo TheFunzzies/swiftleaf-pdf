@@ -1,7 +1,7 @@
 /* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
    License: BSD */
 
-// this is a minimal example for how to use SumatraPDF in plugin mode
+// this is a minimal example for how to use SwiftLeaf in plugin mode
 
 #include "base/Base.h"
 #include "base/Win.h"
@@ -17,11 +17,11 @@ void log(Str s) {
 }
 void _uploadDebugReport(Str, Str, bool) {}
 
-#define kPluginTestNameA "SumatraPDF Plugin Test"
-constexpr const WCHAR* kPluginTestName = L"SumatraPDF Plugin Test";
+#define kPluginTestNameA "SwiftLeaf Plugin Test"
+constexpr const WCHAR* kPluginTestName = L"SwiftLeaf Plugin Test";
 
 struct PluginStartData {
-    // path to SumatraPDF.exe
+    // path to Swiftleaf.exe
     Str sumatraPath;
     // path to the (downloaded) document to display
     Str filePath;
@@ -29,11 +29,11 @@ struct PluginStartData {
     Str fileOriginUrl;
 };
 
-// in order to host SumatraPDF as a plugin, create a (child) window and
+// in order to host SwiftLeaf as a plugin, create a (child) window and
 // handle the following messages for it:
 LRESULT CALLBACK PluginParentWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (WM_CREATE == msg) {
-        // run SumatraPDF.exe with the -plugin command line argument
+        // run Swiftleaf.exe with the -plugin command line argument
         PluginStartData* data = (PluginStartData*)((CREATESTRUCT*)lp)->lpCreateParams;
         auto path = data->filePath;
         TempStr cmdLine = fmt("-plugin %d \"%s\"", hwnd, path);
@@ -42,7 +42,7 @@ LRESULT CALLBACK PluginParentWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
         }
         ShellExecute(hwnd, L"open", CWStrTemp(data->sumatraPath), CWStrTemp(cmdLine), nullptr, SW_SHOW);
     } else if (WM_SIZE == msg) {
-        // resize the SumatraPDF window
+        // resize the SwiftLeaf window
         HWND hChild = FindWindowEx(hwnd, nullptr, nullptr, nullptr);
         if (hChild) {
             Rect rcClient = HwndClientRect(hwnd);
@@ -61,7 +61,7 @@ LRESULT CALLBACK PluginParentWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
             return TRUE;
         }
     } else if (WM_PAINT == msg) {
-        // paint an error message (only needed if SumatraPDF couldn't be run)
+        // paint an error message (only needed if SwiftLeaf couldn't be run)
         PAINTSTRUCT ps;
         HDC hDC = BeginPaint(hwnd, &ps);
         RECT rcClient = ToRECT(HwndClientRect(hwnd));
@@ -74,7 +74,7 @@ LRESULT CALLBACK PluginParentWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
         hFont = (HFONT)SelectObject(hDC, hFont);
         SetTextColor(hDC, 0x000000);
         SetBkMode(hDC, TRANSPARENT);
-        DrawText(hDC, L"Error: Couldn't run SumatraPDF!", -1, &rcClient,
+        DrawText(hDC, L"Error: Couldn't run SwiftLeaf!", -1, &rcClient,
                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
         DeleteObject(SelectObject(hDC, hFont));
         DeleteObject(brushBg);
@@ -88,10 +88,10 @@ LRESULT CALLBACK PluginParentWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
 }
 
 WStr GetSumatraExePath() {
-    // run SumatraPDF.exe either from plugin-test.exe's or the current directory
-    TempStr path = GetPathInExeDirTemp(StrL("SumatraPDF.exe"));
+    // run Swiftleaf.exe either from plugin-test.exe's or the current directory
+    TempStr path = GetPathInExeDirTemp(StrL("Swiftleaf.exe"));
     if (!file::Exists(path)) {
-        return wstr::Dup(WStrL(L"SumatraPDF.exe"));
+        return wstr::Dup(WStrL(L"Swiftleaf.exe"));
     }
     return ToWStr(path);
 }
@@ -106,7 +106,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nShowCmd) {
 
     if (len(args) == 1) {
         TempStr name = path::GetBaseNameTemp(args[0]);
-        TempStr msg = fmt("Syntax: %s [<SumatraPDF.exe>] [<URL>] <filename.ext>", name);
+        TempStr msg = fmt("Syntax: %s [<Swiftleaf.exe>] [<URL>] <filename.ext>", name);
         MsgBox(nullptr, msg, StrL(kPluginTestNameA), MB_OK | MB_ICONINFORMATION);
         return 1;
     }

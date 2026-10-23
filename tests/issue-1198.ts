@@ -3,7 +3,7 @@
 // ShowCompProps_* function). Those were not clickable. The engine now parses
 // the menu strings without running JS.
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control";
+import { ControlClient, ControlCommand, withControlledApp } from "./control";
 import { EXE, runStandalone, tmpPath } from "./util";
 
 function pdfString(s: string): string {
@@ -80,7 +80,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-1198.pdf");
   writeFileSync(pdf, makePdf());
 
-  await withControlledSumatra(EXE, async (client: ControlClient) => {
+  await withControlledApp(EXE, async (client: ControlClient) => {
     const res = await client.request(ControlCommand.TestPageLinks, [pdf, 1]);
     const dump = String(res[1] ?? "");
     if (res[0] !== 0) {

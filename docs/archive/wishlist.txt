@@ -81,7 +81,7 @@ like a page number.
 -- Integration with web-based backup/viewer system (high)
 
 The idea is that users could easily backup their PDFs on the server. They would
-have a convenient access to those PDFs from Sumatra as well as being able to
+have a convenient access to those PDFs from SwiftLeaf as well as being able to
 view them on the web. Basically it would be private Scribd for PDFs only. The
 web service would have to be paid (since on-line storage is rather expensive)
 but there would be free accounts (with quota, similar to how Dropbox works).

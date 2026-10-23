@@ -3,7 +3,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runAppUnitTests, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util.ts";
 
 const TARGET_DEST_NO = 3;
@@ -56,7 +56,7 @@ export async function testit(): Promise<void> {
     ["MarkdownUI [", "\tUseFixedPageUI = false", "]", "RestoreSession = false", "ShowStartPage = false", ""].join("\n"),
   );
 
-  const result = await withControlledSumatra(
+  const result = await withControlledApp(
     EXE,
     async (client) => {
       // wait until WebView has painted and reported a scroll position, so the

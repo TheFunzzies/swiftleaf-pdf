@@ -2090,7 +2090,7 @@ static TempStr BuildOpenFileCmdTemp(Str pattern, Str path, int line, int col) {
 // first token is the program and the rest its arguments.
 static bool LaunchInverseSearchCmd(Str cmdLine) {
 #if OS_WIN
-    // resolve relative paths with relation to SumatraPDF.exe's directory
+    // resolve relative paths with relation to Swiftleaf.exe's directory
     TempStr appDir = GetSelfExeDirTemp();
     AutoCloseHandle process(LaunchProcessInDir(cmdLine, appDir));
     return process != nullptr;
@@ -3226,7 +3226,7 @@ LRESULT OnCopyData(HWND hwnd, WPARAM wp, LPARAM lp) {
 
     if (cds->dwData == kCopyDataOpen) {
         // Simple-open fast path used by the reuseInstance handshake: the
-        // sibling SumatraPDF that Explorer just spawned is blocked in
+        // sibling SwiftLeaf that Explorer just spawned is blocked in
         // SendMessageW. Copy the path out, post an async task, return
         // immediately so the sender unblocks and exits.
         if (cds->cbData < sizeof(SumatraOpenCopyData) + 1) {

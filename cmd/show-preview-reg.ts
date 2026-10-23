@@ -123,7 +123,7 @@ function checkPreviewHandlersKey(clsid: string, name: string) {
 }
 
 function main() {
-  console.log("SumatraPDF Preview/Thumbnail Registration Status\n");
+  console.log("SwiftLeaf Preview/Thumbnail Registration Status\n");
 
   for (const prev of previewers) {
     console.log(`=== ${prev.name} (CLSID: ${prev.clsid}) ===`);

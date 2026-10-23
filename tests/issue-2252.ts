@@ -4,7 +4,7 @@
 // overlay should refresh via UpdateUiForCurrentTab.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 function buildPdf(pageCount: number): Buffer {
@@ -62,7 +62,7 @@ export async function testit(): Promise<void> {
   writeFileSync(twoPages, buildPdf(2));
   writeFileSync(onePage, buildPdf(1));
 
-  const result = await withControlledSumatra(EXE, (client) => requestWithRetry(client, twoPages, onePage), [twoPages]);
+  const result = await withControlledApp(EXE, (client) => requestWithRetry(client, twoPages, onePage), [twoPages]);
   console.log(`issue-2252: ${result}`);
 }
 

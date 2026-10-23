@@ -1,7 +1,7 @@
 // Compare the reported CAD labels with enhancement off and on.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const PDF = "C:/Users/kjk/Downloads/Зал центральний ще новіше.1.pdf";
@@ -16,7 +16,7 @@ async function render(mode: string): Promise<Buffer> {
   const dir = tmpPath(`cad-text-${mode}`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SumatraPDF-settings.txt"), `EngineeringDrawingEnhance = ${mode}\n`);
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       await client.setNotificationsEnabled(false);

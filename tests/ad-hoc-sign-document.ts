@@ -10,7 +10,7 @@
 import { copyFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { EXE, cmdId, runStandalone, tmpPath } from "./util.ts";
-import { clickAt, findCanvas, launchSumatra, pressEnter, sendCommand, waitForFrame } from "./win-automation.ts";
+import { clickAt, findCanvas, launchApp, pressEnter, sendCommand, waitForFrame } from "./win-automation.ts";
 import {
   captureWindowToPng,
   enumChildWindows,
@@ -26,8 +26,8 @@ import {
   WM_CLOSE,
 } from "./winapi.ts";
 
-const kPassword = "sumatra-test-pw";
-const kCertSubject = "CN=SumatraPDF SignTest";
+const kPassword = "swiftleaf-test-pw";
+const kCertSubject = "CN=SwiftLeaf SignTest";
 const kToolExe = join(dirname(EXE), "sumatrapdf-tool.exe");
 
 function ps(script: string): { ok: boolean; out: string } {
@@ -190,7 +190,7 @@ async function runSigningChecks(pfx: string): Promise<void> {
   copyFileSync(join(dirname(dirname(EXE)), "..", "ext", "a-zlib", "zlib.3.pdf"), plainIn);
   rmSync(plainOut, { force: true });
 
-  let proc = launchSumatra([plainIn]);
+  let proc = launchApp([plainIn]);
   let pid = proc.pid!;
   let frame = await waitForFrame(pid);
   await sleep(2500);
@@ -245,7 +245,7 @@ async function runSigningChecks(pfx: string): Promise<void> {
   writePdfWithEmptySigField(fieldIn);
   rmSync(fieldOut, { force: true });
 
-  proc = launchSumatra([fieldIn]);
+  proc = launchApp([fieldIn]);
   pid = proc.pid!;
   frame = await waitForFrame(pid);
   await sleep(2500);

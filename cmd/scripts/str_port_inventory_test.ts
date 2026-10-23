@@ -3,7 +3,7 @@
 
 import { countScannedLines, scanFileContent } from "./str_port_inventory.ts";
 
-const fixture = `/* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
+const fixture = `/* Copyright 2022 the SwiftLeaf project authors (see AUTHORS file).
    License: Simplified BSD (see COPYING.BSD) */
 
     bool IsClsid(const char* s) {

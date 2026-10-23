@@ -374,7 +374,7 @@ struct TabState {
     Vec<int>* tocState;
 };
 
-// windows and tabs still open when SumatraPDF was last closed; reopened
+// windows and tabs still open when SwiftLeaf was last closed; reopened
 // at startup if RestoreSession is true
 struct SessionData {
     // a subset of FileState required for restoring the state of a single
@@ -852,7 +852,7 @@ struct Settings {
     // history of opened files, most recently used first. A closed file
     // stays here until it drops off the list or the history is cleared
     Vec<FileState*>* fileStates;
-    // windows and tabs still open when SumatraPDF was last closed;
+    // windows and tabs still open when SwiftLeaf was last closed;
     // reopened at startup if RestoreSession is true
     Vec<SessionData*>* sessionData;
     // a list of paths for files to be reopened at the next start or the
@@ -873,7 +873,7 @@ struct Settings {
     Str homePageViewMode;
     // file open dialog used by Open File: empty or os (standard Windows
     // file picker), or sumatrapdf (Navigate Files in Folder). Toggled by
-    // Settings / SumatraPDF File Picker
+    // Settings / SwiftLeaf File Picker
     Str filePicker;
     // up to 13 custom colors for the background color picker, separated by
     // space (e.g. '#ff0000 #00ff00 #0000ff')
@@ -948,7 +948,7 @@ struct Settings {
     Str translateEngine;
     // ISO code of the current UI language
     Str uiLanguage;
-    // SumatraPDF won't offer to update to this version again
+    // SwiftLeaf won't offer to update to this version again
     Str versionToSkip;
     // customization options for CHM UI. UseFixedPageUI switches to the
     // PDF-style view; FontName applies to that view
@@ -1077,7 +1077,7 @@ struct Settings {
     // Options, so a double-click in the document can jump to the matching
     // line in a LaTeX editor
     bool enableTeXEnhancements;
-    // if true, Esc key closes SumatraPDF. In presentation or fullscreen
+    // if true, Esc key closes SwiftLeaf. In presentation or fullscreen
     // mode, Esc leaves that mode first
     bool escToExit;
     // if true, show the full path to the document in the title bar
@@ -1104,7 +1104,7 @@ struct Settings {
     // if true, documents that were still open when the last window was
     // closed (SessionData) are reopened at startup
     bool restoreSession;
-    // if true, open documents in the already running SumatraPDF instead of
+    // if true, open documents in the already running SwiftLeaf instead of
     // starting a new one
     bool reuseInstance;
     // if true, show the menu bar (F9 toggles it; the choice is remembered
@@ -1175,7 +1175,7 @@ struct Settings {
     // selected file in a popup window, like macOS Quick Look. Esc or Space
     // closes it; Left / Right open the previous / next file in the folder.
     // Starts a small background helper at logon so it works even when
-    // SumatraPDF is not open
+    // SwiftLeaf is not open
     bool explorerQuickLook;
     // if true, next/previous page keeps the same view position on the page
     // instead of jumping to the top (useful when zoomed in on similarly

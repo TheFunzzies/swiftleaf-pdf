@@ -1,4 +1,4 @@
-// Discussion #4276: a file-attachment annotation whose payload Sumatra can
+// Discussion #4276: a file-attachment annotation whose payload SwiftLeaf can
 // open (a PDF) loads it from memory into a new tab.
 //
 // Drive this through -dbg-control, not posted mouse clicks. SetCapture injects

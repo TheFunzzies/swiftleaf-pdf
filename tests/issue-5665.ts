@@ -1,7 +1,7 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5665
+// Test for upstream issues #5665
 //
-// `SumatraPDF.exe run script.js` (the mupdf JavaScript `run` tool) must be able
-// to read stdin via readline(). SumatraPDF.exe is a GUI-subsystem app, so its
+// `Swiftleaf.exe run script.js` (the mupdf JavaScript `run` tool) must be able
+// to read stdin via readline(). Swiftleaf.exe is a GUI-subsystem app, so its
 // CRT stdin wasn't wired to the inherited input handle and readline() failed
 // with "cannot read line from stdin". The fix wires stdin in
 // fz_redirect_io_to_existing_console() (ext/mupdf/source/tools/mudraw.c).
@@ -25,7 +25,7 @@ export async function testit(): Promise<void> {
     throw new Error(`test script not found: ${SCRIPT}`);
   }
 
-  // pipe two lines into the `run` tool (equivalent to `echo ... | SumatraPDF run script.js`)
+  // pipe two lines into the `run` tool (equivalent to `echo ... | SwiftLeaf run script.js`)
   const input = "hello from stdin\nsecond line\n";
   const p = Bun.spawnSync({ cmd: [EXE, "run", SCRIPT], stdin: Buffer.from(input), stdout: "pipe", stderr: "pipe" });
   const out = p.stdout.toString();

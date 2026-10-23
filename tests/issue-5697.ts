@@ -2,7 +2,7 @@
 //
 // Verifies Tr resolves runtime error strings through the translation table.
 
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone } from "./util.ts";
 
 async function requestWithRetry(client: ControlClient): Promise<string> {
@@ -25,7 +25,7 @@ async function requestWithRetry(client: ControlClient): Promise<string> {
 }
 
 export async function testit(): Promise<void> {
-  const result = await withControlledSumatra(EXE, (client) => requestWithRetry(client), []);
+  const result = await withControlledApp(EXE, (client) => requestWithRetry(client), []);
   console.log(`issue-5697: ${result}`);
 }
 

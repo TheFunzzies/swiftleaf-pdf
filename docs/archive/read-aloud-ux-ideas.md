@@ -1,4 +1,4 @@
-# Read Aloud UX ideas for SumatraPDF
+# Read Aloud UX ideas for SwiftLeaf
 
 UX-focused analysis of the Read Aloud feature (pre-release 3.7+) and proposals for improving discoverability, controls, and listening workflows. No implementation details.
 
@@ -30,7 +30,7 @@ While a read-aloud session is active (speaking or paused):
 - **Stop** — ends the session and clears resume state (distinct from pause).
 - **Status line** — document name, **page X of Y** (from highlight map + spoken offset), and **scope** label: Smart start, From top, From cursor, or Selection.
 - **Placement** — bottom of canvas, full width minus margin; relayouts on resize.
-- **Visibility** — shown on the window that owns the session; hidden on other SumatraPDF windows while audio may still play there.
+- **Visibility** — shown on the window that owns the session; hidden on other SwiftLeaf windows while audio may still play there.
 
 The bar is the primary **session control** surface. Menus and palette duplicate transport actions for keyboard-first users.
 
@@ -72,7 +72,7 @@ Implication: toolbar and menus always target the **current tab**, which is also 
 | **Toolbar button still triple-duty**     | One click = start _or_ pause _or_ continue. Tooltip helps but users must read it; no Stop on main click.                                                                                                                                                                          |
 | **Two mental models for “start”**        | Smart (`CmdToggleReadAloud`) vs explicit menu items (viewport-only, selection-only, cursor). Power users benefit; casual users may not know which to pick. Scope label on the bar helps _after_ start, not before.                                                                |
 | **“From Top” wording**                   | Menu says **Start Reading From Top**; bar says **From top**. Same behavior (first visible text → end) but labels differ slightly.                                                                                                                                                 |
-| **Global audio, second window**          | TTS is app-global. If one window is reading and the user focuses another SumatraPDF window, the focused window has no playback bar (only toolbar tooltip reflects global speaking state). Rare with single-window use; tab switch within a window is not affected (speech stops). |
+| **Global audio, second window**          | TTS is app-global. If one window is reading and the user focuses another SwiftLeaf window, the focused window has no playback bar (only toolbar tooltip reflects global speaking state). Rare with single-window use; tab switch within a window is not affected (speech stops). |
 | **Tab switch ends session**              | Intentional and coherent, but users who pause and switch tabs lose resume position without warning — a one-line toast (“Reading stopped”) on tab change could set expectations.                                                                                                   |
 | **Silent permission failure**            | Copy-restricted PDFs block read aloud with **no user message** when `Perm::CopySelection` is denied.                                                                                                                                                                              |
 | **Highlight not configurable**           | Follow-along always uses selection color; no toggle, dedicated read-aloud color, or disable.                                                                                                                                                                                      |
@@ -124,7 +124,7 @@ Playback bar and tab policy are solid; the toolbar main button is the main lefto
 
 ### 2. Multi-window polish (low priority)
 
-Tab switch within a window is already handled. Remaining edge case: **two SumatraPDF windows**, one reading:
+Tab switch within a window is already handled. Remaining edge case: **two SwiftLeaf windows**, one reading:
 
 | Proposal                         | Rationale                                                                                 |
 | -------------------------------- | ----------------------------------------------------------------------------------------- |

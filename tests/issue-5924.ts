@@ -1,5 +1,5 @@
 // discussion #5924: a relative link to a PDF in a markdown document
-// ([the manual](./manual.pdf)) has to open that PDF in SumatraPDF. It used to be
+// ([the manual](./manual.pdf)) has to open that PDF in SwiftLeaf. It used to be
 // navigated to inside the document's WebView2, which served the raw PDF bytes as
 // text/html and showed garbage.
 //
@@ -13,7 +13,7 @@
 // before the callback, while a TOC destination carries the full virtual url.
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlCommand, withControlledSumatra } from "./control";
+import { ControlCommand, withControlledApp } from "./control";
 import { cmdId, EXE, makeMinimalPdf, runStandalone, tmpPath } from "./util";
 import { FRAME_CLASS, sendCommandSync } from "./win-automation";
 import { sleep, waitForTopWindow } from "./winapi";
@@ -72,7 +72,7 @@ function parse(dump: string): Result {
 export async function testit(): Promise<void> {
   const dir = makeFolder();
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForTopWindow(proc.pid!, FRAME_CLASS);
@@ -122,7 +122,7 @@ export async function testit(): Promise<void> {
         fail("a link to a missing .pdf must not be navigated to in the browser view", r);
       }
 
-      // the actual report: the linked PDF opens in SumatraPDF
+      // the actual report: the linked PDF opens in SwiftLeaf
       r = await follow("sub/deep.pdf");
       const deep = r.tabs.find((t) => t.file.toLowerCase().endsWith("\\sub\\deep.pdf"));
       if (r.navigate || !deep || !deep.current) {

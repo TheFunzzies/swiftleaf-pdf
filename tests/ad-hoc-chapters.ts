@@ -17,7 +17,7 @@ import { killAndWait, killProcessesNamed, launchControlled, sendCommandSync } fr
 const MOBI = String.raw`C:\Users\kjk\OneDrive\!sumatra\1000.mobi`;
 const EPUB = String.raw`C:\Users\kjk\OneDrive\!sumatra\Dune - Frank Herbert.epub`;
 
-// whole-section hard timeout: kill the running SumatraPDF and fail loudly
+// whole-section hard timeout: kill the running SwiftLeaf and fail loudly
 // rather than hang the session (see project memory gui-test-scripts-need-watchdog)
 const SECTION_TIMEOUT_MS = 120_000;
 
@@ -25,8 +25,8 @@ async function withSectionWatchdog<T>(label: string, fn: () => Promise<T>): Prom
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    console.error(`ad-hoc-chapters: ${label} exceeded ${SECTION_TIMEOUT_MS}ms, killing stray SumatraPDF`);
-    void killProcessesNamed("SumatraPDF.exe");
+    console.error(`ad-hoc-chapters: ${label} exceeded ${SECTION_TIMEOUT_MS}ms, killing stray SwiftLeaf`);
+    void killProcessesNamed("Swiftleaf.exe");
   }, SECTION_TIMEOUT_MS);
   try {
     return await fn();
@@ -291,12 +291,12 @@ async function testEpub(): Promise<void> {
 }
 
 export async function testit(): Promise<void> {
-  await killProcessesNamed("SumatraPDF.exe");
+  await killProcessesNamed("Swiftleaf.exe");
   try {
     await testMobi();
     await testEpub();
   } finally {
-    await killProcessesNamed("SumatraPDF.exe");
+    await killProcessesNamed("Swiftleaf.exe");
   }
 }
 

@@ -7,7 +7,7 @@
 // Requires the chosen backend's CLI installed and authenticated, and network
 // access, so it isn't part of the default CI suite - run it directly:
 //   bun tests/ai-chat.ts --no-build grok "C:\\path\\doc.pdf" "summarize page 1"
-import { ControlCommand, withControlledSumatra } from "./control";
+import { ControlCommand, withControlledApp } from "./control";
 import { EXE, runStandalone } from "./util";
 
 // AIChatBackend enum order in src/AIChatCommon.h
@@ -29,7 +29,7 @@ export async function testit(): Promise<void> {
   const { backend, backendName, file, message } = parseArgs();
   console.log(`ai-chat: backend=${backendName} file=${file}\n  message: ${message}`);
 
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     const res = await client.request(ControlCommand.TestAIChat, [backend, file, message]);
     const exitCode = Number(res[0] ?? -1);
     const text = String(res[1] ?? "");

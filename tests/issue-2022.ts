@@ -4,7 +4,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 type PdfOpts = {
@@ -87,7 +87,7 @@ async function openWithSettings(
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SumatraPDF-settings.txt"), settings);
-  return withControlledSumatra(EXE, (client) => waitDisplay(client), ["-appdata", dir, pdf]);
+  return withControlledApp(EXE, (client) => waitDisplay(client), ["-appdata", dir, pdf]);
 }
 
 const SETTINGS_HEAD = `UiLanguage = en

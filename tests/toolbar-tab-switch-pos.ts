@@ -4,7 +4,7 @@
 // Run: bun tests/toolbar-tab-switch-pos.ts [--no-build]
 
 import { existsSync } from "node:fs";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 import { cmdId, EXE, runStandalone } from "./util.ts";
 import { sleep } from "./winapi.ts";
 
@@ -56,7 +56,7 @@ export async function testit(): Promise<void> {
   const docPath = existsSync(mobi) ? mobi : "tests/issue-5846.epub";
   const cmdOpen = cmdId("CmdOpenFile");
   const cmdPrint = cmdId("CmdPrint");
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client) => {
       const [, layoutDoc] = await client.request(ControlCommand.TestLayout, []);

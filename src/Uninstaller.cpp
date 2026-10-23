@@ -39,14 +39,14 @@ static Str gUninstallerLogPath;
 // installed (install flag set) and to know what files are to be removed at
 // uninstallation (all listed files that actually exist).
 // When a file is no longer shipped, just disable the install flag so that the
-// file is still correctly removed when SumatraPDF is eventually uninstalled.
+// file is still correctly removed when SwiftLeaf is eventually uninstalled.
 // clang-format off
 const char* gInstalledFiles[] = {
     "libsumatrapdf.dll",
     "PdfFilter.dll",
     "PdfPreview.dll",
     // those probably won't delete because in use
-    "SumatraPDF.exe",
+    "Swiftleaf.exe",
     "RA-MICRO PDF Viewer.exe",
     // files no longer shipped, to be deleted
     "libmupdf.dll", // renamed to libsumatrapdf.dll in 3.7
@@ -193,7 +193,7 @@ static void OnUninstallationFinished() {
     gButtonExit = CreateDefaultButton(gHwndFrame, Tr("Close"), isRtl);
     gButtonExit->onClick = MkFunc0Void(OnButtonExit);
     MakeMaterialButton(gButtonExit->hwnd);
-    SetMsg(Tr("SumatraPDF has been uninstalled."), gMsgError ? kColorMsgFailed : kColorMsgOk);
+    SetMsg(Tr("SwiftLeaf has been uninstalled."), gMsgError ? kColorMsgFailed : kColorMsgOk);
     gMsgError = gFirstError;
     HwndRepaintNow(gHwndFrame);
 
@@ -215,7 +215,7 @@ static bool UninstallerOnWmCommand(WPARAM wp) {
 constexpr const WCHAR* kInstallerWindowClassName = L"SUMATRA_PDF_INSTALLER_FRAME";
 
 static void CreateUninstallerWindow() {
-    TempStr title = fmt(Tr("SumatraPDF %s Uninstaller").s, StrL(CURR_VERSION_STRA));
+    TempStr title = fmt(Tr("SwiftLeaf %s Uninstaller").s, StrL(CURR_VERSION_STRA));
     int x = CW_USEDEFAULT;
     int y = CW_USEDEFAULT;
     int dx = GetInstallerWinDx();
@@ -230,7 +230,7 @@ static void CreateUninstallerWindow() {
     HwndResizeClientSize(gHwndFrame, dx, dy);
 
     auto isRtl = IsUIRtl();
-    gButtonUninstaller = CreateDefaultButton(gHwndFrame, Tr("Uninstall SumatraPDF"), isRtl);
+    gButtonUninstaller = CreateDefaultButton(gHwndFrame, Tr("Uninstall SwiftLeaf"), isRtl);
     gButtonUninstaller->onClick = MkFunc0Void(OnButtonUninstall);
     MakeMaterialButton(gButtonUninstaller->hwnd);
 }
@@ -568,7 +568,7 @@ int RunUninstaller() {
         if (uninstallerLogPath) {
             StartLogToFile(uninstallerLogPath, false);
         }
-        logf("------------- Starting SumatraPDF uninstallation\n");
+        logf("------------- Starting SwiftLeaf uninstallation\n");
     }
 
     // TODO: remove dependency on this in the uninstaller
@@ -584,7 +584,7 @@ int RunUninstaller() {
     if (!installerExists) {
         log(StrL("Uninstaller executable doesn't exist\n"));
         auto caption = Tr("Uninstallation failed");
-        auto msg = Tr("SumatraPDF installation not found.");
+        auto msg = Tr("SwiftLeaf installation not found.");
         MsgBox(nullptr, msg, caption, MB_ICONEXCLAMATION | MB_OK);
         goto Exit;
     }
@@ -606,7 +606,7 @@ int RunUninstaller() {
         log(StrL("Previewer is installed\n"));
     }
 
-    gDefaultMsg = Tr("Are you sure you want to uninstall SumatraPDF?");
+    gDefaultMsg = Tr("Are you sure you want to uninstall SwiftLeaf?");
 
     // unregister search filter and previewer to reduce
     // possibility of blocking

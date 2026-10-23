@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5950
+// Regression test for upstream issues #5950
 //
 // Document Properties for a standalone PNG must show Image Size (and DPI when
 // known) and must not show Reading Direction. Image size used to be gated on

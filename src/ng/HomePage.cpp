@@ -4,7 +4,7 @@
 // ng: orig's HomePage.cpp draws the start page and the About page with Gfx
 // into the canvas HWND, over a tree of virtual controls. Here both are gpui
 // element trees with orig's layout, order and colors: the
-// [palette] SumatraPDF [?] header row, the open link / search box / view-mode
+// [palette] SwiftLeaf [?] header row, the open link / search box / view-mode
 // row, the thumbnail grid (or the list view) of the file history, and the tip
 // band at the bottom. The About box is a gpui Dialog with orig's rows.
 
@@ -79,7 +79,7 @@ You can [merge PDFs](Help/Merge-PDFs) and [reorder pages](Help/Reorder-PDF-pages
 You can [split a PDF](Help/Split-a-PDF).
 You can [redact a PDF](Help/Redact-a-PDF).
 You can [present a PDF](Help/Present-a-PDF) full screen.
-You can [use SumatraPDF with LaTeX](Help/LaTeX-integration) for forward and inverse search.
+You can [use SwiftLeaf with LaTeX](Help/LaTeX-integration) for forward and inverse search.
 You can [read comics and manga](Help/Comics-and-manga) right to left.
 You can [bookmark pages as favorites](Help/Managing-favorites).
 You can [chat with AI about a document](Help/AI-Chat-with-document).
@@ -204,15 +204,15 @@ static AboutRow gAboutRows[] = {
     // it isn't known until runtime (32/64-bit, debug)
     {StrL("version"), {}, {}},
     {StrL("built on"), StrL(__DATE__ " " __TIME__), {}},
-    {StrL("manual"), StrL("SumatraPDF manual"), StrL("https://www.sumatrapdfreader.org/docs/SumatraPDF-documentation")},
-    {StrL("version history"), StrL("What's new"), StrL("https://www.sumatrapdfreader.org/docs/Version-history")},
-    {StrL("website"), StrL("SumatraPDF website"), Str(kWebsiteURL)},
-    {StrL("forums"), StrL("SumatraPDF forums"), StrL("https://github.com/sumatrapdfreader/sumatrapdf/discussions")},
+    {StrL("manual"), StrL("SwiftLeaf manual"), StrL("https://github.com/TheFunzzies/swiftleaf-pdf")},
+    {StrL("version history"), StrL("What's new"), StrL("https://github.com/TheFunzzies/swiftleaf-pdf")},
+    {StrL("website"), StrL("SwiftLeaf website"), Str(kWebsiteURL)},
+    {StrL("forums"), StrL("SwiftLeaf forums"), StrL("https://github.com/TheFunzzies/swiftleaf-pdf/discussions")},
     {StrL("licenses"), StrL("Various Open Source"),
      StrL("https://github.com/sumatrapdfreader/sumatrapdf/blob/master/AUTHORS")},
 #ifdef GIT_COMMIT_ID_STR
     {StrL("last change"), StrL("git commit " GIT_COMMIT_ID_STR),
-     StrL("https://github.com/sumatrapdfreader/sumatrapdf/commit/" GIT_COMMIT_ID_STR)},
+     StrL("https://github.com/TheFunzzies/swiftleaf-pdf/commit/" GIT_COMMIT_ID_STR)},
 #endif
 #ifdef PRE_RELEASE_VER
     {StrL("a note"), StrL("Pre-release version, for testing only!"), {}},
@@ -249,7 +249,7 @@ static TempStr TrimGitTemp(Str s) {
 
 // Version, OS, memory and similar facts for a bug report.
 static void AppendBugReportInfo(str::Builder& s) {
-    s.Append(fmt("SumatraPDF %s\n", GetAppVersionTemp()));
+    s.Append(fmt("SwiftLeaf %s\n", GetAppVersionTemp()));
     s.Append(fmt("Built on: %s %s\n", StrL(__DATE__), StrL(__TIME__)));
     if (gitCommidId) {
         s.Append(fmt("Git: %s\n", gitCommidId));
@@ -1207,7 +1207,7 @@ constexpr int kAboutBtnPadDx = 12;
 constexpr int kAboutBtnPadDy = 5;
 
 static Str AboutToolTitle() {
-    return Tr("About SumatraPDF");
+    return Tr("About SwiftLeaf");
 }
 
 // orig's WndProcAbout: Esc closes, Ctrl + C copies the about info
@@ -1434,7 +1434,7 @@ gp::El* AboutDialogBuild(MainWindow* win, gp::Ctx* cx) {
     gp::El* body = gp::Div(cx->a)->FlexCol()->ItemsCenter()->W(gp::kFill)->Child(AboutBoxEl(win, cx, true));
     return gpc::Dialog::New(cx)
         ->Open(true)
-        ->Title(ToGpui(Tr("About SumatraPDF")))
+        ->Title(ToGpui(Tr("About SwiftLeaf")))
         ->Body(body)
         ->W(520)
         ->OkText(ToGpui(Tr("Close")))
@@ -1804,7 +1804,7 @@ gp::El* HomePageBuild(MainWindow* win, gp::Ctx* cx) {
 
     gp::El* root = gp::Div(cx->a)->FlexCol()->SizeFull()->Bg(ToGpui(colBg));
 
-    // [command palette] SumatraPDF [keyboard shortcuts]
+    // [command palette] SwiftLeaf [keyboard shortcuts]
     // centered over the grid, not over the canvas
     gp::El* logoRow =
         gp::Div(cx->a)->FlexRow()->W((float)contentDx)->Shrink0()->ItemsCenter()->JustifyCenter()->Gap(10);

@@ -27,8 +27,8 @@ Windows builds:
   -profile                Build a function-timing profile variant (out/prf64)
   -rel -32                Build the 32-bit release
   -asan [-dbg|-rel]       Build SumatraPDF-static.exe with MSVC ASan
-  -all [-clean]           Build release SumatraPDF and SumatraPDF-static
-  -smoke                  Rebuild release SumatraPDF, then run the debug unit tests
+  -all [-clean]           Build release SwiftLeaf and SumatraPDF-static
+  -smoke                  Rebuild release SwiftLeaf, then run the debug unit tests
   -ci                     Build CI/pre-release artifacts
   -daily                  Build daily artifacts
   -codeql                 Build the static release target for CodeQL
@@ -194,10 +194,10 @@ async function buildWindows(config: Config, win32: boolean, clean: boolean, ninj
   console.log(`${configName} ${platform} build`);
   if (clean) clearDirPreserveSettings(outDir);
   if (ninja) {
-    await buildNinja([join(ninjaToRoot, outDir, "SumatraPDF.exe")]);
+    await buildNinja([join(ninjaToRoot, outDir, "Swiftleaf.exe")]);
   } else {
     const { msbuildPath } = detectVisualStudio();
-    await buildApp(msbuildPath, configName, platform, "SumatraPDF");
+    await buildApp(msbuildPath, configName, platform, "SwiftLeaf");
   }
   printBinaries(outDir, new Set(["Swiftleaf.exe"]));
 }
@@ -287,13 +287,13 @@ async function buildWindowsAsan(config: Config, clean: boolean, ninja: boolean):
 
 async function buildAll(clean: boolean, ninja: boolean): Promise<void> {
   const outDir = join("out", "rel64");
-  console.log("Release x64 SumatraPDF and SumatraPDF-static build");
+  console.log("Release x64 SwiftLeaf and SumatraPDF-static build");
   if (clean) clearDirPreserveSettings(outDir);
   if (ninja) {
-    await buildNinja([join(ninjaToRoot, outDir, "SumatraPDF.exe"), join(ninjaToRoot, outDir, "SumatraPDF-static.exe")]);
+    await buildNinja([join(ninjaToRoot, outDir, "Swiftleaf.exe"), join(ninjaToRoot, outDir, "SumatraPDF-static.exe")]);
   } else {
     const { msbuildPath } = detectVisualStudio();
-    await buildApp(msbuildPath, "Release", "x64", "SumatraPDF");
+    await buildApp(msbuildPath, "Release", "x64", "SwiftLeaf");
     await runLogged(msbuildPath, [
       String.raw`vs2022\SumatraPDF.sln`,
       "/t:SumatraPDF-static",
@@ -309,13 +309,13 @@ async function buildSmoke(ninja: boolean): Promise<void> {
   console.log("smoke build");
   clearDirPreserveSettings(outDir);
   if (ninja) {
-    await buildNinja([join(ninjaToRoot, outDir, "SumatraPDF.exe")]);
+    await buildNinja([join(ninjaToRoot, outDir, "Swiftleaf.exe")]);
   } else {
     const { msbuildPath } = detectVisualStudio();
     await buildApp(msbuildPath, "Release", "x64", "SumatraPDF:Rebuild");
   }
   printBinaries(outDir, new Set(["Swiftleaf.exe"]));
-  // unit tests are compiled into the debug SumatraPDF only
+  // unit tests are compiled into the debug SwiftLeaf only
   await runLogged("bun", [join("cmd", "run-unit-tests.ts"), "-dbg"]);
 }
 

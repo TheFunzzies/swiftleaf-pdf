@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5873
+// Test for upstream issues #5873
 //
 // Distiller-produced Type1 PDFs (Literaturnaya / Academy) often ship a
 // ToUnicode CMap that identity-maps 0xC0-0xFF to Latin-1 U+00C0-U+00FF, derived

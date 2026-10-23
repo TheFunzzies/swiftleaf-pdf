@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6238
+// Test for upstream issues #6238
 //
 // In Facing / Book view, Next Page in a chaptered EPUB stepped one page in
 // chapter coordinates, which is the other page of the row already on screen,
@@ -11,7 +11,7 @@
 // Run: bun tests/issue-6238.ts [--no-build]   (or via tests/run-almost-all.ts)
 
 import { join } from "node:path";
-import { ControlClient, withControlledSumatra } from "./control.ts";
+import { ControlClient, withControlledApp } from "./control.ts";
 import { cmdId, EXE, ROOT, runStandalone } from "./util.ts";
 import { sendCommandSync, waitForFrame } from "./win-automation.ts";
 
@@ -32,7 +32,7 @@ function expectPage(label: string, got: number, want: number): void {
 async function checkView(view: string, startPage: number, next: number, prev: number): Promise<void> {
   const epub = join(ROOT, "tests", "issue-6095.epub");
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForFrame(proc.pid!);

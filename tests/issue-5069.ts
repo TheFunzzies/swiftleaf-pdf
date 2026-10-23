@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5069
+// Regression test for upstream issues #5069
 //
 // Two things about the mouse wheel on a page zoomed past the window:
 //

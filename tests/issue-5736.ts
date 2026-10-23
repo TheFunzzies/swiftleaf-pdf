@@ -4,7 +4,7 @@
 // the fixed page-number column when the window is narrow.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 function buildPdf(line: string): Buffer {
@@ -55,7 +55,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-5736.pdf");
   writeFileSync(pdfPath, buildPdf("hello world"));
 
-  const result = await withControlledSumatra(EXE, (client) => requestWithRetry(client), [pdfPath]);
+  const result = await withControlledApp(EXE, (client) => requestWithRetry(client), [pdfPath]);
   console.log(`issue-5736: ${result}`);
 }
 

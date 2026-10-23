@@ -1,7 +1,7 @@
 /* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
    License: GPLv3 */
 
-// What the shared image editor (ImageSaveCropResize.cpp) needs from SumatraPDF:
+// What the shared image editor (ImageSaveCropResize.cpp) needs from SwiftLeaf:
 // decoding an image file, writing a PDF, opening what was saved, translations
 // and dark mode. Another app fills the same hooks in with its own.
 
@@ -112,7 +112,7 @@ static HWND GetOwnerHwnd() {
     return len(gWindows) > 0 ? gWindows[0]->hwndFrame : nullptr;
 }
 
-// fills the hooks above in with SumatraPDF's implementations
+// fills the hooks above in with SwiftLeaf's implementations
 void InitImageEditHost() {
     gImageEditHost.LoadImageFile = LoadImageFile;
     gImageEditHost.SaveBitmapAsPdf = SaveBitmapAsPdf;

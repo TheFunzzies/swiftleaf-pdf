@@ -16,7 +16,7 @@
 // found.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const WORD = "needle";
@@ -90,7 +90,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("issue-5874.pdf");
   writeFileSync(pdfPath, buildPdf());
 
-  const result = await withControlledSumatra(EXE, (client) => requestWithRetry(client), [pdfPath]);
+  const result = await withControlledApp(EXE, (client) => requestWithRetry(client), [pdfPath]);
 
   const m = /pages=([\d,]*)/.exec(result);
   if (!m) {

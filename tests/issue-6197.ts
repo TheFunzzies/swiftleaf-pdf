@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6197
+// Regression test for upstream issues #6197
 //
 // Annotations.HighlightColor applies to `a` and to Shift+A
 // ("CmdCreateAnnotHighlight openedit"). A command's own color still wins.

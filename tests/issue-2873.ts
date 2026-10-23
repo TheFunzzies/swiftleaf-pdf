@@ -1,12 +1,12 @@
 // #2873: annotation hover tips showed one line break per carriage return, so a
-// short note rendered as a tall column of blank lines. An old SumatraPDF
+// short note rendered as a tall column of blank lines. An old SwiftLeaf
 // round-trip bug grew the separator by a CR on every save ("\r\n" -> "\r\r\n" ->
 // "\r\r\r\n"), and files written by it are still out there. A CR run that ends
 // in a LF must collapse to one break; a run of bare CRs (PDF's own line
 // separator) keeps one break each; trailing blank lines are dropped.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath, assemblePdf } from "./util.ts";
 
 // \r and \n inside a PDF literal string are written as the escapes \r and \n so
@@ -43,7 +43,7 @@ export async function testit(): Promise<void> {
   const pdf = tmpPath("issue-2873.pdf");
   writeFileSync(pdf, makePdf(), "latin1");
 
-  const raw = await withControlledSumatra(
+  const raw = await withControlledApp(
     EXE,
     async (client: ControlClient) => {
       const res = await client.request(ControlCommand.TestPageComments, [pdf, 1]);

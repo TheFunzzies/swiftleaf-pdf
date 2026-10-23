@@ -1,4 +1,4 @@
-// Test for https://github.com/sumatrapdfreader/sumatrapdf/issues/5642
+// Test for upstream issues #5642
 //
 // Clicking a link in one PDF that targets a NAMED destination in another PDF
 // (a GoToR action) should open the target at that destination -- not page 1.
@@ -22,9 +22,9 @@ import { existsSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { EXE, runStandalone } from "./util.ts";
-import { ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlCommand, withControlledApp } from "./control.ts";
 
-const PDF = join(tmpdir(), "sumatra-issue-5642.pdf");
+const PDF = join(tmpdir(), "swiftleaf-issue-5642.pdf");
 
 // minimal 2-page PDF with a named destination "ch2" -> page 2 (in /Names/Dests)
 function makePdf(): Buffer {
@@ -66,7 +66,7 @@ export async function testit(): Promise<void> {
   ];
 
   let allOk = true;
-  await withControlledSumatra(EXE, async (client) => {
+  await withControlledApp(EXE, async (client) => {
     for (const [name, expectPage, desc] of cases) {
       const [, rawArg] = await client.request(ControlCommand.TestNamedDest, [PDF, name]);
       const raw = String(rawArg).trim();

@@ -1,4 +1,4 @@
-// Regression test for https://github.com/sumatrapdfreader/sumatrapdf/issues/6194
+// Regression test for upstream issues #6194
 //
 // A thin annotation is hovered anywhere inside its drawn (inflated) marker, at
 // any zoom. Hit-testing used the bare bounds, which shrink below a pixel when

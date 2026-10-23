@@ -7,7 +7,7 @@
 //
 // Hint letters and Esc go through TestKeyboardLinkFollow actions; posted keys miss.
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control";
+import { ControlClient, ControlCommand, withControlledApp } from "./control";
 import { EXE, cmdId, runStandalone, SLOW_BUILD_FACTOR, tmpPath } from "./util";
 import { FRAME_CLASS, sendCommandSync } from "./win-automation";
 import { WM_KEYDOWN, WM_KEYUP, postMessage, sleep, waitForTopWindow } from "./winapi";
@@ -182,7 +182,7 @@ async function testLinkedPdf(): Promise<void> {
   const pdf = tmpPath("issue-2629-links.pdf");
   writeFileSync(pdf, makeLinkedPdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       // Fit the whole first page so all 20 link hints are visible.
@@ -284,7 +284,7 @@ async function testRecomputeAfterNavigation(): Promise<void> {
   const pdf = tmpPath("issue-2629-links.pdf");
   writeFileSync(pdf, makeLinkedPdf());
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await setupPdfView(client, proc);
@@ -312,7 +312,7 @@ async function testImageUnavailable(): Promise<void> {
   const png = tmpPath("issue-2629.png");
   writeFileSync(png, PNG_1PX);
 
-  await withControlledSumatra(
+  await withControlledApp(
     EXE,
     async (client, proc) => {
       const frame = await waitForTopWindow(proc.pid!, FRAME_CLASS);

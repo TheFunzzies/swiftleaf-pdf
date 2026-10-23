@@ -11,7 +11,7 @@
 // the canvas started a selection edit rather than a text drag-out.
 
 import { writeFileSync } from "node:fs";
-import { ControlClient, ControlCommand, withControlledSumatra } from "./control.ts";
+import { ControlClient, ControlCommand, withControlledApp } from "./control.ts";
 import { EXE, runStandalone, tmpPath } from "./util.ts";
 
 const WORD = "grabme";
@@ -67,7 +67,7 @@ export async function testit(): Promise<void> {
   const pdfPath = tmpPath("rect-selection-drag.pdf");
   writeFileSync(pdfPath, buildPdf());
 
-  const result = await withControlledSumatra(EXE, (client) => requestWithRetry(client), [pdfPath]);
+  const result = await withControlledApp(EXE, (client) => requestWithRetry(client), [pdfPath]);
   console.log(`rect-selection-drag: ${result}`);
 }
 
