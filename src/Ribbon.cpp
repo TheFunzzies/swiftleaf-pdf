@@ -17,6 +17,7 @@
 #include "Theme.h"
 #include "Translations.h"
 #include "Material.h"
+#include "Animation.h"
 #include "Ribbon.h"
 
 //--- icons the classic toolbar doesn't have (Tabler icons, MIT license)
@@ -673,11 +674,13 @@ constexpr int kRibbonBtnMinDx = 36;
 constexpr int kRibbonBtnMaxLabelDx = 120;
 
 RibbonButton::RibbonButton() {
+    animatedBg = new AnimatedColor();
     kind = kindVirtCtrlRibbonButton;
     padding = {DpiScale(kRibbonBtnPadY), DpiScale(kRibbonBtnPadX), DpiScale(kRibbonBtnPadY), DpiScale(kRibbonBtnPadX)};
 }
 
 RibbonButton::~RibbonButton() {
+    delete animatedBg;
     str::Free(label);
 }
 
@@ -714,6 +717,7 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
     } else if (enabled && HasFlag(vwfHovered)) {
         container = isSelected ? M3StateLayer(container, m3.onSurface, kM3HoverOpacity) : m3.surfaceContainerHigh;
     }
+    container = animatedBg->Get(GetHwnd(), container);
     if (container != RibbonPanelBgColor()) {
         ctx.gfx->FillRoundedRect(r, diameter, container);
     }
@@ -837,6 +841,7 @@ constexpr int kRibbonTabPadY = 7;
 constexpr int kRibbonTabUnderlineDy = 3;
 
 RibbonTab::RibbonTab(Str s, PlatformFont* f) {
+    animatedBg = new AnimatedColor();
     kind = kindRibbonTab;
     label = str::Dup(s);
     font = f;
@@ -847,6 +852,7 @@ RibbonTab::RibbonTab(Str s, PlatformFont* f) {
 }
 
 RibbonTab::~RibbonTab() {
+    delete animatedBg;
     str::Free(label);
 }
 
@@ -867,31 +873,22 @@ void RibbonTab::Paint(VirtPaintCtx& ctx) {
     if (isActive) {
         ctx.gfx->FillRect(r, RibbonPanelBgColor());
     }
+    Color bg = isActive ? RibbonPanelBgColor() : RibbonTabRowBgColor();
+    Color hover = bg;
     if (HasFlag(vwfHovered) || HasFlag(vwfPressed)) {
         int layer = HasFlag(vwfPressed) ? kM3PressedOpacity : kM3HoverOpacity;
-        Rect hi = r;
-        hi.y += DpiScale(4);
-        hi.dy -= DpiScale(4) + DpiScale(kRibbonTabUnderlineDy);
-        Color bg = isActive ? RibbonPanelBgColor() : RibbonTabRowBgColor();
-        ctx.gfx->FillRoundedRect(hi, DpiScale(6), M3StateLayer(bg, m3.onSurface, layer));
+        hover = M3StateLayer(bg, m3.onSurface, layer);
     }
+    Rect hi = r;
+    hi.y += DpiScale(4);
+    hi.dy -= DpiScale(4) + DpiScale(kRibbonTabUnderlineDy);
+    ctx.gfx->FillRoundedRect(hi, DpiScale(6), animatedBg->Get(GetHwnd(), hover));
     if (HasFlag(vwfFocused)) ctx.gfx->DrawRect(r, RibbonAccentColor(), DpiScale(1));
     // PDFCraft: neutral active text for underlined mode bar
     Color col = isActive ? m3.onSurface : m3.onSurfaceVariant;
     Rect rText = r;
     rText.dy -= DpiScale(kRibbonTabUnderlineDy);
     ctx.gfx->DrawText(label, rText, gfxTextCenter | gfxTextVCenter | gfxTextSingleLine, font, col);
-    if (!isActive) {
-        return;
-    }
-    int dy = DpiScale(kRibbonTabUnderlineDy);
-    int textDx = PlatformFontMeasureText(font, label).dx;
-    int barDx = std::max(textDx, DpiScale(24));
-    Rect bar{r.x + (r.dx - barDx) / 2, r.Bottom() - dy, barDx, dy * 2};
-    // round the top only: the lower half of the shape is clipped by the tab
-    ctx.gfx->PushClip({r.x, r.Bottom() - dy, r.dx, dy});
-    ctx.gfx->FillRoundedRect(bar, dy, m3.primary);
-    ctx.gfx->PopClip();
 }
 
 void RibbonTab::OnMouseEnter() {
@@ -907,6 +904,40 @@ RibbonTab* AsRibbonTab(ILayout* l) {
         return (RibbonTab*)l;
     }
     return nullptr;
+}
+
+RibbonTabRow::RibbonTabRow() {
+    underlineX = new Animation();
+    underlineWidth = new Animation();
+}
+
+RibbonTabRow::~RibbonTabRow() {
+    delete underlineX;
+    delete underlineWidth;
+}
+
+void RibbonTabRow::PaintUnderline(Gfx* gfx, HWND hwnd) {
+    for (auto& item : children) {
+        auto* tab = AsRibbonTab(item.layout);
+        if (!tab || !tab->isActive || IsCollapsed(tab)) continue;
+        Rect r = tab->BoundsInWindow();
+        int width = std::max(PlatformFontMeasureText(tab->font, tab->label).dx, DpiScale(24));
+        int x = r.x + (r.dx - width) / 2;
+        Size size{lastBounds.dx, lastBounds.dy};
+        if (!(size == paintedSize)) {
+            underlineX->Snap((float)x);
+            underlineWidth->Snap((float)width);
+            paintedSize = size;
+        }
+        int left = (int)(underlineX->To(hwnd, (float)x) + .5f);
+        int dx = (int)(underlineWidth->To(hwnd, (float)width) + .5f);
+        int dy = DpiScale(kRibbonTabUnderlineDy);
+        Rect bar{left, r.Bottom() - dy, dx, dy * 2};
+        gfx->PushClip({lastBounds.x, r.Bottom() - dy, lastBounds.dx, dy});
+        gfx->FillRoundedRect(bar, dy, RibbonAccentColor());
+        gfx->PopClip();
+        return;
+    }
 }
 
 Size RibbonTabRow::Layout(Constraints bc) {

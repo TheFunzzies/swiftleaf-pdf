@@ -195,7 +195,16 @@ export async function testit(): Promise<void> {
     want(panelRows(raw).length === before.length, "Disabled tools disappeared", raw);
 
     // Narrow window (<700px): panel collapses and tab click opens fallback menu
-    moveWindow(frame, 30, 30, 650, 900);
+    const dpi = +(await toolsDump(client)).match(/panel-layout .* dpi=(\d+)/)![1]!;
+    moveWindow(frame, 30, 30, Math.round((480 * dpi) / 96), 900);
+    await pollUntil(
+      () => toolsDump(client),
+      (s) => /panel-layout rail=1/.test(s),
+      {
+        error: (s) => `Narrow tools panel did not become an icon rail: ${s}`,
+      },
+    );
+    moveWindow(frame, 30, 30, Math.round((350 * dpi) / 96), 900);
     await pollUntil(
       async () => isWindowVisible(panel),
       (v) => !v,

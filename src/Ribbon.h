@@ -81,7 +81,11 @@ int RibbonTabDy(PlatformFont*);
 Pixmap* RibbonIconPixmap(Str svg, int size, Color fg, Color bg);
 
 // a tool button: icon with a short label beside it
+struct AnimatedColor;
+struct Animation;
+
 struct RibbonButton : VirtIconButton {
+    AnimatedColor* animatedBg = nullptr;
     Str label; // owned
     PlatformFont* font = nullptr;
     Color textColor = kColorUnset;
@@ -109,6 +113,7 @@ struct RibbonPanelFit : Padding {
 
 // a page tab in the ribbon's tab row
 struct RibbonTab : VirtCtrl {
+    AnimatedColor* animatedBg = nullptr;
     Str label; // owned
     PlatformFont* font = nullptr;
     bool isActive = false;
@@ -127,7 +132,13 @@ struct RibbonTab : VirtCtrl {
 RibbonTab* AsRibbonTab(ILayout*);
 
 struct RibbonTabRow : HBox {
+    Animation* underlineX = nullptr;
+    Animation* underlineWidth = nullptr;
+    Size paintedSize;
+    RibbonTabRow();
+    ~RibbonTabRow() override;
     Size Layout(Constraints bc) override;
+    void PaintUnderline(Gfx*, HWND);
 };
 
 // PDFCraft's "Find tools and commands" field. It only looks like an edit: a

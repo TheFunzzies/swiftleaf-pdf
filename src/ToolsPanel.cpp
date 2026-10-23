@@ -3,6 +3,7 @@
 
 #include "base/Base.h"
 #include "base/Win.h"
+#include "base/Pixmap.h"
 #include "gui/Dpi.h"
 #include "gui/UIModels.h"
 #include "gui/Layout.h"
@@ -13,6 +14,8 @@
 #include "gui/VirtCtrl.h"
 #include "gui/VirtHost.h"
 #include "Settings.h"
+#include "PanelLayout.h"
+#include "Animation.h"
 #include "AppSettings.h"
 #include "DocController.h"
 #include "SumatraPDF.h"
@@ -65,11 +68,20 @@ static const ToolDef stripTools[] = {
 
 struct ToolsPanelVirt {
     VirtHost* host = nullptr;
+    Animation pageFade;
+    Pixmap* oldRows = nullptr;
+    Pixmap* fadeRows = nullptr;
+    ~ToolsPanelVirt() {
+        FreePixmap(oldRows);
+        FreePixmap(fadeRows);
+    }
     Vec<RibbonButton*> rows;
     Vec<VirtCtrl*> sources;
     Vec<VirtText*> headings;
     ScrollBox* scroll = nullptr;
     int page = -1;
+    bool rail = false;
+    ILayout* header = nullptr;
     VirtText* title = nullptr;
     VirtButton* more = nullptr;
     VirtHost* strip = nullptr;
@@ -77,7 +89,7 @@ struct ToolsPanelVirt {
 };
 
 int ToolsPanelDx() {
-    return DpiScale(240);
+    return DpiScale(ClampPanelWidth(gSettings->toolsPanelWidth, kToolsMinWidth));
 }
 
 bool ShouldShowToolsPanel(MainWindow* win) {
@@ -171,7 +183,7 @@ void ToolsPanelUpdate(MainWindow* win) {
             b->pixmap = icon->pixmap;
             b->pixmapDisabled = icon->pixmapDisabled;
         }
-        if (source) b->SetTooltip(source->tooltip);
+        if (source) b->SetTooltip(len(source->tooltip) ? source->tooltip : b->label);
         b->Invalidate();
     }
 }
@@ -224,9 +236,72 @@ static void SetupRow(MainWindow* win, VirtCtrl* row) {
     row->onFocusChanged = MkFunc1(OnRowFocus, win);
 }
 
+static void ClearPageFade(void* context) {
+    auto* panel = (ToolsPanelVirt*)context;
+    if (panel->pageFade.running) return;
+    FreePixmap(panel->oldRows);
+    FreePixmap(panel->fadeRows);
+    panel->oldRows = panel->fadeRows = nullptr;
+}
+
+static void CapturePage(ToolsPanelVirt* panel) {
+    panel->pageFade.Snap(1);
+    ClearPageFade(panel);
+    auto* host = panel->host;
+    auto* buffer = host->gfxBuf;
+    Rect r = host->ClientRect();
+    if (!AnimationAllowed(host->native) || !buffer || !buffer->hdc || r.dx != buffer->dx || r.dy != buffer->dy ||
+        r.IsEmpty())
+        return;
+    panel->oldRows = AllocPixmapDIB(r.dx, r.dy);
+    panel->fadeRows = AllocPixmapDIB(r.dx, r.dy);
+    if (!panel->oldRows || !panel->fadeRows) {
+        ClearPageFade(panel);
+        return;
+    }
+    HDC dc = CreateCompatibleDC(buffer->hdc);
+    HGDIOBJ old = SelectObject(dc, panel->oldRows->hbmp);
+    BOOL ok = BitBlt(dc, 0, 0, r.dx, r.dy, buffer->hdc, 0, 0, SRCCOPY);
+    SelectObject(dc, old);
+    DeleteDC(dc);
+    if (!ok) {
+        ClearPageFade(panel);
+        return;
+    }
+    panel->fadeRows->hasAlpha = true;
+    panel->fadeRows->premultiplied = true;
+    panel->pageFade.Snap(0);
+    panel->pageFade.To(host->native, 1);
+    if (!panel->pageFade.running) ClearPageFade(panel);
+}
+
+static void PaintPageFade(ToolsPanelVirt* panel, VirtHostPaintEvent* ev) {
+    if (!panel->oldRows || !panel->fadeRows) return;
+    if (!AnimationAllowed(ev->host->native)) {
+        panel->pageFade.Snap(1);
+        ClearPageFade(panel);
+        return;
+    }
+    auto* src = panel->oldRows;
+    auto* dst = panel->fadeRows;
+    int alpha = (int)(255 * (1 - panel->pageFade.value));
+    for (int y = 0; y < src->height; y++) {
+        u8* s = src->data + y * src->stride;
+        u8* d = dst->data + y * dst->stride;
+        for (int x = 0; x < src->width; x++, s += 4, d += 4) {
+            d[0] = (u8)(s[0] * alpha / 255);
+            d[1] = (u8)(s[1] * alpha / 255);
+            d[2] = (u8)(s[2] * alpha / 255);
+            d[3] = (u8)alpha;
+        }
+    }
+    ev->gfx->DrawPixmap(dst, {0, 0, dst->width, dst->height});
+}
+
 void ToolsPanelShowPage(MainWindow* win) {
     auto* panel = win->toolsPanel;
     if (!panel || panel->page == win->ribbonPage) return;
+    CapturePage(panel);
     panel->page = win->ribbonPage;
     VecReset(panel->rows);
     VecReset(panel->sources);
@@ -234,7 +309,7 @@ void ToolsPanelShowPage(MainWindow* win) {
     panel->more = nullptr;
     auto* col = new VBox();
     col->alignCross = CrossAxisAlign::Stretch;
-    col->gap = DpiScale(4);
+    col->gap = DpiScale(2);
     auto header = NewLabelWithClose(win->hwndFrame, GetAppFont(), MkFunc1(OnClose, win));
     panel->title = header.label;
     auto page = (RibbonPage)panel->page;
@@ -245,8 +320,8 @@ void ToolsPanelShowPage(MainWindow* win) {
     SetWindowTextW(panel->host->native, CWStrTemp(title));
     header.closeBtn->SetTooltip(Tr("Close tools panel"));
     SetupRow(win, header.closeBtn);
+    panel->header = header.box;
     col->AddChild(header.box);
-    col->AddChild(new VirtSpacer(0, DpiScale(8)));
     if (page == RibbonPage::Home) {
         for (const auto& d : tools) {
             auto* b = new RibbonButton();
@@ -268,7 +343,7 @@ void ToolsPanelShowPage(MainWindow* win) {
         for (auto& d : defs) {
             if (len(d.group)) {
                 auto* heading = new VirtText(trans::GetTranslation(d.group), GetScaledPlatformFont(GetAppFont(), 90));
-                heading->padding = DpiScaledInsets(8, 10);
+                heading->padding = DpiScaledInsets(4, 8);
                 VecAppend(panel->headings, heading);
                 col->AddChild(heading);
             }
@@ -289,11 +364,29 @@ void ToolsPanelShowPage(MainWindow* win) {
         b->isRtl = IsUIRtl();
         SetupRow(win, b);
     }
-    panel->scroll = new ScrollBox(new Padding(col, DpiScaledInsets(16, 12)));
+    panel->scroll = new ScrollBox(new Padding(col, DpiScaledInsets(8, 8)));
     panel->scroll->lineDy = RibbonButtonDy(GetAppFont());
     panel->host->SetLayout(panel->scroll);
+    bool rail = panel->rail;
+    panel->rail = !rail;
+    ToolsPanelSetRail(win, rail);
     ToolsPanelAfterThemeChange(win);
     ToolsPanelUpdate(win);
+}
+
+void ToolsPanelSetRail(MainWindow* win, bool rail) {
+    auto* panel = win->toolsPanel;
+    if (!panel || panel->rail == rail) return;
+    panel->rail = rail;
+    auto vis = rail ? Visibility::Collapse : Visibility::Visible;
+    panel->header->SetVisibility(vis);
+    for (auto* heading : panel->headings) heading->SetVisibility(vis);
+    if (panel->more) panel->more->SetVisibility(vis);
+    for (auto* row : panel->rows) {
+        row->compact = rail;
+        row->alignStart = !rail;
+    }
+    panel->host->Relayout();
 }
 
 static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
@@ -345,6 +438,9 @@ void CreateToolsPanel(MainWindow* win) {
     win->hwndToolsPanel = panel->host->native;
     panel->host->onNativeMsg = MkFunc1(PanelNativeMsg, win);
     panel->host->onPaintBackground = MkFunc1(PaintBackground, panel);
+    panel->host->onPaint = MkFunc1(PaintPageFade, panel);
+    panel->pageFade.onTick = ClearPageFade;
+    panel->pageFade.context = panel;
     ToolsPanelShowPage(win);
     args.parent = win->hwndCanvas;
     args.className = WStrL(L"SWIFTLEAF_ANNOTATION_STRIP");
@@ -453,6 +549,20 @@ TempStr ToolsPanelStateTemp(MainWindow* win) {
     if (!panel) return {};
     out.Append(fmt("toolsPanel page=%d visible=%d title=%s\n", panel->page, panel->host->IsVisible() ? 1 : 0,
                    panel->title->s));
+    out.Append(
+        fmt("panel-layout rail=%d toolsPref=%d commentsPref=%d toolsWidth=%d commentsWidth=%d canvasWidth=%d dpi=%d\n",
+            panel->rail, gSettings->toolsPanelWidth, gSettings->commentsPanelWidth, win->toolsPanelSlot->dx,
+            win->commentsPanelSlot->dx, win->canvasSlot->lastBounds.dx, DpiGet()));
+    const bool sides[] = {true, false};
+    for (bool isTools : sides) {
+        auto* splitter = isTools ? win->toolsPanelSplitter : win->commentsPanelSplitter;
+        Rect r = splitter->BoundsInWindow();
+        out.Append(fmt("panel-handle side=%s rect=%d,%d,%d,%d\n", isTools ? StrL("tools") : StrL("comments"), r.x, r.y,
+                       r.Right(), r.Bottom()));
+    }
+    out.Append(fmt("motion allowed=%d toolsRunning=%d commentsRunning=%d pageRunning=%d active=%d\n",
+                   AnimationAllowed(win->hwndFrame), win->toolsWidthAnimation->running,
+                   win->commentsWidthAnimation->running, panel->pageFade.running, AnimationCount(win->hwndFrame)));
     out.Append(fmt("ribbon height=%d stripVisible=0\n", win->toolbarVirt->ribbonDy));
     for (int i = 0; i < len(win->toolbarVirt->ribbonTabs); i++) {
         auto* tab = win->toolbarVirt->ribbonTabs[i];
@@ -473,7 +583,8 @@ TempStr ToolsPanelStateTemp(MainWindow* win) {
 void PositionAnnotationStrip(MainWindow* win) {
     auto* panel = win->toolsPanel;
     if (!panel || !panel->strip) return;
-    bool show = win->CurrentTab() && IsPdfDoc(win->CurrentTab()) && !win->presentation && !win->isFullScreen;
+    bool show = win->CurrentTab() && IsPdfDoc(win->CurrentTab()) && !win->presentation && !win->isFullScreen &&
+                !HwndIsVisible(win->hwndToolsPanel);
     SetWindowPos(panel->strip->native, HWND_TOP, DpiScale(16), DpiScale(16), DpiScale(44), DpiScale(250),
                  SWP_NOACTIVATE | (show ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
 }
