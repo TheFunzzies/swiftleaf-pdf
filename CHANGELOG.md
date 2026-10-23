@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.1 - 2026-10-23
+
+### Changed
+
+- The top ribbon tabs now drive the left panel: All tools, Read, Edit, Convert
+  and E-Sign each show their own tools there, and the second tool strip is
+  gone, leaving one slim top bar. The left panel scrolls with the mouse wheel.
+- Both side panels can be resized by dragging and remember their width. On
+  narrow windows the tools panel shrinks to an icon rail and the comments panel
+  hides, so the document keeps its space.
+- Smooth panel, tab and hover animations that turn off when Windows
+  "reduce motion" is enabled.
+
+### Fixed
+
+- Accessibility: keyboard navigation through the whole top bar, screen reader
+  names for icon-only buttons, checked state for toggles, high-contrast focus
+  outlines, and focus kept when switching tabs.
+- Robustness: saved panel widths are range-checked, and several null-pointer
+  and animation-list edge cases found in review were fixed.
+
 ## 0.4.0 - 2026-10-23
 
 ### Added
