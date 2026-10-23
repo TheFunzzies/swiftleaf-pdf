@@ -8,6 +8,7 @@ const timeoutMs = 120_000;
 const screenshotTimeoutMs = 5000;
 const smokeTests = [
   "contextual-panel",
+  "layout-animation",
   "free-text-annotation-placement",
   "free-text-custom-style",
   "free-text-draft",

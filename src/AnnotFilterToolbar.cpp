@@ -1028,9 +1028,6 @@ static void HideAnnotFilterWindow(MainWindow* win) {
     gSettings->showCommentsPanel = false;
     ScheduleSaveSettings();
     ScheduleUiUpdate(win, kUiForceRelayout);
-    if (HwndIsVisible(f->floatWnd->hwnd)) {
-        ShowWindow(f->floatWnd->hwnd, SW_HIDE);
-    }
 }
 
 bool IsFloatingAnnotListVisible(MainWindow* win) {
@@ -1042,7 +1039,7 @@ void ToggleFloatingAnnotList(MainWindow* win) {
     if (!win) {
         return;
     }
-    if (IsFloatingAnnotListVisible(win)) {
+    if (gSettings->showCommentsPanel) {
         HideAnnotFilterWindow(win);
         return;
     }

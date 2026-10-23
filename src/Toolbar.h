@@ -20,6 +20,7 @@ struct VirtIconButton;
 struct Edit;
 struct ILayout;
 struct RibbonTab;
+struct RibbonTabRow;
 struct RibbonButton;
 
 struct ToolbarPageTool {
@@ -184,6 +185,7 @@ struct ToolbarVirt {
     // Swiftleaf ribbon (Ribbon.h). items are the Home page's buttons and
     // annotationItems the Comment page's; ribbonItems are the other pages'
     Vec<RibbonTab*> ribbonTabs;
+    RibbonTabRow* ribbonTabRow = nullptr;
     Vec<ILayout*> ribbonPanels; // one per RibbonPage, only the shown one visible
     Vec<VirtCtrl*> ribbonItems; // id is the command, userData the svg icon
     Vec<int> ribbonItemPages;   // the page of each of ribbonItems

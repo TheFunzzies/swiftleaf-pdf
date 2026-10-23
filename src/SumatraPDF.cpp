@@ -54,6 +54,7 @@
 #include "NavRail.h"
 #include "ToolsPanel.h"
 #include "PanelLayout.h"
+#include "Animation.h"
 #include "DocumentPanel.h"
 #include "SignatureCreate.h"
 #include "Ocr.h"
@@ -3127,6 +3128,11 @@ static bool IsPanelDrag(MainWindow* win) {
     return captured && (captured == win->toolsPanelSplitter || captured == win->commentsPanelSplitter);
 }
 
+static void OnPanelAnimation(void* context) {
+    auto* win = (MainWindow*)context;
+    if (IsMainWindowValidAndNotClosing(win)) ScheduleUiUpdate(win, kUiForceRelayout | kUiNoToolbars);
+}
+
 static void OnToolPanelResize(MainWindow* win, VirtSplitter::MoveEvent* ev) {
     bool tools = ev->w == win->toolsPanelSplitter;
     auto* slot = tools ? win->toolsPanelSlot : win->commentsPanelSlot;
@@ -3257,6 +3263,12 @@ static void CreateFrameLayout(MainWindow* win) {
     win->documentPanelSlot = new HwndSlot();
     CreateCaptionLayout(win);
 
+    win->toolsWidthAnimation = new Animation();
+    win->commentsWidthAnimation = new Animation();
+    win->toolsWidthAnimation->onTick = OnPanelAnimation;
+    win->commentsWidthAnimation->onTick = OnPanelAnimation;
+    win->toolsWidthAnimation->context = win;
+    win->commentsWidthAnimation->context = win;
     win->toolsPanelSplitter = NewFrameSplitter(SplitterType::Vert, true);
     win->toolsPanelSplitter->onMove = MkFunc1(OnToolPanelResize, win);
     win->commentsPanelSplitter = NewFrameSplitter(SplitterType::Vert, true);
@@ -7811,23 +7823,6 @@ static void ClearSlotDefer(HwndSlot* slot) {
 // Keep x/width, apply the layout's y/height. Used on a live frame resize so
 // the sidebar is not nudged 1px when the caption-border inset changes.
 // A right sidebar follows the frame's right edge, so it takes x too (#6203).
-static void StretchHwndHeight(DeferWinPosHelper& dh, HWND hwnd, const Rect& want) {
-    if (!hwnd) {
-        return;
-    }
-    Rect cur = ChildPosWithinParent(hwnd);
-    Rect next{cur.x, want.y, cur.dx, want.dy};
-    if (SidebarOnRightLayout()) {
-        next.x = want.x;
-    }
-    if (next != cur) {
-        dh.MoveWindow(hwnd, next);
-    }
-}
-
-// Keep x/y/height, apply a new width. Used on a live sidebar-splitter drag so
-// the TOC (label, filter, tree) is not nudged 1-2px; only the right edge moves.
-// A right sidebar's left edge is the one that moves (#6203).
 static void StretchHwndWidth(DeferWinPosHelper& dh, HWND hwnd, const Rect& want) {
     if (!hwnd) {
         return;
@@ -8038,7 +8033,8 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     // transparent WebView2 in the strip the canvas just inherited
     bool isSplitterDrag = sidebarDx != -1;
     // dragging the splitter between the sidebar panels is just as live
-    bool isLiveDrag = isSplitterDrag || win->uiState.panelsDrag || IsPanelDrag(win);
+    bool panelAnimating = win->toolsWidthAnimation->running || win->commentsWidthAnimation->running;
+    bool isLiveDrag = isSplitterDrag || win->uiState.panelsDrag || IsPanelDrag(win) || panelAnimating;
     // Fullscreen changes both the canvas origin and size while frame redraw is
     // disabled. Preserving its old screen bits copies the normal-window tabs,
     // toolbar, and document into the fullscreen surface until a later paint.
@@ -8091,9 +8087,27 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
         showNavRail = false;
         navRailDx = 0;
     }
-    auto widths =
-        CalcPanelWidths(rc.dx - reserved - documentPanelDx - navRailDx, DpiGet(),
-                        wantTools ? gSettings->toolsPanelWidth : 0, wantComments ? gSettings->commentsPanelWidth : 0);
+    auto widths = CalcPanelWidths(rc.dx - reserved - documentPanelDx - navRailDx, DpiGet(),
+                                  wantTools ? ClampPanelWidth(gSettings->toolsPanelWidth, kToolsMinWidth) : 0,
+                                  wantComments ? ClampPanelWidth(gSettings->commentsPanelWidth, kCommentsMinWidth) : 0);
+    bool instant = isFrameResize || isSplitterDrag || IsPanelDrag(win) || win->deferDpiChromeRefresh ||
+                   win->presentation || win->isFullScreen || win->isQuickLook;
+    if (instant) {
+        win->toolsWidthAnimation->Snap((float)widths.tools);
+        win->commentsWidthAnimation->Snap((float)widths.comments);
+    }
+    int targetTools = widths.tools;
+    int targetComments = widths.comments;
+    widths.tools = (int)(win->toolsWidthAnimation->To(win->hwndFrame, (float)targetTools) + .5f);
+    widths.comments = (int)(win->commentsWidthAnimation->To(win->hwndFrame, (float)targetComments) + .5f);
+    int used = widths.tools + widths.comments +
+               DpiScale(kPanelHandleWidth) * ((widths.tools > 0 ? 1 : 0) + (widths.comments > 0 ? 1 : 0));
+    if (used > rc.dx - reserved - documentPanelDx - navRailDx - DpiScale(kDocumentMinWidth)) {
+        widths.tools = targetTools;
+        widths.comments = targetComments;
+        win->toolsWidthAnimation->Snap((float)targetTools);
+        win->commentsWidthAnimation->Snap((float)targetComments);
+    }
     bool showTools = widths.tools > 0;
     bool showComments = widths.comments > 0;
     int toolsDx = widths.tools;
@@ -8102,7 +8116,7 @@ static bool RelayoutFrame(MainWindow* win, bool updateToolbars, int sidebarDx) {
     win->toolsPanelSlot->dx = toolsDx;
     SetVis(win->toolsPanelSplitter, showTools);
     win->toolsPanelSplitter->thickness = handleDx;
-    ToolsPanelSetRail(win, widths.rail);
+    ToolsPanelSetRail(win, widths.rail || (toolsDx > 0 && toolsDx < DpiScale(kToolsMinWidth)));
     ShowWindow(win->hwndToolsPanel, showTools ? SW_SHOW : SW_HIDE);
     SetVis(win->commentsPanelSlot, showComments);
     win->commentsPanelSlot->dx = widths.comments;
@@ -15454,9 +15468,13 @@ static LRESULT CALLBACK WndProcSumatraFrame(HWND hwnd, UINT msg, WPARAM wp, LPAR
     // (dragging one captures it) and set the resize cursor
     if (win && win->frameRoot) {
         LRESULT vres = 0;
-        if (VirtTreeOnMessage(hwnd, win->frameRoot, msg, wp, lp, vres)) {
-            return vres;
-        }
+        bool handled = VirtTreeOnMessage(hwnd, win->frameRoot, msg, wp, lp, vres);
+        auto* captured = win->frameRoot->captured;
+        bool splitting = captured && (captured == win->toolsPanelSplitter || captured == win->commentsPanelSplitter ||
+                                      captured == win->sidebarSplitter || captured == win->sidebarPanelsSplitter ||
+                                      captured == win->aiChatSplitter);
+        AnimationSuspend(hwnd, win->deferDpiChromeRefresh || splitting);
+        if (handled) return vres;
         if (msg == WM_PAINT) {
             // BeginPaint erases with the class brush first; we only add the
             // splitters on top (the custom-caption path paints its own)
@@ -15520,10 +15538,12 @@ static LRESULT CALLBACK WndProcSumatraFrame(HWND hwnd, UINT msg, WPARAM wp, LPAR
             if (win) {
                 win->deferDpiChromeRefresh = true;
                 win->dpiChromeRefreshPending = false;
+                AnimationSuspend(hwnd, true);
             }
             return 0;
 
         case WM_EXITSIZEMOVE:
+            AnimationSuspend(hwnd, false);
             if (win) {
                 win->NotifyWindowMoved();
                 if (win->dpiChromeRefreshPending) {
@@ -15765,6 +15785,7 @@ static LRESULT CALLBACK WndProcSumatraFrame(HWND hwnd, UINT msg, WPARAM wp, LPAR
         }
 
         case WM_DESTROY: {
+            AnimationForget(hwnd);
             // WM_DESTROY is generated by windows when close button is pressed
             // or if we explicitly call DestroyWindow().
             // It might be sent as a result of File\Close, in which

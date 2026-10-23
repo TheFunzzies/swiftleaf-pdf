@@ -100,6 +100,15 @@ void AnimationForget(HWND hwnd) {
     AnimationSuspend(hwnd, false);
 }
 
+int AnimationCount(HWND hwnd) {
+    int count = 0;
+    HWND frame = hwnd ? GetAncestor(hwnd, GA_ROOT) : nullptr;
+    for (auto* a : gAnimations) {
+        if (!hwnd || GetAncestor(a->hwnd, GA_ROOT) == frame) count++;
+    }
+    return count;
+}
+
 Color AnimationBlend(Color from, Color to, float progress) {
     float p = limitValue(progress, 0.f, 1.f);
     auto blend = [p](u8 a, u8 b) { return (u8)(a + (b - a) * p + .5f); };

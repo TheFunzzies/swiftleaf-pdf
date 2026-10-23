@@ -3617,7 +3617,7 @@ static void OnRibbonTabClicked(MainWindow* win, VirtMouseEvent* ev) {
     ev->didHandle = true;
     RibbonMode mode = (RibbonMode)(w->id - kRibbonTabIdBase);
     SetRibbonPage(win, (int)RibbonModePage(mode), true);
-    if (!ShouldShowToolsPanel(win) || HwndClientRect(win->hwndFrame).dx < DpiScale(700)) {
+    if (!ShouldShowToolsPanel(win) || !HwndIsVisible(win->hwndToolsPanel)) {
         ShowToolsPanelMenu(win, win->toolbarVirt->host->ToScreen(w->BoundsInWindow()));
     }
 }
@@ -3911,6 +3911,7 @@ static void BuildToolbarLayout(MainWindow* win) {
     VecReset(tb->topBarItems);
     tb->ribbonPanelsRow = nullptr;
     auto* tabRow = new RibbonTabRow();
+    tb->ribbonTabRow = tabRow;
     tabRow->alignCross = CrossAxisAlign::CrossCenter;
     tabRow->rtl = rtl;
     tabRow->AddChild(NewTopBarButton(win, gLucidePanelLeft, TopBarMenuId, Tr("Menu"), Tr("Panels and all tools")));
@@ -4085,6 +4086,7 @@ static void PaintToolbarEdge(MainWindow* win, VirtHostPaintEvent* ev) {
     if (!tb || tb->ribbonTabRowDy <= 0) {
         return;
     }
+    if (tb->ribbonTabRow) tb->ribbonTabRow->PaintUnderline(ev->gfx, tb->host->native);
     Color edge = RibbonEdgeColor();
     ev->gfx->FillRect({rc.x, rc.y + tb->ribbonTabRowDy, rc.dx, 1}, edge);
     ev->gfx->FillRect({rc.x, rc.Bottom() - 1, rc.dx, 1}, edge);

@@ -6,6 +6,7 @@ float AnimationEase(float progress);
 bool AnimationAllowed(HWND);
 void AnimationSuspend(HWND, bool suspend);
 void AnimationForget(HWND);
+int AnimationCount(HWND);
 
 struct Animation {
     float value = 0;

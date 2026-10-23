@@ -1,32 +1,36 @@
 # Layout and animation
 
-Branch: `t3/layout-animation`; push target: `t3/layout-animation`.
+Branch / push target: `t3/layout-animation`.
 Base: `a19ef51` (contextual left panel).
 
 ## Done
 
-- Added persisted ToolsPanelWidth / CommentsPanelWidth (96-DPI units); regenerated settings.
-- Reused captured virtual splitters for inner-edge resizing with DPI-aware min/max.
-- Added progressive panel shrinking, tools icon rail, then comments auto-hide; preserve preferences.
-- Reserved 320 DIP for document; budget includes sidebar/chat/navigation/details.
-- Comments and document details share right-panel space; tightened tools spacing.
-- Added layout budget/threshold tests at 100/150/200% and settings serialization round-trip.
-- Debug build found pre-existing hand-edited document settings absent from generator; added generator definitions. Rebuild pending; new files registered in premake and both VS projects.
-
-- Added shared 160ms cubic ease-out animator: one idle-stopped timer, owned animation state, reduce-motion policy, interruption and teardown. Unit tests cover policy, easing, instant updates and idle timer.
+- Persisted ToolsPanelWidth / CommentsPanelWidth in DIP; regenerated settings.
+- DPI-aware captured inner-edge splitters, bounded to 180/220..480 DIP.
+- Progressive shrink, tools icon rail with tooltips, comments auto-hide, automatic restoration without overwriting preferences.
+- Reserved 320 DIP document budget including sidebar/chat/navigation/details; comments and details share right-side space.
+- Tightened tools spacing; hide fallback annotation strip when tools are visible.
+- Single shared idle-stopped 160ms cubic ease-out timer; Windows client-area animation policy and resize/capture suppression.
+- Panel width slides, ribbon underline movement, row/button hover/press/selection color transitions, tab-switch bitmap cross-fade.
+- Animator/bitmap teardown; immediate input and command state throughout transitions.
+- Unit coverage for collapse budgets at 100/150/200%, settings serialization, reduced-motion policy, easing and idle timer.
+- Added layout-animation GUI smoke: DPI collapse/restore, idle animation timer, live handle drag when desktop permits, save/reopen persistence. Registered in SwiftLeaf CI and fast suite.
+- Branding passed (629 files). Smoke script bundles successfully.
+- Debug build passed initial integration; cross-fade compile caught and fixed diagnostic shadowing and formatter argument checks. Final rebuild running.
 
 ## Next
 
-- Finish compile verification; implement shared reduce-motion-aware animator.
-- Animate panel widths, ribbon underline, page content and hover/press/selection.
-- Add GUI smoke coverage and run requested validation; update this handoff after each step.
+- Finish final Debug rebuild.
+- Run unit runner, full requested SwiftLeaf CI, branding and diff checks; record exact results.
+- Optional smooth comments scrolling is not implemented.
 
 ## Gotchas
 
-- No STL; Win32 virtual controls. Original handoff: contextual-panel.md.
-- Panel resize requests force relayout (width preferences are outside the legacy layout snapshot).
-- New settings regenerate branding text as well as metadata (generator is source of truth).
-- Generator skips website docs: external sumatra-website checkout is absent.
+- No STL. Read docs/development.md and contextual-panel.md.
+- Original branch hand-edited ShowDocumentPanel / DocumentPanelMode into generated files; added them to generator so regeneration preserves them.
+- Generator skips website docs because external website checkout is absent; generated branding text changes are expected.
+- Panel width changes force layout because legacy snapshot does not include panel preferences.
+- Build: powershell -NoProfile -ExecutionPolicy Bypass -File tools/swiftleaf/build.ps1 -Config Debug.
 - clang-format is under VS2022 BuildTools/VC/Tools/Llvm/bin.
-- GUI/unit execution may be blocked by Windows Application Control; record actual results.
-- Commit messages end in one concise prompt: line. Push every completed step to origin HEAD:t3/layout-animation.
+- GUI/unit execution may be blocked by Windows Application Control; do not call blocked tests passed.
+- Commit messages end with prompt: line; push each step to origin HEAD:t3/layout-animation.

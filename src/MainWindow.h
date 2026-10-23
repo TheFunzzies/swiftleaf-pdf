@@ -16,6 +16,7 @@ struct PageThumbnailsCtrl;
 struct SidebarPanel;
 struct VirtRoot;
 struct VirtSplitter;
+struct Animation;
 struct HBox;
 struct Splitter;
 struct Tooltip;
@@ -517,6 +518,8 @@ struct MainWindow { // NOLINT(clang-analyzer-optin.performance.Padding)
     HwndSlot* toolsPanelSlot = nullptr;
     VirtSplitter* toolsPanelSplitter = nullptr;
     VirtSplitter* commentsPanelSplitter = nullptr;
+    Animation* toolsWidthAnimation = nullptr;
+    Animation* commentsWidthAnimation = nullptr;
     HwndSlot* navRailSlot = nullptr;
     // tabs-in-titlebar caption: VirtCtrl buttons + HwndSlots for tabs/menu
     VBox* captionLayout = nullptr;
