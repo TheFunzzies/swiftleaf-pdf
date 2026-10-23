@@ -6,6 +6,7 @@
 #include "base/File.h"
 #include "base/GuessFileType.h"
 #include "base/Pixmap.h"
+#include "base/GdiPlusUtil.h"
 #include "base/Win.h"
 #include <roapi.h>
 #include <robuffer.h>
@@ -24,6 +25,9 @@
 #include "DocController.h"
 #include "EngineBase.h"
 #include "EngineAll.h"
+#include "PdfCreator.h"
+#include "TextSelection.h"
+#include "TextSearch.h"
 #include "DisplayModel.h"
 #include "SumatraPDF.h"
 #include "MainWindow.h"
@@ -295,7 +299,7 @@ static void RunOcr(OcrJob* job) {
         Vec<PdfOcrWord> words;
         job->error = reader.Recognize(px, job->cancel, pageText, words);
         FreePixmap(px);
-        if (SUCCEEDED(job->error) && engine->kind == kindEngineMupdf &&
+        if (SUCCEEDED(job->error) && EngineMupdfIsPdf(engine) &&
             !EngineMupdfAddOcrText(engine, page, zoom, job->rotation, words))
             job->error = E_FAIL;
         for (auto& word : words) str::Free(word.text);
@@ -479,7 +483,7 @@ void OcrDialog::Poll(WindowBase::TimerEvent*) {
     result->SetText(text);
     bool hasText = !str::IsEmptyOrWhiteSpace(text);
     copy->SetIsEnabled(hasText && HasPermission(Perm::CopySelection));
-    save->SetIsEnabled(SUCCEEDED(job->error) && job->output && job->source->kind == kindEngineMupdf && CanAccessDisk());
+    save->SetIsEnabled(SUCCEEDED(job->error) && job->output && EngineMupdfIsPdf(job->source) && CanAccessDisk());
 }
 
 void OcrDialog::Copy(VirtMouseEvent*) {
@@ -615,7 +619,11 @@ bool OcrDialog::Create(MainWindow* win) {
     box->AddChild(language);
     box->AddChild(NewVirtText({.s = Tr("Selected pages (for example 1-3, 5)"), .font = font}));
     range = new Edit();
-    range->Create({.parent = hwnd, .font = font, .withBorder = true});
+    Edit::CreateArgs rangeArgs;
+    rangeArgs.parent = hwnd;
+    rangeArgs.font = font;
+    rangeArgs.withBorder = true;
+    range->Create(rangeArgs);
     range->SetText(fmt("%d", current));
     box->AddChild(range);
     auto* buttons = new HBox();
@@ -665,6 +673,116 @@ void ShowOcrDialog(MainWindow* win) {
 }
 
 #if IS_DEBUG
+// A real xref table keeps this regression independent of PDF repair heuristics.
+static Str OcrFixture(int rotation) {
+    StrVec objects;
+    objects.Append(StrL("<< /Type /Catalog /Pages 2 0 R >>"));
+    objects.Append(StrL("<< /Type /Pages /Count 2 /Kids [3 0 R 5 0 R] /Resources << >> >>"));
+    objects.Append(
+        fmt("<< /Type /Page /Parent 2 0 R /MediaBox [10 20 410 620] "
+            "/CropBox [30 40 390 600] /UserUnit 2 /Rotate %d /Contents 4 0 R >>",
+            rotation));
+    Str content = StrL("0.7 g 40 50 80 90 re f 2 0 0 2 7 9 cm");
+    objects.Append(fmt("<< /Length %d >>\nstream\n%s\nendstream", len(content), content));
+    objects.Append(StrL("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 600] >>"));
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    Vec<int> offsets;
+    for (int i = 0; i < len(objects); i++) {
+        VecAppend(offsets, len(ToStr(pdf)));
+        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, objects[i]));
+    }
+    int xref = len(ToStr(pdf));
+    pdf.Append(fmt("xref\n0 %d\n0000000000 65535 f \n", len(objects) + 1));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects) + 1, xref));
+    return str::Dup(ToStr(pdf));
+}
+
+static bool SameOcrPixels(Pixmap* a, Pixmap* b) {
+    if (!a || !b || a->width != b->width || a->height != b->height) return false;
+    for (int y = 0; y < a->height; y++) {
+        for (int x = 0; x < a->width; x++) {
+            if (memcmp(a->data + y * a->stride + x * 4, b->data + y * b->stride + x * 4, 3)) return false;
+        }
+    }
+    return true;
+}
+
+static bool OcrRoundTrip(int pageRotation, int viewRotation) {
+    Str fixture = OcrFixture(pageRotation);
+    EngineBase* engine = CreateEngineMupdfFromData(fixture, StrL("ocr.pdf"), nullptr);
+    if (!engine) {
+        str::Free(fixture);
+        return false;
+    }
+    constexpr float zoom = 1.75f;
+    RenderPageArgs args(1, zoom, viewRotation, nullptr, RenderTarget::Export);
+    Pixmap* before = PixmapToBgra(engine->RenderPage(args));
+    Vec<PdfOcrWord> words;
+    PdfOcrWord word{StrL("Searchable"), {80, 90, 220, 36}};
+    VecAppend(words, word);
+    VecAppend(words, PdfOcrWord{StrL("caf\xc3\xa9"), {80, 160, 100, 36}});
+    Str dest = str::Dup(path::GetTempFilePathTemp(StrL("ocr")));
+    bool ok = EngineMupdfAddOcrText(engine, 1, zoom, viewRotation, words) && EngineMupdfSaveCopy(engine, dest);
+    engine->Release();
+    engine = ok ? CreateEngineMupdfFromFile(dest, FileType::PDF, 96) : nullptr;
+    ok = ok && engine;
+    if (engine) {
+        // Search uses the same extraction and selection machinery as the viewer.
+        TextSearch search(engine);
+        Vec<TextSel>* matches = search.FindFirst(1, word.text);
+        ok = matches && len(*matches) > 0 && engine->PageCount() == 2;
+        if (ok) {
+            Rect r = (*matches)[0].rect;
+            RectF screen =
+                engine->Transform(RectF((float)r.x, (float)r.y, (float)r.dx, (float)r.dy), 1, zoom, viewRotation);
+            float cx = screen.x + screen.dx / 2;
+            float cy = screen.y + screen.dy / 2;
+            ok = cx >= word.box.x && cx <= word.box.x + word.box.dx && cy >= word.box.y - 10 &&
+                 cy <= word.box.y + word.box.dy + 10;
+        }
+        ok = ok && search.FindFirst(1, StrL("caf\xc3\xa9"));
+        PageText untouched = engine->ExtractPageText(2);
+        ok = ok && str::IsEmptyOrWhiteSpace(untouched.text);
+        FreePageText(&untouched);
+        Pixmap* after = PixmapToBgra(engine->RenderPage(args));
+        ok = SameOcrPixels(before, after) && ok;
+        FreePixmap(after);
+    }
+    if (engine) engine->Release();
+    FreePixmap(before);
+    file::Delete(dest);
+    str::Free(dest);
+    str::Free(fixture);
+    printf("OCR save/reopen/search: page rotation %d, view rotation %d: %s\n", pageRotation, viewRotation,
+           ok ? "PASS" : "FAIL");
+    return ok;
+}
+
+static bool OcrCancelSaveTest() {
+    Str fixture = OcrFixture(0);
+    auto* job = new OcrJob();
+    job->output = CreateEngineMupdfFromData(fixture, StrL("ocr.pdf"), nullptr);
+    job->destination = str::Dup(path::GetTempFilePathTemp(StrL("ocr")));
+    Str sentinel = StrL("Keep existing destination");
+    bool ok = job->cancel && job->output && file::WriteFile(job->destination, sentinel);
+    if (ok) {
+        job->saveOnly = true;
+        SetEvent(job->cancel);
+        InterlockedIncrement(&job->refs);
+        RunOcr(job);
+        Str saved = file::ReadFile(job->destination);
+        ok = job->error == HRESULT_FROM_WIN32(ERROR_CANCELLED) && str::Eq(saved, sentinel);
+        str::Free(saved);
+    }
+    file::Delete(job->destination);
+    job->Release();
+    str::Free(fixture);
+    printf("OCR cancelled save preserves destination: %s\n", ok ? "PASS" : "FAIL");
+    return ok;
+}
+
 static void OcrSmokeTest(bool* ok) {
     OcrReader reader;
     HRESULT hr = reader.Open();
@@ -695,9 +813,37 @@ static void OcrSmokeTest(bool* ok) {
     str::Builder text;
     Vec<PdfOcrWord> words;
     hr = reader.Recognize(px, cancel, text, words);
+    *ok = SUCCEEDED(hr) && str::Contains(ToStr(text), StrL("12345"));
+    // Start with a scanned (image-only) PDF, then save/reopen the actual OCR boxes.
+    Str source = str::Dup(path::GetTempFilePathTemp(StrL("ocr")));
+    Str dest = str::Dup(path::GetTempFilePathTemp(StrL("ocr")));
+    {
+        PdfCreator creator;
+        Gdiplus::Bitmap* bitmap = NewGdiplusBitmapFromPixmap(px);
+        *ok = *ok && bitmap && creator.AddPageFromGdiplusBitmap(bitmap, 72) && creator.SaveToFile(source);
+        delete bitmap;
+    }
+    EngineBase* pdf = *ok ? CreateEngineMupdfFromFile(source, FileType::PDF, 96) : nullptr;
+    if (pdf) {
+        *ok = EngineMupdfAddOcrText(pdf, 1, 1, 0, words) && EngineMupdfSaveCopy(pdf, dest);
+        pdf->Release();
+    } else
+        *ok = false;
+    pdf = *ok ? CreateEngineMupdfFromFile(dest, FileType::PDF, 96) : nullptr;
+    if (pdf) {
+        {
+            TextSearch search(pdf);
+            *ok = search.FindFirst(1, StrL("12345")) != nullptr;
+        }
+        pdf->Release();
+    } else
+        *ok = false;
+    file::Delete(source);
+    file::Delete(dest);
+    str::Free(source);
+    str::Free(dest);
     for (auto& word : words) str::Free(word.text);
     FreePixmap(px);
-    *ok = SUCCEEDED(hr) && str::Contains(ToStr(text), StrL("12345"));
     printf("OCR smoke: HRESULT 0x%x, text: %.*s\n", (uint)hr, len(ToStr(text)), ToStr(text).s);
 }
 
@@ -706,6 +852,12 @@ bool Ocr_UnitTests() {
     float zoom = OcrZoom({0, 0, 72000, 36000}, 72, 4096);
     if (zoom <= 0 || ceilf(zoom * 72000) > 4096) return false;
     if (OcrZoom({0, 0, 612, 792}, 72, 4096) != 300.f / 72) return false;
+    for (int pageRotation : {0, 90, 180, 270}) {
+        for (int viewRotation : {0, 90, 180, 270}) {
+            if (!OcrRoundTrip(pageRotation, viewRotation)) return false;
+        }
+    }
+    if (!OcrCancelSaveTest()) return false;
     bool ok = false;
     ThreadHandle thread = StartThread(MkFunc0(OcrSmokeTest, &ok), StrL("OCR smoke"));
     if (!thread) return false;

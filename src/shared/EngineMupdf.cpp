@@ -9870,6 +9870,12 @@ bool EngineMupdfAddOcrText(EngineBase* engine, int pageNo, float zoom, int rotat
             text = fz_new_text(ctx);
             fz_show_string(ctx, text, font, fz_scale(1, -1), CStrTemp(word.text), 0, 0, FZ_BIDI_NEUTRAL, FZ_LANG_UNSET);
             fz_rect bounds = fz_bound_text(ctx, text, nullptr, fz_identity);
+            // fz_bound_text adds a one-unit raster-cache margin. Remove it
+            // before fitting at unit font size, or glyphs shrink inside boxes.
+            bounds.x0 += 1;
+            bounds.y0 += 1;
+            bounds.x1 -= 1;
+            bounds.y1 -= 1;
             float width = bounds.x1 - bounds.x0;
             float height = bounds.y1 - bounds.y0;
             if (width > 0 && height > 0) {

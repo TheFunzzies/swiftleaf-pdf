@@ -99,18 +99,19 @@ export async function testit(): Promise<void> {
       }
       captureWindowToPng(dlg, join(dir, "results.png"));
 
-      // All pages -> Copy text -> Save as .txt.
+      // All pages -> Selected pages -> Copy text -> Save PDF.
+      await pressTab(dlg);
       await pressTab(dlg);
       await pressEnter(dlg);
       if ((await getClipboardText()) !== all) throw new Error("Clipboard OCR differs from result text");
       await pressTab(dlg);
       await pressEnter(dlg);
-      const save = await waitFor(() => topWindow(proc.pid, "Save As"), Boolean, "text save dialog");
+      const save = await waitFor(() => topWindow(proc.pid, "Save As"), Boolean, "PDF save dialog");
       const filename = await waitFor(
         () => {
           let field = 0;
           enumChildWindows(save, (h) => {
-            if (getClassName(h) === "Edit" && /^OCR(?:\.txt)?$/i.test(getControlText(h))) field = h;
+            if (getClassName(h) === "Edit" && /^Searchable(?:\.pdf)?$/i.test(getControlText(h))) field = h;
             return true;
           });
           return field;
@@ -118,7 +119,7 @@ export async function testit(): Promise<void> {
         Boolean,
         "initialized save filename edit",
       );
-      const dest = join(dir, `ocr-${Date.now()}.txt`);
+      const dest = join(dir, `ocr-${Date.now()}.pdf`);
       await typeIntoInput(filename, dest, false);
       if (getControlText(filename) !== dest) throw new Error("Save filename was not set");
       await pressEnter(filename);
@@ -130,16 +131,21 @@ export async function testit(): Promise<void> {
             return "";
           }
         },
-        (s) => s.includes("12345") && s.includes("67890"),
-        "UTF-8 text export",
+        (s) => s.startsWith("%PDF-"),
+        "searchable PDF export",
       );
-      if (saved !== all) throw new Error("Saved OCR differs from result text");
+      if (!saved.startsWith("%PDF-")) throw new Error("Saved output is not a PDF");
       postMessage(dlg, WM_CLOSE, 0, 0);
       await waitFor(
         () => topWindow(proc.pid, "Scan & OCR"),
         (h) => h === 0,
         "dialog close",
       );
+
+      for (const needle of ["12345", "67890"]) {
+        const [, found] = await client.request(ControlCommand.TestSearch, [dest, needle]);
+        if (!String(found).startsWith("FOUND")) throw new Error(`Saved OCR search failed: ${found}`);
+      }
 
       // Start another job, then close its document while it runs.
       await client.request(ControlCommand.TestInvokeCommand, ["CmdScanOcr"]);
@@ -148,7 +154,7 @@ export async function testit(): Promise<void> {
       await client.request(ControlCommand.TestInvokeCommand, ["CmdCloseCurrentDocument"]);
       postMessage(closing, WM_CLOSE, 0, 0);
       await client.request(ControlCommand.Ping);
-      console.log(`OCR: current page, all pages, text export, and close-during-work passed (${dir})`);
+      console.log(`OCR: current page, all pages, PDF save/reopen/search, and close-during-work passed (${dir})`);
     },
     ["-appdata", appdata, pdf],
   );

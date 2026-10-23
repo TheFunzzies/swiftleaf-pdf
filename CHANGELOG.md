@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Searchable OCR PDF copies with aligned invisible Unicode text, installed
+  Windows OCR language selection, and current/all/selected page ranges.
+  Recognition and saving run in the background with progress and cancellation.
+  Saved copies preserve the original page artwork and unselected pages.
+
 ## 0.4.1 - 2026-10-23
 
 ### Changed
