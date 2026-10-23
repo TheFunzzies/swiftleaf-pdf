@@ -1,8 +1,8 @@
 # Build Swiftleaf (Swiftleaf.exe) with MSBuild and print only errors / warnings.
-#   powershell -File tools/swiftleaf/build.ps1 [-Config Release|Debug] [-Target SumatraPDF]
+#   powershell -File tools/swiftleaf/build.ps1 [-Config Release|Debug] [-Target SwiftLeaf]
 param(
     [string]$Config = "Release",
-    [string]$Target = "SumatraPDF"
+    [string]$Target = "SwiftLeaf"
 )
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..\..")

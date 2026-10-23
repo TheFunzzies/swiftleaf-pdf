@@ -45,4 +45,4 @@ description: Regenerate the amalgamated zopfli copy in ext/a-zopfli from upstrea
 
 ## Notes
 
-- The SumatraPDF build uses only the amalgamated `ext/a-zopfli` source.
+- The SwiftLeaf build uses only the amalgamated `ext/a-zopfli` source.
