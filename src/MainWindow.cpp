@@ -557,6 +557,7 @@ static void LaunchEmbeddedDestination(MainWindow* win, PageDestination* pd) {
          data.len);
     // PDF (and other types we can open): load from memory into a tab
     if (OpenDocumentFromMemory(win, data, fileName)) {
+        logf("LaunchEmbeddedDestination: opened in app '%s'\n", fileName);
         str::Free(data);
         return;
     }

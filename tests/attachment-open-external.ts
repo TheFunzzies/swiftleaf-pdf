@@ -1,19 +1,15 @@
-// Clicking a FileAttachment annotation whose file SwiftLeaf can't open itself
-// must do something: the file is extracted to the temp dir and handed to the
-// shell, or, for a type the shell isn't allowed to open, shown in the file
-// manager. The temp path used to be rejected as a URL, so nothing happened.
+// An HTML FileAttachment annotation opens in a SwiftLeaf tab without launching
+// its file association. The malicious path must not create a shared temp file.
 //
-// TMP points at a fresh dir so the extracted file can be checked. What happened
-// to it is read from the log: Explorer is unreliable without an interactive
-// desktop. Explorer windows the click opened are closed.
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+// A fresh temp directory and app log make accidental disk extraction visible.
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cmdId, runStandalone, tmpPath } from "./util.ts";
-import { WM_CLOSE, enumWindows, getClassName, getClientRect, postMessage, sleep } from "./winapi.ts";
+import { WM_CLOSE, enumWindows, getClassName, getClientRect, getWindowText, postMessage, sleep } from "./winapi.ts";
 import { clickAt, findCanvas, killAndWait, launchControlled, sendCommandSync } from "./win-automation.ts";
 
-// no perceived type, so the shell isn't allowed to run it: it's revealed instead
-const kAttachName = "payload.bin";
+// A path traversal name must be sanitized before writing or revealing.
+const kAttachName = "../payload.html";
 const kAttachData = "hello attachment\n";
 
 // one page with a FileAttachment icon in its center
@@ -78,14 +74,13 @@ export async function testit(): Promise<void> {
     const click = () => clickAt(canvas, Math.floor(rc.right / 2), Math.floor(rc.bottom / 2));
     await click();
 
-    const extracted = join(tempDir, kAttachName);
-    const handedOver = new RegExp(`LaunchEmbeddedDestination: (opened|showing) '.*${kAttachName}'`);
+    const openedInApp = /LaunchEmbeddedDestination: opened in app '\.\.\/payload\.html'/;
     const deadline = Date.now() + 10_000;
     let lastClick = Date.now();
     let log = "";
     while (Date.now() < deadline) {
       log = existsSync(logPath) ? readFileSync(logPath, "utf8") : "";
-      if (handedOver.test(log)) {
+      if (openedInApp.test(log)) {
         break;
       }
       // a click that didn't reach the link: try again
@@ -95,11 +90,11 @@ export async function testit(): Promise<void> {
       }
       await sleep(200);
     }
-    if (!existsSync(extracted)) {
-      throw new Error(`attachment-open-external: click did not extract ${extracted}`);
-    }
-    if (!handedOver.test(log)) {
-      throw new Error("attachment-open-external: the extracted attachment was neither opened nor shown");
+    if (!openedInApp.test(log)) throw new Error("attachment-open-external: HTML attachment did not open in SwiftLeaf");
+    for (let i = 0; i < 50 && !getWindowText(frame).includes("payload.html"); i++) await sleep(100);
+    if (!getWindowText(frame).includes("payload.html")) throw new Error("attachment-open-external: new tab is missing");
+    if (readdirSync(tempDir, { recursive: true }).length !== 0) {
+      throw new Error("attachment-open-external: HTML attachment created an extracted file");
     }
     console.log("attachment-open-external: OK");
   } finally {
