@@ -12,11 +12,14 @@ import {
   getWindowRect,
   getWorkArea,
   hasInteractiveDesktop,
-  moveWindow,
   packCoords,
   sendMessage,
   setCursorPos,
   setProcessDpiAware,
+  setWindowPos,
+  SWP_NOACTIVATE,
+  SWP_NOSENDCHANGING,
+  SWP_NOZORDER,
   WM_LBUTTONDOWN,
   WM_LBUTTONUP,
   WM_MOUSEMOVE,
@@ -41,6 +44,21 @@ function layout(raw: string) {
     canvas: +m[6]!,
     dpi: +m[7]!,
   };
+}
+
+function resizeFrame(frame: number, width: number, height: number): void {
+  // DefWindowProc clamps MoveWindow to the monitor's maximum tracking size.
+  // Exercise the same logical layouts even on CI's 1024x768 desktop at 200% DPI.
+  want(
+    setWindowPos(frame, 0, 0, width, height, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSENDCHANGING),
+    `Cannot resize frame to ${width}x${height}`,
+  );
+  const rect = getWindowRect(frame);
+  want(
+    rect.right - rect.left === width && rect.bottom - rect.top === height,
+    `Frame did not reach ${width}x${height}`,
+    JSON.stringify(rect),
+  );
 }
 
 async function settled(client: ControlClient): Promise<string> {
@@ -116,10 +134,11 @@ export async function testit(): Promise<void> {
         phase = `resize to ${scale(width)}x${scale(800)} (${width} logical pixels)`;
         // Suppress motion for the whole native resize gesture.
         sendMessage(frame, 0x0231, 0, 0); // WM_ENTERSIZEMOVE
-        moveWindow(frame, 0, 0, scale(width), scale(800));
+        resizeFrame(frame, scale(width), scale(800));
         const raw = await pollUntil(
           () => toolsDump(client),
           (s) => {
+            if (!/motion .* active=0/.test(s)) return false;
             const p = layout(s);
             if (width === 1250) return p.tools === scale(240) && p.comments === scale(300);
             if (width === 850) return p.tools < scale(240) && p.tools >= scale(180) && !p.rail;
@@ -181,7 +200,7 @@ export async function testit(): Promise<void> {
     }
     const reopened = await launchControlled(["-appdata", dir, pdf], { env });
     try {
-      moveWindow(reopened.frame, 0, 0, scale(1250), scale(800));
+      resizeFrame(reopened.frame, scale(1250), scale(800));
       const p = layout(await settled(reopened.client));
       want(p.toolsPref === savedTools && p.commentsPref === savedComments, "Saved panel widths did not reload");
     } finally {
