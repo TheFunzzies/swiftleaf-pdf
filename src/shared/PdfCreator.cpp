@@ -2,6 +2,7 @@
    License: GPLv3 */
 
 #include "base/Base.h"
+#include "base/File.h"
 #include "base/Pixmap.h"
 #include "base/Win.h"
 #include "base/GdiPlusUtil.h"

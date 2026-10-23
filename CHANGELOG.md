@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Unsaved PDF edits get recovery copies about once a minute. After a crash,
+  Restore saves a separate PDF; Discard removes the recovery copy.
+
+### Fixed
+
+- PDF saves, page replacement, conversion, merge, extraction, compression and
+  encryption stage a complete file beside the destination, flush it, then
+  replace the destination atomically. Failed writes leave the original intact.
+- Recovery and tool snapshots preserve pending edits for subsequent saves.
+
+### Limitations
+
+- Page organizing keeps its separate Undo Page Change history; it is not
+  interleaved with annotation/form undo and has no redo. See `docs/recovery.md`.
+
 ## 0.4.1 - 2026-10-23
 
 ### Changed

@@ -251,6 +251,7 @@ import { testit as annotFilterSyntax } from "./annot-filter-syntax.ts";
 import { testit as annotCutPaste } from "./annot-cut-paste.ts";
 import { testit as ctxMenuReload } from "./ctx-menu-reload.ts";
 import { testit as homeTwoWindows } from "./home-two-windows.ts";
+import { testit as editReliability } from "./edit-reliability.ts";
 import { testit as annotUndoRedo } from "./annot-undo-redo.ts";
 import { testit as annotUndoOneStep } from "./annot-undo-one-step.ts";
 import { testit as textAnnotationPlacement } from "./text-annotation-placement.ts";
@@ -399,6 +400,7 @@ export const tests: NamedTest[] = [
   // first: it drives the home page, whose thumbnail selection follows the
   // mouse, so it is the one test that cares what the machine was doing before
   ["issue-5978", issue5978],
+  ["edit-reliability", editReliability],
   ["free-text-draft", freeTextDraft],
   ["free-text-transparent", freeTextTransparent],
   ["free-text-custom-style", freeTextCustomStyle],

@@ -254,11 +254,15 @@ class EnginePs : public EnginePdfProxy {
 
     // saving as .pdf writes what Ghostscript produced; anything else copies the PostScript
     bool SaveFileAs(Str dstPath) override {
+        file::AtomicFile output(dstPath);
+        if (len(output.tempPath) == 0) {
+            return false;
+        }
         if (str::EndsWithI(dstPath, StrL(".pdf")) && len(pdfData) > 0) {
-            return file::WriteFile(dstPath, pdfData);
+            return file::WriteFile(output.tempPath, pdfData) && output.Commit();
         }
         Str srcPath = FilePath();
-        return len(srcPath) > 0 && file::Copy(dstPath, srcPath, false);
+        return len(srcPath) > 0 && file::Copy(output.tempPath, srcPath, false) && output.Commit();
     }
 
     Str pdfData;

@@ -8885,7 +8885,7 @@ static fz_stream* AppendOutAsStream(fz_context* ctx, void* state) {
 }
 // throws like pdf_save_document()
 static void SaveIncrementalFromMemory(EngineMupdf* e, Str path, const pdf_write_options* opts) {
-    auto* ctx = e->Ctx();
+    auto* ctx = e->BaseCtx();
     AppendOutput state;
     state.original = e->fileBytes;
     if (!AppendOutOpen(&state, path)) {
@@ -9110,7 +9110,7 @@ bool EngineMupdfAutoSave(EngineBase* engine, Str path) {
         EngineMupdfClearRecovery(e);
         return true;
     }
-    if (e->journalNesting > 0) {
+    if (e->journalNesting > 0 || pdf_has_unsaved_sigs(e->BaseCtx(), e->pdfdoc)) {
         return false;
     }
     if (e->recoveryGeneration == e->editGeneration) {

@@ -5884,6 +5884,7 @@ constexpr UINT kRecoveryIntervalMs = 60 * 1000;
 static Str gRecoverySession;
 static HANDLE gRecoveryLock = INVALID_HANDLE_VALUE;
 static UINT_PTR gRecoveryTimer = 0;
+static bool gRecoveryBusy = false;
 
 static bool CreateRecoverySession() {
     if (len(gRecoverySession) > 0) {
@@ -5914,9 +5915,13 @@ static bool CreateRecoverySession() {
 }
 
 static void CALLBACK RecoveryTimerProc(HWND, UINT, UINT_PTR, DWORD) {
-    if (!CanAccessDisk() || gPluginMode || IsStressTesting()) {
+    if (!CanAccessDisk() || gPluginMode || IsStressTesting() || gRecoveryBusy) {
         return;
     }
+    gRecoveryBusy = true;
+    defer {
+        gRecoveryBusy = false;
+    };
     for (MainWindow* win : gWindows) {
         if (win->isBeingClosed) {
             continue;
@@ -6779,7 +6784,8 @@ static bool SaveDocAs(MainWindow* win, Str dstPath) {
         logf("calling engine->SaveFileAs(%s)\n", realDstFileName);
         ok = engine->SaveFileAs(realDstFileName);
     } else if (!path::IsSame(srcFileName, realDstFileName)) {
-        ok = file::Copy(realDstFileName, srcFileName, false);
+        file::AtomicFile output(realDstFileName);
+        ok = len(output.tempPath) > 0 && file::Copy(output.tempPath, srcFileName, false) && output.Commit();
         if (ok) {
             // Make sure that the copy isn't write-locked or hidden
             const DWORD attributesToDrop = FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM;
