@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { cmdId, runStandalone, tmpPath } from "./util.ts";
 import {
   captureWindowToPng,
+  accessibleObjectFromWindow,
   findChildWindow,
   getFocusedHwnd,
   isWindowVisible,
@@ -67,6 +68,8 @@ export async function testit(): Promise<void> {
     const banner = findChildWindow(frame, "SWIFTLEAF_FORM_BANNER");
     if (!banner) throw new Error("form banner was not created");
     await waitFor(() => isWindowVisible(banner), "form banner did not appear");
+    const accessible = accessibleObjectFromWindow(banner);
+    if (accessible === 0n) throw new Error("form banner has no MSAA object");
     for (let i = 0; i < 8 && getFocusedHwnd(frame) !== banner; i++) {
       sendCommandSync(frame, cmdId("CmdMoveFrameFocus"));
     }

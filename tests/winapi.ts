@@ -14,6 +14,25 @@
 
 import { dlopen, FFIType, JSCallback, ptr, toArrayBuffer } from "bun:ffi";
 
+const oleacc = dlopen("oleacc.dll", {
+  AccessibleObjectFromWindow: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.ptr],
+    returns: FFIType.i32,
+  },
+});
+
+export function accessibleObjectFromWindow(hwnd: number): bigint {
+  const iid = new Uint8Array([
+    0xe0, 0x36, 0x87, 0x61, 0x3d, 0x3c, 0xcf, 0x11, 0x81, 0x0c, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71,
+  ]);
+  const out = new BigUint64Array(1);
+  const hr = oleacc.symbols.AccessibleObjectFromWindow(hwnd, 0xffff_fffc, ptr(iid), ptr(out));
+  if (hr !== 0 || out[0] === 0n) {
+    throw new Error(`AccessibleObjectFromWindow(${hwnd}) failed: HRESULT 0x${(hr >>> 0).toString(16)}`);
+  }
+  return out[0];
+}
+
 const user32 = dlopen("user32.dll", {
   EnumWindows: { args: [FFIType.function, FFIType.i64], returns: FFIType.bool },
   EnumChildWindows: { args: [FFIType.ptr, FFIType.function, FFIType.i64], returns: FFIType.bool },

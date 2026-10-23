@@ -10718,13 +10718,20 @@ void EngineMupdfGetAttachments(EngineBase* engine, Vec<PdfAttachment>& out) {
         int count = pdf_dict_len(ctx, dict);
         for (int i = 0; i < count; i++) {
             pdf_obj* fs = pdf_dict_get_val(ctx, dict, i);
-            pdf_filespec_params params = {};
-            pdf_get_filespec_params(ctx, fs, &params);
-            const char* name = params.filename;
-            if (!name || !name[0]) {
-                name = pdf_to_text_string(ctx, pdf_dict_get_key(ctx, dict, i));
+            fz_try(ctx) {
+                pdf_filespec_params params = {};
+                pdf_get_filespec_params(ctx, fs, &params);
+                const char* name = params.filename;
+                if (!name || !name[0]) {
+                    name = pdf_to_text_string(ctx, pdf_dict_get_key(ctx, dict, i));
+                }
+                VecAppend(out, PdfAttachment{str::Dup(Str(name)), params.size >= 0 ? params.size : -1});
             }
-            VecAppend(out, PdfAttachment{str::Dup(Str(name)), params.size >= 0 ? params.size : -1});
+            fz_catch(ctx) {
+                fz_report_error(ctx);
+                // Keep the row number aligned with EngineMupdfLoadAttachment.
+                VecAppend(out, PdfAttachment{{}, -1});
+            }
         }
     }
     fz_always(ctx) {
@@ -10732,17 +10739,14 @@ void EngineMupdfGetAttachments(EngineBase* engine, Vec<PdfAttachment>& out) {
     }
     fz_catch(ctx) {
         fz_report_error(ctx);
-        for (PdfAttachment& attachment : out) {
-            str::Free(attachment.name);
-        }
-        VecClear(out);
     }
 }
 
 #if IS_DEBUG
 bool EngineMupdf_UnitTestPanelData() {
     const char* objs[] = {
-        "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(a) 4 0 R (b) 5 0 R] >> >> /AcroForm << "
+        "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(a) 4 0 R (bad) 11 0 R (c) 5 0 R] >> >> "
+        "/AcroForm << "
         "/Fields [10 0 R] >> /OCProperties << /OCGs [8 0 R 9 0 R] /D << /BaseState /ON /Order [8 0 R 9 0 R] /RBGroups "
         "[[8 0 R 9 0 R]] >> >> >>",
         "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
@@ -10754,26 +10758,27 @@ bool EngineMupdf_UnitTestPanelData() {
         "<< /Type /OCG /Name (First) >>",
         "<< /Type /OCG /Name (Second) >>",
         "<< /Type /Annot /Subtype /Widget /FT /Tx /T (field) /Rect [10 10 100 30] /P 3 0 R >>",
+        "<< /Type /Filespec /F (bad.txt) /EF 42 >>",
     };
     EngineBase* engine = CreateEngineMupdfFromData(AssemblePdfTemp(objs, dimof(objs)), StrL("panel.pdf"), nullptr);
     if (!engine) return false;
     Vec<PdfAttachment> metadata;
     EngineMupdfGetAttachments(engine, metadata);
-    bool ok = len(metadata) == 2;
+    bool ok = len(metadata) == 3;
     Str first = EngineMupdfLoadAttachment(engine, 1);
-    Str second = EngineMupdfLoadAttachment(engine, 2);
-    ok = ok && str::Eq(first, StrL("abc")) && str::Eq(second, StrL("xyz"));
+    Str third = EngineMupdfLoadAttachment(engine, 3);
+    ok = ok && str::Eq(first, StrL("abc")) && str::Eq(third, StrL("xyz"));
     str::Free(first);
-    str::Free(second);
+    str::Free(third);
     ok = ok && EngineMupdfCountFormFields(engine) == 1 && EngineMupdfGetLayerCount(engine) == 2;
     ok = ok && EngineMupdfSetLayerEnabled(engine, 0, false) && !EngineMupdfIsLayerEnabled(engine, 0);
     ok = ok && EngineMupdfIsLayerEnabled(engine, 1);
     SafeEngineRelease(&engine);
     // Snapshot strings must remain valid after the document is gone.
-    for (PdfAttachment& attachment : metadata) {
-        ok = ok && str::Eq(attachment.name, StrL("../evil.html")) && attachment.size == 3;
-        str::Free(attachment.name);
-    }
+    ok = ok && str::Eq(metadata[0].name, StrL("../evil.html")) && metadata[0].size == 3;
+    ok = ok && len(metadata[1].name) == 0 && metadata[1].size == -1;
+    ok = ok && str::Eq(metadata[2].name, StrL("../evil.html")) && metadata[2].size == 3;
+    for (PdfAttachment& attachment : metadata) str::Free(attachment.name);
     return ok;
 }
 #endif

@@ -398,10 +398,14 @@ bool CopyPixmapToClipboard(Pixmap* p, bool appendOnly) {
     if (hPng) {
         static UINT cfPng = RegisterClipboardFormatW(L"PNG");
         if (!cfPng || !SetClipboardData(cfPng, hPng)) {
+            logf("CopyPixmapToClipboard: PNG publish failed, format=%u error=%lu sequence=%lu\n", cfPng, GetLastError(),
+                 GetClipboardSequenceNumber());
             GlobalFree(hPng);
         }
     }
     if (hDibV5 && !SetClipboardData(CF_DIBV5, hDibV5)) {
+        logf("CopyPixmapToClipboard: CF_DIBV5 publish failed, error=%lu sequence=%lu\n", GetLastError(),
+             GetClipboardSequenceNumber());
         GlobalFree(hDibV5);
     }
     if (SetClipboardData(CF_BITMAP, hbmp)) {

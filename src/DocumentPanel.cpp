@@ -205,10 +205,13 @@ static void OnLayerRowClick(MainWindow* win, VirtMouseEvent* ev) {
     ev->didHandle = true;
 }
 
-// Prefix and restrict the basename: no device names, ADS, separators or
-// trailing dots/spaces. A long or non-ASCII name is still safe to reveal.
+// Prefix and restrict the basename and extension: no device names, ADS,
+// separators or trailing dots/spaces. Preserve a useful safe extension.
 static TempStr AttachmentFileName(Str name) {
     name = path::GetBaseNameTemp(name);
+    TempStr ext = path::GetExtTemp(name);
+    if (len(ext) > 0) name = Str(name.s, name.len - len(ext));
+    while (len(name) > 0 && (name.s[name.len - 1] == '.' || name.s[name.len - 1] == ' ')) name.len--;
     str::Builder safe;
     safe.Append(StrL("attachment-"));
     for (int i = 0; i < std::min(len(name), 96); i++) {
@@ -217,7 +220,17 @@ static TempStr AttachmentFileName(Str name) {
                        c == '_' || c == '.';
         safe.AppendChar(allowed ? c : '_');
     }
-    safe.Append(StrL(".extracted"));
+    if (len(ext) > 1 && len(ext) <= 16) {
+        bool valid = true;
+        for (int i = 0; i < len(ext); i++) {
+            char c = ext.s[i];
+            bool alnum = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+            if (!alnum && !(i == 0 && c == '.')) valid = false;
+        }
+        if (valid) {
+            safe.Append(ext);
+        }
+    }
     return ToStrTemp(safe);
 }
 
@@ -228,7 +241,7 @@ static void DeleteExtractedFile(Str path) {
 
 // CREATE_NEW is the overwrite boundary. Keep the directory open without
 // FILE_SHARE_DELETE until the write finishes, so it cannot be swapped out.
-static Str ExtractAttachment(Str name, Str data) {
+Str DocumentPanelExtractAttachment(Str name, Str data) {
     GUID id;
     if (FAILED(CoCreateGuid(&id))) {
         return {};
@@ -269,6 +282,10 @@ static Str ExtractAttachment(Str name, Str data) {
     return str::Dup(dest);
 }
 
+void DocumentPanelTrackExtractedFile(MainWindow* win, Str path) {
+    if (win && win->documentPanel && path) VecAppend(win->documentPanel->extractedFiles, str::Dup(path));
+}
+
 static void OnAttachmentRowClick(MainWindow* win, VirtMouseEvent* ev) {
     VirtCtrl* target = ev->target;
     DocumentPanelVirt* p = win->documentPanel;
@@ -290,9 +307,9 @@ static void OnAttachmentRowClick(MainWindow* win, VirtMouseEvent* ev) {
     }
     Str display = len(name) > 0 ? name : fmt("Attachment %d", no);
     if (!OpenDocumentFromMemory(win, data, display)) {
-        Str dest = ExtractAttachment(display, data);
+        Str dest = DocumentPanelExtractAttachment(display, data);
         if (dest) {
-            VecAppend(p->extractedFiles, dest);
+            DocumentPanelTrackExtractedFile(win, dest);
             // Embedded data must never be executed by its file association.
             OpenPathInDefaultFileManager(dest);
         }
@@ -559,8 +576,15 @@ struct BannerAccessible : IAccessible {
         return *out ? S_OK : E_OUTOFMEMORY;
     }
     HRESULT STDMETHODCALLTYPE get_accParent(IDispatch** out) override {
+        if (!out) return E_POINTER;
         *out = nullptr;
-        return S_FALSE;
+        if (!banner || !banner->host || !banner->host->native) return S_FALSE;
+        HWND parent = GetParent(banner->host->native);
+        if (!parent) return S_FALSE;
+        using CreateFn = HRESULT(WINAPI*)(HWND, LONG, REFIID, void**);
+        static HMODULE dll = LoadLibraryExW(L"oleacc.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        static auto create = dll ? (CreateFn)GetProcAddress(dll, "CreateStdAccessibleObject") : nullptr;
+        return create ? create(parent, OBJID_WINDOW, IID_IDispatch, (void**)out) : E_NOTIMPL;
     }
     HRESULT STDMETHODCALLTYPE get_accChildCount(long* out) override {
         *out = banner ? 3 : 0;
@@ -651,9 +675,30 @@ struct BannerAccessible : IAccessible {
         *dy = r.dy;
         return S_OK;
     }
-    HRESULT STDMETHODCALLTYPE accNavigate(long, VARIANT, VARIANT* out) override {
+    HRESULT STDMETHODCALLTYPE accNavigate(long direction, VARIANT from, VARIANT* out) override {
+        if (!out) return E_POINTER;
         VariantInit(out);
-        return S_FALSE;
+        int id = Child(from);
+        if (id < 0) return E_INVALIDARG;
+        int next = -1;
+        switch (direction) {
+            case NAVDIR_FIRSTCHILD:
+                if (id == 0) next = 1;
+                break;
+            case NAVDIR_LASTCHILD:
+                if (id == 0) next = 3;
+                break;
+            case NAVDIR_NEXT:
+                if (id > 0 && id < 3) next = id + 1;
+                break;
+            case NAVDIR_PREVIOUS:
+                if (id > 1 && id <= 3) next = id - 1;
+                break;
+        }
+        if (next < 0) return S_FALSE;
+        out->vt = VT_I4;
+        out->lVal = next;
+        return S_OK;
     }
     HRESULT STDMETHODCALLTYPE accHitTest(long x, long y, VARIANT* out) override {
         VariantInit(out);
@@ -748,6 +793,12 @@ static void StyleBanner(MainWindow* win) {
     b->host->Invalidate(true);
 }
 
+static void PaintBanner(FormBannerVirt*, VirtHostPaintEvent* ev) {
+    const M3Scheme& m3 = M3();
+    Rect r = ev->clientRect;
+    ev->gfx->FillRoundedRect(r, DpiScale(12), m3.surfaceContainerHigh, m3.outline);
+}
+
 void CreateFormBanner(MainWindow* win) {
     if (!win || win->formBanner || !win->hwndCanvas) {
         return;
@@ -770,6 +821,7 @@ void CreateFormBanner(MainWindow* win) {
     }
     win->formBanner = b;
     win->hwndFormBanner = b->host->native;
+    b->host->onPaintBackground = MkFunc1(PaintBanner, b);
 
     b->text = new VirtText(StrL(""), GetAppFont());
     // the banner is capped by the canvas width; trim rather than paint over the
@@ -854,6 +906,7 @@ void FormBannerUpdate(MainWindow* win) {
     b->action->SetText(gSettings->highlightFormFields ? Tr("Hide highlights") : Tr("Highlight fields"));
     b->action->SetTooltip(gSettings->highlightFormFields ? Tr("Stop highlighting empty form fields")
                                                          : Tr("Highlight empty form fields on the page"));
+    bool wasVisible = b->host->IsVisible();
     b->host->SetPos({x, y, dx, dy}, true);
     b->host->ClipToRoundedRect(DpiScale(12), {dx, dy});
     b->host->Relayout();
@@ -862,6 +915,7 @@ void FormBannerUpdate(MainWindow* win) {
     if (focused && b->host->vroot) {
         b->host->vroot->SetFocus(focused);
     }
+    if (!wasVisible) NotifyWinEvent(EVENT_OBJECT_SHOW, b->host->native, OBJID_CLIENT, CHILDID_SELF);
 }
 
 void FormBannerAfterThemeChange(MainWindow* win) {
@@ -872,24 +926,19 @@ void FormBannerAfterThemeChange(MainWindow* win) {
 #if IS_DEBUG
 #include "base/tests/UtAssert.h"
 void DocumentPanel_UnitTests() {
-    const Str names[] = {StrL(".."),
-                         StrL("."),
-                         StrL("../../outside.html"),
-                         StrL("C:\\outside.exe"),
-                         StrL("file:stream"),
-                         StrL("CON"),
-                         StrL("NUL.txt"),
-                         StrL("trailing. "),
-                         StrL("")};
+    const Str names[] = {
+        StrL(".."),  StrL("."),       StrL("../../outside.html"), StrL("C:\\outside.exe"), StrL("file:stream"),
+        StrL("CON"), StrL("NUL.txt"), StrL("../x.html"),          StrL("trailing. "),      StrL("")};
     for (Str name : names) {
-        Str first = ExtractAttachment(name, StrL("first"));
-        Str second = ExtractAttachment(name, StrL("second"));
+        Str first = DocumentPanelExtractAttachment(name, StrL("first"));
+        Str second = DocumentPanelExtractAttachment(name, StrL("second"));
         utassert(first && second);
         if (first && second) {
             utassert(!path::IsSame(first, second));
             utassert(!path::IsSame(path::GetDirTemp(first), path::GetDirTemp(second)));
             utassert(path::IsInDir(first, GetTempDirTemp()));
-            utassert(str::EndsWithI(first, StrL(".extracted")));
+            if (str::EndsWithI(name, StrL(".html"))) utassert(str::EndsWithI(first, StrL(".html")));
+            utassert(!str::EndsWith(first, StrL(".")) && !str::EndsWith(first, StrL(" ")));
             Str data = file::ReadFile(first);
             utassert(str::Eq(data, StrL("first")));
             str::Free(data);
@@ -906,7 +955,7 @@ void DocumentPanel_UnitTests() {
     }
     TempStr sentinel = GetTempFilePathTemp(StrL("swiftleaf-review"));
     utassert(file::WriteFile(sentinel, StrL("keep")));
-    Str extracted = ExtractAttachment(path::GetBaseNameTemp(sentinel), StrL("replace"));
+    Str extracted = DocumentPanelExtractAttachment(path::GetBaseNameTemp(sentinel), StrL("replace"));
     Str original = file::ReadFile(sentinel);
     utassert(str::Eq(original, StrL("keep")));
     str::Free(original);
@@ -942,6 +991,23 @@ void DocumentPanel_UnitTests() {
     utassert(provider->get_accName(child, &name) == S_OK);
     utassert(name && wcscmp(name, L"Dismiss form-field banner") == 0);
     SysFreeString(name);
+    VARIANT nav{};
+    VARIANT root{};
+    root.vt = VT_I4;
+    root.lVal = 0;
+    utassert(provider->accNavigate(NAVDIR_FIRSTCHILD, root, &nav) == S_OK);
+    utassert(nav.vt == VT_I4 && nav.lVal == 1);
+    VARIANT from{};
+    from.vt = VT_I4;
+    from.lVal = 2;
+    VariantInit(&nav);
+    utassert(provider->accNavigate(NAVDIR_NEXT, from, &nav) == S_OK && nav.lVal == 3);
+    VariantInit(&nav);
+    utassert(provider->accNavigate(NAVDIR_LASTCHILD, root, &nav) == S_OK);
+    utassert(nav.lVal == 3);
+    VariantInit(&nav);
+    from.lVal = 3;
+    utassert(provider->accNavigate(NAVDIR_NEXT, from, &nav) == S_FALSE);
     provider->banner = nullptr;
     utassert(provider->get_accName(child, &name) == E_INVALIDARG);
     provider->Release();

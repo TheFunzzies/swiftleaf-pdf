@@ -17,6 +17,8 @@ void CreateDocumentPanel(MainWindow*);
 void DestroyDocumentPanel(MainWindow*);
 void DocumentPanelUpdate(MainWindow*);
 void DocumentPanelAfterThemeChange(MainWindow*);
+Str DocumentPanelExtractAttachment(Str name, Str data);
+void DocumentPanelTrackExtractedFile(MainWindow*, Str path);
 bool IsDocumentPanelVisible(MainWindow*, DocumentPanelMode);
 void ToggleDocumentPanel(MainWindow*, DocumentPanelMode);
 int DocumentPanelDx();

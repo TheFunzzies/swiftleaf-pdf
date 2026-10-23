@@ -1229,7 +1229,7 @@ void DeferWinPosHelper::MoveWindowNoCopyBits(HWND hWnd, Rect r) {
 
 static HWND gClipboardOwnerWnd = nullptr;
 
-static HWND GetClipboardOwnerWnd() {
+HWND GetClipboardOwnerWnd() {
     if (gClipboardOwnerWnd && IsWindow(gClipboardOwnerWnd)) {
         return gClipboardOwnerWnd;
     }

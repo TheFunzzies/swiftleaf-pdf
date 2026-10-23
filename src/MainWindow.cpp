@@ -560,22 +560,12 @@ static void LaunchEmbeddedDestination(MainWindow* win, PageDestination* pd) {
         str::Free(data);
         return;
     }
-    TempStr tmpDir = GetTempDirTemp();
-    if (len(tmpDir) == 0) {
-        str::Free(data);
-        return;
-    }
-    TempStr tmpPath = path::JoinTemp(tmpDir, path::GetBaseNameTemp(fileName));
-    if (!file::WriteFile(tmpPath, data)) {
-        str::Free(data);
-        return;
-    }
-    // a type the shell isn't allowed to open is shown in the file manager instead
-    if (OpenFileExternally(tmpPath)) {
-        logf("LaunchEmbeddedDestination: opened '%s'\n", tmpPath);
-    } else {
-        logf("LaunchEmbeddedDestination: showing '%s' in the file manager\n", tmpPath);
-        OpenPathInDefaultFileManager(tmpPath);
+    Str extracted = DocumentPanelExtractAttachment(fileName, data);
+    if (extracted) {
+        DocumentPanelTrackExtractedFile(win, extracted);
+        logf("LaunchEmbeddedDestination: showing '%s' in the file manager\n", extracted);
+        OpenPathInDefaultFileManager(extracted);
+        str::Free(extracted);
     }
     str::Free(data);
 }
