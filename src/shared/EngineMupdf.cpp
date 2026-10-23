@@ -8582,9 +8582,13 @@ Str EngineMupdf::GetFileData() {
 }
 
 bool EngineMupdf::SaveFileAs(Str dstPath) {
+    file::AtomicFile output(dstPath);
+    if (len(output.tempPath) == 0) {
+        return false;
+    }
     Str d = GetFileData();
     if (len(d) > 0) {
-        bool ok = file::WriteFile(dstPath, d);
+        bool ok = file::WriteFile(output.tempPath, d) && output.Commit();
         str::Free(d);
         return ok;
     }
@@ -8592,7 +8596,7 @@ bool EngineMupdf::SaveFileAs(Str dstPath) {
     if (len(srcPath) == 0) {
         return false;
     }
-    return file::Copy(dstPath, srcPath, false);
+    return file::Copy(output.tempPath, srcPath, false) && output.Commit();
 }
 
 extern const pdf_write_options gPdfDefaultWriteOptions = [] {
@@ -8981,15 +8985,31 @@ bool EngineMupdfSaveUpdated(EngineBase* engine, Str path, const ShowErrorCb& sho
         save_opts.do_garbage = 1;
     }
 
+    file::AtomicFile output(path);
+    if (len(output.tempPath) == 0) {
+        if (showErrorFunc.IsValid()) {
+            showErrorFunc.Call(StrL("Couldn't create a temporary file beside the PDF."));
+        }
+        return false;
+    }
     Str whyNotFromMemory = WhyNotSaveFromMemory(epdf, path, save_opts);
     bool fromMemory = len(whyNotFromMemory) == 0;
+    int increments = epdf->pdfdoc->num_incremental_sections;
+    int64_t startxref = epdf->pdfdoc->startxref;
     bool ok = false;
     fz_var(ok);
     fz_try(ctx) {
         if (fromMemory) {
-            SaveIncrementalFromMemory(epdf, path, &save_opts);
+            Str original((char*)epdf->fileBytes->data, (int)epdf->fileBytes->len);
+            if (!file::WriteFile(output.tempPath, original)) {
+                fz_throw(ctx, FZ_ERROR_SYSTEM, "cannot stage original PDF");
+            }
+            SaveIncrementalFromMemory(epdf, output.tempPath, &save_opts);
         } else {
-            pdf_save_document(ctx, epdf->pdfdoc, CStrTemp(path), &save_opts);
+            pdf_save_document(ctx, epdf->pdfdoc, CStrTemp(output.tempPath), &save_opts);
+        }
+        if (!output.Commit()) {
+            fz_throw(ctx, FZ_ERROR_SYSTEM, "cannot flush or replace PDF");
         }
         ok = true;
         auto dur = TimeSinceInMs(timeStart);
@@ -9007,6 +9027,13 @@ bool EngineMupdfSaveUpdated(EngineBase* engine, Str path, const ShowErrorCb& sho
         }
     }
 
+    if (!ok) {
+        epdf->pdfdoc->num_incremental_sections = increments;
+        epdf->pdfdoc->startxref = startxref;
+        epdf->pdfdoc->xref_base = 0;
+        epdf->pdfdoc->disallow_new_increments = 0;
+        epdf->pdfdoc->save_in_progress = 0;
+    }
     // note: this should be short-lived as we should re-load the file
     if (ok) {
         epdf->modifiedAnnotations = false;
@@ -9026,14 +9053,25 @@ bool EngineMupdfSaveCopy(EngineBase* engine, Str path) {
     }
     auto* ctx = epdf->Ctx();
     ScopedRecursiveMutex scope(&epdf->docLock);
+    file::AtomicFile output(path);
+    if (len(output.tempPath) == 0) {
+        return false;
+    }
+    int increments = epdf->pdfdoc->num_incremental_sections;
     pdf_write_options save_opts{};
     save_opts = gPdfDefaultWriteOptions;
     save_opts.do_incremental = 0;
-    save_opts.do_compress = 1;
+    save_opts.dont_regenerate_id = 1;
     bool ok = false;
     fz_try(ctx) {
-        pdf_save_document(ctx, epdf->pdfdoc, CStrTemp(path), &save_opts);
-        ok = true;
+        pdf_save_document(ctx, epdf->pdfdoc, CStrTemp(output.tempPath), &save_opts);
+        ok = output.Commit();
+    }
+    fz_always(ctx) {
+        epdf->pdfdoc->num_incremental_sections = increments;
+        epdf->pdfdoc->xref_base = 0;
+        epdf->pdfdoc->disallow_new_increments = 0;
+        epdf->pdfdoc->save_in_progress = 0;
     }
     fz_catch(ctx) {
         fz_report_error(ctx);
@@ -10237,6 +10275,11 @@ bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePag
     fz_var(src);
     fz_var(map);
     fz_var(ok);
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
+        fz_drop_context(ctx);
+        return false;
+    }
     fz_try(ctx) {
         doc = OpenPdfForMerge(ctx, srcs[0]);
         int nBase = pdf_count_pages(ctx, doc);
@@ -10317,8 +10360,8 @@ bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePag
         opts.do_compress = 1;
         // the dropped pages' objects
         opts.do_garbage = 3;
-        pdf_save_document(ctx, doc, CStrTemp(destPath), &opts);
-        ok = true;
+        pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
+        ok = output.Commit();
     }
     fz_always(ctx) {
         pdf_drop_graft_map(ctx, map);

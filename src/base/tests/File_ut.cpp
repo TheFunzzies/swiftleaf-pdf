@@ -9,6 +9,47 @@
 #include "base/tests/UtAssert.h"
 
 void FileUtilTest() {
+    {
+        TempStr target = GetTempFilePathTemp(StrL("atomic"));
+        utassert(file::WriteFile(target, StrL("original")));
+        Str staged;
+        {
+            file::AtomicFile output(target);
+            staged = str::Dup(output.tempPath);
+            utassert(len(staged) > 0);
+            utassert(path::IsSame(path::GetDirTemp(target), path::GetDirTemp(staged)));
+            utassert(file::WriteFile(staged, StrL("incomplete")));
+        }
+        utassert(!file::Exists(staged));
+        Str bytes = file::ReadFile(target);
+        utassert(str::Eq(bytes, StrL("original")));
+        str::Free(bytes);
+        str::Free(staged);
+        {
+            file::AtomicFile output(target);
+            utassert(file::WriteFile(output.tempPath, StrL("complete")));
+#if OS_WIN
+            HANDLE locked = CreateFileW(CWStrTemp(target), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+            utassert(locked != INVALID_HANDLE_VALUE);
+            utassert(!output.Commit());
+            bytes = file::ReadFile(target);
+            utassert(str::Eq(bytes, StrL("original")));
+            str::Free(bytes);
+            CloseHandle(locked);
+#endif
+            utassert(output.Commit());
+        }
+        bytes = file::ReadFile(target);
+        utassert(str::Eq(bytes, StrL("complete")));
+        str::Free(bytes);
+        file::Delete(target);
+        {
+            file::AtomicFile output(target);
+            utassert(file::WriteFile(output.tempPath, StrL("new file")));
+            utassert(output.Commit());
+        }
+        utassert(file::Delete(target));
+    }
     FILETIME epoch = FileTimeFromU64(kFileTimeUnixEpoch);
     FILETIME oneSecond = FileTimeFromU64(kFileTimeUnixEpoch + kFileTimeTicksPerSec);
     utassert(FileTimeToU64(epoch) == kFileTimeUnixEpoch);

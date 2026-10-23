@@ -1657,6 +1657,39 @@ bool RenameReplace(Str newPath, Str oldPath) {
     return MoveFileExW(CWStrTemp(oldPath), CWStrTemp(newPath), flags) != 0;
 }
 
+AtomicFile::AtomicFile(Str path) {
+    if (len(path) == 0) {
+        return;
+    }
+    destination = str::Dup(path::NormalizeTemp(path));
+    WCHAR tmp[MAX_PATH]{};
+    if (GetTempFileNameW(CWStrTemp(path::GetDirTemp(destination)), L"slf", 0, tmp)) {
+        tempPath = str::Dup(ToUtf8Temp(tmp));
+    }
+}
+
+AtomicFile::~AtomicFile() {
+    if (len(tempPath) > 0) {
+        Delete(tempPath);
+    }
+    str::Free(tempPath);
+    str::Free(destination);
+}
+
+// Publish only a complete, flushed sibling. Never copy over a live destination.
+bool AtomicFile::Commit() {
+    if (len(tempPath) == 0) {
+        return false;
+    }
+    auto h = OpenReadWrite(tempPath, false);
+    if (h == kInvalidFileHandle) {
+        return false;
+    }
+    bool ok = Flush(h);
+    Close(h);
+    return ok && RenameReplace(destination, tempPath);
+}
+
 bool OverwriteAtomicRetry(Str dst, Str src, int retryCount, int retrySleepMs) {
     if (len(dst) == 0 || len(src) == 0) {
         return false;
