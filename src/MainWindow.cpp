@@ -37,6 +37,7 @@
 #include "Annotation.h"
 #include "TextSearch.h"
 #include "SumatraPDF.h"
+#include "SumatraConfig.h"
 #include "AIChatCommon.h"
 #include "AIChatPanel.h"
 #include "SelectionToolbar.h"
@@ -1086,6 +1087,7 @@ AppCommandCtx NewAppCommandCtx(MainWindow* win, Point cursorPos) {
 #ifndef DISABLE_DOCUMENT_RESTRICTIONS
         ctx.allowsPrinting = !win->AsFixed() || (engine && engine->AllowsPrinting());
 #endif
+        ctx.allowsCopyingText = gDisableDocumentRestrictions || !engine || engine->allowsCopyingText;
         ctx.isPdf = IsPdfDoc(ctx.tab);
         if (ctx.isPdf && engine) {
             ctx.isPdfEncrypted = EngineMupdfIsEncrypted(engine);

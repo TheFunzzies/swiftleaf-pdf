@@ -54,6 +54,7 @@
 #include "ToolsPanel.h"
 #include "DocumentPanel.h"
 #include "SignatureCreate.h"
+#include "Ocr.h"
 #include "Ribbon.h"
 #include "Material.h"
 #include "MergePdf.h"
@@ -13383,6 +13384,10 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
 
         case CmdConvertToPDF:
             ShowConvertToPdfDialog(win);
+            break;
+
+        case CmdScanOcr:
+            ShowOcrDialog(win);
             break;
 
         case CmdConvertPdfToImages:

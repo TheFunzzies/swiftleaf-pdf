@@ -347,8 +347,9 @@ enum {
     CmdToolSelect = 541,
     CmdToolSnapshot = 542,
     CmdCreateSignature = 543,
+    CmdScanOcr = 544,
 
-    CmdLast = 543,
+    CmdLast = 544,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

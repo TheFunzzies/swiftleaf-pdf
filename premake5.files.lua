@@ -410,6 +410,7 @@ function sumatrapdf_files()
     "Ribbon.*",
     "PageOrganize.*",
     "SignatureCreate.*",
+    "Ocr.*",
     "EditText.*",
     "StatusBar.*",
     "NavRail.*",

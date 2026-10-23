@@ -354,6 +354,7 @@ const commandsRaw = [
     "CmdToolSelect", "Select Tool",
     "CmdToolSnapshot", "Snapshot Tool",
     "CmdCreateSignature", "Create Signature",
+    "CmdScanOcr", "Scan & OCR...",
 ];
 
 // removed slots are dropped: nothing outside the generators should see them

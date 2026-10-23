@@ -348,6 +348,9 @@ bool CmdWorksWithoutDocument(int cmdId) {
 }
 
 CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, CommandSurface surface) {
+#if defined(SUMATRA_NG)
+    if (cmdId == CmdScanOcr) return CommandVisibility::Hide;
+#endif
     if (cmdId <= CmdFirst) {
         return CommandVisibility::Hide;
     }
@@ -484,6 +487,10 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
     }
 
     if ((cmdId == CmdNavigateThumbnail || cmdId == CmdToggleThumbnails) && !ctx.isFixedPage) {
+        return CommandVisibility::Hide;
+    }
+
+    if (cmdId == CmdScanOcr && (!ctx.isFixedPage || !ctx.allowsCopyingText || !HasPermission(Perm::CopySelection))) {
         return CommandVisibility::Hide;
     }
 
