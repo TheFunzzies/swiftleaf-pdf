@@ -11,7 +11,7 @@ const generatedFile = join(ninjaDir, ".generated");
 // must re-generate them from scratch (the fixups are not idempotent).
 const premakeFiles = ["premake5.lua", "premake5.files.lua", "cmd/ninja.ts"];
 const resources = [
-  ["SumatraPDF", "SumatraPDF.exe", "../../src/SumatraPDF.rc"],
+  ["SwiftLeaf", "Swiftleaf.exe", "../../src/SumatraPDF.rc"],
   ["SumatraPDF-static", "SumatraPDF-static.exe", "../../src/SumatraPDF.rc"],
   ["libsumatrapdf", "libsumatrapdf.dll", "../../src/libsumatrapdf.rc"],
   ["PdfFilter", "PdfFilter.dll", "../../src/ifilter/PdfFilter.rc"],
@@ -79,7 +79,7 @@ function addResources(text: string, path: string): string {
       // The prebuild packs IDR_EMBEDDED_PAK into out/<cfg>/, so the .res waits
       // for that stamp and gets the archive path via the EMBEDDED_PAK resdefine
       // premake sets: embedded.lzsa (also holding libsumatrapdf.dll & co) for
-      // SumatraPDF.exe, embedded-static.lzsa for SumatraPDF-static.exe.
+      // Swiftleaf.exe, embedded-static.lzsa for SumatraPDF-static.exe.
       // Mixed slashes on purpose: QM() turns the path into an RC string, and
       // rc mangles ".." after "/" into "..." (./../../out -> ./.../.../out)
       // while a backslash before the config name is an escape (out\rel64
@@ -87,7 +87,7 @@ function addResources(text: string, path: string): string {
       let deps = "";
       let flags = "/I../../src/shared";
       let pack = "";
-      if (project === "SumatraPDF") {
+      if (project === "SwiftLeaf") {
         const stamp = `../../out/${config}/obj/SumatraPDF/SumatraPDF.prebuild`;
         const archive = `../../out/${config}/embedded.lzsa`;
         const bins = ["libsumatrapdf.dll", "PdfFilter.dll", "PdfPreview.dll", "sumatrapdf-tool.exe"];

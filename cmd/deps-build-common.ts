@@ -1,5 +1,5 @@
 /**
- * Shared helpers for building SumatraPDF dependency static libraries
+ * Shared helpers for building SwiftLeaf dependency static libraries
  * (used by the macOS, Linux, and MinGW build implementations).
  */
 

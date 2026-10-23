@@ -14,7 +14,7 @@ type Site = { callee: string; caller: string };
 function usage(exitCode = 1): never {
   console.error(`Usage: bun cmd/inlined.ts [options]
 
-Builds Release|x64 SumatraPDF, then lists inlined functions from the PDB.
+Builds Release|x64 SwiftLeaf, then lists inlined functions from the PDB.
 
 Options:
   -no-build         Do not build; use existing PDBs
@@ -62,7 +62,7 @@ function parseArgs(): { build: boolean; pdbs: string[]; out: string } {
 async function buildReleaseX64(): Promise<void> {
   const { msbuildPath } = detectVisualStudio2026();
   const sln = String.raw`vs2022\SumatraPDF.sln`;
-  console.log("Building Release|x64 SumatraPDF...");
+  console.log("Building Release|x64 SwiftLeaf...");
   const t0 = performance.now();
   await runLogged(msbuildPath, [sln, "/t:SumatraPDF", "/p:Configuration=Release;Platform=x64", "/m"]);
   console.log(`Build took ${((performance.now() - t0) / 1000).toFixed(1)}s`);

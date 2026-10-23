@@ -4,7 +4,7 @@ if (!ghtoken) {
   process.exit(1);
 }
 
-const uri = "https://api.github.com/repos/sumatrapdfreader/sumatrapdf/dispatches";
+const uri = "https://api.github.com/repos/TheFunzzies/swiftleaf-pdf/dispatches";
 const resp = await fetch(uri, {
   method: "POST",
   headers: {

@@ -2,10 +2,10 @@
 Runs a loading and rendering benchmark for a given number of files
 (10 times each).
 
-Note: If SumatraPDF.exe can't be found in either ..\obj-rel\ or %PATH%,
+Note: If Swiftleaf.exe can't be found in either ..\obj-rel\ or %PATH%,
       pass a path to it as the first argument.
 
-render-benchmark.py obj-dbg\SumatraPDF.exe file1.pdf file2.xps
+render-benchmark.py obj-dbg\Swiftleaf.exe file1.pdf file2.xps
 """
 
 import os, re, sys
@@ -14,9 +14,9 @@ from subprocess import Popen, PIPE
 def log(str):
 	sys.stderr.write(str + "\n")
 
-def runBenchmark(SumatraPDFExe, file, repeats):
+def runBenchmark(AppExe, file, repeats):
 	log("-> %s (%d times)" % (file, repeats))
-	proc = Popen([SumatraPDFExe] + ["-bench", file] * repeats, stdout=PIPE, stderr=PIPE)
+	proc = Popen([AppExe] + ["-bench", file] * repeats, stdout=PIPE, stderr=PIPE)
 	return proc.communicate()[1]
 
 def matchLine(line, regex, result=None):
@@ -64,23 +64,23 @@ def displayBenchResults(result):
 
 def main():
 	if not sys.argv[1:]:
-		log("Usage: %s [<SumatraPDF.exe>] <file1.pdf> [<file2.pdf> ...]" % (os.path.split(sys.argv[0])[1]))
+		log("Usage: %s [<Swiftleaf.exe>] <file1.pdf> [<file2.pdf> ...]" % (os.path.split(sys.argv[0])[1]))
 		sys.exit(0)
 	
 	if sys.argv[1].lower().endswith(".exe"):
-		SumatraPDFExe = sys.argv.pop(1)
+		AppExe = sys.argv.pop(1)
 	else:
-		SumatraPDFExe = os.path.join(os.path.dirname(__file__), "..", "obj-rel", "SumatraPDF.exe")
-		if not os.path.exists(SumatraPDFExe):
-			SumatraPDFExe = "SumatraPDF.exe"
+		AppExe = os.path.join(os.path.dirname(__file__), "..", "obj-rel", "Swiftleaf.exe")
+		if not os.path.exists(AppExe):
+			AppExe = "Swiftleaf.exe"
 	
 	benchData = ""
-	log("Running benchmark with %s..." % os.path.relpath(SumatraPDFExe))
+	log("Running benchmark with %s..." % os.path.relpath(AppExe))
 	for file in sys.argv[1:]:
 		try:
-			benchData += runBenchmark(SumatraPDFExe, file, 10) + "\n"
+			benchData += runBenchmark(AppExe, file, 10) + "\n"
 		except:
-			log("Error: %s not found" % os.path.relpath(SumatraPDFExe))
+			log("Error: %s not found" % os.path.relpath(AppExe))
 			return
 	log("")
 	

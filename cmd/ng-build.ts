@@ -2,7 +2,7 @@
 // cmd/helper/ng-targets.ts by invoking the compiler directly (see
 // cmd/helper/ng-compile.ts); no generated project files.
 //
-//   bun cmd/ng-build.ts -dbg                  # SumatraPDF and its libraries
+//   bun cmd/ng-build.ts -dbg                  # SwiftLeaf and its libraries
 //   bun cmd/ng-build.ts -rel -run -- file.pdf # release, then run with args
 //   bun cmd/ng-build.ts -dbg test_util -run   # one target
 //   bun cmd/ng-build.ts -linux -dbg           # Linux; from Windows, inside WSL

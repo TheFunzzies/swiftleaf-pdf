@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { $ } from "bun";
 import {
   getGitLinearVersion,
-  extractSumatraVersion,
+  extractAppVersion,
   runLogged,
   isGitClean,
   getGitSha1,
@@ -28,7 +28,7 @@ async function isGithubMyMasterBranch(): Promise<boolean> {
     const branch = (await $`git branch --show-current`.text()).trim();
     return branch === "master";
   }
-  if (repo !== "sumatrapdfreader/sumatrapdf") return false;
+  if (repo !== "TheFunzzies/swiftleaf-pdf") return false;
   const ref = process.env["GITHUB_REF"] ?? "";
   if (ref !== "refs/heads/master") {
     console.log(`GITHUB_REF: '${ref}'`);
@@ -68,10 +68,10 @@ export async function buildDaily() {
 
   const preRelVer = String(await getGitLinearVersion());
   const sha1 = await getGitSha1();
-  const sumatraVer = extractSumatraVersion();
+  const appVer = extractAppVersion();
   console.log(`preReleaseVer: '${preRelVer}'`);
   console.log(`gitSha1: '${sha1}'`);
-  console.log(`sumatraVersion: '${sumatraVer}'`);
+  console.log(`appVersion: '${appVer}'`);
   console.log(`building unsigned pre-release version ${preRelVer}`);
 
   // generate HTML docs
