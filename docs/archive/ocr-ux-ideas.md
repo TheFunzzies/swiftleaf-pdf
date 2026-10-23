@@ -1,12 +1,12 @@
-# OCR UX ideas for SumatraPDF
+# OCR UX ideas for SwiftLeaf
 
-UX-focused proposal for adding OCR to SumatraPDF. Fits existing patterns: lightweight reader, command palette for newer features, notifications for feedback, copy/find/read-aloud as the main text workflows. No implementation details.
+UX-focused proposal for adding OCR to SwiftLeaf. Fits existing patterns: lightweight reader, command palette for newer features, notifications for feedback, copy/find/read-aloud as the main text workflows. No implementation details.
 
 ## Design principle
 
-OCR in SumatraPDF should not feel like a separate “OCR app.” It should **unlock text the user already expects**: select, copy, find, read aloud, and screen-reader access. The mental model is **“recognize text”**, not “run OCR.”
+OCR in SwiftLeaf should not feel like a separate “OCR app.” It should **unlock text the user already expects**: select, copy, find, read aloud, and screen-reader access. The mental model is **“recognize text”**, not “run OCR.”
 
-Results should behave like normal PDF text: invisible overlay, I-beam cursor, existing shortcuts unchanged. No dedicated OCR panel or correction editor — that’s out of character for SumatraPDF.
+Results should behave like normal PDF text: invisible overlay, I-beam cursor, existing shortcuts unchanged. No dedicated OCR panel or correction editor — that’s out of character for SwiftLeaf.
 
 ## What to offer (three scopes)
 
@@ -107,7 +107,7 @@ After recognition, **nothing new to learn**:
 
 *“If a scan has no selectable text, choose Recognize Text — then search, copy, and read aloud work like a normal PDF, for this session.”*
 
-That stays aligned with SumatraPDF: small surface area, palette + contextual prompts, and making existing commands work instead of shipping a new subsystem.
+That stays aligned with SwiftLeaf: small surface area, palette + contextual prompts, and making existing commands work instead of shipping a new subsystem.
 
 ## Related existing behavior
 

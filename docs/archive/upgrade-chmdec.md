@@ -1,6 +1,6 @@
 # Upgrading chmdec
 
-How to update SumatraPDF's vendored plain-C CHM reader (`ext/chmdec/chm.c` +
+How to update SwiftLeaf's vendored plain-C CHM reader (`ext/chmdec/chm.c` +
 `ext/chmdec/chm.h`) from the upstream dist.
 
 ## Upstream source
@@ -11,7 +11,7 @@ How to update SumatraPDF's vendored plain-C CHM reader (`ext/chmdec/chm.c` +
   https://github.com/kjk/libchm).
 
 The amalgamated files are generated upstream by `bun cmd/build-dist.ts`. Never
-edit `ext/chmdec/chm.c` or `ext/chmdec/chm.h` by hand in SumatraPDF.
+edit `ext/chmdec/chm.c` or `ext/chmdec/chm.h` by hand in SwiftLeaf.
 
 ## Steps
 
@@ -70,7 +70,7 @@ Pay special attention to:
 - **New functions** — may need export entries and `ChmFile.cpp` updates
 - **Removed/renamed functions** — update callers and exports
 - **`chm_open` buffer lifetime** — the in-memory buffer is not copied; it must
-  outlive the `chm_ctx` (SumatraPDF keeps file bytes in `ChmFile` until
+  outlive the `chm_ctx` (SwiftLeaf keeps file bytes in `ChmFile` until
   `chm_ctx_free`)
 
 Current integration points:
@@ -87,7 +87,7 @@ Current integration points:
 ### 5. Update DLL exports (if API changed)
 
 chmdec is linked into `libsumatrapdf.dll` (and into the static EXE). The DLL build of
-`SumatraPDF.exe`, `PdfFilter`, and `PdfPreview` must **not** also link the
+`Swiftleaf.exe`, `PdfFilter`, and `PdfPreview` must **not** also link the
 `chmdec` static lib — they import `chm_*` from `libsumatrapdf.dll` via
 `src/libsumatrapdf.def`.
 
@@ -114,8 +114,8 @@ LZX_test_pretree_make_decode_table
 ```bash
 bun cmd/build.ts -dbg
 # optional CHM regression (needs a sample .chm):
-# out/dbg64/SumatraPDF.exe -for-testing -test-chm path\to\file.chm
-# out/dbg64/SumatraPDF.exe -for-testing -dump-chm path\to\file.chm
+# out/dbg64/Swiftleaf.exe -for-testing -test-chm path\to\file.chm
+# out/dbg64/Swiftleaf.exe -for-testing -dump-chm path\to\file.chm
 ```
 
 Also run `bun tests/issue-chm-lzx.ts` if LZX decode tables changed.

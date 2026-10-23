@@ -5,7 +5,7 @@ the next starts. Never commit; the user commits.
 
 ## Why
 
-mupdf addresses pages as `fz_location {chapter, page}`. SumatraPDF predates that
+mupdf addresses pages as `fz_location {chapter, page}`. SwiftLeaf predates that
 and uses one flat 1-based `pageNo` everywhere. For a multi-chapter ebook this
 forces laying out every chapter before the first page shows:
 

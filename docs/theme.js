@@ -1,12 +1,12 @@
 (function (w) {
-  var KEY = "sumatra-theme";
+  var KEY = "swiftleaf-theme";
 
   function normalize(p) {
     if (p === "light" || p === "dark" || p === "system") return p;
     return "system";
   }
 
-  // in the in-app manual the choice lives in SumatraPDF's HelpTheme setting:
+  // in the in-app manual the choice lives in SwiftLeaf's HelpTheme setting:
   // the app announces it before this script runs and is told about changes
   function inApp() {
     return typeof w.SumatraManualTheme === "string" && !!w.__sumatra__;
@@ -24,7 +24,7 @@
   function resolved(p) {
     p = normalize(p);
     if (p === "light" || p === "dark") return p;
-    // in the in-app manual "system" follows SumatraPDF's own theme, which the
+    // in the in-app manual "system" follows SwiftLeaf's own theme, which the
     // app announces before this script runs (ManualInjectThemeCss)
     var app = w.SumatraAppTheme;
     if (app === "light" || app === "dark") return app;

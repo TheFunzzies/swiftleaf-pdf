@@ -60,7 +60,7 @@ mutate → update → re-render loop are the same.
 
 ---
 
-## 1. What already exists in SumatraPDF (leverage, don't rebuild)
+## 1. What already exists in SwiftLeaf (leverage, don't rebuild)
 
 - **Widgets are already rendered.** The page render path runs widget appearance
   streams: `EngineMupdf.cpp:3538-3541` (`pdf_run_page_widgets_with_usage` /
