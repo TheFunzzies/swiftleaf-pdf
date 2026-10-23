@@ -121,9 +121,9 @@ bool WriteUninstallerRegistryInfo(HKEY hkey, bool allUsers, Str installDir) {
     ok &= LoggedWriteRegStr(hkey, regPathUninst, StrL("UninstallString"), uninstallCmdLine);
     TempStr uninstallCmdLineSilent = str::JoinTemp(uninstallCmdLine, StrL(" -silent"));
     ok &= LoggedWriteRegStr(hkey, regPathUninst, StrL("QuietUninstallString"), uninstallCmdLineSilent);
-    ok &= LoggedWriteRegStr(hkey, regPathUninst, StrL("URLInfoAbout"), StrL("https://www.sumatrapdfreader.org/"));
+    ok &= LoggedWriteRegStr(hkey, regPathUninst, StrL("URLInfoAbout"), StrL("https://github.com/TheFunzzies/swiftleaf-pdf"));
     ok &= LoggedWriteRegStr(hkey, regPathUninst, StrL("URLUpdateInfo"),
-                            StrL("https://www.sumatrapdfreader.org/docs/Version-history.html"));
+                            StrL("https://github.com/TheFunzzies/swiftleaf-pdf"));
     if (!ok) {
         log(StrL("WriteUninstallerRegistryInfo() failed\n"));
     }
@@ -138,7 +138,7 @@ static bool RegisterForDefaultPrograms(HKEY hkey, Str installedExePath) {
     // L"SOFTWARE\\SumatraPDF\\Capabilities"
     TempStr appCapabilityPath = str::JoinTemp(StrL("SOFTWARE\\"), StrL(kAppName), StrL("\\Capabilities"));
 
-    Str desc = StrL("SumatraPDF is a PDF reader.");
+    Str desc = StrL("SwiftLeaf is a PDF reader.");
     ok &= LoggedWriteRegStr(hkey, appCapabilityPath, StrL("ApplicationDescription"), desc);
     // ApplicationName must match the RegisteredApplications value name (kAppName).
     ok &= LoggedWriteRegStr(hkey, appCapabilityPath, StrL("ApplicationName"), StrL(kAppName));
@@ -414,7 +414,7 @@ static bool IsOurProgId(Str progId, Str ext) {
     if (str::EqI(progId, ours)) {
         return true;
     }
-    // pre-3.4 scheme used plain "SumatraPDF" for .pdf
+    // pre-3.4 scheme used plain "SwiftLeaf" for .pdf
     return str::EqI(progId, StrL(kAppName));
 }
 
@@ -435,7 +435,7 @@ static bool IsSumatraDefaultForExt(Str ext) {
     HRESULT hr =
         CoCreateInstance(CLSID_ApplicationAssociationRegistration, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&aar));
     if (SUCCEEDED(hr) && aar) {
-        // RegisteredApplications name is StrL(kAppName) ("SumatraPDF")
+        // RegisteredApplications name is StrL(kAppName) ("SwiftLeaf")
         BOOL isDefault = FALSE;
         hr = aar->QueryAppIsDefault(extW, AT_FILEEXTENSION, AL_EFFECTIVE, appNameW, &isDefault);
         if (SUCCEEDED(hr)) {

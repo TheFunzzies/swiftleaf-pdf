@@ -153,7 +153,7 @@ static void OnButtonUninstall(UninstallerWnd* wnd) {
 static void OnUninstallationFinished(UninstallerWnd* wnd) {
     wnd->uninstalling = false;
     wnd->finished = true;
-    SetMsg(Tr("SumatraPDF has been uninstalled."), gMsgError ? kColorMsgFailed : kColorMsgOk);
+    SetMsg(Tr("SwiftLeaf has been uninstalled."), gMsgError ? kColorMsgFailed : kColorMsgOk);
     gMsgError = gFirstError;
     SafeCloseThreadHandle(&wnd->hThread);
 }
@@ -208,7 +208,7 @@ gp::El* UninstallerView::Render(UninstallerView*, gp::Ctx* cx) {
                           ->IntoEl());
     } else {
         bottom->Child(gpc::Button::New(cx, GStrL("uninst-run"))
-                          ->Label(ToGpui(Tr("Uninstall SumatraPDF")))
+                          ->Label(ToGpui(Tr("Uninstall SwiftLeaf")))
                           ->Primary()
                           ->Disabled(wnd->uninstalling)
                           ->WithSize(gp::UiSize::Small)
@@ -226,7 +226,7 @@ static bool CreateUninstallerWindow() {
     gWnd->app = app;
     gUninstallerView = gp::EntityNew<UninstallerView>(app);
 
-    TempStr title = fmt(Tr("SumatraPDF %s Uninstaller").s, StrL(CURR_VERSION_STRA));
+    TempStr title = fmt(Tr("SwiftLeaf %s Uninstaller").s, StrL(CURR_VERSION_STRA));
     int dx = GetInstallerWinDx();
     int dy = kInstallerWinDy;
     gWnd->win = gp::WindowOpenView(app, ToGpui(title), dx, dy, gUninstallerView.id, gp::WinOpts{});
@@ -242,7 +242,7 @@ static bool CreateUninstallerWindow() {
 static void ShowUsage() {
     // Note: translation services aren't initialized at this point, so English only
     TempStr caption = str::JoinTemp(StrL(kAppName), StrL(" Uninstaller Usage"));
-    TempStr msg = fmt(R"(SumatraPDF.exe -uninstall [-s][-d <path>]
+    TempStr msg = fmt(R"(Swiftleaf.exe -uninstall [-s][-d <path>]
 
 -s	uninstalls %s silently (without user interaction).
 -d	changes the directory from where %s will be uninstalled.)",
@@ -424,7 +424,7 @@ int RunUninstaller(Flags* cli) {
         if (gUninstallerLogPath) {
             StartLogToFile(gUninstallerLogPath, false);
         }
-        logf("------------- Starting SumatraPDF uninstallation\n");
+        logf("------------- Starting SwiftLeaf uninstallation\n");
     }
 
     // TODO: remove dependency on this in the uninstaller
@@ -441,7 +441,7 @@ int RunUninstaller(Flags* cli) {
         log(StrL("Uninstaller executable doesn't exist\n"));
         // ng: orig shows a MessageBox; the port's MsgBox needs a MainWindow,
         // which the uninstaller has none of
-        logf("%s: %s\n", Tr("Uninstallation failed"), Tr("SumatraPDF installation not found."));
+        logf("%s: %s\n", Tr("Uninstallation failed"), Tr("SwiftLeaf installation not found."));
         return ret;
     }
 
@@ -452,7 +452,7 @@ int RunUninstaller(Flags* cli) {
 
     RelaunchMaybeElevatedFromTempDirectory(gCli);
 
-    gDefaultMsg = Tr("Are you sure you want to uninstall SumatraPDF?");
+    gDefaultMsg = Tr("Are you sure you want to uninstall SwiftLeaf?");
 
     if (gCli->silent) {
         UninstallerThread();
