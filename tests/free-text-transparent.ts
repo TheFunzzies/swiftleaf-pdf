@@ -327,6 +327,9 @@ export async function testit(): Promise<void> {
       sendMessage(host, WM_KEYDOWN, VK_SPACE, 0);
       await dump();
     };
+    // Enter Edit mode before measuring: its ribbon changes fit-page zoom.
+    sendCommandSync(frame, cmdId("CmdToggleEditPDF"));
+    await client.waitForRenderIdle();
     await reopen();
     const unformattedFont = getWindowFontHeight(box());
     await clickTool(2); // Larger
@@ -334,7 +337,6 @@ export async function testit(): Promise<void> {
     sendMessage(box(), WM_CHAR, 0x0a, 0);
     sendCommandSync(frame, cmdId("CmdUndo"));
     // Undo clears object selection; Edit mode permits selecting restored text.
-    sendCommandSync(frame, cmdId("CmdToggleEditPDF"));
     await reopen();
     if (getWindowFontHeight(box()) !== unformattedFont) throw new Error("One undo did not restore formatting");
     sendMessage(box(), WM_KEYDOWN, VK_ESCAPE, 0);
