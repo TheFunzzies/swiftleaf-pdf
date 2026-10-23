@@ -388,7 +388,7 @@ void CleanRemoteDestNameInPlace(Str& destName) {
     str::TrimPrefixI(destName, StrL("nameddest="));
 }
 
-// for safety, only handle relative paths and only open them in SumatraPDF
+// for safety, only handle relative paths and only open them in SwiftLeaf
 // (unless they're of an allowed perceived type)
 void LinkHandler::LaunchFile(Str pathOrig, IPageDestination* remoteLink) {
     if (!CanAccessDisk()) {

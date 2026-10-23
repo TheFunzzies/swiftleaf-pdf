@@ -580,7 +580,7 @@ static bool ConvertImageCollectionToPdf(EngineBase* engine, Str destPath) {
         return false;
     }
 
-    TempStr producer = fmt("SumatraPDF %s", currentVersion);
+    TempStr producer = fmt("SwiftLeaf %s", currentVersion);
     PdfCreator::SetProducerName(producer);
     // Formats PDF cannot re-wrap (WebP, JXL, HEIC, AVIF, TGA, …): decode via
     // the same codecs we use for viewing, then PNG + zopfli before embed.

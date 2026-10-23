@@ -1,7 +1,7 @@
 /* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
    License: GPLv3 */
 
-// What the shared image editor (ImageSaveCropResize.cpp) needs from SumatraPDF:
+// What the shared image editor (ImageSaveCropResize.cpp) needs from SwiftLeaf:
 // decoding an image file, writing a PDF or an encoded image, opening what was
 // saved and translations. Another app fills the same hooks in with its own.
 // ng: orig works on Gdiplus::Bitmap and encodes with WIC, which is Windows
@@ -105,7 +105,7 @@ static bool SavePixmapAsPdf(Pixmap* px, Str destPath) {
         TempStr now = FormatPdfDateTemp();
         c->SetProperty(DocProp::CreationDate, now);
         c->SetProperty(DocProp::ModificationDate, now);
-        c->SetProperty(DocProp::CreatorApp, StrL("SumatraPDF"));
+        c->SetProperty(DocProp::CreatorApp, StrL("SwiftLeaf PDF"));
         ok = c->SaveToFile(destPath);
     }
     delete c;
@@ -309,7 +309,7 @@ static Str TranslateStr(Str s) {
     return Tr(s);
 }
 
-// fills the hooks above in with SumatraPDF's implementations
+// fills the hooks above in with SwiftLeaf's implementations
 void InitImageEditHost() {
     gImageEditHost.LoadImageFile = LoadImageFile;
     gImageEditHost.SavePixmapAsPdf = SavePixmapAsPdf;

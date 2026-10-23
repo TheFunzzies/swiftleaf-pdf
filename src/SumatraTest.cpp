@@ -261,7 +261,7 @@ static TocItem* NthTocItemWithDest(TocItem* item, int target, int& counter) {
 
 // Headless test for PDF destination zoom resolution (issue #5537). Resolves the
 // <no>-th (1-based) outline destination and returns "page=P zoom=Z". zoom is in
-// SumatraPDF units (1.0 == 100%); zoom=0 means "retain current zoom" (what /XYZ
+// SwiftLeaf units (1.0 == 100%); zoom=0 means "retain current zoom" (what /XYZ
 // ... 0 must map to). Used by tests/issue-5537.ts.
 TempStr DestResultTemp(Str pdfPath, int destNo) {
     str::Builder out;
@@ -1446,12 +1446,12 @@ TempStr ScrollToLinkResultTemp(int minViewportDelta, int* exitCodeOut) {
 TempStr I18nErrorStringResultTemp(int* exitCodeOut) {
     str::Builder out;
     Str err = Tr("Error");
-    Str crash = Tr("SumatraPDF crashed");
-    Str printers = Tr("SumatraPDF - Show Printers");
+    Str crash = Tr("SwiftLeaf crashed");
+    Str printers = Tr("SwiftLeaf - Show Printers");
     bool ok = len(err) > 0 && len(crash) > 0 && len(printers) > 0 &&
               str::Eq(err, trans::GetTranslation(StrL("Error"))) &&
-              str::Eq(crash, trans::GetTranslation(StrL("SumatraPDF crashed"))) &&
-              str::Eq(printers, trans::GetTranslation(StrL("SumatraPDF - Show Printers")));
+              str::Eq(crash, trans::GetTranslation(StrL("SwiftLeaf crashed"))) &&
+              str::Eq(printers, trans::GetTranslation(StrL("SwiftLeaf - Show Printers")));
     if (ok) {
         out.Append(fmt("OK error=%s crash=%s printers=%s\n", err, crash, printers));
     } else {

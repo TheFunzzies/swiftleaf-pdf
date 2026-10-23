@@ -1,7 +1,7 @@
 /* Copyright 2026 the SumatraPDF project authors (see AUTHORS file).
    License: Simplified BSD (see COPYING.BSD) */
 
-// logview: a native Win32 log viewer for SumatraPDF's SumatraLog.cpp pipe client.
+// logview: a native Win32 log viewer for SwiftLeaf's SumatraLog.cpp pipe client.
 //
 // It is the *server* side of the named pipe \\.\pipe\LOCAL\ArsLexis-Logger that
 // src/SumatraLog.cpp connects to (as a writer). Each process that connects gets
@@ -57,7 +57,7 @@ void _uploadDebugReport(Str, Str, bool) {}
 
 constexpr const WCHAR* kPipeName = L"\\\\.\\pipe\\LOCAL\\ArsLexis-Logger";
 constexpr int kPipeBufSize = 1024 * 64;
-constexpr const WCHAR* kAboutURL = L"https://www.sumatrapdfreader.org/docs/Logview";
+constexpr const WCHAR* kAboutURL = L"https://github.com/TheFunzzies/swiftleaf-pdf";
 
 constexpr int kWmAppNewLogs = WM_APP + 1;
 
@@ -1110,7 +1110,7 @@ bool LogViewWnd::Create() {
     {
         CreateCustomArgs args;
         args.className = L"LogViewMain";
-        args.title = StrL("Logview - SumatraPDF");
+        args.title = StrL("Logview - SwiftLeaf");
         args.pos = {CW_USEDEFAULT, CW_USEDEFAULT, DpiScale(1000), DpiScale(700)};
         args.bgColor = GetSysColor(COLOR_BTNFACE);
         args.icon = LoadIconW(nullptr, IDI_APPLICATION);

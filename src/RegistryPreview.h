@@ -18,7 +18,7 @@ bool IsPreviewInstalled();
 // opt-in file logging for the preview handler (PdfPreview.dll), controlled by a
 // registry value so it can be toggled (via CmdTogglePdfPreviewLogging) without a
 // rebuild. Files are written to the per-build data dir (keyed on the sibling
-// SumatraPDF.exe's sha1) so they land next to the app's other logs/crash info.
+// Swiftleaf.exe's sha1) so they land next to the app's other logs/crash info.
 #define kPdfPreviewLogPrefix "pdfpreview.log."
 
 bool IsPdfPreviewLoggingEnabled();

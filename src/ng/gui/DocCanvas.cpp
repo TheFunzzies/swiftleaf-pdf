@@ -493,7 +493,7 @@ static void FillRect(gp::PaintCtx* ctx, Rect rc, Color col) {
     gp::CanvasFillRect(ctx, b.x, b.y, b.w, b.h, ToGpui(col));
 }
 
-// orig has two versions of this behind DRAW_PAGE_SHADOWS; SumatraPDF ships the
+// orig has two versions of this behind DRAW_PAGE_SHADOWS; SwiftLeaf ships the
 // shadow-less one, which just fills the page rect with the placeholder color
 static void PaintPageFrameAndShadow(gp::PaintCtx* ctx, Rect& bounds, Rect&, bool, Color bgCol) {
     FillRect(ctx, Rect(bounds.x, bounds.y, bounds.dx + 1, bounds.dy + 1), bgCol);

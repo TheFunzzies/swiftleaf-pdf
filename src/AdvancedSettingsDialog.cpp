@@ -38,7 +38,7 @@
 #include "FilterHighlightDraw.h"
 #include "SumatraDialogs.h"
 
-constexpr const char* kSettingsDocsUrl = "https://www.sumatrapdfreader.org/settings/settings3-7.html";
+constexpr const char* kSettingsDocsUrl = "https://github.com/TheFunzzies/swiftleaf-pdf";
 // smallest client width the user can drag the dialog to (96 dpi pixels)
 constexpr int kAdvSettingsMinClientDx = 480;
 

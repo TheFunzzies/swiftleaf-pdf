@@ -119,7 +119,7 @@ You can [merge PDFs](Help/Merge-PDFs) and [reorder pages](Help/Reorder-PDF-pages
 You can [split a PDF](Help/Split-a-PDF).
 You can [redact a PDF](Help/Redact-a-PDF).
 You can [present a PDF](Help/Present-a-PDF) full screen.
-You can [use SumatraPDF with LaTeX](Help/LaTeX-integration) for forward and inverse search.
+You can [use SwiftLeaf with LaTeX](Help/LaTeX-integration) for forward and inverse search.
 You can [read comics and manga](Help/Comics-and-manga) right to left.
 You can [bookmark pages as favorites](Help/Managing-favorites).
 You can [chat with AI about a document](Help/AI-Chat-with-document).
@@ -290,7 +290,7 @@ struct AboutCtrl : VirtCtrl {
 
     // geometry, computed by UpdateLayout()
     Rect aboutRect;  // the framed box
-    Size headerSize; // the "SumatraPDF" band on top of it
+    Size headerSize; // the "SwiftLeaf" band on top of it
     int dividerX = 0;
 
     AboutCtrl();
@@ -634,7 +634,7 @@ void AboutCtrl::UpdateLayout(Rect clientRc) {
 
 // Version, OS, WebView2, memory and similar facts for a bug report.
 static void AppendBugReportInfo(str::Builder& s) {
-    s.Append(fmt("SumatraPDF %s\n", GetAppVersionTemp()));
+    s.Append(fmt("SwiftLeaf %s\n", GetAppVersionTemp()));
     s.Append(fmt("Built on: %s %s\n", StrL(__DATE__), StrL(__TIME__)));
     if (gitCommidId) {
         s.Append(fmt("Git: %s\n", gitCommidId));
@@ -902,7 +902,7 @@ void ShowAboutWindow(MainWindow* win) {
         ReportIf(!gAtomAbout);
     }
 
-    WCHAR* title = CWStrTemp(Tr("About SumatraPDF"));
+    WCHAR* title = CWStrTemp(Tr("About SwiftLeaf"));
     DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU;
     int x = CW_USEDEFAULT;
     int y = CW_USEDEFAULT;

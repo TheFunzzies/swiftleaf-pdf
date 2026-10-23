@@ -305,7 +305,7 @@ void SelectionHandlerPostViaBrowser(WindowTab* tab, Str url, Str bodyPattern, St
     Str pattern = str::IsEmptyOrWhiteSpace(bodyPattern) ? StrL("text=${selection}") : bodyPattern;
 
     str::Builder html;
-    html.Append(StrL("<!doctype html><html><head><meta charset=\"utf-8\"><title>SumatraPDF</title></head>\n"));
+    html.Append(StrL("<!doctype html><html><head><meta charset=\"utf-8\"><title>SwiftLeaf</title></head>\n"));
     html.Append(
         StrL("<body onload=\"document.forms[0].submit()\">\n<form method=\"post\" accept-charset=\"utf-8\" action=\""));
     HtmlAttrEscape(html, url);

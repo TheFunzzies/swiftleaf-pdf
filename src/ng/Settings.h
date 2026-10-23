@@ -873,7 +873,7 @@ struct Settings {
     bool showHomePageReadingProgress;
     // file open dialog used by Open File: empty or os (standard Windows
     // file picker), or sumatrapdf (Navigate Files in Folder). Toggled by
-    // Settings / SumatraPDF File Picker
+    // Settings / SwiftLeaf File Picker
     Str filePicker;
     // up to 13 custom colors for the background color picker, separated by
     // space (e.g. '#ff0000 #00ff00 #0000ff')
@@ -948,7 +948,7 @@ struct Settings {
     Str translateEngine;
     // ISO code of the current UI language
     Str uiLanguage;
-    // SumatraPDF won't offer to update to this version again
+    // SwiftLeaf won't offer to update to this version again
     Str versionToSkip;
     // customization options for CHM UI. UseFixedPageUI switches to the
     // PDF-style view; FontName applies to that view
@@ -1077,7 +1077,7 @@ struct Settings {
     // Options, so a double-click in the document can jump to the matching
     // line in a LaTeX editor
     bool enableTeXEnhancements;
-    // if true, Esc key closes SumatraPDF
+    // if true, Esc key closes SwiftLeaf
     bool escToExit;
     // if true, show the full path to the document in the title bar
     bool fullPathInTitle;
@@ -1102,7 +1102,7 @@ struct Settings {
     // if true and SessionData isn't empty, that session will be restored
     // at startup
     bool restoreSession;
-    // if true, open documents in the already running SumatraPDF instead of
+    // if true, open documents in the already running SwiftLeaf instead of
     // starting a new one
     bool reuseInstance;
     // if true, show the menu bar (F9 toggles it; the choice is remembered
@@ -1164,7 +1164,7 @@ struct Settings {
     // selected file in a popup window, like macOS Quick Look. Esc or Space
     // closes it; Left / Right open the previous / next file in the folder.
     // Starts a small background helper at logon so it works even when
-    // SumatraPDF is not open
+    // SwiftLeaf is not open
     bool explorerQuickLook;
     // if true, next/previous page keeps the same view position on the page
     // instead of jumping to the top (useful when zoomed in on similarly
@@ -1795,7 +1795,7 @@ static const StructInfo gShortcutInfo = {
     gShortcutFields,
     "Cmd\0Key\0Name\0ToolbarText\0ToolbarSvgIcon",
     "command to run, e.g. CmdOpenFile. See [the list of "
-    "commands](https://www.sumatrapdfreader.org/docs/Commands)\0keyboard shortcut (e.g. Ctrl-Alt-F)\0name shown in "
+    "commands](https://github.com/TheFunzzies/swiftleaf-pdf)\0keyboard shortcut (e.g. Ctrl-Alt-F)\0name shown in "
     "command palette\0if given, shows in toolbar\0optional SVG icon for toolbar button; if both ToolbarSvgIcon and "
     "ToolbarText are set, the icon is used",
     false};
@@ -2133,7 +2133,7 @@ static const StructInfo gPointInfo = {
 
 static const FieldInfo gSettingsFields[] = {
     {(size_t)-1, SettingType::Comment,
-     (intptr_t)"For documentation, see https://www.sumatrapdfreader.org/settings/settings3-7.html"},
+     (intptr_t)"For documentation, see https://github.com/TheFunzzies/swiftleaf-pdf"},
     {(size_t)-1, SettingType::Comment, 0},
     {offsetof(Settings, defaultDisplayMode), SettingType::String, (intptr_t)"automatic"},
     {offsetof(Settings, defaultZoom), SettingType::String, (intptr_t)"fit page"},
@@ -2340,7 +2340,7 @@ static const StructInfo gSettingsInfo = {
     "for documents shown in the ebook UI)\0if true, remember which documents were opened and their display "
     "settings\0if true, store display settings for each document separately (i.e. everything after UseDefaultState in "
     "FileStates)\0if true and SessionData isn't empty, that session will be restored at startup\0if true, open "
-    "documents in the already running SumatraPDF instead of starting a new one\0if true, show the menu bar (F9 toggles "
+    "documents in the already running SwiftLeaf instead of starting a new one\0if true, show the menu bar (F9 toggles "
     "it; the choice is remembered across sessions)\0if true, show the menu bar when using tabs (useTabs = true)\0if "
     "true, show the current page as n/N after the file name on tabs\0if true, show reading progress (n/N, or "
     "chapter:page for ebooks) on home page thumbnails and list rows\0if true, a document with chapters (EPUB, MOBI) "
@@ -2366,7 +2366,7 @@ static const StructInfo gSettingsInfo = {
     "read (useful for drawings with many links); if false, clicking a link follows it\0if true, Space in File Explorer "
     "(or on the desktop) previews the selected file in a popup window, like macOS Quick Look. Esc or Space closes it; "
     "Left / Right open the previous / next file in the folder. Starts a small background helper at logon so it works "
-    "even when SumatraPDF is not open\0if true, next/previous page keeps the same view position on the page instead of "
+    "even when SwiftLeaf is not open\0if true, next/previous page keeps the same view position on the page instead of "
     "jumping to the top (useful when zoomed in on similarly sized pages)\0if true, one mouse-wheel notch goes to the "
     "next / previous page instead of scrolling; combine with RememberViewOffsetOnPageTurn to read zoomed-in pages "
     "without touching the keyboard. Alt + wheel still scrolls, Shift + wheel scrolls horizontally and Ctrl + wheel "
@@ -2448,11 +2448,11 @@ static const StructInfo gSettingsInfo = {
     "language\0remembered source language for selection translation; empty means Auto\0remembered engine for Translate "
     "Selection: Google, DeepL, Grok Build, Claude Code, OpenAI Codex or Antigravity\0\0default values for annotations "
     "in PDF documents\0\0list of additional external viewers for various file types. See [docs for more "
-    "information](https://www.sumatrapdfreader.org/docs/Customize-external-viewers)\0\0customization options for how "
+    "information](https://github.com/TheFunzzies/swiftleaf-pdf)\0\0customization options for how "
     "forward search results are shown (used from LaTeX editors)\0\0these override the default settings in the Print "
     "dialog\0\0options for fullscreen mode\0\0list of handlers for selected text, shown in context menu when text "
     "selection is active. See [docs for more "
-    "information](https://www.sumatrapdfreader.org/docs/Customize-search-translation-services)\0\0predefined text "
+    "information](https://github.com/TheFunzzies/swiftleaf-pdf)\0\0predefined text "
     "inserted as a free text annotation from the context menu or the command palette\0\0custom keyboard "
     "shortcuts\0\0color themes\0\0saved groups of tabs\0\0actual resolution of the main screen in DPI, used to show "
     "documents at their physical size; if 0 or negative, the resolution reported by Windows is used\0\0You're not "
@@ -2463,7 +2463,7 @@ static const StructInfo gSettingsInfo = {
     "window\0position/size of the floating find window (see SearchUIFloating)\0position/size of the in-app Help: "
     "Manual window\0information about opened files (in most recently used order)\0state of the last session, usage "
     "depends on RestoreSession\0data required for reloading documents after an auto-update\0data required to determine "
-    "when SumatraPDF last checked for updates\0value required to determine recency for the OpenCount value in "
+    "when SwiftLeaf last checked for updates\0value required to determine recency for the OpenCount value in "
     "FileStates\0position of the document properties window\0if true, check once a day whether an update is "
     "available\0\0Settings below are not recognized by the current version",
     false};

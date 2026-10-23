@@ -12,11 +12,11 @@
 /*
 Implements extracting data from a simple archive format, made up by me.
 For the description of the format, see comment below, above ParseSimpleArchive().
-Archives are simple to create (in SumatraPDF, we used to use lzma.exe and a python script)
+Archives are simple to create (in SwiftLeaf, we used to use lzma.exe and a python script)
 there's a tool for creating them in ../MakeLzSA.cpp
 
 LzmaDecode / x86_Convert come from ext/lzma/C (LzmaDec.c, Bra86.c) compiled into
-base and SumatraPDF.exe — not from libsumatrapdf.dll (libarchive uses liblzma instead).
+base and Swiftleaf.exe — not from libsumatrapdf.dll (libarchive uses liblzma instead).
 The installer must decompress IDR_EMBEDDED_PAK (which contains libsumatrapdf.dll) without
 calling into that DLL.
 */

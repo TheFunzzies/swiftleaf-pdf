@@ -64,8 +64,8 @@ static_assert(CmdZoomLast - CmdZoomFirst == 19, "zoom ids are not in a continuou
 static MenuDef menuDefFileOpen[] = {
     { TrN("&Open..."), CmdOpenFile, },
     { TrN("Open using &Windows File Picker..."), CmdOpenFileWithOSFilePicker, },
-    { TrN("Open using &SumatraPDF File Picker..."), CmdOpenFileWithSumatraFilePicker, },
-    { TrN("Use SumatraPDF File Picker"), CmdToggleFilePicker, },
+    { TrN("Open using &SwiftLeaf File Picker..."), CmdOpenFileWithSumatraFilePicker, },
+    { TrN("Use SwiftLeaf File Picker"), CmdToggleFilePicker, },
     { StrL(kMenuSeparator), 0, },
     { TrN("&Next File In Folder"), CmdOpenNextFileInFolder, },
     { TrN("&Previous File In Folder"), CmdOpenPrevFileInFolder, },

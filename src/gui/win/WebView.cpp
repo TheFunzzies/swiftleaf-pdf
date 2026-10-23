@@ -164,7 +164,7 @@ bool gWebViewShuttingDown = false;
 
 // Creating the environment fails with HRESULT_FROM_WIN32(ERROR_INVALID_STATE) when
 // another process is already using the same user data folder with different
-// EnvironmentOptions -- e.g. a second SumatraPDF from before/after an upgrade, since
+// EnvironmentOptions -- e.g. a second SwiftLeaf from before/after an upgrade, since
 // we pass our own AdditionalBrowserArguments. It's transient (the other instance
 // exits), so retry a few times before giving up.
 constexpr int kMaxEnvCreateAttempts = 10;

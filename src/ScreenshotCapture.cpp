@@ -1,7 +1,7 @@
 /* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
    License: GPLv3 */
 
-// Screenshot capture and the picker overlay. Shared between SumatraPDF and
+// Screenshot capture and the picker overlay. Shared between SwiftLeaf and
 // other apps: everything host-specific is reached through the ScreenshotHost
 // hooks in ScreenshotCapture.h, which each app fills in at startup.
 

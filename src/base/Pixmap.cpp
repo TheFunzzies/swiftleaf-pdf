@@ -605,7 +605,7 @@ Pixmap* PixmapToBgr(Pixmap* p) {
 // over an arbitrary background (toolbar icons on the home page) needs this.
 //
 // The compositing is done by hand rather than with AlphaBlend() or GDI+:
-// msimg32 and GdiPlusUtil are linked into SumatraPDF.exe but not into the other
+// msimg32 and GdiPlusUtil are linked into Swiftleaf.exe but not into the other
 // consumers of base (PdfFilter, PdfPreview, ...). Reading the destination back
 // costs a BitBlt, which is nothing at icon sizes.
 //
