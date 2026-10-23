@@ -212,6 +212,28 @@ void GetWidgetChoiceOptions(Annotation*, StrVec& out);
 bool SetWidgetChoiceValue(Annotation*, Str value);
 bool ToggleFormButton(Annotation*);
 
+enum class FormFieldKind {
+    Text,
+    Checkbox,
+    Radio,
+    Combo,
+    Signature
+};
+
+struct FormFieldProperties {
+    FormFieldKind kind = FormFieldKind::Text;
+    Str name;
+    Str defaultValue;
+    Str options;
+    float fontSize = 12;
+    bool required = false;
+    bool readOnly = false;
+};
+
+bool GetFormFieldProperties(Annotation*, FormFieldProperties&);
+bool SetFormFieldProperties(Annotation*, const FormFieldProperties&, Str& error);
+Annotation* CreateFormField(EngineBase*, int pageNo, RectF, const FormFieldProperties&, Str& error);
+
 bool AnnotationIsLive(Annotation*);
 bool IsImageStamp(Annotation*);
 Pixmap* StampImagePixmap(Annotation*);

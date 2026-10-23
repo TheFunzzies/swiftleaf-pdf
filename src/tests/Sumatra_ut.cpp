@@ -8,6 +8,7 @@
 #include "base/WinDynCalls.h"
 #include "base/DbgHelpDyn.h"
 #include "base/File.h"
+#include "base/GuessFileType.h"
 #include "base/Pixmap.h"
 
 #include "gui/UIModels.h"
@@ -25,6 +26,9 @@
 #include "Flags.h"
 #include "Commands.h"
 #include "SvgIcons.h"
+#include "EngineAll.h"
+#include "Annotation.h"
+#include <mupdf/pdf.h>
 #include "AppUnitTests.h"
 
 // must be last to over-write assert()
@@ -560,6 +564,145 @@ static void ParseTip_UnitTests() {
     }
 }
 
+static void FormAuthoringTest() {
+    const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+                             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Rotate 90 >>"};
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    int offsets[3];
+    for (int i = 0; i < 3; i++) {
+        offsets[i] = len(pdf);
+        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, Str(objects[i])));
+    }
+    int xref = len(pdf);
+    pdf.Append(StrL("xref\n0 4\n0000000000 65535 f \n"));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+    EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("form-authoring.pdf"), nullptr);
+    utassert(e != nullptr);
+    Str error;
+    FormFieldProperties p;
+    Annotation* fields[5]{};
+    for (int i = 0; i < 5; i++) {
+        p = {};
+        p.kind = (FormFieldKind)i;
+        p.name = fmt("Field%d", i);
+        p.options = StrL("First\nSecond");
+        fields[i] = CreateFormField(e, 1, {40.f, 40.f + 70.f * i, 160.f, 50.f}, p, error);
+        utassert(fields[i] && AnnotationIsLive(fields[i]));
+    }
+    utassert(EngineMupdfCountFormFields(e) == 5);
+    Vec<Annotation*> widgets;
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    utassert(len(widgets) == 6);
+    Vec<Annotation*> removed;
+    utassert(EngineMupdfUndo(e, removed));
+    for (Annotation* a : removed) DeleteAnnotation(a);
+    utassert(EngineMupdfCountFormFields(e) == 4);
+    VecClear(removed);
+    utassert(EngineMupdfRedo(e, removed));
+    utassert(len(removed) == 0 && EngineMupdfCountFormFields(e) == 5);
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    Vec<RectF> highlights;
+    EngineMupdfGetFormFieldHighlightRects(e, 1, nullptr, highlights);
+    utassert(len(highlights) == 6);
+    utassert(ToggleFormButton(fields[1]));
+    utassert(str::Eq(GetWidgetValue(fields[1]), StrL("Yes")));
+    utassert(ToggleFormButton(fields[2]));
+    utassert(str::Eq(GetWidgetValue(fields[2]), StrL("First")));
+    utassert(ToggleFormButton(widgets[3]));
+    utassert(str::Eq(GetWidgetValue(fields[2]), StrL("Second")));
+    utassert(SetWidgetChoiceValue(fields[3], StrL("Second")));
+    utassert(GetFormFieldProperties(fields[0], p));
+    p.name = StrL("Customer");
+    p.defaultValue = StrL("Ada");
+    p.required = true;
+    p.readOnly = true;
+    p.fontSize = 18;
+    utassert(SetFormFieldProperties(fields[0], p, error));
+    utassert(GetWidgetFieldFlags(fields[0]) & PDF_FIELD_IS_READ_ONLY);
+    utassert(GetWidgetFieldFlags(fields[0]) & PDF_FIELD_IS_REQUIRED);
+    utassert(GetWidgetFontSize(fields[0]) == 18);
+    utassert(str::Eq(GetWidgetValue(fields[0]), StrL("Ada")));
+    p.kind = FormFieldKind::Text;
+    utassert(!CreateFormField(e, 1, {10, 10, 20, 20}, p, error));
+    RectF moved{85, 95, 220, 36};
+    SetRect(fields[0], moved);
+    utassert(GetBounds(fields[0]) == moved);
+    utassert(GetFormFieldProperties(fields[2], p));
+    p.options = StrL("Red\nBlue");
+    p.defaultValue = StrL("Blue");
+    utassert(SetFormFieldProperties(fields[2], p, error));
+    p.options = StrL("Red\nBlue\nGreen");
+    utassert(!SetFormFieldProperties(fields[2], p, error));
+    TempStr path = GetTempFilePathTemp(StrL("form-authoring"));
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    SafeEngineRelease(&e);
+
+    e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+    utassert(e != nullptr);
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    utassert(len(widgets) == 6 && EngineMupdfCountFormFields(e) == 5);
+    utassert(GetFormFieldProperties(widgets[0], p));
+    utassert(str::Eq(p.name, StrL("Customer")) && str::Eq(p.defaultValue, StrL("Ada")));
+    utassert(p.required && p.readOnly && p.fontSize == 18);
+    utassert(GetBounds(widgets[0]) == moved);
+    utassert(str::Eq(GetWidgetValue(widgets[2]), StrL("Blue")));
+    utassert(str::Eq(GetWidgetValue(widgets[4]), StrL("Second")));
+    utassert(GetWidgetType(widgets[5]) == PDF_WIDGET_TYPE_SIGNATURE);
+    DeleteAnnotation(widgets[1]);
+    utassert(EngineMupdfCountFormFields(e) == 4);
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    SafeEngineRelease(&e);
+
+    // Open the saved file directly, independent of the application's wrappers.
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_UNLIMITED);
+    pdf_document* doc = nullptr;
+    pdf_page* page = nullptr;
+    bool valid = false;
+    fz_try(ctx) {
+        doc = pdf_open_document(ctx, CStrTemp(path));
+        page = pdf_load_page(ctx, doc, 0);
+        pdf_obj* roots = pdf_dict_getp(ctx, pdf_trailer(ctx, doc), "Root/AcroForm/Fields");
+        int count = 0;
+        int radioOn = 0;
+        for (pdf_annot* a = pdf_first_widget(ctx, page); a; a = pdf_next_widget(ctx, a)) {
+            count++;
+            utassert(pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(P)));
+            utassert(pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(AP)));
+            if (pdf_widget_type(ctx, a) == PDF_WIDGET_TYPE_RADIOBUTTON) {
+                pdf_obj* state = pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(AS));
+                if (!pdf_name_eq(ctx, state, PDF_NAME(Off))) {
+                    utassert(str::Eq(Str(pdf_to_name(ctx, state)), StrL("Blue")));
+                    radioOn++;
+                }
+            }
+        }
+        valid = count == 5 && pdf_array_len(ctx, roots) == 4 && radioOn == 1;
+    }
+    fz_always(ctx) {
+        fz_drop_page(ctx, (fz_page*)page);
+        pdf_drop_document(ctx, doc);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    fz_drop_context(ctx);
+    e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+    utassert(e != nullptr);
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    DeleteAnnotation(widgets[1]);
+    DeleteAnnotation(widgets[2]);
+    utassert(EngineMupdfCountFormFields(e) == 3);
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    SafeEngineRelease(&e);
+    e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+    utassert(e != nullptr && EngineMupdfCountFormFields(e) == 3);
+    SafeEngineRelease(&e);
+    file::Delete(path);
+    utassert(valid);
+}
+
 static LONG WINAPI ForAiCrashHandler(EXCEPTION_POINTERS* ei) {
     printf("unit tests crash\n");
     str::Builder s;
@@ -588,6 +731,7 @@ int RunAppUnitTests(bool forAi) {
     printf("Running unit tests\n");
     DocumentPanel_UnitTests();
     utassert(EngineMupdf_UnitTestPanelData());
+    FormAuthoringTest();
 
     ArchiveTest();
     AppendStoreTest();

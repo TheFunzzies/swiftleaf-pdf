@@ -10988,11 +10988,12 @@ NO_INLINE void MarkNotificationAsModified(EngineMupdf* e, Annotation* annot, Ann
         if (annot->type == AnnotationType::Redact) {
             e->createdRedactMark = true;
         }
-        int sizeBefore = len(pageInfo->annotations);
-        int pos = VecFind(pageInfo->annotations, annot);
+        auto& list = annot->type == AnnotationType::Widget ? pageInfo->widgets : pageInfo->annotations;
+        int sizeBefore = len(list);
+        int pos = VecFind(list, annot);
         ReportIf(pos >= 0); // shouldn't exist
-        VecAppend(pageInfo->annotations, annot);
-        int sizeNow = len(pageInfo->annotations);
+        VecAppend(list, annot);
+        int sizeNow = len(list);
         ReportIf(sizeBefore != sizeNow - 1);
     } else {
         ReportIf(change != AnnotationChange::Modify);

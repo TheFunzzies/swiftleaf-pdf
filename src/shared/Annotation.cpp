@@ -7,6 +7,7 @@
 #include "base/ScopedWin.h"
 #include "base/HtmlTags.h"
 #include "base/CssParser.h"
+#include "base/GuessFileType.h"
 
 extern "C" {
 #include <mupdf/pdf.h>
@@ -17,6 +18,7 @@ extern "C" {
 #include "Settings.h"
 #include "DocController.h"
 #include "EngineBase.h"
+#include "EngineAll.h"
 #include "EngineMupdf.h"
 #include "AppSettings.h"
 #include "Commands.h"
@@ -691,6 +693,301 @@ bool SetWidgetChoiceValue(Annotation* annot, Str value) {
     return SetWidgetValue(annot, value, StrL("SetWidgetChoiceValue"), setValue);
 }
 
+static pdf_obj* WidgetField(fz_context* ctx, pdf_annot* a) {
+    pdf_obj* obj = pdf_annot_obj(ctx, a);
+    pdf_obj* parent = pdf_dict_get(ctx, obj, PDF_NAME(Parent));
+    return parent && !pdf_dict_get(ctx, obj, PDF_NAME(T)) ? parent : obj;
+}
+
+bool GetFormFieldProperties(Annotation* annot, FormFieldProperties& props) {
+    if (!AnnotationIsLive(annot) || Type(annot) != AnnotationType::Widget) {
+        return false;
+    }
+    AnnotAccess access(annot);
+    bool ok = false;
+    fz_var(ok);
+    str::Builder options;
+    fz_try(access.ctx) {
+        auto* ctx = access.ctx;
+        pdf_annot* a = access.annot;
+        switch (pdf_widget_type(ctx, a)) {
+            case PDF_WIDGET_TYPE_TEXT:
+                props.kind = FormFieldKind::Text;
+                break;
+            case PDF_WIDGET_TYPE_CHECKBOX:
+                props.kind = FormFieldKind::Checkbox;
+                break;
+            case PDF_WIDGET_TYPE_RADIOBUTTON:
+                props.kind = FormFieldKind::Radio;
+                break;
+            case PDF_WIDGET_TYPE_COMBOBOX:
+                props.kind = FormFieldKind::Combo;
+                break;
+            case PDF_WIDGET_TYPE_SIGNATURE:
+                if (pdf_widget_is_signed(ctx, a)) fz_throw(ctx, FZ_ERROR_ARGUMENT, "signed field");
+                props.kind = FormFieldKind::Signature;
+                break;
+            default:
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "unsupported field");
+        }
+        pdf_obj* field = WidgetField(ctx, a);
+        // Editing a nested field name needs a hierarchy editor.
+        if (pdf_dict_get(ctx, field, PDF_NAME(Parent))) fz_throw(ctx, FZ_ERROR_ARGUMENT, "nested field");
+        props.name = MupdfCStrDupTemp(pdf_dict_get_text_string(ctx, field, PDF_NAME(T)));
+        pdf_obj* def = pdf_dict_get(ctx, field, PDF_NAME(DV));
+        props.defaultValue =
+            MupdfCStrDupTemp(pdf_is_name(ctx, def) ? pdf_to_name(ctx, def) : pdf_to_text_string(ctx, def));
+        int flags = pdf_field_flags(ctx, field);
+        props.required = (flags & PDF_FIELD_IS_REQUIRED) != 0;
+        props.readOnly = (flags & PDF_FIELD_IS_READ_ONLY) != 0;
+        const char* font = nullptr;
+        int n = 0;
+        float color[4]{};
+        pdf_annot_default_appearance(ctx, a, &font, &props.fontSize, &n, color);
+        pdf_obj* kids = pdf_dict_get(ctx, field, PDF_NAME(Kids));
+        int count =
+            props.kind == FormFieldKind::Radio ? pdf_array_len(ctx, kids) : pdf_choice_field_option_count(ctx, field);
+        for (int i = 0; i < count; i++) {
+            if (i) options.Append(StrL("\r\n"));
+            const char* s = props.kind == FormFieldKind::Radio
+                                ? pdf_to_name(ctx, pdf_button_field_on_state(ctx, pdf_array_get(ctx, kids, i)))
+                                : pdf_choice_field_option(ctx, field, 0, i);
+            options.Append(Str(s));
+        }
+        props.options = ToStrTemp(options);
+        ok = true;
+    }
+    fz_catch(access.ctx) {
+        fz_report_error(access.ctx);
+    }
+    return ok;
+}
+
+static bool ValidateFieldProps(const FormFieldProperties& p, StrVec& options, Str& error) {
+    if (str::IsEmptyOrWhiteSpace(p.name) || str::Contains(p.name, StrL("."))) {
+        error = Tr("Enter a field name without dots.");
+        return false;
+    }
+    if (!isfinite(p.fontSize) || p.fontSize < 0 || p.fontSize > 300) {
+        error = Tr("Font size must be between 0 (automatic) and 300.");
+        return false;
+    }
+    if (p.kind == FormFieldKind::Signature && len(p.defaultValue)) {
+        error = Tr("An unsigned signature field cannot have a default value.");
+        return false;
+    }
+    if (p.kind == FormFieldKind::Checkbox && len(p.defaultValue) && !str::Eq(p.defaultValue, StrL("Yes")) &&
+        !str::Eq(p.defaultValue, StrL("Off"))) {
+        error = Tr("Use Yes or Off as the checkbox default.");
+        return false;
+    }
+    if (p.kind != FormFieldKind::Combo && p.kind != FormFieldKind::Radio) return true;
+    StrVec lines;
+    Split(&lines, p.options, StrL("\n"), true);
+    for (Str line : lines) {
+        str::TrimWs(line);
+        if (!len(line)) continue;
+        if (options.Contains(line) || (p.kind == FormFieldKind::Radio && str::Eq(line, StrL("Off")))) {
+            error = Tr("Options must be unique; Off is reserved for radio buttons.");
+            return false;
+        }
+        options.Append(line);
+    }
+    int min = p.kind == FormFieldKind::Radio ? 2 : 1;
+    if (len(options) < min || len(options) > 64) {
+        error = Tr("Enter 1 to 64 options, or 2 to 64 for a radio group, one per line.");
+        return false;
+    }
+    if (len(p.defaultValue) && !options.Contains(p.defaultValue) &&
+        !(p.kind == FormFieldKind::Radio && str::Eq(p.defaultValue, StrL("Off")))) {
+        error = Tr("The default value must be one of the options.");
+        return false;
+    }
+    return true;
+}
+
+static void WriteFieldProps(fz_context* ctx, pdf_document* doc, pdf_obj* field, const FormFieldProperties& p,
+                            const StrVec& options) {
+    pdf_dict_put_text_string(ctx, field, PDF_NAME(T), CStrTemp(p.name));
+    int flags = pdf_field_flags(ctx, field) & ~(PDF_FIELD_IS_READ_ONLY | PDF_FIELD_IS_REQUIRED);
+    flags |= p.readOnly ? PDF_FIELD_IS_READ_ONLY : 0;
+    flags |= p.required ? PDF_FIELD_IS_REQUIRED : 0;
+    pdf_dict_put_int(ctx, field, PDF_NAME(Ff), flags);
+    Str value = p.defaultValue;
+    bool button = p.kind == FormFieldKind::Checkbox || p.kind == FormFieldKind::Radio;
+    if (button && !len(value)) value = StrL("Off");
+    if (p.kind == FormFieldKind::Signature) {
+        pdf_dict_del(ctx, field, PDF_NAME(DV));
+        return;
+    }
+    if (p.kind == FormFieldKind::Combo) {
+        pdf_obj* opt = pdf_dict_put_array(ctx, field, PDF_NAME(Opt), len(options));
+        for (Str s : options) pdf_array_push_text_string(ctx, opt, CStrTemp(s));
+        pdf_dict_del(ctx, field, PDF_NAME(I));
+    }
+    const char* valueZ = len(value) ? CStrTemp(value) : "";
+    if (button)
+        pdf_dict_put_name(ctx, field, PDF_NAME(DV), valueZ);
+    else
+        pdf_dict_put_text_string(ctx, field, PDF_NAME(DV), valueZ);
+    if (!pdf_set_field_value(ctx, doc, field, valueZ, 1)) {
+        fz_throw(ctx, FZ_ERROR_ARGUMENT, "field value rejected");
+    }
+}
+
+static void StyleFieldWidget(fz_context* ctx, pdf_annot* a, const FormFieldProperties& p) {
+    static const float black[] = {0};
+    pdf_set_annot_default_appearance(ctx, a, "Helv", p.fontSize, 1, black);
+    pdf_dirty_annot(ctx, a);
+    pdf_update_annot(ctx, a);
+}
+
+bool SetFormFieldProperties(Annotation* annot, const FormFieldProperties& p, Str& error) {
+    FormFieldProperties old;
+    StrVec options;
+    if (!GetFormFieldProperties(annot, old) || old.kind != p.kind || !ValidateFieldProps(p, options, error))
+        return false;
+    auto* e = annot->engine;
+    auto* ctx = e->BaseCtx();
+    bool ok = false;
+    fz_var(ok);
+    {
+        ScopedRecursiveMutex lock(&e->docLock);
+        pdf_begin_operation(ctx, e->pdfdoc, "Edit form field");
+        fz_try(ctx) {
+            pdf_obj* field = WidgetField(ctx, annot->pdfannot);
+            pdf_obj* fields = pdf_dict_getp(ctx, pdf_trailer(ctx, e->pdfdoc), "Root/AcroForm/Fields");
+            pdf_obj* duplicate = pdf_lookup_field(ctx, fields, CStrTemp(p.name));
+            if (duplicate && pdf_objcmp(ctx, duplicate, field))
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "field name already exists");
+            pdf_obj* kids = pdf_dict_get(ctx, field, PDF_NAME(Kids));
+            int n = pdf_array_len(ctx, kids);
+            if (p.kind == FormFieldKind::Radio) {
+                if (n != len(options)) fz_throw(ctx, FZ_ERROR_ARGUMENT, "keep the number of radio options unchanged");
+                pdf_page* page = pdf_annot_page(ctx, annot->pdfannot);
+                for (int i = 0; i < n; i++) {
+                    pdf_obj* kid = pdf_array_get(ctx, kids, i);
+                    for (pdf_annot* a = pdf_first_widget(ctx, page); a; a = pdf_next_widget(ctx, a)) {
+                        if (pdf_objcmp(ctx, kid, pdf_annot_obj(ctx, a))) continue;
+                        pdf_dict_put_name(ctx, kid, PDF_NAME(AS), CStrTemp(options[i]));
+                        StyleFieldWidget(ctx, a, p);
+                    }
+                }
+            }
+            WriteFieldProps(ctx, e->pdfdoc, field, p, options);
+            StyleFieldWidget(ctx, annot->pdfannot, p);
+            UpdateFormFieldPage(ctx, annot->pdfannot);
+            pdf_end_operation(ctx, e->pdfdoc);
+            ok = true;
+        }
+        fz_catch(ctx) {
+            error = str::DupTemp(Str(fz_caught_message(ctx)));
+            pdf_abandon_operation(ctx, e->pdfdoc);
+        }
+    }
+    if (ok) MarkNotificationAsModified(e, annot);
+    return ok;
+}
+
+Annotation* CreateFormField(EngineBase* engine, int pageNo, RectF rect, const FormFieldProperties& p, Str& error) {
+    EngineMupdf* e = AsEngineMupdf(engine);
+    StrVec options;
+    if (!e || !e->pdfdoc || !EngineSupportsAnnotations(engine) || rect.IsEmpty() ||
+        !ValidateFieldProps(p, options, error))
+        return nullptr;
+    auto* pi = e->GetFzPageInfo(pageNo, true);
+    if (!pi || !pi->page) return nullptr;
+    auto* ctx = e->BaseCtx();
+    Vec<pdf_annot*> created;
+    VecReserve(created, p.kind == FormFieldKind::Radio ? len(options) : 1);
+    bool ok = false;
+    fz_var(ok);
+    {
+        ScopedRecursiveMutex lock(&e->docLock);
+        pdf_begin_operation(ctx, e->pdfdoc, "Create form field");
+        fz_try(ctx) {
+            pdf_obj* root = pdf_dict_get(ctx, pdf_trailer(ctx, e->pdfdoc), PDF_NAME(Root));
+            pdf_obj* acro = pdf_dict_get(ctx, root, PDF_NAME(AcroForm));
+            if (!acro) acro = pdf_dict_put_dict(ctx, root, PDF_NAME(AcroForm), 3);
+            pdf_obj* fields = pdf_dict_get(ctx, acro, PDF_NAME(Fields));
+            if (!fields) fields = pdf_dict_put_array(ctx, acro, PDF_NAME(Fields), 1);
+            if (pdf_lookup_field(ctx, fields, CStrTemp(p.name)))
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "field name already exists");
+            // Give other readers a font resource for /DA as well as the generated /AP.
+            pdf_obj* dr = pdf_dict_get(ctx, acro, PDF_NAME(DR));
+            if (!dr) dr = pdf_dict_put_dict(ctx, acro, PDF_NAME(DR), 1);
+            pdf_obj* fonts = pdf_dict_get(ctx, dr, PDF_NAME(Font));
+            if (!fonts) fonts = pdf_dict_put_dict(ctx, dr, PDF_NAME(Font), 1);
+            if (!pdf_dict_gets(ctx, fonts, "Helv")) {
+                pdf_obj* font = pdf_add_new_dict(ctx, e->pdfdoc, 3);
+                pdf_dict_put_drop(ctx, fonts, PDF_NAME(Helv), font);
+                pdf_dict_put(ctx, font, PDF_NAME(Type), PDF_NAME(Font));
+                pdf_dict_put(ctx, font, PDF_NAME(Subtype), PDF_NAME(Type1));
+                pdf_dict_put_name(ctx, font, PDF_NAME(BaseFont), "Helvetica");
+            }
+            pdf_page* page = pdf_page_from_fz_page(ctx, pi->page);
+            pdf_obj* field = nullptr;
+            pdf_obj* kids = nullptr;
+            if (p.kind == FormFieldKind::Radio) {
+                field = pdf_add_new_dict(ctx, e->pdfdoc, 5);
+                pdf_array_push_drop(ctx, fields, field);
+                pdf_dict_put(ctx, field, PDF_NAME(FT), PDF_NAME(Btn));
+                pdf_dict_put_int(ctx, field, PDF_NAME(Ff), PDF_BTN_FIELD_IS_RADIO);
+                kids = pdf_dict_put_array(ctx, field, PDF_NAME(Kids), len(options));
+            }
+            int n = p.kind == FormFieldKind::Radio ? len(options) : 1;
+            for (int i = 0; i < n; i++) {
+                pdf_annot* a = pdf_create_annot(ctx, page, PDF_ANNOT_WIDGET);
+                VecAppend(created, a);
+                pdf_obj* obj = pdf_annot_obj(ctx, a);
+                RectF r = rect;
+                if (kids) {
+                    float step = rect.dy / n;
+                    r = {rect.x, rect.y + i * step, std::min(rect.dx, step * 0.8f), step * 0.8f};
+                    pdf_dict_put(ctx, obj, PDF_NAME(Parent), field);
+                    pdf_array_push(ctx, kids, obj);
+                    pdf_dict_put_name(ctx, obj, PDF_NAME(AS), CStrTemp(options[i]));
+                } else {
+                    field = obj;
+                    pdf_array_push(ctx, fields, field);
+                    pdf_obj* ft = p.kind == FormFieldKind::Text        ? PDF_NAME(Tx)
+                                  : p.kind == FormFieldKind::Combo     ? PDF_NAME(Ch)
+                                  : p.kind == FormFieldKind::Signature ? PDF_NAME(Sig)
+                                                                       : PDF_NAME(Btn);
+                    pdf_dict_put(ctx, obj, PDF_NAME(FT), ft);
+                    pdf_dict_put_int(ctx, obj, PDF_NAME(Ff),
+                                     p.kind == FormFieldKind::Combo ? PDF_CH_FIELD_IS_COMBO : 0);
+                }
+                pdf_set_annot_rect(ctx, a, ToFzRect(r));
+                pdf_set_annot_border_width(ctx, a, 1);
+                pdf_obj* mk = pdf_dict_put_dict(ctx, obj, PDF_NAME(MK), 2);
+                pdf_obj* bc = pdf_dict_put_array(ctx, mk, PDF_NAME(BC), 1);
+                pdf_array_push_real(ctx, bc, 0);
+                StyleFieldWidget(ctx, a, p);
+            }
+            WriteFieldProps(ctx, e->pdfdoc, field, p, options);
+            for (pdf_annot* a : created) StyleFieldWidget(ctx, a, p);
+            pdf_end_operation(ctx, e->pdfdoc);
+            ok = true;
+        }
+        fz_catch(ctx) {
+            error = str::DupTemp(Str(fz_caught_message(ctx)));
+            for (pdf_annot* a : created) pdf_delete_annot(ctx, pdf_annot_page(ctx, a), a);
+            pdf_abandon_operation(ctx, e->pdfdoc);
+        }
+    }
+    Annotation* first = nullptr;
+    for (pdf_annot* a : created) {
+        if (ok) {
+            Annotation* wrapper = MakeAnnotationWrapper(e, a, pageNo);
+            MarkNotificationAsModified(e, wrapper, AnnotationChange::Add);
+            if (!first) first = wrapper;
+        }
+        pdf_drop_annot(ctx, a);
+    }
+    return first;
+}
+
 Str Contents(Annotation* annot) {
     return ReadAnnot(annot, Str{},
                      [](fz_context* ctx, pdf_annot* a) { return MupdfCStrDupTemp(pdf_annot_contents(ctx, a)); });
@@ -736,13 +1033,23 @@ void DeleteAnnotation(Annotation* annot) {
         return;
     }
     bool failed = false;
+    ScopedEngineOperation operation(e, "Delete annotation");
     {
         auto* ctx = e->Ctx();
         ScopedRecursiveMutex cs(&e->docLock);
         pdf_page* page = nullptr;
         fz_try(ctx) {
             page = pdf_annot_page(ctx, a);
+            pdf_obj* parent = annot->type == AnnotationType::Widget
+                                  ? pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(Parent))
+                                  : nullptr;
             pdf_delete_annot(ctx, page, a);
+            if (parent && !pdf_dict_get(ctx, parent, PDF_NAME(Parent)) &&
+                pdf_array_len(ctx, pdf_dict_get(ctx, parent, PDF_NAME(Kids))) == 0) {
+                pdf_obj* fields = pdf_dict_getp(ctx, pdf_trailer(ctx, e->pdfdoc), "Root/AcroForm/Fields");
+                int index = pdf_array_find(ctx, fields, parent);
+                if (index >= 0) pdf_array_delete(ctx, fields, index);
+            }
         }
         fz_catch(ctx) {
             fz_report_error(ctx);
