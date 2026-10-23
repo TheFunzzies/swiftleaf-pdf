@@ -1,6 +1,6 @@
 # Layout and animation
 
-Branch: `t3/72f861a3`; push target: `t3/layout-animation`.
+Branch: `t3/layout-animation`; push target: `t3/layout-animation`.
 Base: `a19ef51` (contextual left panel).
 
 ## Done
@@ -11,7 +11,7 @@ Base: `a19ef51` (contextual left panel).
 - Reserved 320 DIP for document; budget includes sidebar/chat/navigation/details.
 - Comments and document details share right-panel space; tightened tools spacing.
 - Added layout budget/threshold tests at 100/150/200% and settings serialization round-trip.
-- Debug build in progress at checkpoint; new files registered in premake and both VS projects.
+- Debug build found pre-existing hand-edited document settings absent from generator; added generator definitions. Rebuild pending; new files registered in premake and both VS projects.
 
 ## Next
 
@@ -22,6 +22,7 @@ Base: `a19ef51` (contextual left panel).
 ## Gotchas
 
 - No STL; Win32 virtual controls. Original handoff: contextual-panel.md.
+- Panel resize requests force relayout (width preferences are outside the legacy layout snapshot).
 - New settings regenerate branding text as well as metadata (generator is source of truth).
 - Generator skips website docs: external sumatra-website checkout is absent.
 - clang-format is under VS2022 BuildTools/VC/Tools/Llvm/bin.

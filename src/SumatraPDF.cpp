@@ -3143,7 +3143,7 @@ static void OnToolPanelResize(MainWindow* win, VirtSplitter::MoveEvent* ev) {
     int logical = MulDiv(width, 96, DpiGet());
     if (pref != logical) {
         pref = logical;
-        ScheduleUiUpdate(win, kUiRelayout);
+        ScheduleUiUpdate(win, kUiForceRelayout);
         ScheduleSaveSettings();
     }
 }

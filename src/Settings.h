@@ -1155,6 +1155,10 @@ struct Settings {
     bool showToolsPanel;
     // if true, show the Comments panel on the right of PDF documents
     bool showCommentsPanel;
+    // if true, show the Layers / Attachments panel
+    bool showDocumentPanel;
+    // document details page: 0 layers, 1 attachments
+    int documentPanelMode;
     // what showing / hiding the bookmarks / favorites sidebar does to the
     // window: empty or keep (the window keeps its size and position, the
     // document area shrinks), or grow (the window grows by the sidebar
