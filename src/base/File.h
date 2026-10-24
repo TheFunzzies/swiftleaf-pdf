@@ -162,6 +162,16 @@ bool Rename(Str newPath, Str oldPath);
 bool RenameReplace(Str newPath, Str oldPath);
 bool OverwriteAtomicRetry(Str dst, Str src, int retryCount, int retrySleepMs);
 
+struct AtomicFile {
+    Str destination;
+    Str tempPath;
+    explicit AtomicFile(Str path);
+    ~AtomicFile();
+    AtomicFile(const AtomicFile&) = delete;
+    AtomicFile& operator=(const AtomicFile&) = delete;
+    bool Commit();
+};
+
 bool SetAccessTime(Str path, FILETIME accessTime);
 FILETIME GetAccessTime(Str path);
 

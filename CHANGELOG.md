@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [Unreleased]
 
 ### Added
 
@@ -8,6 +8,34 @@
   Windows OCR language selection, and current/all/selected page ranges.
   Recognition and saving run in the background with progress and cancellation.
   Saved copies preserve the original page artwork and unselected pages.
+
+- Unsaved PDF edits get recovery copies about once a minute. After a crash,
+  Restore saves a separate PDF; Discard removes the recovery copy.
+
+- Three new page stamping tools in All tools, Organize tab, and Tools menu:
+  - **Add watermark**: Text watermark with customizable opacity, rotation angle, font size, position/centered, color, and page range.
+  - **Add header/footer**: Header and footer text across left, center, right alignments with dynamic tokens {page}, {pages}, {date}, {filename} and page range.
+  - **Bates numbering**: Standard legal Bates numbering with customizable prefix, starting number, digit count, position, and page range.
+- Page stamps unit tests asserting text extraction on the right pages.
+- Documentation for page marks and stamps in docs/page-stamps.md.
+
+### Fixed
+
+- PDF saves, page replacement, conversion, merge, extraction, compression and
+  encryption stage a complete file beside the destination, flush it, then
+  replace the destination atomically. Failed writes leave the original intact.
+- Recovery and tool snapshots preserve pending edits for subsequent saves.
+
+### Limitations
+
+- Page organizing keeps its separate Undo Page Change history; it is not
+  interleaved with annotation/form undo and has no redo. See `docs/recovery.md`.
+
+### Security
+
+- Releases publish SHA-256 checksums; the updater refuses downloads whose
+  checksum is missing or does not match. Authenticode signing is available
+  through repository secrets.
 
 ## 0.4.1 - 2026-10-23
 

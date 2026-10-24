@@ -568,7 +568,8 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
         if (cmdId == CmdPdfShowInfo || cmdId == CmdPdfBake || cmdId == CmdPdfCompress || cmdId == CmdPdfDecompress ||
             cmdId == CmdPdfEncrypt || cmdId == CmdPdfDecrypt || cmdId == CmdPdfDeletePages ||
             cmdId == CmdPdfExtractPages || cmdId == CmdTogglePageBoxes || cmdId == CmdConvertPdfToImages ||
-            cmdId == CmdToggleEditPDF || cmdId == CmdMergePDF) {
+            cmdId == CmdToggleEditPDF || cmdId == CmdMergePDF ||
+            cmdId == CmdAddWatermark || cmdId == CmdAddHeaderFooter || cmdId == CmdBatesNumbering) {
             return CommandVisibility::Hide;
         }
         // Swiftleaf page organizing

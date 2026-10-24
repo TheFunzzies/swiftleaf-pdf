@@ -587,6 +587,44 @@ bool RenameReplace(Str newPath, Str oldPath) {
     return Rename(newPath, oldPath);
 }
 
+AtomicFile::AtomicFile(Str path) {
+    if (len(path) == 0) {
+        return;
+    }
+    destination = str::Dup(path::NormalizeTemp(path));
+    char* tmp = CStrTemp(fmt("%s/.swiftleaf-XXXXXX", path::GetDirTemp(destination)));
+    int fd = mkstemp(tmp);
+    if (fd >= 0) {
+        close(fd);
+        tempPath = str::Dup(Str(tmp));
+    }
+}
+
+AtomicFile::~AtomicFile() {
+    if (len(tempPath) > 0) {
+        Delete(tempPath);
+    }
+    str::Free(tempPath);
+    str::Free(destination);
+}
+
+bool AtomicFile::Commit() {
+    if (len(tempPath) == 0) {
+        return false;
+    }
+    int fd = open(CStrTemp(tempPath), O_RDWR);
+    if (fd < 0) {
+        return false;
+    }
+    bool ok = fsync(fd) == 0;
+    close(fd);
+    if (!ok || !RenameReplace(destination, tempPath)) {
+        return false;
+    }
+    str::FreePtr(&tempPath);
+    return true;
+}
+
 bool OverwriteAtomicRetry(Str dst, Str src, int retryCount, int retrySleepMs) {
     if (len(dst) == 0 || len(src) == 0) {
         return false;

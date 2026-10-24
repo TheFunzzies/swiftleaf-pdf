@@ -1367,7 +1367,8 @@ static bool ChooseSystemFont(HWND hwnd, Str& family, int& style) {
     lf.lfCharSet = DEFAULT_CHARSET;
     CHOOSEFONTW cf{};
     cf.lStructSize = sizeof(cf);
-    cf.hwndOwner = hwnd;
+    HWND root = hwnd ? GetAncestor(hwnd, GA_ROOT) : nullptr;
+    cf.hwndOwner = root ? root : hwnd;
     cf.lpLogFont = &lf;
     cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_NOVERTFONTS | CF_NOSCRIPTSEL | CF_NOSIZESEL;
     if (!ChooseFontW(&cf)) {
@@ -2725,6 +2726,9 @@ enum class FreeTextTool {
 
 static void OnFreeTextTool(VirtButton* button, VirtMouseEvent*) {
     if (gInPlace.hwnd) {
+        if (button->id == (int)FreeTextTool::Font || button->id == (int)FreeTextTool::Color) {
+            gInPlace.formatting = true;
+        }
         PostMessageW(gInPlace.hwnd, kFreeTextToolMsg, (WPARAM)button->id, 0);
     }
 }
@@ -2799,10 +2803,11 @@ static void HandleFreeTextTool(FreeTextTool tool) {
     }
     edit.formatting = true;
     bool changed = false;
+    HWND owner = edit.win ? edit.win->hwndFrame : (edit.hwnd ? GetAncestor(edit.hwnd, GA_ROOT) : nullptr);
     if (tool == FreeTextTool::Font) {
         Str family = edit.fontFamily;
         int style = edit.fontStyle;
-        if (ChooseSystemFont(edit.hwnd, family, style)) {
+        if (ChooseSystemFont(owner ? owner : edit.hwnd, family, style)) {
             Str copy = str::Dup(family);
             str::Free(edit.fontFamily);
             edit.fontFamily = copy;
@@ -2813,7 +2818,7 @@ static void HandleFreeTextTool(FreeTextTool tool) {
         static COLORREF custom[16]{};
         CHOOSECOLORW cc{};
         cc.lStructSize = sizeof(cc);
-        cc.hwndOwner = edit.hwnd;
+        cc.hwndOwner = owner ? owner : edit.hwnd;
         cc.rgbResult = edit.textCol;
         cc.lpCustColors = custom;
         cc.Flags = CC_FULLOPEN | CC_RGBINIT;

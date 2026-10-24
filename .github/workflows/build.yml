@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+env:
+  SIGN_CERT_PFX_BASE64: ${{ secrets.SIGN_CERT_PFX_BASE64 }}
+  SIGN_CERT_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
+
 jobs:
   build:
     name: Windows x64 release
@@ -47,6 +51,29 @@ jobs:
           Copy-Item out\rel64\Swiftleaf.exe dist\Swiftleaf.exe
           Copy-Item out\rel64\Swiftleaf.exe dist\Swiftleaf-install.exe
           Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Check signing secrets
+        id: signing
+        shell: pwsh
+        run: |
+          if ($env:SIGN_CERT_PFX_BASE64 -and $env:SIGN_CERT_PASSWORD) {
+            "enabled=true" >> $env:GITHUB_OUTPUT
+          } else {
+            "enabled=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Sign release executables
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $certPath = Join-Path $env:RUNNER_TEMP 'swiftleaf-signing.pfx'
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:SIGN_CERT_PFX_BASE64))
+          $signtool = (Get-Command signtool.exe -ErrorAction Stop).Source
+          foreach ($file in 'Swiftleaf.exe', 'Swiftleaf-install.exe') {
+            & $signtool sign /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 /f $certPath /p $env:SIGN_CERT_PASSWORD "dist\$file"
+            if ($LASTEXITCODE) { throw "Signing $file failed" }
+          }
+          Remove-Item -LiteralPath $certPath -Force
 
       - name: Upload build
         uses: actions/upload-artifact@v4
@@ -187,6 +214,7 @@ jobs:
         run: |
           ver="${GITHUB_REF_NAME#v}"
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          (cd dist && sha256sum Swiftleaf.exe Swiftleaf-install.exe > SHA256SUMS.txt)
           sha_inst=$(sha256sum dist/Swiftleaf-install.exe | cut -d' ' -f1)
           sha_port=$(sha256sum dist/Swiftleaf.exe | cut -d' ' -f1)
           cat > dist/update-check.txt <<EOF

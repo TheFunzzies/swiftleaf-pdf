@@ -587,11 +587,15 @@ class EngineDvi : public EnginePdfProxy {
 
     // saving as .pdf writes the cached conversion; anything else copies the DVI
     bool SaveFileAs(Str dstPath) override {
+        file::AtomicFile output(dstPath);
+        if (len(output.tempPath) == 0) {
+            return false;
+        }
         if (str::EndsWithI(dstPath, StrL(".pdf")) && len(cachedPdf) > 0) {
-            return file::Copy(dstPath, cachedPdf, false);
+            return file::Copy(output.tempPath, cachedPdf, false) && output.Commit();
         }
         Str srcPath = FilePath();
-        return len(srcPath) > 0 && file::Copy(dstPath, srcPath, false);
+        return len(srcPath) > 0 && file::Copy(output.tempPath, srcPath, false) && output.Commit();
     }
 
     Str cachedPdf;

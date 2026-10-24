@@ -354,8 +354,11 @@ enum {
     CmdCreateFormRadio = 548,
     CmdCreateFormCombo = 549,
     CmdCreateFormSignature = 550,
+    CmdAddWatermark = 551,
+    CmdAddHeaderFooter = 552,
+    CmdBatesNumbering = 553,
 
-    CmdLast = 550,
+    CmdLast = 553,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering
