@@ -1580,9 +1580,8 @@ bool MergePdfWnd::SaveTo(Str destPath) {
             // it's reloaded below; the file watcher needn't
             tab->ignoreNextAutoReload = true;
         }
-        Str data = file::ReadFile(tmpPath);
-        ok = len(data) > 0 && file::WriteFile(destPath, data);
-        str::Free(data);
+        file::AtomicFile output(destPath);
+        ok = len(output.tempPath) > 0 && file::Copy(output.tempPath, tmpPath, false) && output.Commit();
     }
     if (len(tmpPath) > 0) {
         file::Delete(tmpPath);

@@ -640,8 +640,35 @@ static void FormAuthoringTest() {
     utassert(SetFormFieldProperties(fields[2], p, error));
     p.options = StrL("Red\nBlue\nGreen");
     utassert(!SetFormFieldProperties(fields[2], p, error));
+    TempStr recovery = GetTempFilePathTemp(StrL("recovery"));
+    utassert(EngineMupdfAutoSave(e, recovery));
+    utassert(EngineHasUnsavedAnnotations(e));
+    Str snapshot = file::ReadFile(recovery);
+    utassert(len(snapshot) > 0);
+    FILETIME snapshotTime = file::GetModificationTime(recovery);
+    utassert(EngineMupdfAutoSave(e, recovery));
+    utassert(FileTimeEq(snapshotTime, file::GetModificationTime(recovery)));
+    EngineBase* recovered = CreateEngineMupdfFromFile(recovery, FileType::PDF, 96);
+    utassert(recovered && EngineMupdfCountFormFields(recovered) == 5);
+    SafeEngineRelease(&recovered);
+    utassert(EngineMupdfUndo(e, removed));
+    EngineMupdfRefreshModifiedState(e);
+    utassert(EngineMupdfRedo(e, removed));
+    EngineMupdfRefreshModifiedState(e);
+    utassert(EngineMupdfAutoSave(e, recovery));
+    str::Free(snapshot);
+
     TempStr path = GetTempFilePathTemp(StrL("form-authoring"));
+#if OS_WIN
+    HANDLE locked = CreateFileW(CWStrTemp(path), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    utassert(locked != INVALID_HANDLE_VALUE);
+    utassert(!EngineMupdfSaveUpdated(e, path, {}));
+    utassert(EngineHasUnsavedAnnotations(e) && file::Exists(recovery));
+    utassert(file::GetSize(path) == 0);
+    CloseHandle(locked);
+#endif
     utassert(EngineMupdfSaveUpdated(e, path, {}));
+    utassert(!file::Exists(recovery));
     SafeEngineRelease(&e);
 
     e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
@@ -655,9 +682,15 @@ static void FormAuthoringTest() {
     utassert(str::Eq(GetWidgetValue(widgets[2]), StrL("Blue")));
     utassert(str::Eq(GetWidgetValue(widgets[4]), StrL("Second")));
     utassert(GetWidgetType(widgets[5]) == PDF_WIDGET_TYPE_SIGNATURE);
+    utassert(EngineMupdfSaveCopy(e, recovery));
     DeleteAnnotation(widgets[1]);
     utassert(EngineMupdfCountFormFields(e) == 4);
     utassert(EngineMupdfSaveUpdated(e, path, {}));
+    utassert(SetWidgetChoiceValue(widgets[4], StrL("First")));
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    utassert(SetWidgetChoiceValue(widgets[4], StrL("Second")));
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    file::Delete(recovery);
     SafeEngineRelease(&e);
 
     // Open the saved file directly, independent of the application's wrappers.
@@ -684,6 +717,31 @@ static void FormAuthoringTest() {
             }
         }
         valid = count == 5 && pdf_array_len(ctx, roots) == 4 && radioOn == 1;
+#if OS_WIN
+        TempStr target = GetTempFilePathTemp(StrL("atomic-pdf"));
+        utassert(file::WriteFile(target, StrL("previous file")));
+        HANDLE lockedTarget = CreateFileW(CWStrTemp(target), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                          OPEN_EXISTING, 0, nullptr);
+        utassert(lockedTarget != INVALID_HANDLE_VALUE);
+        bool rejected = false;
+        fz_var(rejected);
+        fz_try(ctx) {
+            pdf_save_document(ctx, doc, CStrTemp(target), nullptr);
+        }
+        fz_catch(ctx) {
+            rejected = true;
+        }
+        utassert(rejected);
+        Str previous = file::ReadFile(target);
+        utassert(str::Eq(previous, StrL("previous file")));
+        str::Free(previous);
+        CloseHandle(lockedTarget);
+        pdf_save_document(ctx, doc, CStrTemp(target), nullptr);
+        EngineBase* published = CreateEngineMupdfFromFile(target, FileType::PDF, 96);
+        utassert(published && EngineMupdfCountFormFields(published) == 4);
+        SafeEngineRelease(&published);
+        file::Delete(target);
+#endif
     }
     fz_always(ctx) {
         fz_drop_page(ctx, (fz_page*)page);
@@ -708,14 +766,10 @@ static void FormAuthoringTest() {
     utassert(valid);
 }
 
-
 static void PageStampsTest() {
-    const char* objects[] = {
-        "<< /Type /Catalog /Pages 2 0 R >>",
-        "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"
-    };
+    const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",
+                             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+                             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"};
     str::Builder pdf;
     pdf.Append(StrL("%PDF-1.7\n"));
     int offsets[4];
@@ -756,6 +810,19 @@ static void PageStampsTest() {
         FreePageText(&pt1);
         FreePageText(&pt2);
         SafeEngineRelease(&e);
+#if OS_WIN
+        Str before = file::ReadFile(wmPdf);
+        HANDLE lockedStamp = CreateFileW(CWStrTemp(wmPdf), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                         OPEN_EXISTING, 0, nullptr);
+        utassert(lockedStamp != INVALID_HANDLE_VALUE);
+        utassert(!PdfApplyWatermark(wmPdf, wmPdf, wm));
+        Str after = file::ReadFile(wmPdf);
+        utassert(str::Eq(before, after));
+        str::Free(before);
+        str::Free(after);
+        CloseHandle(lockedStamp);
+        utassert(PdfApplyWatermark(wmPdf, wmPdf, wm));
+#endif
         file::Delete(wmPdf);
     }
 

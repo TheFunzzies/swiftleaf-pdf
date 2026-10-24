@@ -86,6 +86,9 @@ bool WindowTab::IsNonDocumentTab() const {
 }
 
 WindowTab::~WindowTab() {
+#if !defined(SUMATRA_NG)
+    EngineMupdfClearRecovery(GetEngine());
+#endif
     logf("~WindowTab: 0x%p, dm: 0x%p\n", this, AsFixed());
     // Nothing may point at a tab that is going away.
     ReadAloudForgetTab(this);

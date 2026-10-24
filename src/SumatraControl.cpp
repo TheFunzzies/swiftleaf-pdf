@@ -948,6 +948,7 @@ enum class ControlCmd : u16 {
     TestFrameNcStrips = 114,
     TestMergePdf = 115,
     TestWheelWhileClosing = 116,
+    TestRecovery = 117,
 };
 
 enum class ControlArgType : u16 {
@@ -1213,6 +1214,15 @@ static void ExecuteControlRequest(ControlRequest* req) {
             AppendArgEnd(req->results);
             PostAppExit();
             break;
+
+        case ControlCmd::TestRecovery: {
+            int exitCode = 0;
+            i32 action = -1;
+            IntArg(req, 0, action);
+            Str res = RecoveryTestResultTemp(action, StringArg(req, 1), &exitCode);
+            AppendTestResult(req, exitCode, res);
+            break;
+        }
 
         case ControlCmd::ResolveUnsavedChanges: {
             Str action = StringArg(req, 0);

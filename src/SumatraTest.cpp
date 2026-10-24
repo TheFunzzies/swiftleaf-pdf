@@ -2149,11 +2149,12 @@ TempStr SignDocumentResultTemp(Str pdfPath, Str destPath, Str thumbprint, Str ce
     if (!file::Exists(pdfPath)) {
         return fail(fmt("ERROR pdf-missing path=%s\n", pdfPath));
     }
-    if (!file::Copy(destPath, pdfPath, false)) {
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0 || !file::Copy(output.tempPath, pdfPath, false)) {
         return fail(fmt("ERROR copy-failed dest=%s\n", destPath));
     }
 
-    EngineBase* engine = CreateEngineFromFile(destPath, nullptr, false);
+    EngineBase* engine = CreateEngineFromFile(output.tempPath, nullptr, false);
     if (!engine) {
         return fail(fmt("ERROR engine-create-failed path=%s\n", destPath));
     }
@@ -2183,11 +2184,14 @@ TempStr SignDocumentResultTemp(Str pdfPath, Str destPath, Str thumbprint, Str ce
     }
     str::Free(err);
 
-    if (!EngineMupdfSaveUpdated(engine, destPath, {})) {
+    if (!EngineMupdfSaveUpdated(engine, output.tempPath, {})) {
         SafeEngineRelease(&engine);
         return fail(StrL("ERROR save-failed\n"));
     }
     SafeEngineRelease(&engine);
+    if (!output.Commit()) {
+        return fail(StrL("ERROR replace-failed\n"));
+    }
     out.Append(StrL("ok=1\n"));
     if (exitCodeOut) {
         *exitCodeOut = 0;

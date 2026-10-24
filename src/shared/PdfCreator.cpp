@@ -2,6 +2,7 @@
    License: GPLv3 */
 
 #include "base/Base.h"
+#include "base/File.h"
 #include "base/Pixmap.h"
 #include "base/Win.h"
 #include "base/GdiPlusUtil.h"
@@ -348,17 +349,21 @@ bool PdfCreator::SaveToFile(Str filePath) const {
         SetProperty(DocProp::PdfProducer, gPdfProducer);
     }
 
+    file::AtomicFile output(filePath);
+    if (len(output.tempPath) == 0) {
+        return false;
+    }
     fz_try(ctx) {
         pdf_write_options opts = gPdfDefaultWriteOptions;
         opts.do_compress = 1;
         opts.do_compress_images = 1;
-        pdf_save_document(ctx, doc, CStrTemp(filePath), &opts);
+        pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
     }
     fz_catch(ctx) {
         fz_report_error(ctx);
         return false;
     }
-    return true;
+    return output.Commit();
 }
 
 // creates a simple PDF with all pages rendered as a single image

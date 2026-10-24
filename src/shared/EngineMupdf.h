@@ -213,6 +213,9 @@ class EngineMupdf : public EngineBase {
     // used to track "dirty" state of annotations. not perfect because if we add and delete
     // the same annotation, we should be back to 0
     bool modifiedAnnotations = false;
+    u64 editGeneration = 1;
+    u64 recoveryGeneration = 0;
+    Str recoveryPath;
 
     // set when a Redact annotation is created in this editing session. Apply
     // Redactions is offered for marks the user made, not for marks that came

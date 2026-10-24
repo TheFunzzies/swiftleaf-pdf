@@ -320,11 +320,20 @@ void PdfBakeDialog::DoIt(VirtMouseEvent*) {
     logf("PdfBakeDoIt: baking '%s' to '%s'\n", inputPath, destPath);
 
     // build argv for pdfbake_main: "bake" input output
-    char* argv[] = {(char*)"bake", CStrTemp(inputPath), CStrTemp(destPath)};
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
+        file::Delete(tmpPath);
+        MessageBoxWarning(hwnd, Tr("Couldn't create a temporary file beside the PDF."), Tr("Save PDF"));
+        return;
+    }
+    char* argv[] = {(char*)"bake", CStrTemp(inputPath), CStrTemp(output.tempPath)};
     int argc = 3;
 
     fz_set_optind(0);
     int res = pdfbake_main(argc, argv);
+    if (res == 0 && !output.Commit()) {
+        res = 1;
+    }
     if (tmpPath) {
         file::Delete(tmpPath);
     }
@@ -558,6 +567,11 @@ void PdfCompressDialog::DoIt(VirtMouseEvent*) {
     logf("PdfCompressDoIt: compressing '%s' to '%s', level %d\n", srcPath, destPath, (int)level);
 
     // Light: clean -gggg -e 100 -f -i -t -Z input output
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
+        MessageBoxWarning(hwnd, Tr("Couldn't create a temporary file beside the PDF."), Tr("Save PDF"));
+        return;
+    }
     Vec<char*> argv;
     const char* base[] = {"clean", "-gggg", "-e", "100", "-f", "-i", "-t", "-Z"};
     for (const char* a : base) {
@@ -576,10 +590,13 @@ void PdfCompressDialog::DoIt(VirtMouseEvent*) {
         VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
     }
     VecAppend(argv, CStrTemp(srcPath));
-    VecAppend(argv, CStrTemp(destPath));
+    VecAppend(argv, CStrTemp(output.tempPath));
 
     fz_set_optind(0);
     int res = pdfclean_main(len(argv), argv.els);
+    if (res == 0 && !output.Commit()) {
+        res = 1;
+    }
     if (res == 0) {
         logf("PdfCompressDoIt: compressed successfully\n");
         MainWindow* w = win;
@@ -663,11 +680,19 @@ void PdfDecompressDialog::DoIt(VirtMouseEvent*) {
     logf("PdfDecompressDoIt: decompressing '%s' to '%s'\n", srcPath, destPath);
 
     // equivalent of: clean -d input output
-    char* argv[] = {(char*)"clean", (char*)"-d", CStrTemp(srcPath), CStrTemp(destPath)};
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
+        MessageBoxWarning(hwnd, Tr("Couldn't create a temporary file beside the PDF."), Tr("Save PDF"));
+        return;
+    }
+    char* argv[] = {(char*)"clean", (char*)"-d", CStrTemp(srcPath), CStrTemp(output.tempPath)};
     int argc = 4;
 
     fz_set_optind(0);
     int res = pdfclean_main(argc, argv);
+    if (res == 0 && !output.Commit()) {
+        res = 1;
+    }
     if (res == 0) {
         logf("PdfDecompressDoIt: decompressed successfully\n");
         MainWindow* w = win;
@@ -966,13 +991,22 @@ void PdfDeletePageDialog::DoIt(VirtMouseEvent*) {
     // use the same compression flags as Compress PDF so the result is re-written
     // compactly; otherwise the kept pages drag along the original's full content
     // and the output is nearly as big as the source
-    char* argv[] = {(char*)"clean",      (char*)"-gggg",     (char*)"-e",        (char*)"100",
-                    (char*)"-f",         (char*)"-i",        (char*)"-t",        (char*)"-Z",
-                    CStrTemp(inputPath), CStrTemp(destPath), CStrTemp(pageRange)};
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
+        file::Delete(tmpPath);
+        MessageBoxWarning(hwnd, Tr("Couldn't create a temporary file beside the PDF."), Tr("Save PDF"));
+        return;
+    }
+    char* argv[] = {(char*)"clean",     (char*)"-gggg", (char*)"-e", (char*)"100",        (char*)"-f",
+                    (char*)"-i",        (char*)"-t",    (char*)"-Z", CStrTemp(inputPath), CStrTemp(output.tempPath),
+                    CStrTemp(pageRange)};
     int argc = 11;
 
     fz_set_optind(0);
     int res = pdfclean_main(argc, argv);
+    if (res == 0 && !output.Commit()) {
+        res = 1;
+    }
     if (tmpPath) {
         file::Delete(tmpPath);
     }
@@ -1208,12 +1242,20 @@ void PdfEncryptDialog::DoIt(VirtMouseEvent*) {
 
     // equivalent of: clean -E aes-256 -U <pwd> -O <pwd> input output
     char* pwdZ = CStrTemp(pwd);
-    char* argv[] = {(char*)"clean", (char*)"-E", (char*)"aes-256",  (char*)"-U",       pwdZ,
-                    (char*)"-O",    pwdZ,        CStrTemp(srcPath), CStrTemp(destPath)};
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
+        MessageBoxWarning(hwnd, Tr("Couldn't create a temporary file beside the PDF."), Tr("Save PDF"));
+        return;
+    }
+    char* argv[] = {(char*)"clean", (char*)"-E",       (char*)"aes-256",         (char*)"-U", pwdZ, (char*)"-O",
+                    pwdZ,           CStrTemp(srcPath), CStrTemp(output.tempPath)};
     int argc = 9;
 
     fz_set_optind(0);
     int res = pdfclean_main(argc, argv);
+    if (res == 0 && !output.Commit()) {
+        res = 1;
+    }
     if (res == 0) {
         logf("PdfEncryptDoIt: encrypted successfully\n");
         MainWindow* w = win;
@@ -1290,12 +1332,20 @@ void PdfDecryptDialog::DoIt(VirtMouseEvent*) {
 
     // equivalent of: clean -p <pwd> -D input output
     // -p provides the password to open the encrypted input, -D removes encryption from output
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
+        MessageBoxWarning(hwnd, Tr("Couldn't create a temporary file beside the PDF."), Tr("Save PDF"));
+        return;
+    }
     char* argv[] = {(char*)"clean", (char*)"-p",       CStrTemp(password),
-                    (char*)"-D",    CStrTemp(srcPath), CStrTemp(destPath)};
+                    (char*)"-D",    CStrTemp(srcPath), CStrTemp(output.tempPath)};
     int argc = 6;
 
     fz_set_optind(0);
     int res = pdfclean_main(argc, argv);
+    if (res == 0 && !output.Commit()) {
+        res = 1;
+    }
     if (res == 0) {
         logf("PdfDecryptDoIt: decrypted successfully\n");
         MainWindow* w = win;
@@ -1459,11 +1509,19 @@ TempStr ExtractPdfPagesResultTemp(Str destPath, Str pagesSpec, int annotsOnly, i
         }
         inputPath = tmpPath;
     }
-    char* argv[] = {(char*)"clean",      (char*)"-gggg",     (char*)"-e",        (char*)"100",
-                    (char*)"-f",         (char*)"-i",        (char*)"-t",        (char*)"-Z",
-                    CStrTemp(inputPath), CStrTemp(destPath), CStrTemp(pageRange)};
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
+        file::Delete(tmpPath);
+        return finish(1, str::DupTemp(StrL("ERROR staging")));
+    }
+    char* argv[] = {(char*)"clean",     (char*)"-gggg", (char*)"-e", (char*)"100",        (char*)"-f",
+                    (char*)"-i",        (char*)"-t",    (char*)"-Z", CStrTemp(inputPath), CStrTemp(output.tempPath),
+                    CStrTemp(pageRange)};
     fz_set_optind(0);
     int res = pdfclean_main(11, argv);
+    if (res == 0 && !output.Commit()) {
+        res = 1;
+    }
     if (tmpPath) {
         file::Delete(tmpPath);
     }
@@ -2677,7 +2735,7 @@ static float TextWidth(fz_context* ctx, fz_font* font, float size, Str utf8) {
 
 static TempStr ReplaceHeaderFooterTokens(Str pattern, int pageNo, int totalPages, Str dateStr, Str filename) {
     str::Builder b;
-    for (int i = 0; i < len(pattern); ) {
+    for (int i = 0; i < len(pattern);) {
         if (pattern.s[i] == '{') {
             Str rem = Str(pattern.s + i, len(pattern) - i);
             if (str::StartsWith(rem, StrL("{page}"))) {
@@ -2836,8 +2894,8 @@ static void ApplyItemsToPage(fz_context* ctx, pdf_document* doc, int pageIndex, 
         u8 cr = GetRValue(item.color);
         u8 cg = GetGValue(item.color);
         u8 cb = GetBValue(item.color);
-        content.Append(fmt("BT\n/%s %.2f Tf\n%.3f %.3f %.3f rg\n", fontName, item.fontSize,
-                           cr / 255.f, cg / 255.f, cb / 255.f));
+        content.Append(
+            fmt("BT\n/%s %.2f Tf\n%.3f %.3f %.3f rg\n", fontName, item.fontSize, cr / 255.f, cg / 255.f, cb / 255.f));
         content.Append(fmt("%.4f %.4f %.4f %.4f %.3f %.3f Tm\n", tm.a, tm.b, tm.c, tm.d, tm.e, tm.f));
         AppendWinAnsiPdfString(content, item.text);
         content.Append(StrL(" Tj\nET\n"));
@@ -2872,6 +2930,10 @@ static void ApplyItemsToPage(fz_context* ctx, pdf_document* doc, int pageIndex, 
 
 bool PdfApplyWatermark(Str srcPath, Str destPath, const PdfWatermarkParams& params) {
     if (len(srcPath) == 0 || len(destPath) == 0 || len(params.text) == 0) {
+        return false;
+    }
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
         return false;
     }
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
@@ -2910,23 +2972,41 @@ bool PdfApplyWatermark(Str srcPath, Str destPath, const PdfWatermarkParams& para
             float margin = 54.f;
             switch (params.position) {
                 case PdfWatermarkPos::Center:
-                    cx = pageW / 2.f; cy = pageH / 2.f; break;
+                    cx = pageW / 2.f;
+                    cy = pageH / 2.f;
+                    break;
                 case PdfWatermarkPos::TopLeft:
-                    cx = margin; cy = margin; break;
+                    cx = margin;
+                    cy = margin;
+                    break;
                 case PdfWatermarkPos::TopCenter:
-                    cx = pageW / 2.f; cy = margin; break;
+                    cx = pageW / 2.f;
+                    cy = margin;
+                    break;
                 case PdfWatermarkPos::TopRight:
-                    cx = pageW - margin; cy = margin; break;
+                    cx = pageW - margin;
+                    cy = margin;
+                    break;
                 case PdfWatermarkPos::CenterLeft:
-                    cx = margin; cy = pageH / 2.f; break;
+                    cx = margin;
+                    cy = pageH / 2.f;
+                    break;
                 case PdfWatermarkPos::CenterRight:
-                    cx = pageW - margin; cy = pageH / 2.f; break;
+                    cx = pageW - margin;
+                    cy = pageH / 2.f;
+                    break;
                 case PdfWatermarkPos::BottomLeft:
-                    cx = margin; cy = pageH - margin; break;
+                    cx = margin;
+                    cy = pageH - margin;
+                    break;
                 case PdfWatermarkPos::BottomCenter:
-                    cx = pageW / 2.f; cy = pageH - margin; break;
+                    cx = pageW / 2.f;
+                    cy = pageH - margin;
+                    break;
                 case PdfWatermarkPos::BottomRight:
-                    cx = pageW - margin; cy = pageH - margin; break;
+                    cx = pageW - margin;
+                    cy = pageH - margin;
+                    break;
             }
 
             PageStampDrawItem item;
@@ -2948,25 +3028,10 @@ bool PdfApplyWatermark(Str srcPath, Str destPath, const PdfWatermarkParams& para
         opts.do_compress = 1;
         opts.do_garbage = 1;
 
-        TempStr savePath = destPath;
-        bool sameFile = path::IsSame(srcPath, destPath);
-        TempStr tmpSave;
-        if (sameFile) {
-            tmpSave = GetTempFilePathTemp(StrL("watermark-tmp"));
-            savePath = tmpSave;
-        }
-
-        pdf_save_document(ctx, doc, CStrTemp(savePath), &opts);
-
-        if (sameFile) {
-            pdf_drop_document(ctx, doc);
-            doc = nullptr;
-            if (!file::RenameReplace(destPath, savePath)) {
-                file::Copy(destPath, savePath, false);
-                file::Delete(savePath);
-            }
-        }
-        ok = true;
+        pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
+        pdf_drop_document(ctx, doc);
+        doc = nullptr;
+        ok = output.Commit();
     }
     fz_always(ctx) {
         if (doc) {
@@ -2983,6 +3048,10 @@ bool PdfApplyWatermark(Str srcPath, Str destPath, const PdfWatermarkParams& para
 
 bool PdfApplyHeaderFooter(Str srcPath, Str destPath, const PdfHeaderFooterParams& params) {
     if (len(srcPath) == 0 || len(destPath) == 0) {
+        return false;
+    }
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
         return false;
     }
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
@@ -3059,25 +3128,10 @@ bool PdfApplyHeaderFooter(Str srcPath, Str destPath, const PdfHeaderFooterParams
         opts.do_compress = 1;
         opts.do_garbage = 1;
 
-        TempStr savePath = destPath;
-        bool sameFile = path::IsSame(srcPath, destPath);
-        TempStr tmpSave;
-        if (sameFile) {
-            tmpSave = GetTempFilePathTemp(StrL("hf-tmp"));
-            savePath = tmpSave;
-        }
-
-        pdf_save_document(ctx, doc, CStrTemp(savePath), &opts);
-
-        if (sameFile) {
-            pdf_drop_document(ctx, doc);
-            doc = nullptr;
-            if (!file::RenameReplace(destPath, savePath)) {
-                file::Copy(destPath, savePath, false);
-                file::Delete(savePath);
-            }
-        }
-        ok = true;
+        pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
+        pdf_drop_document(ctx, doc);
+        doc = nullptr;
+        ok = output.Commit();
     }
     fz_always(ctx) {
         if (doc) {
@@ -3094,6 +3148,10 @@ bool PdfApplyHeaderFooter(Str srcPath, Str destPath, const PdfHeaderFooterParams
 
 bool PdfApplyBatesNumbering(Str srcPath, Str destPath, const PdfBatesParams& params) {
     if (len(srcPath) == 0 || len(destPath) == 0) {
+        return false;
+    }
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
         return false;
     }
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
@@ -3143,17 +3201,35 @@ bool PdfApplyBatesNumbering(Str srcPath, Str destPath, const PdfBatesParams& par
 
             switch (params.position) {
                 case PdfBatesPos::TopLeft:
-                    x = marginX; y = marginY + params.fontSize * 0.8f; align = 0; break;
+                    x = marginX;
+                    y = marginY + params.fontSize * 0.8f;
+                    align = 0;
+                    break;
                 case PdfBatesPos::TopCenter:
-                    x = pageW / 2.f; y = marginY + params.fontSize * 0.8f; align = 1; break;
+                    x = pageW / 2.f;
+                    y = marginY + params.fontSize * 0.8f;
+                    align = 1;
+                    break;
                 case PdfBatesPos::TopRight:
-                    x = pageW - marginX; y = marginY + params.fontSize * 0.8f; align = 2; break;
+                    x = pageW - marginX;
+                    y = marginY + params.fontSize * 0.8f;
+                    align = 2;
+                    break;
                 case PdfBatesPos::BottomLeft:
-                    x = marginX; y = pageH - marginY; align = 0; break;
+                    x = marginX;
+                    y = pageH - marginY;
+                    align = 0;
+                    break;
                 case PdfBatesPos::BottomCenter:
-                    x = pageW / 2.f; y = pageH - marginY; align = 1; break;
+                    x = pageW / 2.f;
+                    y = pageH - marginY;
+                    align = 1;
+                    break;
                 case PdfBatesPos::BottomRight:
-                    x = pageW - marginX; y = pageH - marginY; align = 2; break;
+                    x = pageW - marginX;
+                    y = pageH - marginY;
+                    align = 2;
+                    break;
             }
 
             PageStampDrawItem item;
@@ -3176,25 +3252,10 @@ bool PdfApplyBatesNumbering(Str srcPath, Str destPath, const PdfBatesParams& par
         opts.do_compress = 1;
         opts.do_garbage = 1;
 
-        TempStr savePath = destPath;
-        bool sameFile = path::IsSame(srcPath, destPath);
-        TempStr tmpSave;
-        if (sameFile) {
-            tmpSave = GetTempFilePathTemp(StrL("bates-tmp"));
-            savePath = tmpSave;
-        }
-
-        pdf_save_document(ctx, doc, CStrTemp(savePath), &opts);
-
-        if (sameFile) {
-            pdf_drop_document(ctx, doc);
-            doc = nullptr;
-            if (!file::RenameReplace(destPath, savePath)) {
-                file::Copy(destPath, savePath, false);
-                file::Delete(savePath);
-            }
-        }
-        ok = true;
+        pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
+        pdf_drop_document(ctx, doc);
+        doc = nullptr;
+        ok = output.Commit();
     }
     fz_always(ctx) {
         if (doc) {
@@ -3287,11 +3348,21 @@ void PdfWatermarkDialog::DoIt(VirtMouseEvent*) {
 
     int colIdx = dropColor ? CbGetCurrentSelection(dropColor) : 0;
     switch (colIdx) {
-        case 1: params.color = RGB(220, 30, 30); break;  // Red
-        case 2: params.color = RGB(30, 80, 220); break;  // Blue
-        case 3: params.color = RGB(0, 0, 0); break;      // Black
-        case 4: params.color = RGB(30, 150, 40); break;  // Green
-        default: params.color = RGB(128, 128, 128); break; // Gray
+        case 1:
+            params.color = RGB(220, 30, 30);
+            break; // Red
+        case 2:
+            params.color = RGB(30, 80, 220);
+            break; // Blue
+        case 3:
+            params.color = RGB(0, 0, 0);
+            break; // Black
+        case 4:
+            params.color = RGB(30, 150, 40);
+            break; // Green
+        default:
+            params.color = RGB(128, 128, 128);
+            break; // Gray
     }
 
     if (radioCurrent && radioCurrent->IsChecked()) {
@@ -3651,7 +3722,8 @@ bool PdfHeaderFooterDialog::Create(MainWindow* w, WindowTab* tab) {
     fRow->AddChild(footerRightEdit, 1);
 
     HBox* hintRow = AddRow();
-    hintRow->AddChild(NewVirtText({.s = Tr("Tokens: {page}, {pages}, {date}, {filename}"), .font = font, .isRtl = IsUIRtl()}));
+    hintRow->AddChild(
+        NewVirtText({.s = Tr("Tokens: {page}, {pages}, {date}, {filename}"), .font = font, .isRtl = IsUIRtl()}));
 
     HBox* pRow = AddRow();
     pRow->gap = font->averageCharWidth;
