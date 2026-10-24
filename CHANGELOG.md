@@ -4,6 +4,11 @@
 
 ### Added
 
+- Searchable OCR PDF copies with aligned invisible Unicode text, installed
+  Windows OCR language selection, and current/all/selected page ranges.
+  Recognition and saving run in the background with progress and cancellation.
+  Saved copies preserve the original page artwork and unselected pages.
+
 - Unsaved PDF edits get recovery copies about once a minute. After a crash,
   Restore saves a separate PDF; Discard removes the recovery copy.
 

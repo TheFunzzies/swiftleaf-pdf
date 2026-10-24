@@ -2136,3 +2136,6 @@ EXPORTS
 	pdf_choice_field_option_count
 	pdf_choice_field_option
 	pdf_lookup_field
+
+	fz_drop_text
+	fz_show_string

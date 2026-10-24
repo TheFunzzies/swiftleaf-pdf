@@ -151,6 +151,24 @@ jobs:
         timeout-minutes: 5
         run: bun cmd/run-unit-tests.ts -dbg --no-build
 
+      - name: Run OCR dialog smoke
+        if: ${{ !cancelled() && steps.debug.outcome == 'success' && steps.harness.outcome == 'success' }}
+        timeout-minutes: 5
+        shell: powershell
+        run: |
+          try {
+            $ocrLanguages = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType=WindowsRuntime]::AvailableRecognizerLanguages
+          } catch {
+            Write-Host "OCR dialog smoke: SKIP (Windows OCR unavailable)"
+            exit 0
+          }
+          if (!$ocrLanguages -or $ocrLanguages.Count -eq 0) {
+            Write-Host "OCR dialog smoke: SKIP (no OCR language pack installed)"
+            exit 0
+          }
+          bun tests/ad-hoc-ocr.ts --no-build
+          exit $LASTEXITCODE
+
       - name: Build edit-safety libraries
         if: ${{ !cancelled() && steps.debug.outcome == 'success' && steps.harness.outcome == 'success' }}
         run: |

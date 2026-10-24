@@ -276,3 +276,10 @@ bool EngineHasRedactMarks(EngineBase*);
 bool EngineHasUserRedactMarks(EngineBase*);
 Annotation* EngineGetAnnotationAtPos(EngineBase*, int pageNo, PointF pos, float padding, Annotation*);
 Annotation* EngineGetWidgetAtPos(EngineBase*, int pageNo, PointF pos);
+
+// OCR boxes are in the rendered bitmap's top-left pixel coordinates.
+struct PdfOcrWord {
+    Str text; // borrowed for the duration of AddOcrText
+    RectF box;
+};
+bool EngineMupdfAddOcrText(EngineBase*, int pageNo, float zoom, int rotation, const Vec<PdfOcrWord>&);

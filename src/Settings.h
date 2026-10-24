@@ -822,6 +822,8 @@ struct Settings {
     // from numbered headings in its text (Generate Table Of Contents
     // command does it on demand)
     bool autoGenerateTOC;
+    // Windows OCR language tag; empty uses profile languages
+    Str ocrLanguage;
     // list of handlers for selected text, shown in context menu when text
     // selection is active. See [docs for more
     // information](https://github.com/TheFunzzies/swiftleaf-pdf)

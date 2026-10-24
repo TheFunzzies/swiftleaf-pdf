@@ -21,10 +21,10 @@ import {
   sleep,
   WM_CLOSE,
 } from "./winapi.ts";
-import { pressEnter, pressTab, typeIntoInput } from "./win-automation.ts";
+import { pressEnter, pressTab } from "./win-automation.ts";
 
-async function waitFor<T>(read: () => T, ready: (v: T) => boolean, label: string): Promise<T> {
-  const deadline = Date.now() + 30_000;
+async function waitFor<T>(read: () => T, ready: (v: T) => boolean, label: string, timeoutMs = 30_000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = read();
     if (ready(value)) return value;
@@ -62,6 +62,7 @@ export async function testit(): Promise<void> {
   const pdf = join(dir, "two-pages.pdf");
   writeFileSync(pdf, fixture(), "latin1");
   const appdata = join(dir, "appdata");
+  const appLog = join(dir, "app.log");
   mkdirSync(appdata, { recursive: true });
   writeFileSync(join(appdata, "SumatraPDF-settings.txt"), "UiLanguage = en\nRestoreSession = false\n");
 
@@ -99,47 +100,59 @@ export async function testit(): Promise<void> {
       }
       captureWindowToPng(dlg, join(dir, "results.png"));
 
-      // All pages -> Copy text -> Save as .txt.
+      // All pages -> Selected pages -> Copy text -> Save PDF.
+      await pressTab(dlg);
       await pressTab(dlg);
       await pressEnter(dlg);
       if ((await getClipboardText()) !== all) throw new Error("Clipboard OCR differs from result text");
       await pressTab(dlg);
       await pressEnter(dlg);
-      const save = await waitFor(() => topWindow(proc.pid, "Save As"), Boolean, "text save dialog");
-      const filename = await waitFor(
-        () => {
-          let field = 0;
-          enumChildWindows(save, (h) => {
-            if (getClassName(h) === "Edit" && /^OCR(?:\.txt)?$/i.test(getControlText(h))) field = h;
-            return true;
-          });
-          return field;
-        },
-        Boolean,
-        "initialized save filename edit",
+      const save = await waitFor(() => topWindow(proc.pid, "Save As"), Boolean, "PDF save dialog");
+      const dest = join(dir, "Searchable.pdf");
+      await pressEnter(save);
+      await waitFor(
+        () => topWindow(proc.pid, "Save As"),
+        (h) => h === 0,
+        "Save As submit",
+        5_000,
       );
-      const dest = join(dir, `ocr-${Date.now()}.txt`);
-      await typeIntoInput(filename, dest, false);
-      if (getControlText(filename) !== dest) throw new Error("Save filename was not set");
-      await pressEnter(filename);
-      const saved = await waitFor(
-        () => {
-          try {
-            return readFileSync(dest, "utf8");
-          } catch {
-            return "";
-          }
-        },
-        (s) => s.includes("12345") && s.includes("67890"),
-        "UTF-8 text export",
-      );
-      if (saved !== all) throw new Error("Saved OCR differs from result text");
+      let saved = "";
+      try {
+        saved = await waitFor(
+          () => {
+            try {
+              return readFileSync(dest, "utf8");
+            } catch {
+              return "";
+            }
+          },
+          (s) => s.startsWith("%PDF-"),
+          "searchable PDF export",
+        );
+      } catch (e) {
+        const controls: string[] = [];
+        enumChildWindows(dlg, (hwnd) => {
+          controls.push(`${getClassName(hwnd)}=${getWindowText(hwnd)}`);
+          return true;
+        });
+        let log = "";
+        try {
+          log = readFileSync(appLog, "utf8").split(/\r?\n/).slice(-30).join("\n");
+        } catch {}
+        throw new Error(`${e}; dialog controls: ${controls.join(" | ")}; app log:\n${log}`);
+      }
+      if (!saved.startsWith("%PDF-")) throw new Error("Saved output is not a PDF");
       postMessage(dlg, WM_CLOSE, 0, 0);
       await waitFor(
         () => topWindow(proc.pid, "Scan & OCR"),
         (h) => h === 0,
         "dialog close",
       );
+
+      for (const needle of ["12345", "67890"]) {
+        const [, found] = await client.request(ControlCommand.TestSearch, [dest, needle]);
+        if (!String(found).startsWith("FOUND")) throw new Error(`Saved OCR search failed: ${found}`);
+      }
 
       // Start another job, then close its document while it runs.
       await client.request(ControlCommand.TestInvokeCommand, ["CmdScanOcr"]);
@@ -148,9 +161,9 @@ export async function testit(): Promise<void> {
       await client.request(ControlCommand.TestInvokeCommand, ["CmdCloseCurrentDocument"]);
       postMessage(closing, WM_CLOSE, 0, 0);
       await client.request(ControlCommand.Ping);
-      console.log(`OCR: current page, all pages, text export, and close-during-work passed (${dir})`);
+      console.log(`OCR: current page, all pages, PDF save/reopen/search, and close-during-work passed (${dir})`);
     },
-    ["-appdata", appdata, pdf],
+    ["-appdata", appdata, "-log-to-file", appLog, pdf],
   );
 }
 

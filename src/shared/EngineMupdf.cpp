@@ -9907,6 +9907,121 @@ static pdf_obj* AddContentStream(fz_context* ctx, pdf_document* doc, Str s) {
     return stm;
 }
 
+// Append an isolated Form XObject: existing page resources and artwork stay intact.
+bool EngineMupdfAddOcrText(EngineBase* engine, int pageNo, float zoom, int rotation, const Vec<PdfOcrWord>& words) {
+    EngineMupdf* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc || pageNo < 1 || pageNo > e->pageCount || zoom <= 0) return false;
+    if (len(words) == 0) return true;
+    auto* ctx = e->Ctx();
+    ScopedEngineOperation op(engine, "Searchable OCR");
+    ScopedRecursiveMutex pagesScope(&e->pagesLock);
+    ScopedMutex renderScope(&e->renderLock);
+    FzPageInfo* pi = GetFzPageInfoLocked(e, e->LocationFromPageNo(pageNo), false, nullptr);
+    if (!pi || !pi->page) return false;
+    ScopedRecursiveMutex docScope(&e->docLock);
+    pdf_obj* resources = nullptr;
+    pdf_obj* form = nullptr;
+    pdf_obj* pageRes = nullptr;
+    pdf_obj* contents = nullptr;
+    fz_buffer* buffer = nullptr;
+    fz_device* dev = nullptr;
+    fz_font* font = nullptr;
+    fz_text* text = nullptr;
+    bool ok = false;
+    fz_var(resources);
+    fz_var(form);
+    fz_var(pageRes);
+    fz_var(contents);
+    fz_var(buffer);
+    fz_var(dev);
+    fz_var(font);
+    fz_var(text);
+    fz_var(ok);
+    fz_try(ctx) {
+        pdf_page* page = pdf_page_from_fz_page(ctx, pi->page);
+        fz_rect media;
+        fz_matrix pageCtm;
+        pdf_page_transform(ctx, page, &media, &pageCtm);
+        fz_matrix view = e->viewctm(pageNo, zoom, rotation);
+        fz_irect pixels = fz_round_rect(fz_transform_rect(ToFzRect(pi->mediabox), view));
+        // Undo bitmap origin, view zoom/rotation, then PDF crop/rotation/UserUnit.
+        fz_matrix toPdf = fz_concat(fz_translate((float)pixels.x0, (float)pixels.y0),
+                                    fz_concat(fz_invert_matrix(view), fz_invert_matrix(pageCtm)));
+        resources = pdf_new_dict(ctx, e->pdfdoc, 2);
+        buffer = fz_new_buffer(ctx, 1024);
+        dev = pdf_new_pdf_device(ctx, e->pdfdoc, fz_identity, resources, buffer);
+        // MuPDF embeds this Base-14 substitute and Unicode fallback fonts as CID
+        // fonts with ToUnicode maps. The device's ignore_text emits render mode 3.
+        font = fz_new_base14_font(ctx, "Helvetica");
+        for (const PdfOcrWord& word : words) {
+            if (len(word.text) == 0 || word.box.dx <= 0 || word.box.dy <= 0) continue;
+            text = fz_new_text(ctx);
+            fz_show_string(ctx, text, font, fz_scale(1, -1), CStrTemp(word.text), 0, 0, FZ_BIDI_NEUTRAL, FZ_LANG_UNSET);
+            fz_rect bounds = fz_bound_text(ctx, text, nullptr, fz_identity);
+            // fz_bound_text adds a one-unit raster-cache margin. Remove it
+            // before fitting at unit font size, or glyphs shrink inside boxes.
+            bounds.x0 += 1;
+            bounds.y0 += 1;
+            bounds.x1 -= 1;
+            bounds.y1 -= 1;
+            float width = bounds.x1 - bounds.x0;
+            float height = bounds.y1 - bounds.y0;
+            if (width > 0 && height > 0) {
+                float sx = word.box.dx / width;
+                float sy = word.box.dy / height;
+                fz_matrix fit = {sx, 0, 0, sy, word.box.x - bounds.x0 * sx, word.box.y - bounds.y0 * sy};
+                fz_ignore_text(ctx, dev, text, fz_concat(fit, toPdf));
+            }
+            fz_drop_text(ctx, text);
+            text = nullptr;
+        }
+        fz_close_device(ctx, dev);
+        form = pdf_new_xobject(ctx, e->pdfdoc, media, fz_identity, resources, buffer);
+        pdf_obj* inherited = pdf_dict_get_inheritable(ctx, page->obj, PDF_NAME(Resources));
+        pageRes = inherited ? pdf_copy_dict(ctx, inherited) : pdf_new_dict(ctx, e->pdfdoc, 2);
+        pdf_obj* xobjects = pdf_dict_get(ctx, pageRes, PDF_NAME(XObject));
+        if (xobjects) {
+            // Copy even an indirect dictionary; never mutate resources shared by pages.
+            pdf_dict_put_drop(ctx, pageRes, PDF_NAME(XObject), pdf_copy_dict(ctx, xobjects));
+        } else {
+            pdf_dict_put_drop(ctx, pageRes, PDF_NAME(XObject), pdf_new_dict(ctx, e->pdfdoc, 1));
+        }
+        xobjects = pdf_dict_get(ctx, pageRes, PDF_NAME(XObject));
+        TempStr name;
+        for (int n = 1;; n++) {
+            name = fmt("SwiftLeafOcr%d", n);
+            if (!pdf_dict_gets(ctx, xobjects, CStrTemp(name))) break;
+        }
+        pdf_dict_puts(ctx, xobjects, CStrTemp(name), form);
+        pdf_dict_put(ctx, page->obj, PDF_NAME(Resources), pageRes);
+        contents = pdf_new_array(ctx, e->pdfdoc, 4);
+        pdf_array_push_drop(ctx, contents, AddContentStream(ctx, e->pdfdoc, StrL("q\n")));
+        pdf_obj* old = pdf_dict_get(ctx, page->obj, PDF_NAME(Contents));
+        if (pdf_is_array(ctx, old)) {
+            for (int i = 0; i < pdf_array_len(ctx, old); i++) pdf_array_push(ctx, contents, pdf_array_get(ctx, old, i));
+        } else if (old) {
+            pdf_array_push(ctx, contents, old);
+        }
+        pdf_array_push_drop(ctx, contents, AddContentStream(ctx, e->pdfdoc, fmt("Q\nq /%s Do Q\n", name)));
+        pdf_dict_put(ctx, page->obj, PDF_NAME(Contents), contents);
+        ok = true;
+    }
+    fz_always(ctx) {
+        fz_drop_text(ctx, text);
+        fz_drop_font(ctx, font);
+        fz_drop_device(ctx, dev);
+        fz_drop_buffer(ctx, buffer);
+        pdf_drop_obj(ctx, resources);
+        pdf_drop_obj(ctx, form);
+        pdf_drop_obj(ctx, pageRes);
+        pdf_drop_obj(ctx, contents);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    return ok;
+}
+
 // Replace the text of `run` (from EngineMupdfGetTextRun) on page pageNo with
 // newText: the old glyphs are removed by a text-only redaction of the run's
 // box, the new text is drawn in the closest base-14 font, same size, color and
