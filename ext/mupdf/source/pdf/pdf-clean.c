@@ -1117,6 +1117,7 @@ void init_redact_filter(fz_context *ctx, pdf_redact_options *redact_opts, struct
 	red->text = text;
 
 	red->sanitize_opts.opaque = red;
+	red->sanitize_opts.sanitize_text_metadata = 1;
 	if (text == PDF_REDACT_TEXT_REMOVE)
 		red->sanitize_opts.text_filter = pdf_redact_text_filter;
 	if (text == PDF_REDACT_TEXT_REMOVE_INVISIBLE)

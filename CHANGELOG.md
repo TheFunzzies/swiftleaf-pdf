@@ -4,6 +4,11 @@
 
 ### Added
 
+- Sanitize Document with selectable metadata, hidden text/layers, JavaScript,
+  attachments, comments, form data and thumbnail removal. Search & Redact removes
+  all literal or regex matches from saved page content. Both save atomic copies
+  and are available in Protect, All tools and Tools. See `docs/document-privacy.md`.
+
 - Searchable OCR PDF copies with aligned invisible Unicode text, installed
   Windows OCR language selection, and current/all/selected page ranges.
   Recognition and saving run in the background with progress and cancellation.
@@ -20,6 +25,10 @@
 - Documentation for page marks and stamps in docs/page-stamps.md.
 
 ### Fixed
+
+- Merge and Insert File preserve imported forms with unique names, comments,
+  remapped internal links, bookmarks and attachments. Element-specific fallbacks
+  are reported instead of flattening every imported page.
 
 - PDF saves, page replacement, conversion, merge, extraction, compression and
   encryption stage a complete file beside the destination, flush it, then

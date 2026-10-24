@@ -1271,6 +1271,14 @@ static MenuDef menuDefDocumentOperations[] = {
         CmdBatesNumbering,
     },
     {
+        TrN("Sanitize Document..."),
+        CmdPdfSanitize,
+    },
+    {
+        TrN("Redact All Search Matches..."),
+        CmdPdfRedactSearch,
+    },
+    {
         TrN("Insert Image..."),
         CmdInsertImage,
     },

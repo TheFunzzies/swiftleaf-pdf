@@ -181,6 +181,15 @@ jobs:
         if: ${{ !cancelled() && steps.debug.outcome == 'success' && steps.harness.outcome == 'success' }}
         run: bun tests/run-swiftleaf-ci.ts
 
+      - name: Repeat recovery restart smoke
+        if: ${{ !cancelled() && steps.debug.outcome == 'success' && steps.harness.outcome == 'success' }}
+        timeout-minutes: 5
+        run: |
+          1..3 | ForEach-Object {
+            bun tests/run-swiftleaf-ci.ts edit-reliability
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

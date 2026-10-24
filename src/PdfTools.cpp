@@ -121,7 +121,7 @@ struct PdfToolDialog : WindowBase {
     void AddDestRow(Str destPath, WStr filter, WStr defExt);
     Edit* AddLabeledEdit(Str label, Str text, bool isPassword = false);
     void AddButtonsRow(Str actionText, Str hint = {});
-    void FinishDialog(Edit* focusOn);
+    void FinishDialog(Edit* focusOn, int minWidth = 480);
     VirtButton* NewButton(Str text, bool isDefault);
 
     void OnBrowse(VirtMouseEvent* ev = nullptr);
@@ -274,10 +274,10 @@ void PdfToolDialog::AddButtonsRow(Str actionText, Str hint) {
     row->AddChild(cancelBtn);
 }
 
-void PdfToolDialog::FinishDialog(Edit* focusOn) {
+void PdfToolDialog::FinishDialog(Edit* focusOn, int minWidth) {
     // size to a width that fits the source path (clamped), let the layout
     // compute the height
-    int minClientW = DpiScale(480);
+    int minClientW = DpiScale(minWidth);
     int clientW = CalcDlgWidth(font, srcPath, minClientW, DpiScale(10));
     Size size = layout->Layout(ExpandHeight(clientW));
     ResizeHwndToClientArea(hwnd, size.dx, size.dy, false);
@@ -4005,4 +4005,128 @@ void ShowPdfBatesNumberingDialog(MainWindow* win) {
     if (!dlg->Create(win, tab)) {
         delete dlg;
     }
+}
+
+struct PdfPrivacyDialog : PdfToolDialog {
+    bool redact = false;
+    Checkbox* options[7]{};
+    Checkbox* regex = nullptr;
+    Edit* term = nullptr;
+
+    bool Create(MainWindow* w, WindowTab* tab, bool isRedact);
+    Checkbox* AddCheck(Str label, bool checked);
+    void DoIt(VirtMouseEvent* ev = nullptr) override;
+};
+
+Checkbox* PdfPrivacyDialog::AddCheck(Str label, bool checked) {
+    Checkbox::CreateArgs args;
+    args.parent = hwnd;
+    args.font = font;
+    args.text = label;
+    args.isRtl = IsUIRtl();
+    args.initialState = checked ? Checkbox::State::Checked : Checkbox::State::Unchecked;
+    auto* check = new Checkbox();
+    check->Create(args);
+    check->SetColors(ThemeWindowTextColor(), DarkModeDialogBgColor());
+    AddRow()->AddChild(check);
+    return check;
+}
+
+bool PdfPrivacyDialog::Create(MainWindow* w, WindowTab* tab, bool isRedact) {
+    redact = isRedact;
+    if (!CreateToolDialog(w, tab, redact ? Tr("Redact All Search Matches") : Tr("Sanitize Document"))) return false;
+    AddPathRow();
+    Str stem = srcPath;
+    if (str::EndsWithI(stem, StrL(".pdf"))) stem.len -= 4;
+    AddDestRow(MakeUniqueFilePathTemp(fmt("%s_%s.pdf", stem, redact ? StrL("redacted") : StrL("sanitized"))),
+               WStrL(L"PDF Files\0*.pdf\0All Files\0*.*\0"), WStrL(L"pdf"));
+    if (redact) {
+        term = AddLabeledEdit(Tr("Find:"), {});
+        regex = AddCheck(Tr("Regular expression (case sensitive)"), false);
+        AddRow()->AddChild(NewVirtText(
+            {.s = Tr("Searches all pages, including invisible text. Images are not OCR searched."), .font = font}));
+        AddRow()->AddChild(NewVirtText(
+            {.s = Tr("Matching areas lose text, touching images and graphics. Save a separate copy."), .font = font}));
+        AddRow()->AddChild(NewVirtText({.s = Tr("Form fields are flattened before searching."), .font = font}));
+    } else {
+        options[0] = AddCheck(Tr("Metadata"), true);
+        options[1] = AddCheck(Tr("Hidden text/layers (rasterizes pages; removes forms, comments and links)"), false);
+        options[2] = AddCheck(Tr("Embedded JavaScript (also removes XFA form packets)"), true);
+        options[3] = AddCheck(Tr("Attachments"), true);
+        options[4] = AddCheck(Tr("Comments"), true);
+        options[5] = AddCheck(Tr("Form data and fields"), true);
+        options[6] = AddCheck(Tr("Thumbnails"), true);
+    }
+    AddButtonsRow(redact ? Tr("Redact All Matches") : Tr("Sanitize"));
+    FinishDialog(redact ? term : destEdit, 760);
+    return true;
+}
+
+void PdfPrivacyDialog::DoIt(VirtMouseEvent*) {
+    TempStr dest = destEdit->GetTextTemp();
+    if (!len(dest)) return;
+    if (path::IsSame(dest, srcPath)) {
+        MessageBoxWarning(hwnd, Tr("Choose a different file name for the saved copy."), Tr("Save Copy"));
+        return;
+    }
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    if (!tab || !path::IsSame(tab->filePath, srcPath)) return;
+    EngineBase* engine = tab->GetEngine();
+    TempStr snapshot;
+    Str input = srcPath;
+    if (engine && EngineHasUnsavedAnnotations(engine)) {
+        snapshot = GetTempFilePathTemp(StrL("privacy-input"));
+        if (!len(snapshot) || !EngineMupdfSaveCopy(engine, snapshot)) {
+            file::Delete(snapshot);
+            MessageBoxWarning(hwnd, Tr("Failed to save copy of PDF file."), Tr("Save Copy"));
+            return;
+        }
+        input = snapshot;
+    }
+    PdfMergeSource source{input, EngineMupdfGetPassword(engine)};
+    Str error;
+    int count = 0;
+    bool ok;
+    if (redact) {
+        ok = EngineMupdfRedactMatches(source, dest, term->GetTextTemp(),
+                                      regex->IsChecked() ? PdfSearchMode::Regex : PdfSearchMode::Text, &count, &error);
+    } else {
+        PdfSanitizeOptions opts;
+        opts.metadata = options[0]->IsChecked();
+        opts.hiddenContent = options[1]->IsChecked();
+        opts.javascript = options[2]->IsChecked();
+        opts.attachments = options[3]->IsChecked();
+        opts.comments = options[4]->IsChecked();
+        opts.forms = options[5]->IsChecked();
+        opts.thumbnails = options[6]->IsChecked();
+        ok = EngineMupdfSanitizePdf(source, dest, opts, &error);
+    }
+    if (len(snapshot)) file::Delete(snapshot);
+    if (!ok) {
+        MessageBoxWarning(hwnd, len(error) ? error : Tr("Failed to save PDF copy."),
+                          redact ? Tr("Redact All Search Matches") : Tr("Sanitize Document"));
+        return;
+    }
+    MainWindow* w = win;
+    TempStr saved = str::DupTemp(dest);
+    bool wasRedact = redact;
+    Close();
+    LoadArgs args(saved, w);
+    StartLoadDocument(&args);
+    if (wasRedact)
+        ShowTemporaryNotification(w->hwndCanvas, fmt(Tr("Redacted %d matches. Saved a separate copy.").s, count));
+}
+
+void ShowPdfSanitizeDialog(MainWindow* win) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    if (!tab || !IsPdfDoc(tab)) return;
+    auto* dialog = new PdfPrivacyDialog();
+    if (!dialog->Create(win, tab, false)) delete dialog;
+}
+
+void ShowPdfRedactSearchDialog(MainWindow* win) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    if (!tab || !IsPdfDoc(tab)) return;
+    auto* dialog = new PdfPrivacyDialog();
+    if (!dialog->Create(win, tab, true)) delete dialog;
 }

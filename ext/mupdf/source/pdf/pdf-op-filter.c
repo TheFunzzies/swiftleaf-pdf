@@ -922,7 +922,7 @@ update_mcid(fz_context *ctx, pdf_sanitize_processor *p)
 	if (tag->alt.edited)
 		pdf_dict_put_text_string(ctx, tag->mcid_obj, PDF_NAME(Alt), tag->alt.utf8 ? tag->alt.utf8 : "");
 	if (tag->actualtext.edited)
-		pdf_dict_put_text_string(ctx, tag->mcid_obj, PDF_NAME(Alt), tag->actualtext.utf8 ? tag->actualtext.utf8 : "");
+		pdf_dict_put_text_string(ctx, tag->mcid_obj, PDF_NAME(ActualText), tag->actualtext.utf8 ? tag->actualtext.utf8 : "");
 }
 
 /* Process a string (from buf, of length len), from position *pos onwards.
@@ -2685,9 +2685,22 @@ pdf_filter_MP(fz_context *ctx, pdf_processor *proc, const char *tag)
 }
 
 static void
+sanitize_tag_text(fz_context *ctx, pdf_sanitize_processor *p, pdf_obj *properties)
+{
+	if (!p->options->sanitize_text_metadata || !pdf_is_dict(ctx, properties))
+		return;
+	/* Alternate text can retain content removed from the page stream. */
+	pdf_dict_del(ctx, properties, PDF_NAME(ActualText));
+	pdf_dict_del(ctx, properties, PDF_NAME(Alt));
+	pdf_dict_del(ctx, properties, PDF_NAME(E));
+	pdf_dict_del(ctx, properties, PDF_NAME(T));
+}
+
+static void
 pdf_filter_DP(fz_context *ctx, pdf_processor *proc, const char *tag, pdf_obj *raw, pdf_obj *cooked)
 {
 	pdf_sanitize_processor *p = (pdf_sanitize_processor*)proc;
+	sanitize_tag_text(ctx, p, cooked);
 
 	if (fz_is_empty_rect(p->gstate->clip_rect))
 		return;
@@ -2733,7 +2746,8 @@ pdf_filter_BDC(fz_context *ctx, pdf_processor *proc, const char *tag, pdf_obj *r
 		bdc->bdc = 1;
 		bdc->tag = fz_strdup(ctx, tag);
 		bdc->raw = pdf_keep_obj(ctx, raw);
-		bdc->cooked = pdf_keep_obj(ctx, raw);
+		bdc->cooked = pdf_keep_obj(ctx, cooked);
+		sanitize_tag_text(ctx, p, cooked);
 	}
 	fz_catch(ctx)
 	{

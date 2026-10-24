@@ -357,8 +357,10 @@ enum {
     CmdAddWatermark = 551,
     CmdAddHeaderFooter = 552,
     CmdBatesNumbering = 553,
+    CmdPdfSanitize = 554,
+    CmdPdfRedactSearch = 555,
 
-    CmdLast = 553,
+    CmdLast = 555,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

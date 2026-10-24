@@ -201,6 +201,8 @@ static const i32 removeIfNoDiskAccessPerm[] = {
     CmdClose,
     CmdShowInFolder,
     CmdSaveAs,
+    CmdPdfSanitize,
+    CmdPdfRedactSearch,
     CmdSaveSelectionAsImage,
     CmdRenameFile,
     CmdDeleteFile,
@@ -568,8 +570,9 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
         if (cmdId == CmdPdfShowInfo || cmdId == CmdPdfBake || cmdId == CmdPdfCompress || cmdId == CmdPdfDecompress ||
             cmdId == CmdPdfEncrypt || cmdId == CmdPdfDecrypt || cmdId == CmdPdfDeletePages ||
             cmdId == CmdPdfExtractPages || cmdId == CmdTogglePageBoxes || cmdId == CmdConvertPdfToImages ||
-            cmdId == CmdToggleEditPDF || cmdId == CmdMergePDF ||
-            cmdId == CmdAddWatermark || cmdId == CmdAddHeaderFooter || cmdId == CmdBatesNumbering) {
+            cmdId == CmdToggleEditPDF || cmdId == CmdMergePDF || cmdId == CmdAddWatermark ||
+            cmdId == CmdAddHeaderFooter || cmdId == CmdBatesNumbering || cmdId == CmdPdfSanitize ||
+            cmdId == CmdPdfRedactSearch) {
             return CommandVisibility::Hide;
         }
         // Swiftleaf page organizing

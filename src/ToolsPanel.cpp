@@ -58,6 +58,8 @@ static const ToolDef tools[] = {
     {gLucideStamp, TrN("Add watermark"), CmdAddWatermark},
     {gLucideType, TrN("Add header/footer"), CmdAddHeaderFooter},
     {gLucideTextCursorInput, TrN("Bates numbering"), CmdBatesNumbering},
+    {gLucideShield, TrN("Sanitize document"), CmdPdfSanitize},
+    {gLucideRectangleHorizontal, TrN("Redact all matches"), CmdPdfRedactSearch},
 };
 
 static const ToolDef stripTools[] = {
