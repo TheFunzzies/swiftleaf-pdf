@@ -7,6 +7,8 @@ including named destinations, follow the selected pages through reordering.
 Links to omitted pages are disabled. Base-document catalog data is retained.
 
 Imported JavaScript is removed because field renaming can invalidate scripts.
+Imported reset, submit, hide and import-data actions are disabled for the same
+reason; their original field names could otherwise target another source's fields.
 Digital signature values are cleared: rewriting a signed PDF cannot
 preserve its signature validity. Imported accessibility tags are omitted.
 Unsupported XFA forms use appearance flattening for the form alone. A warning

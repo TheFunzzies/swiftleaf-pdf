@@ -10547,6 +10547,12 @@ static void FixMergeObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, voi
     }
     if (fix->source == 0) return;
     RemovePdfScripts(ctx, doc, obj, fix->warnings);
+    const char* action = pdf_to_name(ctx, pdf_dict_get(ctx, obj, PDF_NAME(S)));
+    if (strcmp(action, "ResetForm") == 0 || strcmp(action, "SubmitForm") == 0 || strcmp(action, "Hide") == 0 ||
+        strcmp(action, "ImportData") == 0) {
+        pdf_dict_del(ctx, obj, PDF_NAME(S));
+        *fix->warnings |= PdfMergeFieldActionsRemoved;
+    }
     if (pdf_dict_get(ctx, obj, PDF_NAME(StructParent)) || pdf_dict_get(ctx, obj, PDF_NAME(StructParents))) {
         pdf_dict_del(ctx, obj, PDF_NAME(StructParent));
         pdf_dict_del(ctx, obj, PDF_NAME(StructParents));
@@ -10831,6 +10837,8 @@ TempStr EngineMupdfMergeWarningTemp(u32 warnings) {
     if (warnings & PdfMergeSignatureCleared)
         msg.Append(StrL("Digital signatures were cleared because merging invalidates them. "));
     if (warnings & PdfMergeStructureDropped) msg.Append(StrL("Imported accessibility tags were omitted. "));
+    if (warnings & PdfMergeFieldActionsRemoved)
+        msg.Append(StrL("Imported field actions were disabled because field names can change. "));
     return str::DupTemp(ToStr(msg));
 }
 

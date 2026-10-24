@@ -142,6 +142,7 @@ enum PdfMergeWarning : u32 {
     PdfMergeScriptsRemoved = 4,
     PdfMergeSignatureCleared = 8,
     PdfMergeStructureDropped = 16,
+    PdfMergeFieldActionsRemoved = 32,
 };
 
 struct PdfSanitizeOptions {

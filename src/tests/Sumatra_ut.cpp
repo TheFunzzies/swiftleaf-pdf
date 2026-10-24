@@ -842,6 +842,9 @@ static void ToolsTestFixture(fz_context* ctx, const char* path) {
     pdf_dict_put_text_string(ctx, widget, PDF_NAME(T), "value");
     pdf_dict_put_text_string(ctx, widget, PDF_NAME(V), "FORM-SECRET");
     pdf_dict_put_text_string(ctx, widget, PDF_NAME(DV), "FORM-DEFAULT-SECRET");
+    pdf_obj* reset = pdf_dict_put_dict(ctx, pdf_dict_put_dict(ctx, widget, PDF_NAME(AA), 1), PDF_NAME(D), 2);
+    pdf_dict_put_name(ctx, reset, PDF_NAME(S), "ResetForm");
+    pdf_array_push_text_string(ctx, pdf_dict_put_array(ctx, reset, PDF_NAME(Fields), 1), "same.value");
     pdf_dict_put_rect(ctx, widget, PDF_NAME(Rect), fz_make_rect(20, 20, 100, 40));
     pdf_obj* ref = pdf_add_object(ctx, doc, widget);
     pdf_array_push(ctx, annots, ref);
@@ -987,6 +990,8 @@ static void PdfDocumentToolsTest() {
                      "unique field names");
         pdf_obj* annots = pdf_dict_get(ctx, pdf_lookup_page_obj(ctx, doc, 2), PDF_NAME(Annots));
         CheckPdfTool(ctx, pdf_array_len(ctx, annots) == 4, "widget, comment, link and file annotation survive import");
+        CheckPdfTool(ctx, !pdf_dict_getp(ctx, pdf_array_get(ctx, annots, 0), "AA/D/S"),
+                     "unmapped imported field actions disabled");
         pdf_obj* target = pdf_array_get(ctx, pdf_dict_getp(ctx, pdf_array_get(ctx, annots, 2), "A/D"), 0);
         CheckPdfTool(ctx, pdf_to_num(ctx, target) == pdf_to_num(ctx, pdf_lookup_page_obj(ctx, doc, 1)),
                      "internal link remapped");
@@ -1093,6 +1098,7 @@ static void PdfDocumentToolsTest() {
         u32 warnings = 0;
         CheckPdfTool(ctx, EngineMupdfMergePdfs(sources, subset, mergedPath, &warnings), "partial-page import");
         CheckPdfTool(ctx, (warnings & PdfMergeDroppedTarget) != 0, "omitted destination reported");
+        CheckPdfTool(ctx, (warnings & PdfMergeFieldActionsRemoved) != 0, "field action fallback reported");
         doc = pdf_open_document(ctx, CStrTemp(mergedPath));
         annots = pdf_dict_get(ctx, pdf_lookup_page_obj(ctx, doc, 1), PDF_NAME(Annots));
         CheckPdfTool(ctx, !pdf_dict_getp(ctx, pdf_array_get(ctx, annots, 2), "A/D"), "omitted target disabled");
