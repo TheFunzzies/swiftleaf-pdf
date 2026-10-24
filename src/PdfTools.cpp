@@ -121,7 +121,7 @@ struct PdfToolDialog : WindowBase {
     void AddDestRow(Str destPath, WStr filter, WStr defExt);
     Edit* AddLabeledEdit(Str label, Str text, bool isPassword = false);
     void AddButtonsRow(Str actionText, Str hint = {});
-    void FinishDialog(Edit* focusOn);
+    void FinishDialog(Edit* focusOn, int minWidth = 480);
     VirtButton* NewButton(Str text, bool isDefault);
 
     void OnBrowse(VirtMouseEvent* ev = nullptr);
@@ -274,10 +274,10 @@ void PdfToolDialog::AddButtonsRow(Str actionText, Str hint) {
     row->AddChild(cancelBtn);
 }
 
-void PdfToolDialog::FinishDialog(Edit* focusOn) {
+void PdfToolDialog::FinishDialog(Edit* focusOn, int minWidth) {
     // size to a width that fits the source path (clamped), let the layout
     // compute the height
-    int minClientW = DpiScale(480);
+    int minClientW = DpiScale(minWidth);
     int clientW = CalcDlgWidth(font, srcPath, minClientW, DpiScale(10));
     Size size = layout->Layout(ExpandHeight(clientW));
     ResizeHwndToClientArea(hwnd, size.dx, size.dy, false);
@@ -4051,14 +4051,14 @@ bool PdfPrivacyDialog::Create(MainWindow* w, WindowTab* tab, bool isRedact) {
     } else {
         options[0] = AddCheck(Tr("Metadata"), true);
         options[1] = AddCheck(Tr("Hidden text/layers (rasterizes pages; removes forms, comments and links)"), false);
-        options[2] = AddCheck(Tr("Embedded JavaScript"), true);
+        options[2] = AddCheck(Tr("Embedded JavaScript (also removes XFA form packets)"), true);
         options[3] = AddCheck(Tr("Attachments"), true);
         options[4] = AddCheck(Tr("Comments"), true);
         options[5] = AddCheck(Tr("Form data and fields"), true);
         options[6] = AddCheck(Tr("Thumbnails"), true);
     }
     AddButtonsRow(redact ? Tr("Redact All Matches") : Tr("Sanitize"));
-    FinishDialog(redact ? term : destEdit);
+    FinishDialog(redact ? term : destEdit, 760);
     return true;
 }
 

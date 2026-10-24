@@ -201,6 +201,8 @@ static const i32 removeIfNoDiskAccessPerm[] = {
     CmdClose,
     CmdShowInFolder,
     CmdSaveAs,
+    CmdPdfSanitize,
+    CmdPdfRedactSearch,
     CmdSaveSelectionAsImage,
     CmdRenameFile,
     CmdDeleteFile,

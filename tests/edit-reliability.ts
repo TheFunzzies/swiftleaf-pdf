@@ -69,6 +69,7 @@ export async function testit(): Promise<void> {
   const launch = (pdf = original) =>
     launchControlled(["-appdata", appdata, "-view", "single page", "-zoom", "fit page", pdf]);
   let app = await launch();
+  let stage = "first edit";
   try {
     await app.client.waitForRenderIdle();
     check((await recovery(app.client, 0)) === "", "clean documents must not create recovery files");
@@ -93,6 +94,7 @@ export async function testit(): Promise<void> {
     );
     await recovery(app.client, 0);
 
+    stage = "live-instance exclusion";
     const other = await launch();
     try {
       check((await recovery(other.client, 1)) === "0", "live instance snapshots must not be offered");
@@ -106,6 +108,7 @@ export async function testit(): Promise<void> {
     await killAndWait(app.proc);
     check(existsSync(snapshot), "process termination must retain snapshot");
 
+    stage = "restore crashed document";
     app = await launch();
     check((await recovery(app.client, 1)) === "1", "next launch must find the crashed document");
     const restored = join(root, "restored.pdf");
@@ -115,6 +118,7 @@ export async function testit(): Promise<void> {
     await app.client.quit();
     await app.proc.exited;
     app.client.close();
+    stage = "read restored annotations";
     app = await launch(restored);
     await pollUntil(
       () => markup(app.client),
@@ -124,9 +128,11 @@ export async function testit(): Promise<void> {
     await app.proc.exited;
     app.client.close();
 
+    stage = "second edit";
     app = await launch();
     await edit(app.frame, app.client);
     const secondSession = await recovery(app.client, 0);
+    stage = "save cleanup";
     await app.client.resolveUnsavedChanges("save");
     check(!readdirSync(secondSession).some((p) => p.endsWith(".pdf")), "normal save must clean recovery");
     await app.client.quit();
@@ -138,12 +144,15 @@ export async function testit(): Promise<void> {
     mkdirSync(stale, { recursive: true });
     writeFileSync(join(stale, "document.pdf"), before);
     writeFileSync(join(stale, "document.pdf.path"), original);
+    stage = "discard leftover";
     app = await launch();
     check((await recovery(app.client, 1)) === "1", "discard fixture must be discoverable");
     await recovery(app.client, 3);
     check(!existsSync(join(stale, "document.pdf")), "Discard must remove leftover recovery files");
     await app.client.quit();
     await app.proc.exited;
+  } catch (error) {
+    throw new Error(`${stage}: ${(error as Error).message}`);
   } finally {
     app.client.close();
     await killAndWait(app.proc);

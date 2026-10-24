@@ -7,7 +7,7 @@ including named destinations, follow the selected pages through reordering.
 Links to omitted pages are disabled. Base-document catalog data is retained.
 
 Imported JavaScript is removed because field renaming can invalidate scripts.
-Imported digital signature values are cleared: rewriting a signed PDF cannot
+Digital signature values are cleared: rewriting a signed PDF cannot
 preserve its signature validity. Imported accessibility tags are omitted.
 Unsupported XFA forms use appearance flattening for the form alone. A warning
 lists these fallbacks after a successful merge or insertion. Ordinary AcroForm
@@ -24,7 +24,8 @@ Save a separate copy. Each option can be selected independently:
   their visible appearances. It reduces image quality and removes searchable
   text. Other options determine whether comments/forms are removed before rendering.
 - Embedded JavaScript: document, field, page and annotation script actions.
-- Attachments: embedded-file name trees, associated files and attachment annotations.
+  XFA form packets are also removed, since their XML can contain scripts.
+- Attachments: embedded-file name trees, associated files and attachment/multimedia annotations.
 - Comments: annotations except form widgets and links.
 - Form data and fields: fields, default/current values and widget appearances.
 - Thumbnails: embedded page previews.

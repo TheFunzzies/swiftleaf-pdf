@@ -17,6 +17,9 @@ import {
   getMenuItemId,
   getPopupMenuHandle,
   getWindowText,
+  getWindowPid,
+  enumWindows,
+  enumChildWindows,
   isWindowVisible,
   moveWindow,
   packCoords,
@@ -29,6 +32,7 @@ import {
   WM_KEYDOWN,
   WM_LBUTTONDOWN,
   WM_LBUTTONUP,
+  WM_CLOSE,
 } from "./winapi.ts";
 
 export const TOOLS_PANEL_CLASS = "SWIFTLEAF_TOOLS_PANEL";
@@ -150,12 +154,61 @@ export async function testit(): Promise<void> {
           "Every tool needs a tooltip",
           raw,
         );
-        if (!mode) want(rows.length === 19, "All tools must retain its 19 rows", raw);
-        else want(!rows.some((r) => r.text === "Export a PDF"), "Fixed All tools rows leaked into a mode", raw);
+        if (!mode) {
+          want(rows.length === 19, "All tools must retain its 19 rows", raw);
+          for (const command of ["CmdPdfSanitize", "CmdPdfRedactSearch"]) {
+            want(
+              rows.some((r) => r.cmd === cmdId(command) && r.enabled),
+              `Missing enabled ${command}`,
+              raw,
+            );
+          }
+        } else want(!rows.some((r) => r.text === "Export a PDF"), "Fixed All tools rows leaked into a mode", raw);
         const dy = getClientRect(ribbon).bottom - getClientRect(ribbon).top;
         if (!height) height = dy;
         want(dy === height, "Tab switching changed slim ribbon height", raw);
       }
+    }
+
+    for (const [command, title, checkboxes] of [
+      ["CmdPdfSanitize", "Sanitize Document", 7],
+      ["CmdPdfRedactSearch", "Redact All Search Matches", 1],
+    ] as const) {
+      await client.request(ControlCommand.TestInvokeCommand, [command]);
+      const dialog = await pollUntil(
+        async () => {
+          let found = 0;
+          enumWindows((hwnd) => {
+            if (getWindowPid(hwnd) === proc.pid && getWindowText(hwnd) === title && isWindowVisible(hwnd)) found = hwnd;
+            return true;
+          });
+          return found;
+        },
+        Boolean,
+        { error: () => `${title} dialog did not open` },
+      );
+      let checks = 0;
+      enumChildWindows(dialog, (hwnd) => {
+        const text = getWindowText(hwnd);
+        if (
+          text === "Metadata" ||
+          text.startsWith("Hidden text/layers") ||
+          text.startsWith("Embedded JavaScript") ||
+          text === "Attachments" ||
+          text === "Comments" ||
+          text === "Form data and fields" ||
+          text === "Thumbnails" ||
+          text.startsWith("Regular expression")
+        )
+          checks++;
+        return true;
+      });
+      want(checks === checkboxes, `${title} lost selectable options: ${checks}`);
+      postMessage(dialog, WM_CLOSE, 0, 0);
+      await pollUntil(
+        async () => isWindowVisible(dialog),
+        (visible) => !visible,
+      );
     }
 
     // Read tab: assert a row triggers its command (CmdFacingView)

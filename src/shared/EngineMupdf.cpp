@@ -10528,12 +10528,12 @@ static void FixMergeObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, voi
         FixMergeDest(ctx, doc, obj, PDF_NAME(D), fix);
         if (!pdf_dict_get(ctx, obj, PDF_NAME(D))) pdf_dict_del(ctx, obj, PDF_NAME(S));
     }
-    if (fix->source == 0) return;
-    RemovePdfScripts(ctx, doc, obj, fix->warnings);
     if (pdf_name_eq(ctx, pdf_dict_get(ctx, obj, PDF_NAME(FT)), PDF_NAME(Sig)) && pdf_dict_get(ctx, obj, PDF_NAME(V))) {
         pdf_dict_del(ctx, obj, PDF_NAME(V));
         *fix->warnings |= PdfMergeSignatureCleared;
     }
+    if (fix->source == 0) return;
+    RemovePdfScripts(ctx, doc, obj, fix->warnings);
     if (pdf_dict_get(ctx, obj, PDF_NAME(StructParent)) || pdf_dict_get(ctx, obj, PDF_NAME(StructParents))) {
         pdf_dict_del(ctx, obj, PDF_NAME(StructParent));
         pdf_dict_del(ctx, obj, PDF_NAME(StructParents));
@@ -10577,9 +10577,18 @@ static void FixFieldFonts(fz_context* ctx, pdf_document*, pdf_obj* obj, void* ar
         int start = ++i;
         while (i < n && !strchr(" \t\r\n/[]<>()%", s[i])) i++;
         Str token(s + start, i - start);
+        str::Builder decoded;
+        for (int j = 0; j < len(token); j++) {
+            char value;
+            if (token.s[j] == '#' && j + 2 < len(token) && str::HexToMem(Str(token.s + j + 1, 2), Str(&value, 1))) {
+                decoded.AppendChar(value);
+                j += 2;
+            } else
+                decoded.AppendChar(token.s[j]);
+        }
         Str replacement = token;
         for (auto& name : *(Vec<MergeFontName>*)arg) {
-            if (str::Eq(token, name.oldName)) {
+            if (str::Eq(ToStr(decoded), name.oldName)) {
                 replacement = name.newName;
                 break;
             }
@@ -10601,12 +10610,17 @@ static void MergePdfForms(fz_context* ctx, pdf_obj* root, pdf_obj* source, pdf_g
     for (int i = 0; i < pdf_dict_len(ctx, srcRes); i++) {
         pdf_obj* kind = pdf_dict_get_key(ctx, srcRes, i);
         pdf_obj* entries = pdf_dict_get_val(ctx, srcRes, i);
+        if (!pdf_is_dict(ctx, entries)) {
+            if (!pdf_dict_get(ctx, resources, kind))
+                pdf_dict_put_drop(ctx, resources, kind, pdf_graft_mapped_object(ctx, map, entries));
+            continue;
+        }
         pdf_obj* destEntries = EnsurePdfDict(ctx, resources, kind);
         for (int j = 0; j < pdf_dict_len(ctx, entries); j++) {
             const char* old = pdf_to_name(ctx, pdf_dict_get_key(ctx, entries, j));
             TempStr name;
             for (int suffix = 1;; suffix++) {
-                name = fmt("SL%d_%d_%s", index, suffix, Str(old));
+                name = fmt("SL%d_%d_%d_%d", index, i, j, suffix);
                 if (!pdf_dict_gets(ctx, destEntries, CStrTemp(name))) break;
             }
             pdf_dict_puts_drop(ctx, destEntries, CStrTemp(name),
@@ -10622,8 +10636,7 @@ static void MergePdfForms(fz_context* ctx, pdf_obj* root, pdf_obj* source, pdf_g
             if (da) pdf_dict_put(ctx, original, PDF_NAME(DA), da);
         }
     }
-    // Resources and DA are rewritten in the source before the field graph is grafted.
-    // Fields may already have been grafted through page annotations; update those DA values too below.
+    // Pages and field roots share the same graft map; their widget objects stay identical.
     pdf_obj* imported = pdf_graft_mapped_object(ctx, map, roots);
     fz_try(ctx) {
         for (int i = 0; i < pdf_array_len(ctx, imported); i++) {
@@ -10637,6 +10650,8 @@ static void MergePdfForms(fz_context* ctx, pdf_obj* root, pdf_obj* source, pdf_g
                 pdf_obj* da = pdf_dict_get(ctx, form, PDF_NAME(DA));
                 if (da) pdf_dict_put(ctx, field, PDF_NAME(DA), da);
             }
+            if (!pdf_dict_get(ctx, field, PDF_NAME(Q)) && pdf_dict_get(ctx, form, PDF_NAME(Q)))
+                pdf_dict_put(ctx, field, PDF_NAME(Q), pdf_dict_get(ctx, form, PDF_NAME(Q)));
             pdf_array_push(ctx, fields, field);
         }
         // The mapped widget/field graph shares indirect objects. Visit every copied field, including Kids.
@@ -10801,7 +10816,7 @@ TempStr EngineMupdfMergeWarningTemp(u32 warnings) {
     if (warnings & PdfMergeScriptsRemoved)
         msg.Append(StrL("Imported JavaScript was removed because field names can change. "));
     if (warnings & PdfMergeSignatureCleared)
-        msg.Append(StrL("Imported digital signatures were cleared because merging invalidates them. "));
+        msg.Append(StrL("Digital signatures were cleared because merging invalidates them. "));
     if (warnings & PdfMergeStructureDropped) msg.Append(StrL("Imported accessibility tags were omitted. "));
     return str::DupTemp(ToStr(msg));
 }
@@ -10940,6 +10955,10 @@ bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePag
         for (int i = pdf_array_len(ctx, fields) - 1; i >= 0; i--) {
             if (!PruneMergeField(ctx, pdf_array_get(ctx, fields, i), widgets)) pdf_array_delete(ctx, fields, i);
         }
+        if (warnings & PdfMergeSignatureCleared) {
+            pdf_dict_dels(ctx, root, "Perms");
+            pdf_dict_del(ctx, pdf_dict_get(ctx, root, PDF_NAME(AcroForm)), PDF_NAME(SigFlags));
+        }
         pdf_write_options opts = gPdfDefaultWriteOptions;
         opts.do_compress = 1;
         // Equal dictionaries can still represent distinct fields or layers. Keep their object identities.
@@ -10963,7 +10982,11 @@ bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePag
 
 static void SanitizePdfObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, void* arg) {
     auto& opts = *(const PdfSanitizeOptions*)arg;
-    if (opts.javascript) RemovePdfScripts(ctx, doc, obj, nullptr);
+    if (opts.javascript) {
+        RemovePdfScripts(ctx, doc, obj, nullptr);
+        // XML-based XFA can carry scripts outside PDF action dictionaries.
+        pdf_dict_dels(ctx, obj, "XFA");
+    }
     if (opts.metadata) {
         pdf_dict_del(ctx, obj, PDF_NAME(Metadata));
         pdf_dict_dels(ctx, obj, "PieceInfo");
@@ -10974,6 +10997,11 @@ static void SanitizePdfObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, 
         pdf_dict_del(ctx, obj, PDF_NAME(AF));
         pdf_dict_del(ctx, obj, PDF_NAME(EF));
         pdf_dict_del(ctx, obj, PDF_NAME(Collection));
+        pdf_dict_dels(ctx, obj, "RF");
+        pdf_dict_dels(ctx, obj, "RichMediaContent");
+        pdf_dict_dels(ctx, obj, "RichMediaSettings");
+        pdf_dict_dels(ctx, obj, "Sound");
+        pdf_dict_dels(ctx, obj, "Movie");
         if (pdf_dict_get(ctx, obj, PDF_NAME(Subtype)) == PDF_NAME(FileAttachment)) pdf_dict_del(ctx, obj, PDF_NAME(FS));
     }
     if (opts.forms) {
@@ -10991,8 +11019,11 @@ static void SanitizePdfObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, 
         pdf_obj* type = pdf_dict_get(ctx, a, PDF_NAME(Subtype));
         bool widget = type == PDF_NAME(Widget);
         bool link = type == PDF_NAME(Link);
+        const char* name = pdf_to_name(ctx, type);
+        bool media = strcmp(name, "RichMedia") == 0 || strcmp(name, "Sound") == 0 || strcmp(name, "Movie") == 0 ||
+                     strcmp(name, "Screen") == 0;
         if ((opts.forms && widget) || (opts.comments && !widget && !link) ||
-            (opts.attachments && type == PDF_NAME(FileAttachment)))
+            (opts.attachments && (type == PDF_NAME(FileAttachment) || media)))
             pdf_array_delete(ctx, annots, i);
     }
     if (opts.comments &&

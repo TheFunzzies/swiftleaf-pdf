@@ -87,15 +87,12 @@ static Str liveContent = StrL("unsaved-annotations");
 static bool EngineMupdfSaveCopy(EngineBase*, Str p) {
     return !failSave && file::WriteFile(p, liveContent);
 }
-static bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& src, const Vec<PdfMergePage>&, Str out,
-                                 u32* warnings = nullptr) {
+static bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& src, const Vec<PdfMergePage>&, Str out, u32* warnings = nullptr) {
     if (warnings) *warnings = 0;
     if (failMerge || !file::Exists(src[0].path)) return false;
     return file::WriteFile(out, StrL("reorganized"));
 }
-static TempStr EngineMupdfMergeWarningTemp(u32) {
-    return {};
-}
+static TempStr EngineMupdfMergeWarningTemp(u32) { return {}; }
 static bool ReplaceCurrentDocumentFile(MainWindow* win, Str from, int) {
     replacements++;
     ToolbarUpdateStateForWindow(win, true); // document reload rebuilds the toolbar

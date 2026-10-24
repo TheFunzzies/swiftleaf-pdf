@@ -830,20 +830,29 @@ static void ToolsTestFixture(fz_context* ctx, const char* path) {
     pdf_obj* form = pdf_dict_put_dict(ctx, root, PDF_NAME(AcroForm), 3);
     pdf_obj* formRes = pdf_dict_put_dict(ctx, form, PDF_NAME(DR), 1);
     pdf_dict_put(ctx, formRes, PDF_NAME(Font), fonts);
-    pdf_dict_put_text_string(ctx, form, PDF_NAME(DA), "/Helv 12 Tf 0 g");
+    pdf_dict_puts(ctx, fonts, "Font name", font);
+    pdf_dict_put_text_string(ctx, form, PDF_NAME(DA), "/Font#20name 12 Tf 0 g");
+    pdf_dict_put_int(ctx, form, PDF_NAME(Q), 2);
     pdf_obj* fields = pdf_dict_put_array(ctx, form, PDF_NAME(Fields), 1);
     pdf_obj* widget = pdf_new_dict(ctx, doc, 8);
     pdf_dict_put(ctx, widget, PDF_NAME(Type), PDF_NAME(Annot));
     pdf_dict_put(ctx, widget, PDF_NAME(Subtype), PDF_NAME(Widget));
     pdf_dict_put(ctx, widget, PDF_NAME(FT), PDF_NAME(Tx));
-    pdf_dict_put_text_string(ctx, widget, PDF_NAME(T), "same");
+    pdf_dict_put_text_string(ctx, widget, PDF_NAME(T), "value");
     pdf_dict_put_text_string(ctx, widget, PDF_NAME(V), "FORM-SECRET");
     pdf_dict_put_text_string(ctx, widget, PDF_NAME(DV), "FORM-DEFAULT-SECRET");
     pdf_dict_put_rect(ctx, widget, PDF_NAME(Rect), fz_make_rect(20, 20, 100, 40));
     pdf_dict_put(ctx, widget, PDF_NAME(P), p0);
     pdf_obj* ref = pdf_add_object(ctx, doc, widget);
     pdf_array_push(ctx, annots, ref);
-    pdf_array_push(ctx, fields, ref);
+    pdf_obj* group = pdf_new_dict(ctx, doc, 2);
+    pdf_dict_put_text_string(ctx, group, PDF_NAME(T), "same");
+    pdf_obj* groupRef = pdf_add_object(ctx, doc, group);
+    pdf_array_push(ctx, pdf_dict_put_array(ctx, group, PDF_NAME(Kids), 1), ref);
+    pdf_dict_put(ctx, widget, PDF_NAME(Parent), groupRef);
+    pdf_array_push(ctx, fields, groupRef);
+    pdf_drop_obj(ctx, groupRef);
+    pdf_drop_obj(ctx, group);
     pdf_drop_obj(ctx, ref);
     pdf_drop_obj(ctx, widget);
     pdf_obj* comment = pdf_array_push_dict(ctx, annots, 3);
@@ -878,6 +887,14 @@ static void ToolsTestFixture(fz_context* ctx, const char* path) {
     pdf_obj* entries = pdf_dict_put_array(ctx, tree, PDF_NAME(Names), 2);
     pdf_array_push_text_string(ctx, entries, "note.txt");
     pdf_array_push(ctx, entries, spec);
+    pdf_obj* namedDests = pdf_dict_put_dict(ctx, names, PDF_NAME(Dests), 1);
+    pdf_obj* destNames = pdf_dict_put_array(ctx, namedDests, PDF_NAME(Names), 2);
+    pdf_array_push_text_string(ctx, destNames, "target");
+    pdf_array_push(ctx, destNames, dest);
+    pdf_obj* gotoAction = pdf_dict_put_dict(ctx, link, PDF_NAME(A), 2);
+    pdf_dict_put(ctx, gotoAction, PDF_NAME(S), PDF_NAME(GoTo));
+    pdf_dict_put_text_string(ctx, gotoAction, PDF_NAME(D), "target");
+    pdf_dict_del(ctx, link, PDF_NAME(Dest));
     pdf_obj* fileAnnot = pdf_array_push_dict(ctx, annots, 4);
     pdf_dict_put(ctx, fileAnnot, PDF_NAME(Subtype), PDF_NAME(FileAttachment));
     pdf_dict_put_rect(ctx, fileAnnot, PDF_NAME(Rect), fz_make_rect(150, 150, 170, 170));
@@ -970,7 +987,7 @@ static void PdfDocumentToolsTest() {
                      "unique field names");
         pdf_obj* annots = pdf_dict_get(ctx, pdf_lookup_page_obj(ctx, doc, 2), PDF_NAME(Annots));
         CheckPdfTool(ctx, pdf_array_len(ctx, annots) == 4, "widget, comment, link and file annotation survive import");
-        pdf_obj* target = pdf_array_get(ctx, pdf_dict_get(ctx, pdf_array_get(ctx, annots, 2), PDF_NAME(Dest)), 0);
+        pdf_obj* target = pdf_array_get(ctx, pdf_dict_getp(ctx, pdf_array_get(ctx, annots, 2), "A/D"), 0);
         CheckPdfTool(ctx, pdf_to_num(ctx, target) == pdf_to_num(ctx, pdf_lookup_page_obj(ctx, doc, 1)),
                      "internal link remapped");
         pdf_obj* bookmarks = pdf_dict_get(ctx, root, PDF_NAME(Outlines));
@@ -982,10 +999,21 @@ static void PdfDocumentToolsTest() {
         CheckPdfTool(ctx, !pdf_layer_is_enabled(ctx, doc, 0) && !pdf_layer_is_enabled(ctx, doc, 1),
                      "layer visibility retained");
         CheckPdfTool(ctx, ToolsTestObjectText(ctx, doc, "ATTACHMENT-SECRET"), "attachment bytes retained");
-        CheckPdfTool(ctx, pdf_set_field_value(ctx, doc, pdf_array_get(ctx, fields, 1), "EDITED", 1),
+        CheckPdfTool(ctx, pdf_set_field_value(ctx, doc, pdf_array_get(ctx, annots, 0), "EDITED", 1),
                      "imported field is editable");
-        CheckPdfTool(ctx, strcmp(pdf_field_value(ctx, pdf_array_get(ctx, fields, 0)), "FORM-SECRET") == 0,
+        pdf_obj* originalWidget =
+            pdf_array_get(ctx, pdf_dict_get(ctx, pdf_lookup_page_obj(ctx, doc, 0), PDF_NAME(Annots)), 0);
+        CheckPdfTool(ctx, strcmp(pdf_field_value(ctx, originalWidget), "FORM-SECRET") == 0,
                      "colliding fields are independent");
+        pdf_obj* importedRoot = pdf_array_get(ctx, fields, 1);
+        CheckPdfTool(ctx, pdf_array_len(ctx, pdf_dict_get(ctx, importedRoot, PDF_NAME(Kids))) == 1,
+                     "field hierarchy retained");
+        CheckPdfTool(ctx, pdf_dict_get_int(ctx, importedRoot, PDF_NAME(Q)) == 2, "default field alignment retained");
+        const char* da = pdf_dict_get_text_string(ctx, importedRoot, PDF_NAME(DA));
+        char fontName[80] = {};
+        sscanf_s(da, "/%79s", fontName, (unsigned)sizeof(fontName));
+        CheckPdfTool(ctx, pdf_dict_gets(ctx, pdf_dict_getp(ctx, root, "AcroForm/DR/Font"), fontName) != nullptr,
+                     "escaped default font name remapped");
         pdf_drop_obj(ctx, files);
         pdf_drop_document(ctx, doc);
         PdfSanitizeOptions opts;
@@ -1059,6 +1087,42 @@ static void PdfDocumentToolsTest() {
         bool unchanged = str::Eq(existing, StrL("keep-existing-output"));
         str::Free(existing);
         CheckPdfTool(ctx, unchanged, "failed redaction preserves output");
+        Vec<PdfMergePage> subset;
+        VecAppend(subset, PdfMergePage{0, 1});
+        VecAppend(subset, PdfMergePage{1, 1});
+        u32 warnings = 0;
+        CheckPdfTool(ctx, EngineMupdfMergePdfs(sources, subset, mergedPath, &warnings), "partial-page import");
+        CheckPdfTool(ctx, (warnings & PdfMergeDroppedTarget) != 0, "omitted destination reported");
+        doc = pdf_open_document(ctx, CStrTemp(mergedPath));
+        annots = pdf_dict_get(ctx, pdf_lookup_page_obj(ctx, doc, 1), PDF_NAME(Annots));
+        CheckPdfTool(ctx, !pdf_dict_getp(ctx, pdf_array_get(ctx, annots, 2), "A/D"), "omitted target disabled");
+        CheckPdfTool(ctx, pdf_array_len(ctx, pdf_dict_getp(ctx, ToolsTestRoot(ctx, doc), "AcroForm/Fields")) == 2,
+                     "partial import keeps fields");
+        pdf_drop_document(ctx, doc);
+        doc = pdf_open_document(ctx, CStrTemp(sourcePath));
+        pdf_dict_puts_drop(ctx, pdf_dict_get(ctx, ToolsTestRoot(ctx, doc), PDF_NAME(AcroForm)), "XFA",
+                           pdf_new_text_string(ctx, "JS-XML-SECRET"));
+        pdf_write_options writeOpts = {};
+        pdf_save_document(ctx, doc, CStrTemp(cleanPath), &writeOpts);
+        pdf_drop_document(ctx, doc);
+        PdfMergeSource xfaSource{cleanPath, {}};
+        opts.javascript = true;
+        CheckPdfTool(ctx, EngineMupdfSanitizePdf(xfaSource, redactedPath, opts, &error), "XFA script sanitation");
+        doc = pdf_open_document(ctx, CStrTemp(redactedPath));
+        CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "JS-XML-SECRET"), "XFA script packet removed");
+        CheckPdfTool(ctx, ToolsTestObjectText(ctx, doc, "FORM-SECRET"),
+                     "XFA fallback keeps ordinary fields when unchecked");
+        pdf_drop_document(ctx, doc);
+        sources[1] = xfaSource;
+        CheckPdfTool(ctx, EngineMupdfMergePdfs(sources, pages, mergedPath, &warnings), "XFA form fallback");
+        CheckPdfTool(ctx, (warnings & PdfMergeFormFallback) != 0, "XFA fallback reported");
+        doc = pdf_open_document(ctx, CStrTemp(mergedPath));
+        CheckPdfTool(ctx, pdf_array_len(ctx, pdf_dict_getp(ctx, ToolsTestRoot(ctx, doc), "AcroForm/Fields")) == 1,
+                     "XFA fallback affects imported forms only");
+        CheckPdfTool(ctx,
+                     pdf_array_len(ctx, pdf_dict_get(ctx, pdf_lookup_page_obj(ctx, doc, 2), PDF_NAME(Annots))) == 3,
+                     "XFA fallback preserves other annotations");
+        pdf_drop_document(ctx, doc);
         valid = true;
     }
     fz_catch(ctx) {
