@@ -28,6 +28,7 @@ async function markup(client: ControlClient): Promise<string> {
   return String((await client.request(ControlCommand.TestMarkupAnnots, []))[1] ?? "");
 }
 async function edit(frame: number, client: ControlClient): Promise<void> {
+  await client.waitForRenderIdle();
   const canvas = findCanvas(frame);
   const size = getClientRect(canvas);
   sendMessage(frame, WM_COMMAND, cmdId("CmdCreateAnnotFreeText"), packCoords(size.right / 2, size.bottom / 2));
