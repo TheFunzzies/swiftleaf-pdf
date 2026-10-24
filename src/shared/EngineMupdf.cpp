@@ -10942,7 +10942,8 @@ bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePag
         }
         pdf_write_options opts = gPdfDefaultWriteOptions;
         opts.do_compress = 1;
-        opts.do_garbage = 3;
+        // Equal dictionaries can still represent distinct fields or layers. Keep their object identities.
+        opts.do_garbage = 2;
         pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
         ok = output.Commit();
     }
@@ -10994,7 +10995,8 @@ static void SanitizePdfObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, 
             (opts.attachments && type == PDF_NAME(FileAttachment)))
             pdf_array_delete(ctx, annots, i);
     }
-    if (opts.comments && pdf_dict_get(ctx, obj, PDF_NAME(Type)) == PDF_NAME(Annot) &&
+    if (opts.comments &&
+        (pdf_dict_get(ctx, obj, PDF_NAME(Type)) == PDF_NAME(Annot) || pdf_dict_get(ctx, obj, PDF_NAME(Rect))) &&
         pdf_dict_get(ctx, obj, PDF_NAME(Subtype)) != PDF_NAME(Widget) &&
         pdf_dict_get(ctx, obj, PDF_NAME(Subtype)) != PDF_NAME(Link)) {
         pdf_dict_del(ctx, obj, PDF_NAME(Contents));
@@ -11030,11 +11032,8 @@ static void RasterSanitizePage(fz_context* ctx, pdf_document* doc, int number) {
         fz_close_device(ctx, device);
         pdf_obj* obj = pdf_lookup_page_obj(ctx, doc, number);
         pdf_obj* parent = pdf_keep_obj(ctx, pdf_dict_get(ctx, obj, PDF_NAME(Parent)));
-        pdf_dict_del(ctx, obj, PDF_NAME(Annots));
-        pdf_dict_del(ctx, obj, PDF_NAME(AA));
-        pdf_dict_del(ctx, obj, PDF_NAME(OC));
-        pdf_dict_del(ctx, obj, PDF_NAME(PieceInfo));
-        pdf_dict_del(ctx, obj, PDF_NAME(StructParents));
+        while (pdf_dict_len(ctx, obj)) pdf_dict_del(ctx, obj, pdf_dict_get_key(ctx, obj, 0));
+        pdf_dict_put(ctx, obj, PDF_NAME(Type), PDF_NAME(Page));
         pdf_dict_put_rect(ctx, obj, PDF_NAME(MediaBox), box);
         pdf_dict_put_rect(ctx, obj, PDF_NAME(CropBox), box);
         pdf_dict_put_int(ctx, obj, PDF_NAME(Rotate), 0);
@@ -11056,11 +11055,15 @@ static void RasterSanitizePage(fz_context* ctx, pdf_document* doc, int number) {
     }
 }
 
+static void DropPageResources(fz_context* ctx, pdf_document*, pdf_obj* obj, void*) {
+    if (pdf_dict_get(ctx, obj, PDF_NAME(Type)) == PDF_NAME(Pages)) pdf_dict_del(ctx, obj, PDF_NAME(Resources));
+}
+
 static bool SaveCleanPdf(fz_context* ctx, pdf_document* doc, file::AtomicFile& output) {
     if (!len(output.tempPath)) fz_throw(ctx, FZ_ERROR_SYSTEM, "Cannot stage PDF output");
     pdf_write_options opts = gPdfDefaultWriteOptions;
     opts.do_incremental = 0;
-    opts.do_garbage = 4;
+    opts.do_garbage = 2;
     opts.do_compress = 1;
     pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
     if (!output.Commit()) fz_throw(ctx, FZ_ERROR_SYSTEM, "Cannot replace PDF output");
@@ -11086,6 +11089,7 @@ bool EngineMupdfSanitizePdf(const PdfMergeSource& src, Str destPath, const PdfSa
         }
         if (options.hiddenContent) {
             for (int i = 0; i < pdf_count_pages(ctx, doc); i++) RasterSanitizePage(ctx, doc, i);
+            VisitPdfObjects(ctx, doc, DropPageResources, nullptr);
             pdf_dict_del(ctx, root, PDF_NAME(OCProperties));
             pdf_dict_del(ctx, root, PDF_NAME(AcroForm));
             pdf_dict_del(ctx, root, PDF_NAME(StructTreeRoot));
@@ -11137,7 +11141,7 @@ static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str 
     fz_try(ctx) {
         page = pdf_load_page(ctx, doc, number);
         fz_stext_options opts = {};
-        opts.flags = FZ_STEXT_PRESERVE_WHITESPACE | FZ_STEXT_PRESERVE_SPANS;
+        opts.flags = FZ_STEXT_PRESERVE_WHITESPACE;
         text = fz_new_stext_page_from_page(ctx, (fz_page*)page, &opts);
         str::Builder utf8;
         Vec<RedactChar> chars;
@@ -11222,7 +11226,15 @@ bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term,
     fz_try(ctx) {
         if (mode == PdfSearchMode::Regex) regex = fz_regcomp(ctx, CStrTemp(term), REG_NEWLINE);
         doc = OpenPdfForMerge(ctx, src);
+        // Fields must become page content so their values and original appearance streams cannot survive a match.
+        if (pdf_dict_get(ctx, MergeRoot(ctx, doc), PDF_NAME(AcroForm))) pdf_bake_document(ctx, doc, 0, 1);
+        Vec<int> layerStates;
+        for (int i = 0; i < pdf_count_layers(ctx, doc); i++) {
+            VecAppend(layerStates, pdf_layer_is_enabled(ctx, doc, i));
+            pdf_enable_layer(ctx, doc, i, 1);
+        }
         for (int i = 0; i < pdf_count_pages(ctx, doc); i++) count += RedactSearchPage(ctx, doc, i, term, regex);
+        for (int i = 0; i < len(layerStates); i++) pdf_enable_layer(ctx, doc, i, layerStates[i]);
         if (count) {
             // Tags and thumbnails can hold copies of removed content.
             pdf_dict_del(ctx, MergeRoot(ctx, doc), PDF_NAME(StructTreeRoot));

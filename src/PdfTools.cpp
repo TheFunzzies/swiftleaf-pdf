@@ -4047,6 +4047,7 @@ bool PdfPrivacyDialog::Create(MainWindow* w, WindowTab* tab, bool isRedact) {
             {.s = Tr("Searches all pages, including invisible text. Images are not OCR searched."), .font = font}));
         AddRow()->AddChild(NewVirtText(
             {.s = Tr("Matching areas lose text, touching images and graphics. Save a separate copy."), .font = font}));
+        AddRow()->AddChild(NewVirtText({.s = Tr("Form fields are flattened before searching."), .font = font}));
     } else {
         options[0] = AddCheck(Tr("Metadata"), true);
         options[1] = AddCheck(Tr("Hidden text/layers (rasterizes pages; removes forms, comments and links)"), false);

@@ -782,8 +782,31 @@ static void ToolsTestFixture(fz_context* ctx, const char* path) {
     pdf_dict_put(ctx, font, PDF_NAME(Type), PDF_NAME(Font));
     pdf_dict_put(ctx, font, PDF_NAME(Subtype), PDF_NAME(Type1));
     pdf_dict_put_name(ctx, font, PDF_NAME(BaseFont), "Helvetica");
+    pdf_obj* layer = pdf_new_dict(ctx, doc, 2);
+    pdf_dict_put_name(ctx, layer, PDF_NAME(Type), "OCG");
+    pdf_dict_put_text_string(ctx, layer, PDF_NAME(Name), "Private layer");
+    pdf_obj* layerRef = pdf_add_object(ctx, doc, layer);
+    pdf_drop_obj(ctx, layer);
+    pdf_obj* properties = pdf_dict_put_dict(ctx, res, PDF_NAME(Properties), 1);
+    pdf_dict_puts(ctx, properties, "SecretLayer", layerRef);
+    fz_buffer* pixels = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)"IMAGE-SECRET", 12);
+    pdf_obj* image = pdf_new_dict(ctx, doc, 6);
+    pdf_dict_put(ctx, image, PDF_NAME(Type), PDF_NAME(XObject));
+    pdf_dict_put(ctx, image, PDF_NAME(Subtype), PDF_NAME(Image));
+    pdf_dict_put_int(ctx, image, PDF_NAME(Width), 12);
+    pdf_dict_put_int(ctx, image, PDF_NAME(Height), 1);
+    pdf_dict_put_int(ctx, image, PDF_NAME(BitsPerComponent), 8);
+    pdf_dict_put(ctx, image, PDF_NAME(ColorSpace), PDF_NAME(DeviceGray));
+    pdf_obj* imageRef = pdf_add_stream(ctx, doc, pixels, image, 0);
+    pdf_dict_puts(ctx, pdf_dict_put_dict(ctx, res, PDF_NAME(XObject), 1), "SecretImage", imageRef);
+    pdf_drop_obj(ctx, imageRef);
+    pdf_drop_obj(ctx, image);
+    fz_drop_buffer(ctx, pixels);
     for (int i = 0; i < 2; i++) {
-        const char* text = "BT /Helv 12 Tf 20 120 Td (ID-123 ID-456 public) Tj 0 -20 Td 3 Tr (HIDDEN) Tj ET";
+        const char* text =
+            "q 140 0 0 20 20 115 cm /SecretImage Do Q "
+            "BT /Helv 12 Tf 20 120 Td (ID-123 ID-456 public) Tj 0 -20 Td 3 Tr (HIDDEN) Tj ET "
+            "/OC /SecretLayer BDC BT /Helv 12 Tf 20 70 Td (LAYER-SECRET) Tj ET EMC";
         fz_buffer* buf = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)text, strlen(text));
         pdf_obj* page = pdf_add_page(ctx, doc, fz_make_rect(0, 0, 200, 200), 0, res, buf);
         pdf_insert_page(ctx, doc, -1, page);
@@ -791,11 +814,22 @@ static void ToolsTestFixture(fz_context* ctx, const char* path) {
         fz_drop_buffer(ctx, buf);
     }
     pdf_obj* root = ToolsTestRoot(ctx, doc);
+    pdf_obj* oc = pdf_dict_put_dict(ctx, root, PDF_NAME(OCProperties), 2);
+    pdf_array_push(ctx, pdf_dict_put_array(ctx, oc, PDF_NAME(OCGs), 1), layerRef);
+    pdf_obj* config = pdf_dict_put_dict(ctx, oc, PDF_NAME(D), 2);
+    pdf_dict_put(ctx, config, PDF_NAME(BaseState), PDF_NAME(ON));
+    pdf_array_push(ctx, pdf_dict_put_array(ctx, config, PDF_NAME(OFF), 1), layerRef);
+    pdf_drop_obj(ctx, layerRef);
+    const char* xml = "<metadata>XMP-SECRET</metadata>";
+    fz_buffer* xmlBuf = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)xml, strlen(xml));
+    pdf_dict_put_drop(ctx, root, PDF_NAME(Metadata), pdf_add_stream(ctx, doc, xmlBuf, nullptr, 0));
+    fz_drop_buffer(ctx, xmlBuf);
     pdf_obj* p0 = pdf_lookup_page_obj(ctx, doc, 0);
     pdf_obj* p1 = pdf_lookup_page_obj(ctx, doc, 1);
     pdf_obj* annots = pdf_dict_put_array(ctx, p0, PDF_NAME(Annots), 4);
     pdf_obj* form = pdf_dict_put_dict(ctx, root, PDF_NAME(AcroForm), 3);
-    pdf_dict_put(ctx, form, PDF_NAME(DR), res);
+    pdf_obj* formRes = pdf_dict_put_dict(ctx, form, PDF_NAME(DR), 1);
+    pdf_dict_put(ctx, formRes, PDF_NAME(Font), fonts);
     pdf_dict_put_text_string(ctx, form, PDF_NAME(DA), "/Helv 12 Tf 0 g");
     pdf_obj* fields = pdf_dict_put_array(ctx, form, PDF_NAME(Fields), 1);
     pdf_obj* widget = pdf_new_dict(ctx, doc, 8);
@@ -804,6 +838,7 @@ static void ToolsTestFixture(fz_context* ctx, const char* path) {
     pdf_dict_put(ctx, widget, PDF_NAME(FT), PDF_NAME(Tx));
     pdf_dict_put_text_string(ctx, widget, PDF_NAME(T), "same");
     pdf_dict_put_text_string(ctx, widget, PDF_NAME(V), "FORM-SECRET");
+    pdf_dict_put_text_string(ctx, widget, PDF_NAME(DV), "FORM-DEFAULT-SECRET");
     pdf_dict_put_rect(ctx, widget, PDF_NAME(Rect), fz_make_rect(20, 20, 100, 40));
     pdf_dict_put(ctx, widget, PDF_NAME(P), p0);
     pdf_obj* ref = pdf_add_object(ctx, doc, widget);
@@ -843,6 +878,10 @@ static void ToolsTestFixture(fz_context* ctx, const char* path) {
     pdf_obj* entries = pdf_dict_put_array(ctx, tree, PDF_NAME(Names), 2);
     pdf_array_push_text_string(ctx, entries, "note.txt");
     pdf_array_push(ctx, entries, spec);
+    pdf_obj* fileAnnot = pdf_array_push_dict(ctx, annots, 4);
+    pdf_dict_put(ctx, fileAnnot, PDF_NAME(Subtype), PDF_NAME(FileAttachment));
+    pdf_dict_put_rect(ctx, fileAnnot, PDF_NAME(Rect), fz_make_rect(150, 150, 170, 170));
+    pdf_dict_put(ctx, fileAnnot, PDF_NAME(FS), spec);
     pdf_drop_obj(ctx, spec);
     fz_drop_buffer(ctx, data);
     pdf_obj* action = pdf_dict_put_dict(ctx, root, pdf_new_name(ctx, "OpenAction"), 2);
@@ -850,6 +889,15 @@ static void ToolsTestFixture(fz_context* ctx, const char* path) {
     pdf_dict_put_text_string(ctx, action, PDF_NAME(JS), "JS-SECRET");
     pdf_obj* info = pdf_dict_put_dict(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info), 1);
     pdf_dict_put_text_string(ctx, info, PDF_NAME(Author), "AUTHOR-SECRET");
+    pdf_obj* thumb = pdf_new_dict(ctx, doc, 6);
+    pdf_dict_put_int(ctx, thumb, PDF_NAME(Width), 12);
+    pdf_dict_put_int(ctx, thumb, PDF_NAME(Height), 1);
+    pdf_dict_put_int(ctx, thumb, PDF_NAME(BitsPerComponent), 8);
+    pdf_dict_put(ctx, thumb, PDF_NAME(ColorSpace), PDF_NAME(DeviceGray));
+    fz_buffer* thumbBuf = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)"THUMB-SECRET", 12);
+    pdf_dict_put_drop(ctx, p0, PDF_NAME(Thumb), pdf_add_stream(ctx, doc, thumbBuf, thumb, 0));
+    fz_drop_buffer(ctx, thumbBuf);
+    pdf_drop_obj(ctx, thumb);
     pdf_write_options opts = {};
     pdf_save_document(ctx, doc, path, &opts);
     pdf_drop_obj(ctx, res);
@@ -868,6 +916,29 @@ static bool ToolsTestHasText(fz_context* ctx, pdf_document* doc, const char* nee
         fz_drop_page(ctx, page);
     }
     return found;
+}
+
+static bool ToolsTestObjectText(fz_context* ctx, pdf_document* doc, const char* needle) {
+    for (int i = 1; i < pdf_xref_len(ctx, doc); i++) {
+        pdf_obj* obj = pdf_load_object(ctx, doc, i);
+        size_t size = 0;
+        char* printed = pdf_sprint_obj(ctx, nullptr, 0, &size, obj, 1, 1);
+        bool found = str::Contains(Str(printed, (int)size), Str(needle));
+        fz_free(ctx, printed);
+        pdf_drop_obj(ctx, obj);
+        pdf_obj* ref = pdf_new_indirect(ctx, doc, i, 0);
+        bool stream = pdf_is_stream(ctx, ref);
+        pdf_drop_obj(ctx, ref);
+        if (stream) {
+            fz_buffer* data = pdf_load_stream_number(ctx, doc, i);
+            unsigned char* bytes;
+            size = fz_buffer_storage(ctx, data, &bytes);
+            found |= str::Contains(Str((const char*)bytes, (int)size), Str(needle));
+            fz_drop_buffer(ctx, data);
+        }
+        if (found) return true;
+    }
+    return false;
 }
 
 static void PdfDocumentToolsTest() {
@@ -898,7 +969,7 @@ static void PdfDocumentToolsTest() {
                             pdf_dict_get_text_string(ctx, pdf_array_get(ctx, fields, 1), PDF_NAME(T))) != 0,
                      "unique field names");
         pdf_obj* annots = pdf_dict_get(ctx, pdf_lookup_page_obj(ctx, doc, 2), PDF_NAME(Annots));
-        CheckPdfTool(ctx, pdf_array_len(ctx, annots) == 3, "widget, comment and link survive import");
+        CheckPdfTool(ctx, pdf_array_len(ctx, annots) == 4, "widget, comment, link and file annotation survive import");
         pdf_obj* target = pdf_array_get(ctx, pdf_dict_get(ctx, pdf_array_get(ctx, annots, 2), PDF_NAME(Dest)), 0);
         CheckPdfTool(ctx, pdf_to_num(ctx, target) == pdf_to_num(ctx, pdf_lookup_page_obj(ctx, doc, 1)),
                      "internal link remapped");
@@ -907,6 +978,14 @@ static void PdfDocumentToolsTest() {
                      "both outlines survive");
         pdf_obj* files = pdf_load_name_tree(ctx, doc, PDF_NAME(EmbeddedFiles));
         CheckPdfTool(ctx, pdf_dict_len(ctx, files) == 2, "both attachments survive collision");
+        CheckPdfTool(ctx, pdf_count_layers(ctx, doc) == 2, "both sources retain layers");
+        CheckPdfTool(ctx, !pdf_layer_is_enabled(ctx, doc, 0) && !pdf_layer_is_enabled(ctx, doc, 1),
+                     "layer visibility retained");
+        CheckPdfTool(ctx, ToolsTestObjectText(ctx, doc, "ATTACHMENT-SECRET"), "attachment bytes retained");
+        CheckPdfTool(ctx, pdf_set_field_value(ctx, doc, pdf_array_get(ctx, fields, 1), "EDITED", 1),
+                     "imported field is editable");
+        CheckPdfTool(ctx, strcmp(pdf_field_value(ctx, pdf_array_get(ctx, fields, 0)), "FORM-SECRET") == 0,
+                     "colliding fields are independent");
         pdf_drop_obj(ctx, files);
         pdf_drop_document(ctx, doc);
         PdfSanitizeOptions opts;
@@ -919,6 +998,10 @@ static void PdfDocumentToolsTest() {
         CheckPdfTool(ctx, !pdf_dict_getp(ctx, root, "Names/EmbeddedFiles"), "attachments removed");
         CheckPdfTool(ctx, !pdf_dict_get(ctx, root, pdf_new_name(ctx, "OpenAction")), "JavaScript removed");
         CheckPdfTool(ctx, ToolsTestHasText(ctx, doc, "ID-123"), "sanitation leaves visible text by default");
+        for (auto* secret : {"AUTHOR-SECRET", "XMP-SECRET", "FORM-SECRET", "FORM-DEFAULT-SECRET", "COMMENT-SECRET",
+                             "JS-SECRET", "ATTACHMENT-SECRET", "THUMB-SECRET"}) {
+            CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, secret), secret);
+        }
         pdf_drop_document(ctx, doc);
         int count = 0;
         CheckPdfTool(
@@ -929,7 +1012,53 @@ static void PdfDocumentToolsTest() {
         doc = pdf_open_document(ctx, CStrTemp(redactedPath));
         CheckPdfTool(ctx, !ToolsTestHasText(ctx, doc, "ID-"), "redacted text absent after reopen");
         CheckPdfTool(ctx, ToolsTestHasText(ctx, doc, "public"), "unmatched content kept");
+        CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "ID-123") && !ToolsTestObjectText(ctx, doc, "ID-456"),
+                     "old text streams removed");
+        CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "IMAGE-SECRET"), "touching image removed from saved objects");
         pdf_drop_document(ctx, doc);
+        CheckPdfTool(
+            ctx,
+            EngineMupdfRedactMatches(sources[0], redactedPath, StrL("HIDDEN"), PdfSearchMode::Text, &count, &error),
+            "redact invisible text");
+        CheckPdfTool(ctx, count == 2, "invisible text matches on all pages");
+        doc = pdf_open_document(ctx, CStrTemp(redactedPath));
+        CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "HIDDEN"), "invisible text removed from saved objects");
+        pdf_drop_document(ctx, doc);
+        CheckPdfTool(ctx,
+                     EngineMupdfRedactMatches(sources[0], redactedPath, StrL("LAYER-SECRET"), PdfSearchMode::Text,
+                                              &count, &error),
+                     "redact disabled layer text");
+        CheckPdfTool(ctx, count == 2, "disabled layer text matches on all pages");
+        doc = pdf_open_document(ctx, CStrTemp(redactedPath));
+        CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "LAYER-SECRET"),
+                     "disabled layer text removed from saved objects");
+        CheckPdfTool(ctx, !pdf_layer_is_enabled(ctx, doc, 0), "redaction keeps layer visibility");
+        pdf_drop_document(ctx, doc);
+        opts.hiddenContent = true;
+        CheckPdfTool(ctx, EngineMupdfSanitizePdf(sources[0], cleanPath, opts, &error), "hidden-content sanitize");
+        doc = pdf_open_document(ctx, CStrTemp(cleanPath));
+        CheckPdfTool(ctx, !ToolsTestHasText(ctx, doc, "public"), "raster export contains no original text");
+        CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "HIDDEN") && !ToolsTestObjectText(ctx, doc, "LAYER-SECRET"),
+                     "hidden streams discarded");
+        pdf_drop_document(ctx, doc);
+        opts = {};
+        opts.metadata = opts.javascript = opts.attachments = opts.comments = opts.forms = opts.thumbnails = false;
+        CheckPdfTool(ctx, EngineMupdfSanitizePdf(sources[0], cleanPath, opts, &error), "unchecked sanitation options");
+        doc = pdf_open_document(ctx, CStrTemp(cleanPath));
+        CheckPdfTool(ctx,
+                     ToolsTestObjectText(ctx, doc, "FORM-SECRET") && ToolsTestObjectText(ctx, doc, "COMMENT-SECRET") &&
+                         ToolsTestObjectText(ctx, doc, "ATTACHMENT-SECRET") &&
+                         ToolsTestObjectText(ctx, doc, "XMP-SECRET") && ToolsTestObjectText(ctx, doc, "THUMB-SECRET"),
+                     "unchecked categories retained");
+        pdf_drop_document(ctx, doc);
+        CheckPdfTool(ctx, file::WriteFile(redactedPath, StrL("keep-existing-output")), "seed existing output");
+        CheckPdfTool(
+            ctx, !EngineMupdfRedactMatches(sources[0], redactedPath, StrL("["), PdfSearchMode::Regex, &count, &error),
+            "invalid regex rejected");
+        Str existing = file::ReadFile(redactedPath);
+        bool unchanged = str::Eq(existing, StrL("keep-existing-output"));
+        str::Free(existing);
+        CheckPdfTool(ctx, unchanged, "failed redaction preserves output");
         valid = true;
     }
     fz_catch(ctx) {

@@ -42,6 +42,10 @@ sensitive and runs across all pages in extracted reading order, with newlines
 between lines. Empty regex matches are skipped. Invalid or excessively expensive
 patterns fail without replacing the destination.
 
+Form fields are flattened before searching, so a matched value cannot remain in
+the form tree or its old appearance. Disabled layers are included in the search;
+their visibility settings are retained in the saved copy.
+
 Redaction rewrites page content beneath each matched glyph. Touching images and
 vector graphics are removed, so nearby artwork can disappear too. The result is
 a black redaction, not an opaque annotation covering recoverable text. Saving
@@ -50,7 +54,7 @@ an incremental revision. Tags and thumbnails are removed from affected exports
 because they can retain copies of redacted content.
 
 Search uses existing PDF text, including invisible OCR text. It does not OCR
-images, search attachment contents or sanitize unrelated metadata/form values.
+images, search attachment contents or sanitize unrelated metadata.
 Run Sanitize separately for those categories. Review the saved copy before
 sharing it, especially when a document has unusual fonts or text reading order.
 

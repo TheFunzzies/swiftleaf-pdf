@@ -2153,4 +2153,3 @@ EXPORTS
 	pdf_array_push_dict
 	fz_string_from_buffer
 	fz_new_buffer_from_stext_page
-	pdf_sprint_obj
