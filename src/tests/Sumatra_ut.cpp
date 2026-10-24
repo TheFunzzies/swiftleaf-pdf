@@ -805,7 +805,8 @@ static void ToolsTestFixture(fz_context* ctx, const char* path) {
     for (int i = 0; i < 2; i++) {
         const char* text =
             "q 140 0 0 20 20 115 cm /SecretImage Do Q "
-            "BT /Helv 12 Tf 20 120 Td (ID-123 ID-456 public) Tj 0 -20 Td 3 Tr (HIDDEN) Tj ET "
+            "/Span << /ActualText (ID-123 ID-456 public) /Alt (ID-123 ID-456 public) >> BDC BT /Helv 12 Tf 20 120 Td "
+            "(ID-123 ID-456 public) Tj ET EMC BT /Helv 12 Tf 20 100 Td 3 Tr (HIDDEN) Tj ET "
             "/OC /SecretLayer BDC BT /Helv 12 Tf 20 70 Td (LAYER-SECRET) Tj ET EMC";
         fz_buffer* buf = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)text, strlen(text));
         pdf_obj* page = pdf_add_page(ctx, doc, fz_make_rect(0, 0, 200, 200), 0, res, buf);

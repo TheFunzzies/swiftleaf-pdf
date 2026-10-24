@@ -53,6 +53,7 @@ a black redaction, not an opaque annotation covering recoverable text. Saving
 rewrites the complete PDF and garbage-collects obsolete objects; it never appends
 an incremental revision. Tags and thumbnails are removed from affected exports
 because they can retain copies of redacted content.
+Alternate text in marked-content properties is also removed on redacted pages.
 
 Search uses existing PDF text, including invisible OCR text. It does not OCR
 images, search attachment contents or sanitize unrelated metadata.
