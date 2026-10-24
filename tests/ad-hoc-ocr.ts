@@ -23,8 +23,8 @@ import {
 } from "./winapi.ts";
 import { pressEnter, pressTab, typeIntoInput } from "./win-automation.ts";
 
-async function waitFor<T>(read: () => T, ready: (v: T) => boolean, label: string): Promise<T> {
-  const deadline = Date.now() + 30_000;
+async function waitFor<T>(read: () => T, ready: (v: T) => boolean, label: string, timeoutMs = 30_000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = read();
     if (ready(value)) return value;
@@ -122,7 +122,13 @@ export async function testit(): Promise<void> {
       const dest = join(dir, `ocr-${Date.now()}.pdf`);
       await typeIntoInput(filename, dest, false);
       if (getControlText(filename) !== dest) throw new Error("Save filename was not set");
-      await pressEnter(filename);
+      await pressEnter(save);
+      await waitFor(
+        () => topWindow(proc.pid, "Save As"),
+        (h) => h === 0,
+        "Save As submit",
+        5_000,
+      );
       let saved = "";
       try {
         saved = await waitFor(
