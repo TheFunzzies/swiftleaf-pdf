@@ -3065,7 +3065,8 @@ void pdf_save_document(fz_context *ctx, pdf_document *doc, const char *filename,
 
 	if (!doc)
 		return;
-	if (!filename || !strcmp(filename, "-"))
+	if (!filename || !strcmp(filename, "/dev/null") ||
+		!strcmp(filename, "/dev/stdout") || !strcmp(filename, "/dev/stderr"))
 	{
 		pdf_save_document_imp(ctx, doc, filename, in_opts);
 		return;

@@ -2932,6 +2932,10 @@ bool PdfApplyWatermark(Str srcPath, Str destPath, const PdfWatermarkParams& para
     if (len(srcPath) == 0 || len(destPath) == 0 || len(params.text) == 0) {
         return false;
     }
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
+        return false;
+    }
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
     if (!ctx) {
         return false;
@@ -3024,25 +3028,10 @@ bool PdfApplyWatermark(Str srcPath, Str destPath, const PdfWatermarkParams& para
         opts.do_compress = 1;
         opts.do_garbage = 1;
 
-        TempStr savePath = destPath;
-        bool sameFile = path::IsSame(srcPath, destPath);
-        TempStr tmpSave;
-        if (sameFile) {
-            tmpSave = GetTempFilePathTemp(StrL("watermark-tmp"));
-            savePath = tmpSave;
-        }
-
-        pdf_save_document(ctx, doc, CStrTemp(savePath), &opts);
-
-        if (sameFile) {
-            pdf_drop_document(ctx, doc);
-            doc = nullptr;
-            if (!file::RenameReplace(destPath, savePath)) {
-                file::Copy(destPath, savePath, false);
-                file::Delete(savePath);
-            }
-        }
-        ok = true;
+        pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
+        pdf_drop_document(ctx, doc);
+        doc = nullptr;
+        ok = output.Commit();
     }
     fz_always(ctx) {
         if (doc) {
@@ -3059,6 +3048,10 @@ bool PdfApplyWatermark(Str srcPath, Str destPath, const PdfWatermarkParams& para
 
 bool PdfApplyHeaderFooter(Str srcPath, Str destPath, const PdfHeaderFooterParams& params) {
     if (len(srcPath) == 0 || len(destPath) == 0) {
+        return false;
+    }
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
         return false;
     }
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
@@ -3135,25 +3128,10 @@ bool PdfApplyHeaderFooter(Str srcPath, Str destPath, const PdfHeaderFooterParams
         opts.do_compress = 1;
         opts.do_garbage = 1;
 
-        TempStr savePath = destPath;
-        bool sameFile = path::IsSame(srcPath, destPath);
-        TempStr tmpSave;
-        if (sameFile) {
-            tmpSave = GetTempFilePathTemp(StrL("hf-tmp"));
-            savePath = tmpSave;
-        }
-
-        pdf_save_document(ctx, doc, CStrTemp(savePath), &opts);
-
-        if (sameFile) {
-            pdf_drop_document(ctx, doc);
-            doc = nullptr;
-            if (!file::RenameReplace(destPath, savePath)) {
-                file::Copy(destPath, savePath, false);
-                file::Delete(savePath);
-            }
-        }
-        ok = true;
+        pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
+        pdf_drop_document(ctx, doc);
+        doc = nullptr;
+        ok = output.Commit();
     }
     fz_always(ctx) {
         if (doc) {
@@ -3170,6 +3148,10 @@ bool PdfApplyHeaderFooter(Str srcPath, Str destPath, const PdfHeaderFooterParams
 
 bool PdfApplyBatesNumbering(Str srcPath, Str destPath, const PdfBatesParams& params) {
     if (len(srcPath) == 0 || len(destPath) == 0) {
+        return false;
+    }
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) {
         return false;
     }
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
@@ -3270,25 +3252,10 @@ bool PdfApplyBatesNumbering(Str srcPath, Str destPath, const PdfBatesParams& par
         opts.do_compress = 1;
         opts.do_garbage = 1;
 
-        TempStr savePath = destPath;
-        bool sameFile = path::IsSame(srcPath, destPath);
-        TempStr tmpSave;
-        if (sameFile) {
-            tmpSave = GetTempFilePathTemp(StrL("bates-tmp"));
-            savePath = tmpSave;
-        }
-
-        pdf_save_document(ctx, doc, CStrTemp(savePath), &opts);
-
-        if (sameFile) {
-            pdf_drop_document(ctx, doc);
-            doc = nullptr;
-            if (!file::RenameReplace(destPath, savePath)) {
-                file::Copy(destPath, savePath, false);
-                file::Delete(savePath);
-            }
-        }
-        ok = true;
+        pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
+        pdf_drop_document(ctx, doc);
+        doc = nullptr;
+        ok = output.Commit();
     }
     fz_always(ctx) {
         if (doc) {

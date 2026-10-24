@@ -5947,6 +5947,9 @@ static void CALLBACK RecoveryTimerProc(HWND, UINT, UINT_PTR, DWORD) {
                 }
             }
             if (!EngineMupdfAutoSave(engine, snapshot)) {
+                if (!file::Exists(snapshot)) {
+                    file::Delete(info);
+                }
                 logf("Recovery: snapshot failed for '%s'\n", tab->filePath);
             }
         }

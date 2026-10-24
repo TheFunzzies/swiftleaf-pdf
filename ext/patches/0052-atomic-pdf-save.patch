@@ -26,7 +26,7 @@ diff --git a/source/pdf/pdf-write.c b/source/pdf/pdf-write.c
  {
  	pdf_write_options opts_defaults = pdf_default_write_options;
  	pdf_write_state opts = { 0 };
-@@ -3042,6 +3046,71 @@
+@@ -3042,6 +3046,72 @@
  	{
  		fz_rethrow(ctx);
  	}
@@ -49,7 +49,8 @@ diff --git a/source/pdf/pdf-write.c b/source/pdf/pdf-write.c
 +
 +	if (!doc)
 +		return;
-+	if (!filename || !strcmp(filename, "-"))
++	if (!filename || !strcmp(filename, "/dev/null") ||
++		!strcmp(filename, "/dev/stdout") || !strcmp(filename, "/dev/stderr"))
 +	{
 +		pdf_save_document_imp(ctx, doc, filename, in_opts);
 +		return;

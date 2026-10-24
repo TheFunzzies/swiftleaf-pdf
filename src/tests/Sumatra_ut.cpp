@@ -810,6 +810,19 @@ static void PageStampsTest() {
         FreePageText(&pt1);
         FreePageText(&pt2);
         SafeEngineRelease(&e);
+#if OS_WIN
+        Str before = file::ReadFile(wmPdf);
+        HANDLE lockedStamp = CreateFileW(CWStrTemp(wmPdf), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                         OPEN_EXISTING, 0, nullptr);
+        utassert(lockedStamp != INVALID_HANDLE_VALUE);
+        utassert(!PdfApplyWatermark(wmPdf, wmPdf, wm));
+        Str after = file::ReadFile(wmPdf);
+        utassert(str::Eq(before, after));
+        str::Free(before);
+        str::Free(after);
+        CloseHandle(lockedStamp);
+        utassert(PdfApplyWatermark(wmPdf, wmPdf, wm));
+#endif
         file::Delete(wmPdf);
     }
 
