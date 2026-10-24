@@ -2139,3 +2139,18 @@ EXPORTS
 
 	fz_drop_text
 	fz_show_string
+
+	fz_new_pixmap_from_page
+	fz_regcomp
+	fz_regexec
+	fz_regfree
+	pdf_dict_put_bool
+	pdf_dict_put_real
+	pdf_dict_put_string
+	pdf_dict_put_rect
+	pdf_dict_get_bool
+	pdf_dict_get_int
+	pdf_array_push_dict
+	fz_string_from_buffer
+	fz_new_buffer_from_stext_page
+	pdf_sprint_obj

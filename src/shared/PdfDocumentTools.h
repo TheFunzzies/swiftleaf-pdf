@@ -16,9 +16,12 @@ struct PdfSanitizeOptions {
     bool thumbnails = true;
 };
 
-enum class PdfSearchMode { Text, Regex };
+enum class PdfSearchMode {
+    Text,
+    Regex
+};
 
 TempStr EngineMupdfMergeWarningTemp(u32 warnings);
 bool EngineMupdfSanitizePdf(const PdfMergeSource& src, Str destPath, const PdfSanitizeOptions& options, Str* errorOut);
 bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode, int* countOut,
-                             Str* errorOut);
+                              Str* errorOut);

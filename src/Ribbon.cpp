@@ -231,6 +231,8 @@ static const RibbonItemDef gEditItems[] = {
     {nullptr, 0, TrN("Redaction")},
     {gIconAnnotRedact, CmdCreateAnnotRedact, TrN("Redact"), TrN("Mark an area for redaction")},
     {gIconApplyRedactions, CmdApplyRedactions, TrN("Apply"), TrN("Apply redactions (permanently removes the content)")},
+    {gIconAnnotRedact, CmdPdfRedactSearch, TrN("Search & Redact"), TrN("Permanently remove all text or regex matches")},
+    {gIconLock, CmdPdfSanitize, TrN("Sanitize"), TrN("Remove selected private or hidden data")},
     {nullptr, 0, TrN("History")},
     {gIconUndo, CmdUndo, TrN("Undo")},
     {gIconRedo, CmdRedo, TrN("Redo")},

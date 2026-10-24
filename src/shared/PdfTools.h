@@ -9,6 +9,8 @@ struct El;
 struct MainWindow;
 
 void ShowPdfBakeDialog(MainWindow* win);
+void ShowPdfSanitizeDialog(MainWindow* win);
+void ShowPdfRedactSearchDialog(MainWindow* win);
 void ShowPdfExtractTextDialog(MainWindow* win);
 void ShowPdfCompressDialog(MainWindow* win);
 void ShowPdfDecompressDialog(MainWindow* win);

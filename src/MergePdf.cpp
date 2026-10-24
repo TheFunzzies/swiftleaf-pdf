@@ -1573,7 +1573,8 @@ bool MergePdfWnd::SaveTo(Str destPath) {
         srcs[0].path = srcCopy;
     }
     TempStr tmpPath = GetTempFilePathTemp(StrL("merge"));
-    bool ok = len(tmpPath) > 0 && EngineMupdfMergePdfs(srcs, pages, tmpPath);
+    u32 warnings = 0;
+    bool ok = len(tmpPath) > 0 && EngineMupdfMergePdfs(srcs, pages, tmpPath, &warnings);
     if (ok) {
         WindowTab* tab = FindTabByFile(destPath);
         if (tab) {
@@ -1589,6 +1590,7 @@ bool MergePdfWnd::SaveTo(Str destPath) {
     if (len(srcCopy) > 0) {
         file::Delete(srcCopy);
     }
+    if (ok && warnings) MessageBoxWarning(hwnd, EngineMupdfMergeWarningTemp(warnings), Tr("Merge PDF"));
     logf("MergePdfWnd::SaveTo: %d pages from %d files to '%s', ok: %d\n", len(pages), len(srcs), destPath, (int)ok);
     return ok;
 }

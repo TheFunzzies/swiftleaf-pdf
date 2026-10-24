@@ -88,7 +88,8 @@ static bool ApplyPageList(MainWindow* win, const Vec<PdfMergePage>& pages, const
     }
 
     TempStr outPath = GetTempFilePathTemp(StrL("swiftleaf-pages"));
-    bool ok = len(outPath) > 0 && EngineMupdfMergePdfs(srcs, pages, outPath);
+    u32 warnings = 0;
+    bool ok = len(outPath) > 0 && EngineMupdfMergePdfs(srcs, pages, outPath, &warnings);
     if (!ok) {
         file::Delete(outPath);
         file::Delete(backup);
@@ -114,7 +115,9 @@ static bool ApplyPageList(MainWindow* win, const Vec<PdfMergePage>& pages, const
     }
     VecAppend(gUndoSteps, OrganizeUndoStep{str::Dup(path), str::Dup(backup), fromPage});
     ToolbarUpdateStateForWindow(win, true);
-    if (len(doneMsg) > 0 && IsMainWindowValidAndNotClosing(win)) {
+    if (warnings && IsMainWindowValidAndNotClosing(win)) {
+        ShowOrganizeError(win, EngineMupdfMergeWarningTemp(warnings));
+    } else if (len(doneMsg) > 0 && IsMainWindowValidAndNotClosing(win)) {
         ShowTemporaryNotification(win->hwndCanvas, doneMsg);
     }
     return true;

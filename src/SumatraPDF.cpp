@@ -13722,6 +13722,12 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
         case CmdBatesNumbering:
             ShowPdfBatesNumberingDialog(win);
             break;
+        case CmdPdfSanitize:
+            ShowPdfSanitizeDialog(win);
+            break;
+        case CmdPdfRedactSearch:
+            ShowPdfRedactSearchDialog(win);
+            break;
 
         // Swiftleaf page organizing (PageOrganize.cpp)
         case CmdRotatePageLeft:

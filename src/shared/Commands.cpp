@@ -363,6 +363,8 @@ const CommandInfo gCommands[] = {
     {CmdAddWatermark, "CmdAddWatermark\0", StrL("Add Watermark...")},
     {CmdAddHeaderFooter, "CmdAddHeaderFooter\0", StrL("Add Header/Footer...")},
     {CmdBatesNumbering, "CmdBatesNumbering\0", StrL("Bates Numbering...")},
+    {CmdPdfSanitize, "CmdPdfSanitize\0", StrL("Sanitize Document...")},
+    {CmdPdfRedactSearch, "CmdPdfRedactSearch\0", StrL("Redact All Search Matches...")},
 };
 const int gCommandsCount = dimofi(gCommands);
 

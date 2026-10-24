@@ -138,7 +138,7 @@ struct PdfMergePage {
 };
 #include "PdfDocumentTools.h"
 bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePage>& pages, Str destPath,
-                         u32* warningsOut = nullptr);
+                          u32* warningsOut = nullptr);
 
 // Swiftleaf Edit Text: a run of text lines on a page and its style
 struct PdfTextRun {

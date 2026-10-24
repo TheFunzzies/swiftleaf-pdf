@@ -364,6 +364,8 @@ const commandsRaw = [
     "CmdAddWatermark", "Add Watermark...",
     "CmdAddHeaderFooter", "Add Header/Footer...",
     "CmdBatesNumbering", "Bates Numbering...",
+    "CmdPdfSanitize", "Sanitize Document...",
+    "CmdPdfRedactSearch", "Redact All Search Matches...",
 ];
 
 // removed slots are dropped: nothing outside the generators should see them

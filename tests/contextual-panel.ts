@@ -150,7 +150,7 @@ export async function testit(): Promise<void> {
           "Every tool needs a tooltip",
           raw,
         );
-        if (!mode) want(rows.length === 17, "All tools must retain its 17 rows", raw);
+        if (!mode) want(rows.length === 19, "All tools must retain its 19 rows", raw);
         else want(!rows.some((r) => r.text === "Export a PDF"), "Fixed All tools rows leaked into a mode", raw);
         const dy = getClientRect(ribbon).bottom - getClientRect(ribbon).top;
         if (!height) height = dy;

@@ -25,6 +25,7 @@
 
 extern "C" {
 #include <mupdf/pdf.h>
+#include <mupdf/fitz/regexp.h>
 #if OS_WIN
 #include "mupdf/pkcs7-windows.h"
 #elif defined(SUMATRA_HAVE_OPENSSL)
@@ -10417,128 +10418,830 @@ static pdf_document* OpenPdfForMerge(fz_context* ctx, const PdfMergeSource& src)
     return doc;
 }
 
-// Write the pages, in order, to destPath, which must not be one of the sources.
-// srcs[0] is the base: its pages keep annotations, links and bookmarks. Pages of
-// the others are grafted, with annotations and form fields flattened (grafting
-// copies only the content).
-bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePage>& pages, Str destPath) {
-    int nPages = len(pages);
-    if (len(srcs) == 0 || nPages == 0 || len(destPath) == 0) {
-        return false;
+static pdf_obj* MergeRoot(fz_context* ctx, pdf_document* doc) {
+    return pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Root));
+}
+
+// Visit direct children only; each indirect object gets its own xref visit.
+typedef void (*PdfObjectVisitor)(fz_context*, pdf_document*, pdf_obj*, void*);
+static void VisitPdfObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, PdfObjectVisitor visit, void* arg,
+                           int depth = 0) {
+    if (depth > 100) {
+        fz_throw(ctx, FZ_ERROR_FORMAT, "PDF object nesting is too deep");
     }
+    if (pdf_is_dict(ctx, obj)) {
+        visit(ctx, doc, obj, arg);
+        for (int i = pdf_dict_len(ctx, obj) - 1; i >= 0; i--) {
+            pdf_obj* val = pdf_dict_get_val(ctx, obj, i);
+            if (!pdf_is_indirect(ctx, val)) VisitPdfObject(ctx, doc, val, visit, arg, depth + 1);
+        }
+    } else if (pdf_is_array(ctx, obj)) {
+        for (int i = 0; i < pdf_array_len(ctx, obj); i++) {
+            pdf_obj* val = pdf_array_get(ctx, obj, i);
+            if (!pdf_is_indirect(ctx, val)) VisitPdfObject(ctx, doc, val, visit, arg, depth + 1);
+        }
+    }
+}
+
+static void VisitPdfObjects(fz_context* ctx, pdf_document* doc, PdfObjectVisitor visit, void* arg) {
+    pdf_obj* obj = nullptr;
+    fz_var(obj);
+    fz_try(ctx) {
+        for (int i = 1; i < pdf_xref_len(ctx, doc); i++) {
+            obj = pdf_load_object(ctx, doc, i);
+            VisitPdfObject(ctx, doc, obj, visit, arg);
+            pdf_drop_obj(ctx, obj);
+            obj = nullptr;
+        }
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, obj);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+}
+
+static void RemovePdfScripts(fz_context* ctx, pdf_document*, pdf_obj* obj, void* arg) {
+    if (pdf_name_eq(ctx, pdf_dict_get(ctx, obj, PDF_NAME(S)), PDF_NAME(JavaScript))) {
+        pdf_dict_del(ctx, obj, PDF_NAME(S));
+        pdf_dict_del(ctx, obj, PDF_NAME(JS));
+        if (arg) *(u32*)arg |= PdfMergeScriptsRemoved;
+    }
+    pdf_obj* action = pdf_dict_gets(ctx, obj, "OpenAction");
+    if (pdf_name_eq(ctx, pdf_dict_get(ctx, action, PDF_NAME(S)), PDF_NAME(JavaScript))) {
+        pdf_dict_dels(ctx, obj, "OpenAction");
+        if (arg) *(u32*)arg |= PdfMergeScriptsRemoved;
+    }
+    if (pdf_dict_get(ctx, obj, PDF_NAME(JavaScript))) {
+        pdf_dict_del(ctx, obj, PDF_NAME(JavaScript));
+        if (arg) *(u32*)arg |= PdfMergeScriptsRemoved;
+    }
+    if (pdf_dict_get(ctx, obj, PDF_NAME(JS))) {
+        pdf_dict_del(ctx, obj, PDF_NAME(JS));
+        if (arg) *(u32*)arg |= PdfMergeScriptsRemoved;
+    }
+}
+
+struct MergeFixup {
+    const Vec<PdfMergePage>* pages;
+    int source;
+    u32* warnings;
+};
+
+static void FixMergeDest(fz_context* ctx, pdf_document* doc, pdf_obj* obj, pdf_obj* key, MergeFixup* fix) {
+    pdf_obj* dest = pdf_dict_get(ctx, obj, key);
+    if (!dest) return;
+    for (int depth = 0; depth < 10 && (pdf_is_name(ctx, dest) || pdf_is_string(ctx, dest)); depth++) {
+        dest = pdf_lookup_dest(ctx, doc, dest);
+    }
+    if (pdf_is_dict(ctx, dest)) dest = pdf_dict_get(ctx, dest, PDF_NAME(D));
+    pdf_obj* target = pdf_array_get(ctx, dest, 0);
+    int page = -1;
+    if (pdf_is_int(ctx, target)) {
+        page = pdf_to_int(ctx, target);
+        if (page >= 0 && page < pdf_count_pages(ctx, doc)) target = pdf_lookup_page_obj(ctx, doc, page);
+    } else {
+        for (int i = 0; i < pdf_count_pages(ctx, doc); i++) {
+            if (pdf_objcmp(ctx, target, pdf_lookup_page_obj(ctx, doc, i)) == 0) {
+                page = i;
+                break;
+            }
+        }
+    }
+    bool retained = false;
+    for (auto& p : *fix->pages) retained |= p.src == fix->source && p.pageNo == page + 1;
+    if (!pdf_is_array(ctx, dest) || !retained) {
+        pdf_dict_del(ctx, obj, key);
+        *fix->warnings |= PdfMergeDroppedTarget;
+        return;
+    }
+    pdf_obj* copy = pdf_copy_array(ctx, dest);
+    pdf_array_put(ctx, copy, 0, target);
+    pdf_dict_put_drop(ctx, obj, key, copy);
+}
+
+static void FixMergeObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, void* arg) {
+    auto* fix = (MergeFixup*)arg;
+    FixMergeDest(ctx, doc, obj, PDF_NAME(Dest), fix);
+    if (pdf_name_eq(ctx, pdf_dict_get(ctx, obj, PDF_NAME(S)), PDF_NAME(GoTo))) {
+        FixMergeDest(ctx, doc, obj, PDF_NAME(D), fix);
+        if (!pdf_dict_get(ctx, obj, PDF_NAME(D))) pdf_dict_del(ctx, obj, PDF_NAME(S));
+    }
+    if (fix->source == 0) return;
+    RemovePdfScripts(ctx, doc, obj, fix->warnings);
+    if (pdf_name_eq(ctx, pdf_dict_get(ctx, obj, PDF_NAME(FT)), PDF_NAME(Sig)) && pdf_dict_get(ctx, obj, PDF_NAME(V))) {
+        pdf_dict_del(ctx, obj, PDF_NAME(V));
+        *fix->warnings |= PdfMergeSignatureCleared;
+    }
+    if (pdf_dict_get(ctx, obj, PDF_NAME(StructParent)) || pdf_dict_get(ctx, obj, PDF_NAME(StructParents))) {
+        pdf_dict_del(ctx, obj, PDF_NAME(StructParent));
+        pdf_dict_del(ctx, obj, PDF_NAME(StructParents));
+        *fix->warnings |= PdfMergeStructureDropped;
+    }
+}
+
+static pdf_obj* EnsurePdfDict(fz_context* ctx, pdf_obj* obj, pdf_obj* key) {
+    pdf_obj* dict = pdf_dict_get(ctx, obj, key);
+    return dict ? dict : pdf_dict_put_dict(ctx, obj, key, 4);
+}
+
+static pdf_obj* EnsurePdfArray(fz_context* ctx, pdf_obj* obj, pdf_obj* key) {
+    pdf_obj* array = pdf_dict_get(ctx, obj, key);
+    return array ? array : pdf_dict_put_array(ctx, obj, key, 4);
+}
+
+static bool FieldNameExists(fz_context* ctx, pdf_obj* fields, Str name) {
+    for (int i = 0; i < pdf_array_len(ctx, fields); i++) {
+        if (str::Eq(Str(pdf_dict_get_text_string(ctx, pdf_array_get(ctx, fields, i), PDF_NAME(T))), name)) return true;
+    }
+    return false;
+}
+
+// DA font names are local to the source AcroForm's DR. Rename them before combining DR dictionaries.
+struct MergeFontName {
+    Str oldName;
+    Str newName;
+};
+static void FixFieldFonts(fz_context* ctx, pdf_document*, pdf_obj* obj, void* arg) {
+    pdf_obj* da = pdf_dict_get(ctx, obj, PDF_NAME(DA));
+    if (!da) return;
+    const char* s = pdf_to_str_buf(ctx, da);
+    int n = (int)pdf_to_str_len(ctx, da);
+    str::Builder out;
+    for (int i = 0; i < n;) {
+        if (s[i] != '/') {
+            out.AppendChar(s[i++]);
+            continue;
+        }
+        int start = ++i;
+        while (i < n && !strchr(" \t\r\n/[]<>()%", s[i])) i++;
+        Str token(s + start, i - start);
+        Str replacement = token;
+        for (auto& name : *(Vec<MergeFontName>*)arg) {
+            if (str::Eq(token, name.oldName)) {
+                replacement = name.newName;
+                break;
+            }
+        }
+        out.AppendChar('/');
+        out.Append(replacement);
+    }
+    pdf_dict_put_string(ctx, obj, PDF_NAME(DA), out.els, len(out));
+}
+
+static void MergePdfForms(fz_context* ctx, pdf_obj* root, pdf_obj* source, pdf_graft_map* map, int index) {
+    pdf_obj* form = pdf_dict_get(ctx, source, PDF_NAME(AcroForm));
+    if (!form) return;
+    pdf_obj* target = EnsurePdfDict(ctx, root, PDF_NAME(AcroForm));
+    pdf_obj* fields = EnsurePdfArray(ctx, target, PDF_NAME(Fields));
+    pdf_obj* resources = EnsurePdfDict(ctx, target, PDF_NAME(DR));
+    pdf_obj* srcRes = pdf_dict_get(ctx, form, PDF_NAME(DR));
+    Vec<MergeFontName> fonts;
+    for (int i = 0; i < pdf_dict_len(ctx, srcRes); i++) {
+        pdf_obj* kind = pdf_dict_get_key(ctx, srcRes, i);
+        pdf_obj* entries = pdf_dict_get_val(ctx, srcRes, i);
+        pdf_obj* destEntries = EnsurePdfDict(ctx, resources, kind);
+        for (int j = 0; j < pdf_dict_len(ctx, entries); j++) {
+            const char* old = pdf_to_name(ctx, pdf_dict_get_key(ctx, entries, j));
+            TempStr name;
+            for (int suffix = 1;; suffix++) {
+                name = fmt("SL%d_%d_%s", index, suffix, Str(old));
+                if (!pdf_dict_gets(ctx, destEntries, CStrTemp(name))) break;
+            }
+            pdf_dict_puts_drop(ctx, destEntries, CStrTemp(name),
+                               pdf_graft_mapped_object(ctx, map, pdf_dict_get_val(ctx, entries, j)));
+            if (pdf_name_eq(ctx, kind, PDF_NAME(Font))) VecAppend(fonts, MergeFontName{Str(old), name});
+        }
+    }
+    pdf_obj* roots = pdf_dict_get(ctx, form, PDF_NAME(Fields));
+    for (int i = 0; i < pdf_array_len(ctx, roots); i++) {
+        pdf_obj* original = pdf_array_get(ctx, roots, i);
+        if (!pdf_dict_get(ctx, original, PDF_NAME(DA))) {
+            pdf_obj* da = pdf_dict_get(ctx, form, PDF_NAME(DA));
+            if (da) pdf_dict_put(ctx, original, PDF_NAME(DA), da);
+        }
+    }
+    // Resources and DA are rewritten in the source before the field graph is grafted.
+    // Fields may already have been grafted through page annotations; update those DA values too below.
+    pdf_obj* imported = pdf_graft_mapped_object(ctx, map, roots);
+    fz_try(ctx) {
+        for (int i = 0; i < pdf_array_len(ctx, imported); i++) {
+            pdf_obj* field = pdf_array_get(ctx, imported, i);
+            Str old(pdf_dict_get_text_string(ctx, field, PDF_NAME(T)));
+            TempStr name = str::DupTemp(old);
+            for (int suffix = 1; len(name) == 0 || FieldNameExists(ctx, fields, name); suffix++)
+                name = fmt("SL%d_%d_%s", index, suffix, old);
+            pdf_dict_put_text_string(ctx, field, PDF_NAME(T), CStrTemp(name));
+            if (!pdf_dict_get(ctx, field, PDF_NAME(DA))) {
+                pdf_obj* da = pdf_dict_get(ctx, form, PDF_NAME(DA));
+                if (da) pdf_dict_put(ctx, field, PDF_NAME(DA), da);
+            }
+            pdf_array_push(ctx, fields, field);
+        }
+        // The mapped widget/field graph shares indirect objects. Visit every copied field, including Kids.
+        Vec<pdf_obj*> stack;
+        for (int i = 0; i < pdf_array_len(ctx, imported); i++) VecAppend(stack, pdf_array_get(ctx, imported, i));
+        Vec<int> seen;
+        for (int i = 0; i < len(stack); i++) {
+            pdf_obj* field = stack[i];
+            int num = pdf_to_num(ctx, field);
+            if (num && VecFind(seen, num) >= 0) continue;
+            if (num) VecAppend(seen, num);
+            if (i > 100000) fz_throw(ctx, FZ_ERROR_FORMAT, "Form tree is too large");
+            FixFieldFonts(ctx, nullptr, field, &fonts);
+            pdf_obj* kids = pdf_dict_get(ctx, field, PDF_NAME(Kids));
+            for (int j = 0; j < pdf_array_len(ctx, kids); j++) VecAppend(stack, pdf_array_get(ctx, kids, j));
+        }
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, imported);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+    if (pdf_dict_get_bool(ctx, form, PDF_NAME(NeedAppearances)))
+        pdf_dict_put_bool(ctx, target, PDF_NAME(NeedAppearances), 1);
+}
+
+static void MergePdfOutlines(fz_context* ctx, pdf_obj* root, pdf_obj* source, pdf_graft_map* map) {
+    pdf_obj* outlines = pdf_dict_get(ctx, source, PDF_NAME(Outlines));
+    if (!outlines) return;
+    pdf_obj* imported = pdf_graft_mapped_object(ctx, map, outlines);
+    fz_try(ctx) {
+        pdf_obj* target = pdf_dict_get(ctx, root, PDF_NAME(Outlines));
+        if (!target) {
+            pdf_dict_put(ctx, root, PDF_NAME(Outlines), imported);
+        } else {
+            pdf_obj* first = pdf_dict_get(ctx, imported, PDF_NAME(First));
+            pdf_obj* last = pdf_dict_get(ctx, target, PDF_NAME(Last));
+            if (first) {
+                if (last) {
+                    pdf_dict_put(ctx, last, PDF_NAME(Next), first);
+                    pdf_dict_put(ctx, first, PDF_NAME(Prev), last);
+                } else
+                    pdf_dict_put(ctx, target, PDF_NAME(First), first);
+                Vec<int> seen;
+                for (pdf_obj* item = first; item; item = pdf_dict_get(ctx, item, PDF_NAME(Next))) {
+                    int num = pdf_to_num(ctx, item);
+                    if (!num || VecFind(seen, num) >= 0) fz_throw(ctx, FZ_ERROR_FORMAT, "Invalid outline tree");
+                    VecAppend(seen, num);
+                    pdf_dict_put(ctx, item, PDF_NAME(Parent), target);
+                }
+                pdf_dict_put(ctx, target, PDF_NAME(Last), pdf_dict_get(ctx, imported, PDF_NAME(Last)));
+                pdf_dict_put_int(ctx, target, PDF_NAME(Count),
+                                 abs(pdf_dict_get_int(ctx, target, PDF_NAME(Count))) +
+                                     abs(pdf_dict_get_int(ctx, imported, PDF_NAME(Count))));
+            }
+        }
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, imported);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+}
+
+static void MergePdfFiles(fz_context* ctx, pdf_document* doc, pdf_document* src, pdf_graft_map* map, int index) {
+    pdf_obj* files = pdf_load_name_tree(ctx, src, PDF_NAME(EmbeddedFiles));
+    pdf_obj* base = nullptr;
+    fz_var(base);
+    fz_try(ctx) {
+        if (pdf_dict_len(ctx, files)) {
+            base = pdf_load_name_tree(ctx, doc, PDF_NAME(EmbeddedFiles));
+            pdf_obj* names = EnsurePdfDict(ctx, MergeRoot(ctx, doc), PDF_NAME(Names));
+            pdf_obj* tree = pdf_dict_put_dict(ctx, names, PDF_NAME(EmbeddedFiles), 1);
+            pdf_obj* entries = pdf_dict_put_array(ctx, tree, PDF_NAME(Names), 4);
+            for (int i = 0; i < pdf_dict_len(ctx, files); i++) {
+                Str original(pdf_to_name(ctx, pdf_dict_get_key(ctx, files, i)));
+                TempStr name = str::DupTemp(original);
+                for (int n = 1; pdf_dict_gets(ctx, base, CStrTemp(name)); n++)
+                    name = fmt("SL%d_%d_%s", index, n, original);
+                pdf_dict_puts_drop(ctx, base, CStrTemp(name),
+                                   pdf_graft_mapped_object(ctx, map, pdf_dict_get_val(ctx, files, i)));
+            }
+            // A PDF name tree's byte-string keys must be sorted.
+            StrVec keys;
+            for (int i = 0; i < pdf_dict_len(ctx, base); i++)
+                keys.Append(Str(pdf_to_name(ctx, pdf_dict_get_key(ctx, base, i))));
+            Sort(&keys);
+            for (int i = 0; i < len(keys); i++) {
+                pdf_array_push_text_string(ctx, entries, CStrTemp(keys[i]));
+                pdf_array_push(ctx, entries, pdf_dict_gets(ctx, base, CStrTemp(keys[i])));
+            }
+        }
+        pdf_obj* af = pdf_dict_get(ctx, MergeRoot(ctx, src), PDF_NAME(AF));
+        if (af) {
+            pdf_obj* target = EnsurePdfArray(ctx, MergeRoot(ctx, doc), PDF_NAME(AF));
+            for (int i = 0; i < pdf_array_len(ctx, af); i++)
+                pdf_array_push_drop(ctx, target, pdf_graft_mapped_object(ctx, map, pdf_array_get(ctx, af, i)));
+        }
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, files);
+        pdf_drop_obj(ctx, base);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+}
+
+static void MergePdfLayers(fz_context* ctx, pdf_obj* root, pdf_obj* source, pdf_graft_map* map) {
+    pdf_obj* oc = pdf_dict_get(ctx, source, PDF_NAME(OCProperties));
+    if (!oc) return;
+    pdf_obj* imported = pdf_graft_mapped_object(ctx, map, oc);
+    fz_try(ctx) {
+        pdf_obj* target = pdf_dict_get(ctx, root, PDF_NAME(OCProperties));
+        if (!target)
+            pdf_dict_put(ctx, root, PDF_NAME(OCProperties), imported);
+        else {
+            pdf_obj* groups = EnsurePdfArray(ctx, target, PDF_NAME(OCGs));
+            pdf_obj* srcGroups = pdf_dict_get(ctx, imported, PDF_NAME(OCGs));
+            pdf_obj* config = EnsurePdfDict(ctx, target, PDF_NAME(D));
+            pdf_obj* srcConfig = pdf_dict_get(ctx, imported, PDF_NAME(D));
+            pdf_obj* on = EnsurePdfArray(ctx, config, PDF_NAME(ON));
+            pdf_obj* off = EnsurePdfArray(ctx, config, PDF_NAME(OFF));
+            bool baseOff = pdf_name_eq(ctx, pdf_dict_get(ctx, srcConfig, PDF_NAME(BaseState)), PDF_NAME(OFF));
+            for (int i = 0; i < pdf_array_len(ctx, srcGroups); i++) {
+                pdf_obj* group = pdf_array_get(ctx, srcGroups, i);
+                bool visible = !baseOff;
+                if (pdf_array_contains(ctx, pdf_dict_get(ctx, srcConfig, PDF_NAME(ON)), group)) visible = true;
+                if (pdf_array_contains(ctx, pdf_dict_get(ctx, srcConfig, PDF_NAME(OFF)), group)) visible = false;
+                pdf_array_push(ctx, groups, group);
+                pdf_array_push(ctx, visible ? on : off, group);
+                pdf_array_push(ctx, EnsurePdfArray(ctx, config, PDF_NAME(Order)), group);
+            }
+        }
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, imported);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+}
+
+static bool PruneMergeField(fz_context* ctx, pdf_obj* field, const Vec<int>& widgets, int depth = 0) {
+    if (depth > 100) fz_throw(ctx, FZ_ERROR_FORMAT, "Invalid form tree");
+    pdf_obj* kids = pdf_dict_get(ctx, field, PDF_NAME(Kids));
+    for (int i = pdf_array_len(ctx, kids) - 1; i >= 0; i--) {
+        if (!PruneMergeField(ctx, pdf_array_get(ctx, kids, i), widgets, depth + 1)) pdf_array_delete(ctx, kids, i);
+    }
+    if (pdf_dict_get(ctx, field, PDF_NAME(Subtype)) == PDF_NAME(Widget))
+        return VecFind(widgets, pdf_to_num(ctx, field)) >= 0;
+    return pdf_array_len(ctx, kids) > 0;
+}
+
+TempStr EngineMupdfMergeWarningTemp(u32 warnings) {
+    str::Builder msg;
+    if (warnings & PdfMergeDroppedTarget) msg.Append(StrL("Links/bookmarks to omitted pages were disabled. "));
+    if (warnings & PdfMergeFormFallback)
+        msg.Append(StrL("Unsupported XFA forms were flattened; other elements were retained. "));
+    if (warnings & PdfMergeScriptsRemoved)
+        msg.Append(StrL("Imported JavaScript was removed because field names can change. "));
+    if (warnings & PdfMergeSignatureCleared)
+        msg.Append(StrL("Imported digital signatures were cleared because merging invalidates them. "));
+    if (warnings & PdfMergeStructureDropped) msg.Append(StrL("Imported accessibility tags were omitted. "));
+    return str::DupTemp(ToStr(msg));
+}
+
+bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePage>& pages, Str destPath,
+                          u32* warningsOut) {
+    if (warningsOut) *warningsOut = 0;
+    if (!len(srcs) || !len(pages) || !len(destPath)) return false;
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
-    if (!ctx) {
-        return false;
-    }
-    // index in the base document of each page of the result
-    Vec<int> order;
-    VecAppendBlanks(order, nPages);
+    if (!ctx) return false;
     pdf_document* doc = nullptr;
     pdf_document* src = nullptr;
     pdf_graft_map* map = nullptr;
+    pdf_obj* catalog = nullptr;
+    Vec<int> order;
+    VecAppendBlanks(order, len(pages));
     bool ok = false;
+    u32 warnings = 0;
     fz_var(doc);
     fz_var(src);
     fz_var(map);
+    fz_var(catalog);
     fz_var(ok);
+    fz_var(warnings);
     file::AtomicFile output(destPath);
-    if (len(output.tempPath) == 0) {
-        fz_drop_context(ctx);
-        return false;
-    }
     fz_try(ctx) {
+        if (!len(output.tempPath)) fz_throw(ctx, FZ_ERROR_SYSTEM, "Cannot stage PDF output");
         doc = OpenPdfForMerge(ctx, srcs[0]);
         int nBase = pdf_count_pages(ctx, doc);
-        for (int i = 0; i < nPages; i++) {
-            if (pages[i].src == 0) {
-                if (pages[i].pageNo < 1 || pages[i].pageNo > nBase) {
-                    fz_throw(ctx, FZ_ERROR_ARGUMENT, "no page %d", pages[i].pageNo);
-                }
-                order[i] = pages[i].pageNo - 1;
-            }
+        for (auto& p : pages) {
+            if (p.src < kPdfMergeBlankPage || p.src >= len(srcs))
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "Invalid PDF source");
         }
-        // the pages of the other sources go to the end, then into place below
+        MergeFixup baseFix{&pages, 0, &warnings};
+        VisitPdfObjects(ctx, doc, FixMergeObject, &baseFix);
+        for (int i = 0; i < len(pages); i++) {
+            if (pages[i].src != 0) continue;
+            if (pages[i].pageNo < 1 || pages[i].pageNo > nBase) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Invalid base page");
+            order[i] = pages[i].pageNo - 1;
+        }
         for (int s = 1; s < len(srcs); s++) {
+            bool used = false;
+            for (auto& p : pages) used |= p.src == s;
+            if (!used) continue;
             src = OpenPdfForMerge(ctx, srcs[s]);
-            // in memory only: the file isn't changed
-            pdf_bake_document(ctx, src, 1, 1);
-            int nSrc = pdf_count_pages(ctx, src);
-            map = pdf_new_graft_map(ctx, doc);
-            for (int i = 0; i < nPages; i++) {
-                if (pages[i].src != s) {
-                    continue;
-                }
-                if (pages[i].pageNo < 1 || pages[i].pageNo > nSrc) {
-                    fz_throw(ctx, FZ_ERROR_ARGUMENT, "no page %d", pages[i].pageNo);
-                }
-                order[i] = pdf_count_pages(ctx, doc);
-                pdf_graft_mapped_page(ctx, map, -1, src, pages[i].pageNo - 1);
+            if (pdf_dict_gets(ctx, pdf_dict_get(ctx, MergeRoot(ctx, src), PDF_NAME(AcroForm)), "XFA")) {
+                pdf_bake_document(ctx, src, 0, 1);
+                warnings |= PdfMergeFormFallback;
             }
+            MergeFixup fix{&pages, s, &warnings};
+            VisitPdfObjects(ctx, src, FixMergeObject, &fix);
+            int count = pdf_count_pages(ctx, src);
+            // Detach page parents after materializing inherited resources. Grafting full page objects
+            // then shares one map with widgets, destinations and outlines without copying the page tree.
+            Vec<pdf_obj*> refs;
+            for (int j = 0; j < count; j++) VecAppend(refs, pdf_lookup_page_obj(ctx, src, j));
+            for (auto* page : refs) pdf_flatten_inheritable_page_items(ctx, page);
+            for (auto* page : refs) pdf_dict_del(ctx, page, PDF_NAME(Parent));
+            map = pdf_new_graft_map(ctx, doc);
+            for (int i = 0; i < len(pages); i++) {
+                if (pages[i].src != s) continue;
+                int p = pages[i].pageNo - 1;
+                if (p < 0 || p >= count) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Invalid imported page");
+                pdf_obj* ref = pdf_graft_mapped_object(ctx, map, refs[p]);
+                fz_try(ctx) {
+                    order[i] = pdf_count_pages(ctx, doc);
+                    pdf_insert_page(ctx, doc, -1, ref);
+                }
+                fz_always(ctx) {
+                    pdf_drop_obj(ctx, ref);
+                }
+                fz_catch(ctx) {
+                    fz_rethrow(ctx);
+                }
+            }
+            MergePdfForms(ctx, MergeRoot(ctx, doc), MergeRoot(ctx, src), map, s);
+            MergePdfOutlines(ctx, MergeRoot(ctx, doc), MergeRoot(ctx, src), map);
+            MergePdfFiles(ctx, doc, src, map, s);
+            MergePdfLayers(ctx, MergeRoot(ctx, doc), MergeRoot(ctx, src), map);
             pdf_drop_graft_map(ctx, map);
             map = nullptr;
             pdf_drop_document(ctx, src);
             src = nullptr;
         }
-        // blank pages go to the end too, sized like the base page they name
-        for (int i = 0; i < nPages; i++) {
-            if (pages[i].src != kPdfMergeBlankPage) {
-                continue;
+        for (int i = 0; i < len(pages); i++) {
+            if (pages[i].src == kPdfMergeBlankPage) {
+                if (pages[i].pageNo < 1 || pages[i].pageNo > nBase)
+                    fz_throw(ctx, FZ_ERROR_ARGUMENT, "Invalid blank page size");
+                pdf_obj* like = pdf_lookup_page_obj(ctx, doc, pages[i].pageNo - 1);
+                fz_rect box = pdf_to_rect(ctx, pdf_dict_get_inheritable(ctx, like, PDF_NAME(MediaBox)));
+                int rot = pdf_to_int(ctx, pdf_dict_get_inheritable(ctx, like, PDF_NAME(Rotate)));
+                pdf_obj* page = pdf_add_page(ctx, doc, box, rot, nullptr, nullptr);
+                fz_try(ctx) {
+                    order[i] = pdf_count_pages(ctx, doc);
+                    pdf_insert_page(ctx, doc, -1, page);
+                }
+                fz_always(ctx) {
+                    pdf_drop_obj(ctx, page);
+                }
+                fz_catch(ctx) {
+                    fz_rethrow(ctx);
+                }
             }
-            if (pages[i].pageNo < 1 || pages[i].pageNo > nBase) {
-                fz_throw(ctx, FZ_ERROR_ARGUMENT, "no page %d", pages[i].pageNo);
-            }
-            pdf_obj* like = pdf_lookup_page_obj(ctx, doc, pages[i].pageNo - 1);
-            fz_rect box = pdf_to_rect(ctx, pdf_dict_get_inheritable(ctx, like, PDF_NAME(MediaBox)));
-            int rot = pdf_to_int(ctx, pdf_dict_get_inheritable(ctx, like, PDF_NAME(Rotate)));
-            pdf_obj* res = pdf_new_dict(ctx, doc, 1);
-            fz_buffer* contents = fz_new_buffer(ctx, 1);
-            pdf_obj* page = nullptr;
-            fz_try(ctx) {
-                page = pdf_add_page(ctx, doc, box, rot, res, contents);
-                order[i] = pdf_count_pages(ctx, doc);
-                pdf_insert_page(ctx, doc, -1, page);
-            }
-            fz_always(ctx) {
-                pdf_drop_obj(ctx, page);
-                pdf_drop_obj(ctx, res);
-                fz_drop_buffer(ctx, contents);
-            }
-            fz_catch(ctx) {
-                fz_rethrow(ctx);
+            if (pages[i].rotate % 360) {
+                pdf_obj* page = pdf_lookup_page_obj(ctx, doc, order[i]);
+                int rot = pdf_to_int(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Rotate)));
+                pdf_dict_put_int(ctx, page, PDF_NAME(Rotate), ((rot + pages[i].rotate) % 360 + 360) % 360);
             }
         }
-        // Swiftleaf: page rotation, saved in the page's /Rotate
-        for (int i = 0; i < nPages; i++) {
-            if (pages[i].rotate % 360 == 0) {
+        catalog = pdf_copy_dict(ctx, MergeRoot(ctx, doc));
+        pdf_rearrange_pages(ctx, doc, len(pages), order.els, PDF_CLEAN_STRUCTURE_KEEP);
+        pdf_obj* root = MergeRoot(ctx, doc);
+        for (int i = 0; i < pdf_dict_len(ctx, catalog); i++) {
+            pdf_obj* key = pdf_dict_get_key(ctx, catalog, i);
+            if (key == PDF_NAME(Pages) || key == PDF_NAME(Outlines) || key == PDF_NAME(Names) || key == PDF_NAME(Dests))
                 continue;
-            }
-            pdf_obj* page = pdf_lookup_page_obj(ctx, doc, order[i]);
-            int rot = pdf_to_int(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Rotate)));
-            rot = (((rot + pages[i].rotate) % 360) + 360) % 360;
-            pdf_obj* v = pdf_new_int(ctx, rot);
-            pdf_dict_put(ctx, page, PDF_NAME(Rotate), v);
-            pdf_drop_obj(ctx, v);
+            pdf_dict_put(ctx, root, key, pdf_dict_get_val(ctx, catalog, i));
         }
-        // drops the pages not in order and fixes bookmarks and links to them
-        pdf_rearrange_pages(ctx, doc, nPages, order.els, PDF_CLEAN_STRUCTURE_KEEP);
-
+        pdf_obj* names = pdf_dict_get(ctx, catalog, PDF_NAME(Names));
+        if (names) {
+            pdf_obj* target = EnsurePdfDict(ctx, root, PDF_NAME(Names));
+            for (int i = 0; i < pdf_dict_len(ctx, names); i++) {
+                pdf_obj* key = pdf_dict_get_key(ctx, names, i);
+                if (key != PDF_NAME(Dests)) pdf_dict_put(ctx, target, key, pdf_dict_get_val(ctx, names, i));
+            }
+        }
+        Vec<int> widgets;
+        for (int i = 0; i < pdf_count_pages(ctx, doc); i++) {
+            pdf_obj* annots = pdf_dict_get(ctx, pdf_lookup_page_obj(ctx, doc, i), PDF_NAME(Annots));
+            for (int j = 0; j < pdf_array_len(ctx, annots); j++) {
+                pdf_obj* a = pdf_array_get(ctx, annots, j);
+                if (pdf_dict_get(ctx, a, PDF_NAME(Subtype)) == PDF_NAME(Widget)) VecAppend(widgets, pdf_to_num(ctx, a));
+            }
+        }
+        pdf_obj* fields = pdf_dict_getp(ctx, root, "AcroForm/Fields");
+        for (int i = pdf_array_len(ctx, fields) - 1; i >= 0; i--) {
+            if (!PruneMergeField(ctx, pdf_array_get(ctx, fields, i), widgets)) pdf_array_delete(ctx, fields, i);
+        }
         pdf_write_options opts = gPdfDefaultWriteOptions;
         opts.do_compress = 1;
-        // the dropped pages' objects
         opts.do_garbage = 3;
         pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
         ok = output.Commit();
     }
     fz_always(ctx) {
+        pdf_drop_obj(ctx, catalog);
         pdf_drop_graft_map(ctx, map);
         pdf_drop_document(ctx, src);
         pdf_drop_document(ctx, doc);
     }
     fz_catch(ctx) {
-        fz_report_error(ctx);
-        logf("EngineMupdfMergePdfs: saving '%s' failed: '%s'\n", destPath, Str(fz_caught_message(ctx)));
+        logf("EngineMupdfMergePdfs: %s\n", Str(fz_caught_message(ctx)));
     }
     fz_drop_context(ctx);
+    if (warningsOut) *warningsOut = warnings;
+    return ok;
+}
+
+static void SanitizePdfObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, void* arg) {
+    auto& opts = *(const PdfSanitizeOptions*)arg;
+    if (opts.javascript) RemovePdfScripts(ctx, doc, obj, nullptr);
+    if (opts.metadata) {
+        pdf_dict_del(ctx, obj, PDF_NAME(Metadata));
+        pdf_dict_dels(ctx, obj, "PieceInfo");
+    }
+    if (opts.thumbnails) pdf_dict_del(ctx, obj, PDF_NAME(Thumb));
+    if (opts.attachments) {
+        pdf_dict_del(ctx, obj, PDF_NAME(EmbeddedFiles));
+        pdf_dict_del(ctx, obj, PDF_NAME(AF));
+        pdf_dict_del(ctx, obj, PDF_NAME(EF));
+        pdf_dict_del(ctx, obj, PDF_NAME(Collection));
+        if (pdf_dict_get(ctx, obj, PDF_NAME(Subtype)) == PDF_NAME(FileAttachment)) pdf_dict_del(ctx, obj, PDF_NAME(FS));
+    }
+    if (opts.forms) {
+        pdf_dict_del(ctx, obj, PDF_NAME(AcroForm));
+        if (pdf_dict_get(ctx, obj, PDF_NAME(FT)) || pdf_dict_get(ctx, obj, PDF_NAME(Subtype)) == PDF_NAME(Widget)) {
+            pdf_dict_del(ctx, obj, PDF_NAME(V));
+            pdf_dict_del(ctx, obj, PDF_NAME(DV));
+            pdf_dict_del(ctx, obj, PDF_NAME(AP));
+            pdf_dict_del(ctx, obj, PDF_NAME(AS));
+        }
+    }
+    pdf_obj* annots = pdf_dict_get(ctx, obj, PDF_NAME(Annots));
+    for (int i = pdf_array_len(ctx, annots) - 1; i >= 0; i--) {
+        pdf_obj* a = pdf_array_get(ctx, annots, i);
+        pdf_obj* type = pdf_dict_get(ctx, a, PDF_NAME(Subtype));
+        bool widget = type == PDF_NAME(Widget);
+        bool link = type == PDF_NAME(Link);
+        if ((opts.forms && widget) || (opts.comments && !widget && !link) ||
+            (opts.attachments && type == PDF_NAME(FileAttachment)))
+            pdf_array_delete(ctx, annots, i);
+    }
+    if (opts.comments && pdf_dict_get(ctx, obj, PDF_NAME(Type)) == PDF_NAME(Annot) &&
+        pdf_dict_get(ctx, obj, PDF_NAME(Subtype)) != PDF_NAME(Widget) &&
+        pdf_dict_get(ctx, obj, PDF_NAME(Subtype)) != PDF_NAME(Link)) {
+        pdf_dict_del(ctx, obj, PDF_NAME(Contents));
+        pdf_dict_del(ctx, obj, PDF_NAME(RC));
+        pdf_dict_del(ctx, obj, PDF_NAME(AP));
+    }
+}
+
+// Hidden content uses a visible-page raster export. The old content/resource graph is discarded,
+// including invisible text, alternate layers, clipping leftovers and interactive appearances.
+static void RasterSanitizePage(fz_context* ctx, pdf_document* doc, int number) {
+    pdf_page* page = nullptr;
+    fz_pixmap* pix = nullptr;
+    fz_image* image = nullptr;
+    fz_device* device = nullptr;
+    pdf_obj* resources = nullptr;
+    fz_buffer* contents = nullptr;
+    fz_var(page);
+    fz_var(pix);
+    fz_var(image);
+    fz_var(device);
+    fz_var(resources);
+    fz_var(contents);
+    fz_try(ctx) {
+        page = pdf_load_page(ctx, doc, number);
+        fz_rect box = fz_bound_page(ctx, (fz_page*)page);
+        constexpr float dpi = 150.f;
+        pix = fz_new_pixmap_from_page(ctx, (fz_page*)page, fz_scale(dpi / 72.f, dpi / 72.f), fz_device_rgb(ctx), 0);
+        image = fz_new_image_from_pixmap(ctx, pix, nullptr);
+        device = pdf_page_write(ctx, doc, box, &resources, &contents);
+        fz_fill_image(ctx, device, image, fz_make_matrix(box.x1 - box.x0, 0, 0, box.y1 - box.y0, box.x0, box.y0), 1,
+                      fz_default_color_params);
+        fz_close_device(ctx, device);
+        pdf_obj* obj = pdf_lookup_page_obj(ctx, doc, number);
+        pdf_obj* parent = pdf_keep_obj(ctx, pdf_dict_get(ctx, obj, PDF_NAME(Parent)));
+        pdf_dict_del(ctx, obj, PDF_NAME(Annots));
+        pdf_dict_del(ctx, obj, PDF_NAME(AA));
+        pdf_dict_del(ctx, obj, PDF_NAME(OC));
+        pdf_dict_del(ctx, obj, PDF_NAME(PieceInfo));
+        pdf_dict_del(ctx, obj, PDF_NAME(StructParents));
+        pdf_dict_put_rect(ctx, obj, PDF_NAME(MediaBox), box);
+        pdf_dict_put_rect(ctx, obj, PDF_NAME(CropBox), box);
+        pdf_dict_put_int(ctx, obj, PDF_NAME(Rotate), 0);
+        pdf_dict_put_real(ctx, obj, PDF_NAME(UserUnit), 1);
+        pdf_dict_put(ctx, obj, PDF_NAME(Resources), resources);
+        pdf_dict_put_drop(ctx, obj, PDF_NAME(Contents), pdf_add_stream(ctx, doc, contents, nullptr, 0));
+        pdf_dict_put_drop(ctx, obj, PDF_NAME(Parent), parent);
+    }
+    fz_always(ctx) {
+        fz_drop_device(ctx, device);
+        fz_drop_image(ctx, image);
+        fz_drop_pixmap(ctx, pix);
+        pdf_drop_obj(ctx, resources);
+        fz_drop_buffer(ctx, contents);
+        fz_drop_page(ctx, (fz_page*)page);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+}
+
+static bool SaveCleanPdf(fz_context* ctx, pdf_document* doc, file::AtomicFile& output) {
+    if (!len(output.tempPath)) fz_throw(ctx, FZ_ERROR_SYSTEM, "Cannot stage PDF output");
+    pdf_write_options opts = gPdfDefaultWriteOptions;
+    opts.do_incremental = 0;
+    opts.do_garbage = 4;
+    opts.do_compress = 1;
+    pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
+    if (!output.Commit()) fz_throw(ctx, FZ_ERROR_SYSTEM, "Cannot replace PDF output");
+    return true;
+}
+
+bool EngineMupdfSanitizePdf(const PdfMergeSource& src, Str destPath, const PdfSanitizeOptions& options, Str* errorOut) {
+    if (errorOut) *errorOut = {};
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return false;
+    pdf_document* doc = nullptr;
+    bool ok = false;
+    fz_var(doc);
+    fz_var(ok);
+    file::AtomicFile output(destPath);
+    fz_try(ctx) {
+        doc = OpenPdfForMerge(ctx, src);
+        VisitPdfObjects(ctx, doc, SanitizePdfObject, (void*)&options);
+        pdf_obj* root = MergeRoot(ctx, doc);
+        if (options.metadata) {
+            pdf_dict_del(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
+            pdf_dict_del(ctx, pdf_trailer(ctx, doc), PDF_NAME(ID));
+        }
+        if (options.hiddenContent) {
+            for (int i = 0; i < pdf_count_pages(ctx, doc); i++) RasterSanitizePage(ctx, doc, i);
+            pdf_dict_del(ctx, root, PDF_NAME(OCProperties));
+            pdf_dict_del(ctx, root, PDF_NAME(AcroForm));
+            pdf_dict_del(ctx, root, PDF_NAME(StructTreeRoot));
+            pdf_dict_dels(ctx, root, "MarkInfo");
+        }
+        ok = SaveCleanPdf(ctx, doc, output);
+    }
+    fz_always(ctx) {
+        pdf_drop_document(ctx, doc);
+    }
+    fz_catch(ctx) {
+        if (errorOut) *errorOut = str::DupTemp(Str(fz_caught_message(ctx)));
+        logf("Sanitize PDF: %s\n", Str(fz_caught_message(ctx)));
+    }
+    fz_drop_context(ctx);
+    return ok;
+}
+
+struct RedactChar {
+    int offset;
+    fz_quad quad;
+};
+
+static void MarkSearchMatch(fz_context* ctx, pdf_page* page, const Vec<RedactChar>& chars, int start, int end) {
+    // One quad per glyph avoids erasing the gap between separate lines/columns.
+    pdf_annot* annot = pdf_create_annot(ctx, page, PDF_ANNOT_REDACT);
+    fz_try(ctx) {
+        for (int i = 0; i < len(chars); i++) {
+            if (chars[i].offset >= start && chars[i].offset < end) pdf_add_annot_quad_point(ctx, annot, chars[i].quad);
+        }
+        float black = 0;
+        pdf_set_annot_color(ctx, annot, 1, &black);
+    }
+    fz_always(ctx) {
+        pdf_drop_annot(ctx, annot);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+}
+
+static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str term, fz_regex* regex) {
+    pdf_page* page = nullptr;
+    fz_stext_page* text = nullptr;
+    fz_var(page);
+    fz_var(text);
+    int count = 0;
+    fz_var(count);
+    fz_try(ctx) {
+        page = pdf_load_page(ctx, doc, number);
+        fz_stext_options opts = {};
+        opts.flags = FZ_STEXT_PRESERVE_WHITESPACE | FZ_STEXT_PRESERVE_SPANS;
+        text = fz_new_stext_page_from_page(ctx, (fz_page*)page, &opts);
+        str::Builder utf8;
+        Vec<RedactChar> chars;
+        for (fz_stext_block* block = text->first_block; block; block = block->next) {
+            if (block->type != FZ_STEXT_BLOCK_TEXT) continue;
+            for (fz_stext_line* line = block->u.t.first_line; line; line = line->next) {
+                for (fz_stext_char* c = line->first_char; c; c = c->next) {
+                    VecAppend(chars, RedactChar{(int)len(utf8), c->quad});
+                    char rune[5] = {};
+                    int size = fz_runetochar(rune, c->c);
+                    utf8.Append(Str(rune, size));
+                }
+                utf8.AppendChar('\n');
+            }
+        }
+        const char* begin = CStrTemp(ToStr(utf8));
+        if (!begin) begin = "";
+        const char* cursor = begin;
+        while (*cursor) {
+            const char* start;
+            const char* end;
+            if (regex) {
+                fz_regmatch match = {};
+                int status = fz_regexec(ctx, regex, cursor, &match, REG_RUNAWAY | (cursor == begin ? 0 : REG_NOTBOL));
+                if (status < 0) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Regular expression exceeded its execution limit");
+                if (status) break;
+                start = match.sub[0].sp;
+                end = match.sub[0].ep;
+            } else {
+                start = strstr(cursor, CStrTemp(term));
+                if (!start) break;
+                end = start + len(term);
+            }
+            if (start == end) {
+                if (!*end) break;
+                int rune;
+                cursor = end + fz_chartorune(&rune, end);
+                continue;
+            }
+            MarkSearchMatch(ctx, page, chars, (int)(start - begin), (int)(end - begin));
+            count++;
+            cursor = end;
+        }
+        if (count) {
+            pdf_redact_options redaction = {};
+            redaction.black_boxes = 1;
+            redaction.image_method = PDF_REDACT_IMAGE_REMOVE;
+            redaction.line_art = PDF_REDACT_LINE_ART_REMOVE_IF_TOUCHED;
+            redaction.text = PDF_REDACT_TEXT_REMOVE;
+            pdf_redact_page(ctx, doc, page, &redaction);
+        }
+    }
+    fz_always(ctx) {
+        fz_drop_stext_page(ctx, text);
+        fz_drop_page(ctx, (fz_page*)page);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+    return count;
+}
+
+bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode, int* countOut,
+                              Str* errorOut) {
+    if (countOut) *countOut = 0;
+    if (errorOut) *errorOut = {};
+    if (!len(term)) {
+        if (errorOut) *errorOut = StrL("Enter a search term or regular expression.");
+        return false;
+    }
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return false;
+    pdf_document* doc = nullptr;
+    fz_regex* regex = nullptr;
+    bool ok = false;
+    int count = 0;
+    fz_var(doc);
+    fz_var(regex);
+    fz_var(ok);
+    fz_var(count);
+    file::AtomicFile output(destPath);
+    fz_try(ctx) {
+        if (mode == PdfSearchMode::Regex) regex = fz_regcomp(ctx, CStrTemp(term), REG_NEWLINE);
+        doc = OpenPdfForMerge(ctx, src);
+        for (int i = 0; i < pdf_count_pages(ctx, doc); i++) count += RedactSearchPage(ctx, doc, i, term, regex);
+        if (count) {
+            // Tags and thumbnails can hold copies of removed content.
+            pdf_dict_del(ctx, MergeRoot(ctx, doc), PDF_NAME(StructTreeRoot));
+            PdfSanitizeOptions clean = {};
+            clean.metadata = clean.javascript = clean.attachments = clean.comments = clean.forms = false;
+            VisitPdfObjects(ctx, doc, SanitizePdfObject, &clean);
+        }
+        ok = SaveCleanPdf(ctx, doc, output);
+    }
+    fz_always(ctx) {
+        fz_regfree(ctx, regex);
+        pdf_drop_document(ctx, doc);
+    }
+    fz_catch(ctx) {
+        if (errorOut) *errorOut = str::DupTemp(Str(fz_caught_message(ctx)));
+        logf("Redact matches: %s\n", Str(fz_caught_message(ctx)));
+    }
+    fz_drop_context(ctx);
+    if (ok && countOut) *countOut = count;
     return ok;
 }
 
