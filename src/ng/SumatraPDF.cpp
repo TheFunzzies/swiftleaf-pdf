@@ -7781,6 +7781,18 @@ void ExecuteCmd(MainWindow* win, int cmdId) {
             ShowMergePdfDialog(win);
             break;
 
+        case CmdAddWatermark:
+            ShowPdfAddWatermarkDialog(win);
+            break;
+
+        case CmdAddHeaderFooter:
+            ShowPdfAddHeaderFooterDialog(win);
+            break;
+
+        case CmdBatesNumbering:
+            ShowPdfBatesNumberingDialog(win);
+            break;
+
         case CmdMoveFrameFocus:
             if (!AppShellIsFrameFocused(win)) {
                 AppShellFocusFrame(win);

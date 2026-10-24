@@ -13708,6 +13708,18 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             ShowMergePdfDialog(win);
             break;
 
+        case CmdAddWatermark:
+            ShowPdfAddWatermarkDialog(win);
+            break;
+
+        case CmdAddHeaderFooter:
+            ShowPdfAddHeaderFooterDialog(win);
+            break;
+
+        case CmdBatesNumbering:
+            ShowPdfBatesNumberingDialog(win);
+            break;
+
         // Swiftleaf page organizing (PageOrganize.cpp)
         case CmdRotatePageLeft:
             OrganizeRotatePage(win, -90);

@@ -361,6 +361,9 @@ const commandsRaw = [
     "CmdCreateFormRadio", "Create Radio Group",
     "CmdCreateFormCombo", "Create Dropdown Field",
     "CmdCreateFormSignature", "Create Unsigned Signature Field",
+    "CmdAddWatermark", "Add Watermark...",
+    "CmdAddHeaderFooter", "Add Header/Footer...",
+    "CmdBatesNumbering", "Bates Numbering...",
 ];
 
 // removed slots are dropped: nothing outside the generators should see them

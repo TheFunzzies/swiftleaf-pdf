@@ -42,7 +42,10 @@
 #include "Material.h"
 #include "Commands.h"
 #include "PageOrganize.h"
+#include <mupdf/pdf.h>
 #include "PdfTools.h"
+
+extern const pdf_write_options gPdfDefaultWriteOptions;
 
 extern "C" int pdfbake_main(int argc, char** argv);
 extern "C" int pdfclean_main(int argc, char** argv);
@@ -2678,6 +2681,1360 @@ void ShowSaveSelectionAsImageDialog(MainWindow* win) {
     logf("ShowSaveSelectionAsImageDialog: opening for '%s'\n", tab->filePath);
 
     auto* dlg = new SaveSelectionAsImageDialog();
+    if (!dlg->Create(win, tab)) {
+        delete dlg;
+    }
+}
+
+// --- Page stamps: Watermark, Header/Footer, Bates numbering ---
+
+static pdf_obj* AddContentStream(fz_context* ctx, pdf_document* doc, Str s) {
+    fz_buffer* buf = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)s.s, (size_t)s.len);
+    pdf_obj* stm = nullptr;
+    fz_try(ctx) {
+        stm = pdf_add_stream(ctx, doc, buf, nullptr, 0);
+    }
+    fz_always(ctx) {
+        fz_drop_buffer(ctx, buf);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+    return stm;
+}
+
+static void AppendWinAnsiPdfString(str::Builder& b, Str utf8) {
+    b.AppendChar('(');
+    TempWStr ws = ToWStrTemp(utf8);
+    for (int i = 0; i < ws.len; i++) {
+        int c = fz_windows_1252_from_unicode(ws.s[i]);
+        if (c < 0) {
+            c = '?';
+        }
+        if (c == '(' || c == ')' || c == '\\') {
+            b.AppendChar('\\');
+            b.AppendChar((char)c);
+        } else if (c < 0x20 || c >= 0x7f) {
+            b.Append(fmt("\\%03o", c));
+        } else {
+            b.AppendChar((char)c);
+        }
+    }
+    b.AppendChar(')');
+}
+
+static float TextWidth(fz_context* ctx, fz_font* font, float size, Str utf8) {
+    TempWStr ws = ToWStrTemp(utf8);
+    float w = 0;
+    for (int i = 0; i < ws.len; i++) {
+        int gid = fz_encode_character(ctx, font, ws.s[i]);
+        w += fz_advance_glyph(ctx, font, gid, 0);
+    }
+    return w * size;
+}
+
+static TempStr ReplaceHeaderFooterTokens(Str pattern, int pageNo, int totalPages, Str dateStr, Str filename) {
+    str::Builder b;
+    for (int i = 0; i < len(pattern);) {
+        if (pattern.s[i] == '{') {
+            Str rem = Str(pattern.s + i, len(pattern) - i);
+            if (str::StartsWith(rem, StrL("{page}"))) {
+                b.Append(fmt("%d", pageNo));
+                i += 6;
+                continue;
+            }
+            if (str::StartsWith(rem, StrL("{pages}"))) {
+                b.Append(fmt("%d", totalPages));
+                i += 7;
+                continue;
+            }
+            if (str::StartsWith(rem, StrL("{date}"))) {
+                b.Append(dateStr);
+                i += 6;
+                continue;
+            }
+            if (str::StartsWith(rem, StrL("{filename}"))) {
+                b.Append(filename);
+                i += 10;
+                continue;
+            }
+        }
+        b.AppendChar(pattern.s[i]);
+        i++;
+    }
+    return ToStrTemp(b);
+}
+
+static bool ResolvePageRange(Str pagesSpec, int pageCount, Vec<int>& outPages) {
+    if (len(pagesSpec) == 0 || str::EqI(pagesSpec, StrL("all"))) {
+        for (int i = 1; i <= pageCount; i++) {
+            VecAppend(outPages, i);
+        }
+        return true;
+    }
+    Vec<int> parsed;
+    if (!ParseDeletePages(pagesSpec, pageCount, parsed)) {
+        return false;
+    }
+    for (int p : parsed) {
+        if (!VecContains(outPages, p)) {
+            VecAppend(outPages, p);
+        }
+    }
+    return len(outPages) > 0;
+}
+
+struct PageStampDrawItem {
+    Str text;
+    float fontSize = 12.f;
+    float opacity = 1.0f;
+    float angle = 0.f;
+    float x = 0.f;
+    float y = 0.f;
+    int align = 0; // 0 = left, 1 = center, 2 = right
+    COLORREF color = RGB(0, 0, 0);
+    bool rotateCenter = false;
+};
+
+static void ApplyItemsToPage(fz_context* ctx, pdf_document* doc, int pageIndex, const Vec<PageStampDrawItem>& items) {
+    if (len(items) == 0) {
+        return;
+    }
+    pdf_page* page = pdf_load_page(ctx, doc, pageIndex);
+    if (!page) {
+        return;
+    }
+    fz_rect mediabox;
+    fz_matrix ctm;
+    pdf_page_transform(ctx, page, &mediabox, &ctm);
+    fz_matrix inv_ctm = fz_invert_matrix(ctm);
+
+    fz_font* font = fz_new_base14_font(ctx, "Helvetica-Bold");
+    pdf_obj* fontRef = pdf_add_simple_font(ctx, doc, font, PDF_SIMPLE_ENCODING_LATIN);
+
+    pdf_obj* res = pdf_dict_get(ctx, page->obj, PDF_NAME(Resources));
+    if (!res) {
+        pdf_obj* inher = pdf_dict_get_inheritable(ctx, page->obj, PDF_NAME(Resources));
+        if (inher) {
+            res = pdf_copy_dict(ctx, inher);
+        } else {
+            res = pdf_new_dict(ctx, doc, 2);
+        }
+        pdf_dict_put_drop(ctx, page->obj, PDF_NAME(Resources), res);
+    }
+    pdf_obj* fonts = pdf_dict_get(ctx, res, PDF_NAME(Font));
+    if (!fonts) {
+        fonts = pdf_new_dict(ctx, doc, 1);
+        pdf_dict_put_drop(ctx, res, PDF_NAME(Font), fonts);
+    }
+    TempStr fontName;
+    for (int n = 1;; n++) {
+        fontName = fmt("SwiftleafF%d", n);
+        if (!pdf_dict_gets(ctx, fonts, CStrTemp(fontName))) {
+            break;
+        }
+    }
+    pdf_dict_puts_drop(ctx, fonts, CStrTemp(fontName), fontRef);
+
+    TempStr gsName;
+    float minOpacity = 1.0f;
+    for (const auto& item : items) {
+        if (item.opacity < minOpacity) {
+            minOpacity = item.opacity;
+        }
+    }
+    if (minOpacity < 1.0f) {
+        pdf_obj* egs = pdf_dict_get(ctx, res, PDF_NAME(ExtGState));
+        if (!egs) {
+            egs = pdf_new_dict(ctx, doc, 1);
+            pdf_dict_put_drop(ctx, res, PDF_NAME(ExtGState), egs);
+        }
+        for (int n = 1;; n++) {
+            gsName = fmt("SwiftleafGS%d", n);
+            if (!pdf_dict_gets(ctx, egs, CStrTemp(gsName))) {
+                break;
+            }
+        }
+        pdf_obj* gsDict = pdf_new_dict(ctx, doc, 3);
+        pdf_dict_put(ctx, gsDict, PDF_NAME(Type), PDF_NAME(ExtGState));
+        pdf_dict_put_drop(ctx, gsDict, PDF_NAME(CA), pdf_new_real(ctx, minOpacity));
+        pdf_dict_put_drop(ctx, gsDict, PDF_NAME(ca), pdf_new_real(ctx, minOpacity));
+        pdf_dict_puts_drop(ctx, egs, CStrTemp(gsName), gsDict);
+    }
+
+    str::Builder content;
+    content.Append(StrL("q\n"));
+    if (minOpacity < 1.0f) {
+        content.Append(fmt("/%s gs\n", gsName));
+    }
+
+    for (const auto& item : items) {
+        if (len(item.text) == 0) {
+            continue;
+        }
+        float w = TextWidth(ctx, font, item.fontSize, item.text);
+        fz_matrix tm;
+        if (item.rotateCenter) {
+            fz_matrix mCenter = fz_translate(-w / 2.0f, -item.fontSize * 0.3f);
+            fz_matrix mRot = fz_rotate(item.angle);
+            fz_matrix mVis{1, 0, 0, -1, item.x, item.y};
+            tm = fz_concat(fz_concat(mCenter, mRot), mVis);
+        } else {
+            float xPos = item.x;
+            if (item.align == 1) {
+                xPos -= w / 2.0f;
+            } else if (item.align == 2) {
+                xPos -= w;
+            }
+            fz_matrix mVis{1, 0, 0, -1, xPos, item.y};
+            tm = mVis;
+        }
+        tm = fz_concat(tm, inv_ctm);
+
+        u8 cr = GetRValue(item.color);
+        u8 cg = GetGValue(item.color);
+        u8 cb = GetBValue(item.color);
+        content.Append(
+            fmt("BT\n/%s %.2f Tf\n%.3f %.3f %.3f rg\n", fontName, item.fontSize, cr / 255.f, cg / 255.f, cb / 255.f));
+        content.Append(fmt("%.4f %.4f %.4f %.4f %.3f %.3f Tm\n", tm.a, tm.b, tm.c, tm.d, tm.e, tm.f));
+        AppendWinAnsiPdfString(content, item.text);
+        content.Append(StrL(" Tj\nET\n"));
+    }
+    content.Append(StrL("Q\n"));
+
+    pdf_obj* stmPush = AddContentStream(ctx, doc, StrL("q\n"));
+    pdf_obj* stmPop = AddContentStream(ctx, doc, StrL("Q\n"));
+    pdf_obj* stmOverlay = AddContentStream(ctx, doc, ToStrTemp(content));
+    pdf_obj* contents = pdf_dict_get(ctx, page->obj, PDF_NAME(Contents));
+    pdf_obj* arr = pdf_new_array(ctx, doc, 4);
+    pdf_array_push(ctx, arr, stmPush);
+    if (pdf_is_array(ctx, contents)) {
+        int n = pdf_array_len(ctx, contents);
+        for (int k = 0; k < n; k++) {
+            pdf_array_push(ctx, arr, pdf_array_get(ctx, contents, k));
+        }
+    } else if (contents) {
+        pdf_array_push(ctx, arr, contents);
+    }
+    pdf_array_push(ctx, arr, stmPop);
+    pdf_array_push(ctx, arr, stmOverlay);
+    pdf_dict_put(ctx, page->obj, PDF_NAME(Contents), arr);
+
+    pdf_drop_obj(ctx, arr);
+    pdf_drop_obj(ctx, stmPush);
+    pdf_drop_obj(ctx, stmPop);
+    pdf_drop_obj(ctx, stmOverlay);
+    fz_drop_font(ctx, font);
+    fz_drop_page(ctx, (fz_page*)page);
+}
+
+bool PdfApplyWatermark(Str srcPath, Str destPath, const PdfWatermarkParams& params) {
+    if (len(srcPath) == 0 || len(destPath) == 0 || len(params.text) == 0) {
+        return false;
+    }
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) {
+        return false;
+    }
+    fz_register_document_handlers(ctx);
+    pdf_document* doc = nullptr;
+    bool ok = false;
+    fz_var(doc);
+    fz_var(ok);
+    fz_try(ctx) {
+        doc = pdf_open_document(ctx, CStrTemp(srcPath));
+        if (pdf_needs_password(ctx, doc)) {
+            fz_throw(ctx, FZ_ERROR_GENERIC, "encrypted PDF not supported");
+        }
+        int pageCount = pdf_count_pages(ctx, doc);
+        Vec<int> pages;
+        if (!ResolvePageRange(params.pagesSpec, pageCount, pages)) {
+            fz_throw(ctx, FZ_ERROR_GENERIC, "invalid page range");
+        }
+
+        for (int pNum : pages) {
+            int pageIndex = pNum - 1;
+            if (pageIndex < 0 || pageIndex >= pageCount) {
+                continue;
+            }
+            pdf_page* page = pdf_load_page(ctx, doc, pageIndex);
+            fz_rect bound = pdf_bound_page(ctx, page, FZ_CROP_BOX);
+            float pageW = bound.x1 - bound.x0;
+            float pageH = bound.y1 - bound.y0;
+            fz_drop_page(ctx, (fz_page*)page);
+
+            float cx = pageW / 2.f;
+            float cy = pageH / 2.f;
+            float margin = 54.f;
+            switch (params.position) {
+                case PdfWatermarkPos::Center:
+                    cx = pageW / 2.f;
+                    cy = pageH / 2.f;
+                    break;
+                case PdfWatermarkPos::TopLeft:
+                    cx = margin;
+                    cy = margin;
+                    break;
+                case PdfWatermarkPos::TopCenter:
+                    cx = pageW / 2.f;
+                    cy = margin;
+                    break;
+                case PdfWatermarkPos::TopRight:
+                    cx = pageW - margin;
+                    cy = margin;
+                    break;
+                case PdfWatermarkPos::CenterLeft:
+                    cx = margin;
+                    cy = pageH / 2.f;
+                    break;
+                case PdfWatermarkPos::CenterRight:
+                    cx = pageW - margin;
+                    cy = pageH / 2.f;
+                    break;
+                case PdfWatermarkPos::BottomLeft:
+                    cx = margin;
+                    cy = pageH - margin;
+                    break;
+                case PdfWatermarkPos::BottomCenter:
+                    cx = pageW / 2.f;
+                    cy = pageH - margin;
+                    break;
+                case PdfWatermarkPos::BottomRight:
+                    cx = pageW - margin;
+                    cy = pageH - margin;
+                    break;
+            }
+
+            PageStampDrawItem item;
+            item.text = params.text;
+            item.fontSize = params.fontSize;
+            item.opacity = std::max(0.01f, std::min(1.0f, params.opacity));
+            item.angle = params.angle;
+            item.x = cx;
+            item.y = cy;
+            item.color = params.color;
+            item.rotateCenter = true;
+
+            Vec<PageStampDrawItem> items;
+            VecAppend(items, item);
+            ApplyItemsToPage(ctx, doc, pageIndex, items);
+        }
+
+        pdf_write_options opts = gPdfDefaultWriteOptions;
+        opts.do_compress = 1;
+        opts.do_garbage = 1;
+
+        TempStr savePath = destPath;
+        bool sameFile = path::IsSame(srcPath, destPath);
+        TempStr tmpSave;
+        if (sameFile) {
+            tmpSave = GetTempFilePathTemp(StrL("watermark-tmp"));
+            savePath = tmpSave;
+        }
+
+        pdf_save_document(ctx, doc, CStrTemp(savePath), &opts);
+
+        if (sameFile) {
+            pdf_drop_document(ctx, doc);
+            doc = nullptr;
+            if (!file::RenameReplace(destPath, savePath)) {
+                file::Copy(destPath, savePath, false);
+                file::Delete(savePath);
+            }
+        }
+        ok = true;
+    }
+    fz_always(ctx) {
+        if (doc) {
+            pdf_drop_document(ctx, doc);
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        logf("PdfApplyWatermark failed: %s\n", Str(fz_caught_message(ctx)));
+    }
+    fz_drop_context(ctx);
+    return ok;
+}
+
+bool PdfApplyHeaderFooter(Str srcPath, Str destPath, const PdfHeaderFooterParams& params) {
+    if (len(srcPath) == 0 || len(destPath) == 0) {
+        return false;
+    }
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) {
+        return false;
+    }
+    fz_register_document_handlers(ctx);
+    pdf_document* doc = nullptr;
+    bool ok = false;
+    fz_var(doc);
+    fz_var(ok);
+    fz_try(ctx) {
+        doc = pdf_open_document(ctx, CStrTemp(srcPath));
+        if (pdf_needs_password(ctx, doc)) {
+            fz_throw(ctx, FZ_ERROR_GENERIC, "encrypted PDF not supported");
+        }
+        int pageCount = pdf_count_pages(ctx, doc);
+        Vec<int> pages;
+        if (!ResolvePageRange(params.pagesSpec, pageCount, pages)) {
+            fz_throw(ctx, FZ_ERROR_GENERIC, "invalid page range");
+        }
+
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        TempStr dateStr = fmt("%04d-%02d-%02d", st.wYear, st.wMonth, st.wDay);
+        TempStr filename = path::GetBaseNameTemp(srcPath);
+
+        float marginX = 36.f;
+        float marginY = 36.f;
+
+        for (int pNum : pages) {
+            int pageIndex = pNum - 1;
+            if (pageIndex < 0 || pageIndex >= pageCount) {
+                continue;
+            }
+            pdf_page* page = pdf_load_page(ctx, doc, pageIndex);
+            fz_rect bound = pdf_bound_page(ctx, page, FZ_CROP_BOX);
+            float pageW = bound.x1 - bound.x0;
+            float pageH = bound.y1 - bound.y0;
+            fz_drop_page(ctx, (fz_page*)page);
+
+            Vec<PageStampDrawItem> items;
+            auto addItem = [&](Str pat, float x, float y, int align) {
+                if (len(pat) == 0) return;
+                TempStr txt = ReplaceHeaderFooterTokens(pat, pNum, pageCount, dateStr, filename);
+                if (len(txt) == 0) return;
+                PageStampDrawItem it;
+                it.text = txt;
+                it.fontSize = params.fontSize;
+                it.opacity = 1.0f;
+                it.angle = 0.f;
+                it.x = x;
+                it.y = y;
+                it.align = align;
+                it.color = params.color;
+                it.rotateCenter = false;
+                VecAppend(items, it);
+            };
+
+            // Header: visual top
+            addItem(params.headerLeft, marginX, marginY + params.fontSize * 0.8f, 0);
+            addItem(params.headerCenter, pageW / 2.f, marginY + params.fontSize * 0.8f, 1);
+            addItem(params.headerRight, pageW - marginX, marginY + params.fontSize * 0.8f, 2);
+
+            // Footer: visual bottom
+            addItem(params.footerLeft, marginX, pageH - marginY, 0);
+            addItem(params.footerCenter, pageW / 2.f, pageH - marginY, 1);
+            addItem(params.footerRight, pageW - marginX, pageH - marginY, 2);
+
+            ApplyItemsToPage(ctx, doc, pageIndex, items);
+        }
+
+        pdf_write_options opts = gPdfDefaultWriteOptions;
+        opts.do_compress = 1;
+        opts.do_garbage = 1;
+
+        TempStr savePath = destPath;
+        bool sameFile = path::IsSame(srcPath, destPath);
+        TempStr tmpSave;
+        if (sameFile) {
+            tmpSave = GetTempFilePathTemp(StrL("hf-tmp"));
+            savePath = tmpSave;
+        }
+
+        pdf_save_document(ctx, doc, CStrTemp(savePath), &opts);
+
+        if (sameFile) {
+            pdf_drop_document(ctx, doc);
+            doc = nullptr;
+            if (!file::RenameReplace(destPath, savePath)) {
+                file::Copy(destPath, savePath, false);
+                file::Delete(savePath);
+            }
+        }
+        ok = true;
+    }
+    fz_always(ctx) {
+        if (doc) {
+            pdf_drop_document(ctx, doc);
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        logf("PdfApplyHeaderFooter failed: %s\n", Str(fz_caught_message(ctx)));
+    }
+    fz_drop_context(ctx);
+    return ok;
+}
+
+bool PdfApplyBatesNumbering(Str srcPath, Str destPath, const PdfBatesParams& params) {
+    if (len(srcPath) == 0 || len(destPath) == 0) {
+        return false;
+    }
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) {
+        return false;
+    }
+    fz_register_document_handlers(ctx);
+    pdf_document* doc = nullptr;
+    bool ok = false;
+    fz_var(doc);
+    fz_var(ok);
+    fz_try(ctx) {
+        doc = pdf_open_document(ctx, CStrTemp(srcPath));
+        if (pdf_needs_password(ctx, doc)) {
+            fz_throw(ctx, FZ_ERROR_GENERIC, "encrypted PDF not supported");
+        }
+        int pageCount = pdf_count_pages(ctx, doc);
+        Vec<int> pages;
+        if (!ResolvePageRange(params.pagesSpec, pageCount, pages)) {
+            fz_throw(ctx, FZ_ERROR_GENERIC, "invalid page range");
+        }
+
+        float marginX = 36.f;
+        float marginY = 36.f;
+        int digits = std::max(1, std::min(12, params.digitCount));
+
+        for (int i = 0; i < len(pages); i++) {
+            int pNum = pages[i];
+            int pageIndex = pNum - 1;
+            if (pageIndex < 0 || pageIndex >= pageCount) {
+                continue;
+            }
+            pdf_page* page = pdf_load_page(ctx, doc, pageIndex);
+            fz_rect bound = pdf_bound_page(ctx, page, FZ_CROP_BOX);
+            float pageW = bound.x1 - bound.x0;
+            float pageH = bound.y1 - bound.y0;
+            fz_drop_page(ctx, (fz_page*)page);
+
+            int batesNum = params.startNumber + i;
+            char numBuf[32];
+            snprintf(numBuf, sizeof(numBuf), "%0*d", digits, batesNum);
+            TempStr batesText = fmt("%s%s", params.prefix, Str(numBuf));
+
+            float x = pageW - marginX;
+            float y = pageH - marginY;
+            int align = 2; // right
+
+            switch (params.position) {
+                case PdfBatesPos::TopLeft:
+                    x = marginX;
+                    y = marginY + params.fontSize * 0.8f;
+                    align = 0;
+                    break;
+                case PdfBatesPos::TopCenter:
+                    x = pageW / 2.f;
+                    y = marginY + params.fontSize * 0.8f;
+                    align = 1;
+                    break;
+                case PdfBatesPos::TopRight:
+                    x = pageW - marginX;
+                    y = marginY + params.fontSize * 0.8f;
+                    align = 2;
+                    break;
+                case PdfBatesPos::BottomLeft:
+                    x = marginX;
+                    y = pageH - marginY;
+                    align = 0;
+                    break;
+                case PdfBatesPos::BottomCenter:
+                    x = pageW / 2.f;
+                    y = pageH - marginY;
+                    align = 1;
+                    break;
+                case PdfBatesPos::BottomRight:
+                    x = pageW - marginX;
+                    y = pageH - marginY;
+                    align = 2;
+                    break;
+            }
+
+            PageStampDrawItem item;
+            item.text = batesText;
+            item.fontSize = params.fontSize;
+            item.opacity = 1.0f;
+            item.angle = 0.f;
+            item.x = x;
+            item.y = y;
+            item.align = align;
+            item.color = params.color;
+            item.rotateCenter = false;
+
+            Vec<PageStampDrawItem> items;
+            VecAppend(items, item);
+            ApplyItemsToPage(ctx, doc, pageIndex, items);
+        }
+
+        pdf_write_options opts = gPdfDefaultWriteOptions;
+        opts.do_compress = 1;
+        opts.do_garbage = 1;
+
+        TempStr savePath = destPath;
+        bool sameFile = path::IsSame(srcPath, destPath);
+        TempStr tmpSave;
+        if (sameFile) {
+            tmpSave = GetTempFilePathTemp(StrL("bates-tmp"));
+            savePath = tmpSave;
+        }
+
+        pdf_save_document(ctx, doc, CStrTemp(savePath), &opts);
+
+        if (sameFile) {
+            pdf_drop_document(ctx, doc);
+            doc = nullptr;
+            if (!file::RenameReplace(destPath, savePath)) {
+                file::Copy(destPath, savePath, false);
+                file::Delete(savePath);
+            }
+        }
+        ok = true;
+    }
+    fz_always(ctx) {
+        if (doc) {
+            pdf_drop_document(ctx, doc);
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        logf("PdfApplyBatesNumbering failed: %s\n", Str(fz_caught_message(ctx)));
+    }
+    fz_drop_context(ctx);
+    return ok;
+}
+
+// --- Watermark Dialog ---
+
+struct PdfWatermarkDialog : PdfToolDialog {
+    Edit* textEdit = nullptr;
+    Edit* opacityEdit = nullptr;
+    Edit* angleEdit = nullptr;
+    Edit* sizeEdit = nullptr;
+    DropDown* dropPos = nullptr;
+    DropDown* dropColor = nullptr;
+
+    Checkbox* radioAll = nullptr;
+    Checkbox* radioCurrent = nullptr;
+    Checkbox* radioCustom = nullptr;
+    Edit* pagesEdit = nullptr;
+
+    int pageCount = 0;
+    int currentPage = 1;
+
+    bool Create(MainWindow* win, WindowTab* tab);
+    void DoIt(VirtMouseEvent* ev = nullptr) override;
+    void OnPagesModeChanged();
+    void UpdateButton();
+};
+
+void PdfWatermarkDialog::OnPagesModeChanged() {
+    bool custom = radioCustom && radioCustom->IsChecked();
+    if (pagesEdit) {
+        pagesEdit->SetIsEnabled(custom);
+    }
+    UpdateButton();
+}
+
+void PdfWatermarkDialog::UpdateButton() {
+    if (!actionBtn) return;
+    TempStr dest = destEdit ? destEdit->GetTextTemp() : TempStr{};
+    TempStr txt = textEdit ? textEdit->GetTextTemp() : TempStr{};
+    bool ok = len(dest) > 0 && len(txt) > 0;
+    if (radioCustom && radioCustom->IsChecked()) {
+        TempStr pages = pagesEdit ? pagesEdit->GetTextTemp() : TempStr{};
+        Vec<int> p;
+        ok = ok && ParseDeletePages(pages, pageCount, p);
+    }
+    actionBtn->SetFlag(vwfEnabled, ok);
+}
+
+void PdfWatermarkDialog::DoIt(VirtMouseEvent*) {
+    TempStr destPath = destEdit->GetTextTemp();
+    if (len(destPath) == 0) {
+        return;
+    }
+    TempStr text = textEdit->GetTextTemp();
+    if (len(text) == 0) {
+        return;
+    }
+
+    PdfWatermarkParams params;
+    params.text = text;
+
+    TempStr opStr = opacityEdit ? opacityEdit->GetTextTemp() : TempStr{};
+    int opVal = 50;
+    str::Parse(opStr, "%d", &opVal);
+    params.opacity = std::max(1, std::min(100, opVal)) / 100.0f;
+
+    TempStr angStr = angleEdit ? angleEdit->GetTextTemp() : TempStr{};
+    int angVal = 45;
+    str::Parse(angStr, "%d", &angVal);
+    params.angle = (float)angVal;
+
+    TempStr szStr = sizeEdit ? sizeEdit->GetTextTemp() : TempStr{};
+    int szVal = 48;
+    str::Parse(szStr, "%d", &szVal);
+    params.fontSize = (float)std::max(6, std::min(144, szVal));
+
+    int posIdx = dropPos ? CbGetCurrentSelection(dropPos) : 0;
+    params.position = (PdfWatermarkPos)posIdx;
+
+    int colIdx = dropColor ? CbGetCurrentSelection(dropColor) : 0;
+    switch (colIdx) {
+        case 1:
+            params.color = RGB(220, 30, 30);
+            break; // Red
+        case 2:
+            params.color = RGB(30, 80, 220);
+            break; // Blue
+        case 3:
+            params.color = RGB(0, 0, 0);
+            break; // Black
+        case 4:
+            params.color = RGB(30, 150, 40);
+            break; // Green
+        default:
+            params.color = RGB(128, 128, 128);
+            break; // Gray
+    }
+
+    if (radioCurrent && radioCurrent->IsChecked()) {
+        params.pagesSpec = fmt("%d", currentPage);
+    } else if (radioCustom && radioCustom->IsChecked()) {
+        params.pagesSpec = pagesEdit ? pagesEdit->GetTextTemp() : TempStr{};
+    } else {
+        params.pagesSpec = StrL("all");
+    }
+
+    Str inputPath = srcPath;
+    TempStr tmpPath;
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    EngineBase* engine = tab ? tab->GetEngine() : nullptr;
+    if (engine && EngineHasUnsavedAnnotations(engine)) {
+        tmpPath = GetTempFilePathTemp(StrL("watermark-input"));
+        if (len(tmpPath) == 0 || !EngineMupdfSaveCopy(engine, tmpPath)) {
+            MessageBoxWarning(hwnd, StrL("Failed to save copy of PDF file."), Tr("Add Watermark"));
+            return;
+        }
+        inputPath = tmpPath;
+    }
+
+    logf("PdfWatermarkDialog::DoIt: applying watermark to '%s'\n", destPath);
+    bool ok = PdfApplyWatermark(inputPath, destPath, params);
+    if (tmpPath) {
+        file::Delete(tmpPath);
+    }
+
+    if (ok) {
+        MainWindow* w = win;
+        TempStr path = str::DupTemp(destPath);
+        Close();
+        LoadArgs args(path, w);
+        StartLoadDocument(&args);
+    } else {
+        MessageBoxWarning(hwnd, StrL("Failed to add watermark to PDF file."), Tr("Add Watermark"));
+    }
+}
+
+bool PdfWatermarkDialog::Create(MainWindow* w, WindowTab* tab) {
+    if (!CreateToolDialog(w, tab, Tr("Add Watermark"))) {
+        return false;
+    }
+    pageCount = w->ctrl ? w->ctrl->PageCount() : 1;
+    currentPage = w->ctrl ? w->ctrl->CurrentPageNo() : 1;
+
+    AddPathRow();
+
+    Str stem = str::DupTemp(srcPath);
+    if (str::EndsWithI(stem, StrL(".pdf"))) {
+        stem.len -= 4;
+    }
+    TempStr dest = MakeUniqueFilePathTemp(fmt("%s_watermark.pdf", stem));
+    AddDestRow(dest, L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+
+    textEdit = AddLabeledEdit(Tr("Watermark Text:"), StrL("CONFIDENTIAL"));
+
+    HBox* optRow = AddRow();
+    optRow->gap = font->averageCharWidth;
+
+    optRow->AddChild(NewVirtText({.s = Tr("Opacity (%):"), .font = font, .isRtl = IsUIRtl()}));
+    Edit::CreateArgs opArgs;
+    opArgs.parent = hwnd;
+    opArgs.withBorder = true;
+    opArgs.font = font;
+    opArgs.text = StrL("50");
+    opArgs.isRtl = IsUIRtl();
+    opacityEdit = new Edit();
+    opacityEdit->Create(opArgs);
+    optRow->AddChild(opacityEdit, 1);
+
+    optRow->AddChild(new Spacer(gap, 0));
+    optRow->AddChild(NewVirtText({.s = Tr("Angle (°):"), .font = font, .isRtl = IsUIRtl()}));
+    Edit::CreateArgs angArgs;
+    angArgs.parent = hwnd;
+    angArgs.withBorder = true;
+    angArgs.font = font;
+    angArgs.text = StrL("45");
+    angArgs.isRtl = IsUIRtl();
+    angleEdit = new Edit();
+    angleEdit->Create(angArgs);
+    optRow->AddChild(angleEdit, 1);
+
+    optRow->AddChild(new Spacer(gap, 0));
+    optRow->AddChild(NewVirtText({.s = Tr("Size (pt):"), .font = font, .isRtl = IsUIRtl()}));
+    Edit::CreateArgs szArgs;
+    szArgs.parent = hwnd;
+    szArgs.withBorder = true;
+    szArgs.font = font;
+    szArgs.text = StrL("48");
+    szArgs.isRtl = IsUIRtl();
+    sizeEdit = new Edit();
+    sizeEdit->Create(szArgs);
+    optRow->AddChild(sizeEdit, 1);
+
+    HBox* pcRow = AddRow();
+    pcRow->gap = font->averageCharWidth;
+
+    pcRow->AddChild(NewVirtText({.s = Tr("Position:"), .font = font, .isRtl = IsUIRtl()}));
+    {
+        dropPos = new DropDown();
+        DropDown::CreateArgs ddargs;
+        ddargs.parent = hwnd;
+        ddargs.font = font;
+        ddargs.isRtl = IsUIRtl();
+        dropPos->Create(ddargs);
+        StrVec posItems;
+        posItems.Append(Tr("Center"));
+        posItems.Append(Tr("Top-Left"));
+        posItems.Append(Tr("Top-Center"));
+        posItems.Append(Tr("Top-Right"));
+        posItems.Append(Tr("Center-Left"));
+        posItems.Append(Tr("Center-Right"));
+        posItems.Append(Tr("Bottom-Left"));
+        posItems.Append(Tr("Bottom-Center"));
+        posItems.Append(Tr("Bottom-Right"));
+        dropPos->SetItems(posItems);
+        CbSetCurrentSelection(dropPos, 0);
+        dropPos->SetColors(ThemeWindowTextColor(), ThemeWindowControlBackgroundColor());
+        pcRow->AddChild(dropPos, 1);
+    }
+
+    pcRow->AddChild(new Spacer(gap, 0));
+    pcRow->AddChild(NewVirtText({.s = Tr("Color:"), .font = font, .isRtl = IsUIRtl()}));
+    {
+        dropColor = new DropDown();
+        DropDown::CreateArgs ddargs;
+        ddargs.parent = hwnd;
+        ddargs.font = font;
+        ddargs.isRtl = IsUIRtl();
+        dropColor->Create(ddargs);
+        StrVec colItems;
+        colItems.Append(Tr("Gray"));
+        colItems.Append(Tr("Red"));
+        colItems.Append(Tr("Blue"));
+        colItems.Append(Tr("Black"));
+        colItems.Append(Tr("Green"));
+        dropColor->SetItems(colItems);
+        CbSetCurrentSelection(dropColor, 0);
+        dropColor->SetColors(ThemeWindowTextColor(), ThemeWindowControlBackgroundColor());
+        pcRow->AddChild(dropColor, 1);
+    }
+
+    HBox* pRow = AddRow();
+    pRow->gap = font->averageCharWidth;
+    pRow->AddChild(NewVirtText({.s = Tr("Pages:"), .font = font, .isRtl = IsUIRtl()}));
+
+    radioAll = NewPagesRadio(hwnd, font, Tr("All"), true, true);
+    radioAll->onStateChanged = MkMethod0<PdfWatermarkDialog, &PdfWatermarkDialog::OnPagesModeChanged>(this);
+    pRow->AddChild(radioAll);
+
+    radioCurrent = NewPagesRadio(hwnd, font, Tr("Current"), false, false);
+    radioCurrent->onStateChanged = MkMethod0<PdfWatermarkDialog, &PdfWatermarkDialog::OnPagesModeChanged>(this);
+    pRow->AddChild(radioCurrent);
+
+    radioCustom = NewPagesRadio(hwnd, font, Tr("Custom"), false, false);
+    radioCustom->onStateChanged = MkMethod0<PdfWatermarkDialog, &PdfWatermarkDialog::OnPagesModeChanged>(this);
+    pRow->AddChild(radioCustom);
+
+    Edit::CreateArgs peArgs;
+    peArgs.parent = hwnd;
+    peArgs.withBorder = true;
+    peArgs.font = font;
+    peArgs.text = fmt("1-%d", pageCount);
+    peArgs.isRtl = IsUIRtl();
+    pagesEdit = new Edit();
+    pagesEdit->Create(peArgs);
+    pagesEdit->SetIsEnabled(false);
+    pRow->AddChild(pagesEdit, 1);
+
+    AddButtonsRow(Tr("Add Watermark"));
+    FinishDialog(textEdit);
+
+    destEdit->onTextChanged = MkMethod0<PdfWatermarkDialog, &PdfWatermarkDialog::UpdateButton>(this);
+    textEdit->onTextChanged = MkMethod0<PdfWatermarkDialog, &PdfWatermarkDialog::UpdateButton>(this);
+    pagesEdit->onTextChanged = MkMethod0<PdfWatermarkDialog, &PdfWatermarkDialog::UpdateButton>(this);
+    UpdateButton();
+    return true;
+}
+
+void ShowPdfAddWatermarkDialog(MainWindow* win) {
+    if (!win || !win->IsDocLoaded()) {
+        return;
+    }
+    WindowTab* tab = win->CurrentTab();
+    if (!tab || len(tab->filePath) == 0 || !IsPdfDoc(tab)) {
+        return;
+    }
+    logf("ShowPdfAddWatermarkDialog: opening for '%s'\n", tab->filePath);
+    auto* dlg = new PdfWatermarkDialog();
+    if (!dlg->Create(win, tab)) {
+        delete dlg;
+    }
+}
+
+// --- Header / Footer Dialog ---
+
+struct PdfHeaderFooterDialog : PdfToolDialog {
+    Edit* headerLeftEdit = nullptr;
+    Edit* headerCenterEdit = nullptr;
+    Edit* headerRightEdit = nullptr;
+    Edit* footerLeftEdit = nullptr;
+    Edit* footerCenterEdit = nullptr;
+    Edit* footerRightEdit = nullptr;
+
+    Checkbox* radioAll = nullptr;
+    Checkbox* radioCurrent = nullptr;
+    Checkbox* radioCustom = nullptr;
+    Edit* pagesEdit = nullptr;
+
+    int pageCount = 0;
+    int currentPage = 1;
+
+    bool Create(MainWindow* win, WindowTab* tab);
+    void DoIt(VirtMouseEvent* ev = nullptr) override;
+    void OnPagesModeChanged();
+    void UpdateButton();
+};
+
+void PdfHeaderFooterDialog::OnPagesModeChanged() {
+    bool custom = radioCustom && radioCustom->IsChecked();
+    if (pagesEdit) {
+        pagesEdit->SetIsEnabled(custom);
+    }
+    UpdateButton();
+}
+
+void PdfHeaderFooterDialog::UpdateButton() {
+    if (!actionBtn) return;
+    TempStr dest = destEdit ? destEdit->GetTextTemp() : TempStr{};
+    bool hasAny = (headerLeftEdit && len(headerLeftEdit->GetTextTemp()) > 0) ||
+                  (headerCenterEdit && len(headerCenterEdit->GetTextTemp()) > 0) ||
+                  (headerRightEdit && len(headerRightEdit->GetTextTemp()) > 0) ||
+                  (footerLeftEdit && len(footerLeftEdit->GetTextTemp()) > 0) ||
+                  (footerCenterEdit && len(footerCenterEdit->GetTextTemp()) > 0) ||
+                  (footerRightEdit && len(footerRightEdit->GetTextTemp()) > 0);
+    bool ok = len(dest) > 0 && hasAny;
+    if (radioCustom && radioCustom->IsChecked()) {
+        TempStr pages = pagesEdit ? pagesEdit->GetTextTemp() : TempStr{};
+        Vec<int> p;
+        ok = ok && ParseDeletePages(pages, pageCount, p);
+    }
+    actionBtn->SetFlag(vwfEnabled, ok);
+}
+
+void PdfHeaderFooterDialog::DoIt(VirtMouseEvent*) {
+    TempStr destPath = destEdit->GetTextTemp();
+    if (len(destPath) == 0) {
+        return;
+    }
+
+    PdfHeaderFooterParams params;
+    params.headerLeft = headerLeftEdit ? headerLeftEdit->GetTextTemp() : TempStr{};
+    params.headerCenter = headerCenterEdit ? headerCenterEdit->GetTextTemp() : TempStr{};
+    params.headerRight = headerRightEdit ? headerRightEdit->GetTextTemp() : TempStr{};
+    params.footerLeft = footerLeftEdit ? footerLeftEdit->GetTextTemp() : TempStr{};
+    params.footerCenter = footerCenterEdit ? footerCenterEdit->GetTextTemp() : TempStr{};
+    params.footerRight = footerRightEdit ? footerRightEdit->GetTextTemp() : TempStr{};
+
+    if (radioCurrent && radioCurrent->IsChecked()) {
+        params.pagesSpec = fmt("%d", currentPage);
+    } else if (radioCustom && radioCustom->IsChecked()) {
+        params.pagesSpec = pagesEdit ? pagesEdit->GetTextTemp() : TempStr{};
+    } else {
+        params.pagesSpec = StrL("all");
+    }
+
+    Str inputPath = srcPath;
+    TempStr tmpPath;
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    EngineBase* engine = tab ? tab->GetEngine() : nullptr;
+    if (engine && EngineHasUnsavedAnnotations(engine)) {
+        tmpPath = GetTempFilePathTemp(StrL("hf-input"));
+        if (len(tmpPath) == 0 || !EngineMupdfSaveCopy(engine, tmpPath)) {
+            MessageBoxWarning(hwnd, StrL("Failed to save copy of PDF file."), Tr("Add Header / Footer"));
+            return;
+        }
+        inputPath = tmpPath;
+    }
+
+    logf("PdfHeaderFooterDialog::DoIt: applying header/footer to '%s'\n", destPath);
+    bool ok = PdfApplyHeaderFooter(inputPath, destPath, params);
+    if (tmpPath) {
+        file::Delete(tmpPath);
+    }
+
+    if (ok) {
+        MainWindow* w = win;
+        TempStr path = str::DupTemp(destPath);
+        Close();
+        LoadArgs args(path, w);
+        StartLoadDocument(&args);
+    } else {
+        MessageBoxWarning(hwnd, StrL("Failed to add header/footer to PDF file."), Tr("Add Header / Footer"));
+    }
+}
+
+bool PdfHeaderFooterDialog::Create(MainWindow* w, WindowTab* tab) {
+    if (!CreateToolDialog(w, tab, Tr("Add Header / Footer"))) {
+        return false;
+    }
+    pageCount = w->ctrl ? w->ctrl->PageCount() : 1;
+    currentPage = w->ctrl ? w->ctrl->CurrentPageNo() : 1;
+
+    AddPathRow();
+
+    Str stem = str::DupTemp(srcPath);
+    if (str::EndsWithI(stem, StrL(".pdf"))) {
+        stem.len -= 4;
+    }
+    TempStr dest = MakeUniqueFilePathTemp(fmt("%s_header_footer.pdf", stem));
+    AddDestRow(dest, L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+
+    HBox* hRow = AddRow();
+    hRow->gap = font->averageCharWidth;
+    hRow->AddChild(NewVirtText({.s = Tr("Header (L / C / R):"), .font = font, .isRtl = IsUIRtl()}));
+
+    Edit::CreateArgs hLArgs;
+    hLArgs.parent = hwnd;
+    hLArgs.withBorder = true;
+    hLArgs.font = font;
+    hLArgs.text = {};
+    hLArgs.isRtl = IsUIRtl();
+    headerLeftEdit = new Edit();
+    headerLeftEdit->Create(hLArgs);
+    hRow->AddChild(headerLeftEdit, 1);
+
+    Edit::CreateArgs hCArgs = hLArgs;
+    headerCenterEdit = new Edit();
+    headerCenterEdit->Create(hCArgs);
+    hRow->AddChild(headerCenterEdit, 1);
+
+    Edit::CreateArgs hRArgs = hLArgs;
+    headerRightEdit = new Edit();
+    headerRightEdit->Create(hRArgs);
+    hRow->AddChild(headerRightEdit, 1);
+
+    HBox* fRow = AddRow();
+    fRow->gap = font->averageCharWidth;
+    fRow->AddChild(NewVirtText({.s = Tr("Footer (L / C / R):"), .font = font, .isRtl = IsUIRtl()}));
+
+    Edit::CreateArgs fLArgs = hLArgs;
+    footerLeftEdit = new Edit();
+    footerLeftEdit->Create(fLArgs);
+    fRow->AddChild(footerLeftEdit, 1);
+
+    Edit::CreateArgs fCArgs = hLArgs;
+    fCArgs.text = StrL("Page {page} of {pages}");
+    footerCenterEdit = new Edit();
+    footerCenterEdit->Create(fCArgs);
+    fRow->AddChild(footerCenterEdit, 1);
+
+    Edit::CreateArgs fRArgs = hLArgs;
+    footerRightEdit = new Edit();
+    footerRightEdit->Create(fRArgs);
+    fRow->AddChild(footerRightEdit, 1);
+
+    HBox* hintRow = AddRow();
+    hintRow->AddChild(
+        NewVirtText({.s = Tr("Tokens: {page}, {pages}, {date}, {filename}"), .font = font, .isRtl = IsUIRtl()}));
+
+    HBox* pRow = AddRow();
+    pRow->gap = font->averageCharWidth;
+    pRow->AddChild(NewVirtText({.s = Tr("Pages:"), .font = font, .isRtl = IsUIRtl()}));
+
+    radioAll = NewPagesRadio(hwnd, font, Tr("All"), true, true);
+    radioAll->onStateChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::OnPagesModeChanged>(this);
+    pRow->AddChild(radioAll);
+
+    radioCurrent = NewPagesRadio(hwnd, font, Tr("Current"), false, false);
+    radioCurrent->onStateChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::OnPagesModeChanged>(this);
+    pRow->AddChild(radioCurrent);
+
+    radioCustom = NewPagesRadio(hwnd, font, Tr("Custom"), false, false);
+    radioCustom->onStateChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::OnPagesModeChanged>(this);
+    pRow->AddChild(radioCustom);
+
+    Edit::CreateArgs peArgs;
+    peArgs.parent = hwnd;
+    peArgs.withBorder = true;
+    peArgs.font = font;
+    peArgs.text = fmt("1-%d", pageCount);
+    peArgs.isRtl = IsUIRtl();
+    pagesEdit = new Edit();
+    pagesEdit->Create(peArgs);
+    pagesEdit->SetIsEnabled(false);
+    pRow->AddChild(pagesEdit, 1);
+
+    AddButtonsRow(Tr("Add Header / Footer"));
+    FinishDialog(footerCenterEdit);
+
+    destEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
+    headerLeftEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
+    headerCenterEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
+    headerRightEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
+    footerLeftEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
+    footerCenterEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
+    footerRightEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
+    pagesEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
+    UpdateButton();
+    return true;
+}
+
+void ShowPdfAddHeaderFooterDialog(MainWindow* win) {
+    if (!win || !win->IsDocLoaded()) {
+        return;
+    }
+    WindowTab* tab = win->CurrentTab();
+    if (!tab || len(tab->filePath) == 0 || !IsPdfDoc(tab)) {
+        return;
+    }
+    logf("ShowPdfAddHeaderFooterDialog: opening for '%s'\n", tab->filePath);
+    auto* dlg = new PdfHeaderFooterDialog();
+    if (!dlg->Create(win, tab)) {
+        delete dlg;
+    }
+}
+
+// --- Bates Numbering Dialog ---
+
+struct PdfBatesDialog : PdfToolDialog {
+    Edit* prefixEdit = nullptr;
+    Edit* startNumEdit = nullptr;
+    Edit* digitsEdit = nullptr;
+    DropDown* dropPos = nullptr;
+
+    Checkbox* radioAll = nullptr;
+    Checkbox* radioCurrent = nullptr;
+    Checkbox* radioCustom = nullptr;
+    Edit* pagesEdit = nullptr;
+
+    int pageCount = 0;
+    int currentPage = 1;
+
+    bool Create(MainWindow* win, WindowTab* tab);
+    void DoIt(VirtMouseEvent* ev = nullptr) override;
+    void OnPagesModeChanged();
+    void UpdateButton();
+};
+
+void PdfBatesDialog::OnPagesModeChanged() {
+    bool custom = radioCustom && radioCustom->IsChecked();
+    if (pagesEdit) {
+        pagesEdit->SetIsEnabled(custom);
+    }
+    UpdateButton();
+}
+
+void PdfBatesDialog::UpdateButton() {
+    if (!actionBtn) return;
+    TempStr dest = destEdit ? destEdit->GetTextTemp() : TempStr{};
+    bool ok = len(dest) > 0;
+    if (radioCustom && radioCustom->IsChecked()) {
+        TempStr pages = pagesEdit ? pagesEdit->GetTextTemp() : TempStr{};
+        Vec<int> p;
+        ok = ok && ParseDeletePages(pages, pageCount, p);
+    }
+    actionBtn->SetFlag(vwfEnabled, ok);
+}
+
+void PdfBatesDialog::DoIt(VirtMouseEvent*) {
+    TempStr destPath = destEdit->GetTextTemp();
+    if (len(destPath) == 0) {
+        return;
+    }
+
+    PdfBatesParams params;
+    params.prefix = prefixEdit ? prefixEdit->GetTextTemp() : TempStr{};
+
+    TempStr stStr = startNumEdit ? startNumEdit->GetTextTemp() : TempStr{};
+    int stVal = 1;
+    str::Parse(stStr, "%d", &stVal);
+    params.startNumber = std::max(0, stVal);
+
+    TempStr digStr = digitsEdit ? digitsEdit->GetTextTemp() : TempStr{};
+    int digVal = 6;
+    str::Parse(digStr, "%d", &digVal);
+    params.digitCount = std::max(1, std::min(12, digVal));
+
+    int posIdx = dropPos ? CbGetCurrentSelection(dropPos) : 0;
+    params.position = (PdfBatesPos)posIdx;
+
+    if (radioCurrent && radioCurrent->IsChecked()) {
+        params.pagesSpec = fmt("%d", currentPage);
+    } else if (radioCustom && radioCustom->IsChecked()) {
+        params.pagesSpec = pagesEdit ? pagesEdit->GetTextTemp() : TempStr{};
+    } else {
+        params.pagesSpec = StrL("all");
+    }
+
+    Str inputPath = srcPath;
+    TempStr tmpPath;
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    EngineBase* engine = tab ? tab->GetEngine() : nullptr;
+    if (engine && EngineHasUnsavedAnnotations(engine)) {
+        tmpPath = GetTempFilePathTemp(StrL("bates-input"));
+        if (len(tmpPath) == 0 || !EngineMupdfSaveCopy(engine, tmpPath)) {
+            MessageBoxWarning(hwnd, StrL("Failed to save copy of PDF file."), Tr("Bates Numbering"));
+            return;
+        }
+        inputPath = tmpPath;
+    }
+
+    logf("PdfBatesDialog::DoIt: applying bates numbering to '%s'\n", destPath);
+    bool ok = PdfApplyBatesNumbering(inputPath, destPath, params);
+    if (tmpPath) {
+        file::Delete(tmpPath);
+    }
+
+    if (ok) {
+        MainWindow* w = win;
+        TempStr path = str::DupTemp(destPath);
+        Close();
+        LoadArgs args(path, w);
+        StartLoadDocument(&args);
+    } else {
+        MessageBoxWarning(hwnd, StrL("Failed to add Bates numbering to PDF file."), Tr("Bates Numbering"));
+    }
+}
+
+bool PdfBatesDialog::Create(MainWindow* w, WindowTab* tab) {
+    if (!CreateToolDialog(w, tab, Tr("Bates Numbering"))) {
+        return false;
+    }
+    pageCount = w->ctrl ? w->ctrl->PageCount() : 1;
+    currentPage = w->ctrl ? w->ctrl->CurrentPageNo() : 1;
+
+    AddPathRow();
+
+    Str stem = str::DupTemp(srcPath);
+    if (str::EndsWithI(stem, StrL(".pdf"))) {
+        stem.len -= 4;
+    }
+    TempStr dest = MakeUniqueFilePathTemp(fmt("%s_bates.pdf", stem));
+    AddDestRow(dest, L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+
+    HBox* pRow = AddRow();
+    pRow->gap = font->averageCharWidth;
+
+    pRow->AddChild(NewVirtText({.s = Tr("Prefix:"), .font = font, .isRtl = IsUIRtl()}));
+    Edit::CreateArgs pfxArgs;
+    pfxArgs.parent = hwnd;
+    pfxArgs.withBorder = true;
+    pfxArgs.font = font;
+    pfxArgs.text = StrL("BATES-");
+    pfxArgs.isRtl = IsUIRtl();
+    prefixEdit = new Edit();
+    prefixEdit->Create(pfxArgs);
+    pRow->AddChild(prefixEdit, 1);
+
+    pRow->AddChild(new Spacer(gap, 0));
+    pRow->AddChild(NewVirtText({.s = Tr("Start:"), .font = font, .isRtl = IsUIRtl()}));
+    Edit::CreateArgs stArgs = pfxArgs;
+    stArgs.text = StrL("1");
+    startNumEdit = new Edit();
+    startNumEdit->Create(stArgs);
+    pRow->AddChild(startNumEdit, 1);
+
+    pRow->AddChild(new Spacer(gap, 0));
+    pRow->AddChild(NewVirtText({.s = Tr("Digits:"), .font = font, .isRtl = IsUIRtl()}));
+    Edit::CreateArgs digArgs = pfxArgs;
+    digArgs.text = StrL("6");
+    digitsEdit = new Edit();
+    digitsEdit->Create(digArgs);
+    pRow->AddChild(digitsEdit, 1);
+
+    HBox* posRow = AddRow();
+    posRow->gap = font->averageCharWidth;
+    posRow->AddChild(NewVirtText({.s = Tr("Position:"), .font = font, .isRtl = IsUIRtl()}));
+    {
+        dropPos = new DropDown();
+        DropDown::CreateArgs ddargs;
+        ddargs.parent = hwnd;
+        ddargs.font = font;
+        ddargs.isRtl = IsUIRtl();
+        dropPos->Create(ddargs);
+        StrVec posItems;
+        posItems.Append(Tr("Bottom-Right"));
+        posItems.Append(Tr("Bottom-Center"));
+        posItems.Append(Tr("Bottom-Left"));
+        posItems.Append(Tr("Top-Right"));
+        posItems.Append(Tr("Top-Center"));
+        posItems.Append(Tr("Top-Left"));
+        dropPos->SetItems(posItems);
+        CbSetCurrentSelection(dropPos, 0);
+        dropPos->SetColors(ThemeWindowTextColor(), ThemeWindowControlBackgroundColor());
+        posRow->AddChild(dropPos, 1);
+    }
+
+    HBox* pgRow = AddRow();
+    pgRow->gap = font->averageCharWidth;
+    pgRow->AddChild(NewVirtText({.s = Tr("Pages:"), .font = font, .isRtl = IsUIRtl()}));
+
+    radioAll = NewPagesRadio(hwnd, font, Tr("All"), true, true);
+    radioAll->onStateChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::OnPagesModeChanged>(this);
+    pgRow->AddChild(radioAll);
+
+    radioCurrent = NewPagesRadio(hwnd, font, Tr("Current"), false, false);
+    radioCurrent->onStateChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::OnPagesModeChanged>(this);
+    pgRow->AddChild(radioCurrent);
+
+    radioCustom = NewPagesRadio(hwnd, font, Tr("Custom"), false, false);
+    radioCustom->onStateChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::OnPagesModeChanged>(this);
+    pgRow->AddChild(radioCustom);
+
+    Edit::CreateArgs peArgs;
+    peArgs.parent = hwnd;
+    peArgs.withBorder = true;
+    peArgs.font = font;
+    peArgs.text = fmt("1-%d", pageCount);
+    peArgs.isRtl = IsUIRtl();
+    pagesEdit = new Edit();
+    pagesEdit->Create(peArgs);
+    pagesEdit->SetIsEnabled(false);
+    pgRow->AddChild(pagesEdit, 1);
+
+    AddButtonsRow(Tr("Add Bates Numbering"));
+    FinishDialog(prefixEdit);
+
+    destEdit->onTextChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::UpdateButton>(this);
+    prefixEdit->onTextChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::UpdateButton>(this);
+    startNumEdit->onTextChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::UpdateButton>(this);
+    digitsEdit->onTextChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::UpdateButton>(this);
+    pagesEdit->onTextChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::UpdateButton>(this);
+    UpdateButton();
+    return true;
+}
+
+void ShowPdfBatesNumberingDialog(MainWindow* win) {
+    if (!win || !win->IsDocLoaded()) {
+        return;
+    }
+    WindowTab* tab = win->CurrentTab();
+    if (!tab || len(tab->filePath) == 0 || !IsPdfDoc(tab)) {
+        return;
+    }
+    logf("ShowPdfBatesNumberingDialog: opening for '%s'\n", tab->filePath);
+    auto* dlg = new PdfBatesDialog();
     if (!dlg->Create(win, tab)) {
         delete dlg;
     }
