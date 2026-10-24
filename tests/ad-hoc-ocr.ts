@@ -123,17 +123,27 @@ export async function testit(): Promise<void> {
       await typeIntoInput(filename, dest, false);
       if (getControlText(filename) !== dest) throw new Error("Save filename was not set");
       await pressEnter(filename);
-      const saved = await waitFor(
-        () => {
-          try {
-            return readFileSync(dest, "utf8");
-          } catch {
-            return "";
-          }
-        },
-        (s) => s.startsWith("%PDF-"),
-        "searchable PDF export",
-      );
+      let saved = "";
+      try {
+        saved = await waitFor(
+          () => {
+            try {
+              return readFileSync(dest, "utf8");
+            } catch {
+              return "";
+            }
+          },
+          (s) => s.startsWith("%PDF-"),
+          "searchable PDF export",
+        );
+      } catch (e) {
+        const controls: string[] = [];
+        enumChildWindows(dlg, (hwnd) => {
+          controls.push(`${getClassName(hwnd)}=${getWindowText(hwnd)}`);
+          return true;
+        });
+        throw new Error(`${e}; dialog controls: ${controls.join(" | ")}`);
+      }
       if (!saved.startsWith("%PDF-")) throw new Error("Saved output is not a PDF");
       postMessage(dlg, WM_CLOSE, 0, 0);
       await waitFor(

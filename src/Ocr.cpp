@@ -332,6 +332,7 @@ struct OcrDialog : WindowBase {
     VirtButton* cancel = nullptr;
     int current = 1;
     int pageCount = 0;
+    bool hasLanguage = false;
     bool running = false;
     bool saving = false;
     bool closing = false;
@@ -600,6 +601,7 @@ bool OcrDialog::Create(MainWindow* win) {
             UINT32 count = 0;
             if (SUCCEEDED(factory->get_AvailableRecognizerLanguages(&available)) &&
                 SUCCEEDED(available->get_Size(&count))) {
+                hasLanguage = count > 0;
                 for (UINT32 i = 0; i < count; i++) {
                     AutoReleaseComPtr<ABI::Windows::Globalization::ILanguage> item;
                     OcrString tag, name;
@@ -613,6 +615,11 @@ bool OcrDialog::Create(MainWindow* win) {
         }
     }
     if (SUCCEEDED(init)) RoUninitialize();
+    if (!hasLanguage) {
+        status->SetText(
+            Tr("No Windows OCR language pack is installed. In Windows Settings > Time & language > Language & region, "
+               "add a language and install its Basic typing / OCR feature, then try again."));
+    }
     language->SetItems(names);
     int choice = 0;
     for (int i = 1; i < len(languageTags); i++) {
@@ -634,13 +641,16 @@ bool OcrDialog::Create(MainWindow* win) {
     box->AddChild(buttons);
     start = NewThemedButton(hwnd, Tr("Current page"), font, true);
     start->onClick = MkMethod1<OcrDialog, VirtMouseEvent*, &OcrDialog::Start>(this);
+    start->SetIsEnabled(hasLanguage);
     buttons->AddChild(start);
     all = NewThemedButton(hwnd, Tr("All pages"), font, false);
     all->onClick = MkMethod1<OcrDialog, VirtMouseEvent*, &OcrDialog::Start>(this);
     all->SetIsEnabled(job->last > 1);
+    all->SetIsEnabled(hasLanguage && job->last > 1);
     buttons->AddChild(all);
     selected = NewThemedButton(hwnd, Tr("Selected pages"), font, false);
     selected->onClick = MkMethod1<OcrDialog, VirtMouseEvent*, &OcrDialog::Start>(this);
+    selected->SetIsEnabled(hasLanguage);
     buttons->AddChild(selected);
     copy = NewThemedButton(hwnd, Tr("Copy text"), font, false);
     copy->onClick = MkMethod1<OcrDialog, VirtMouseEvent*, &OcrDialog::Copy>(this);
