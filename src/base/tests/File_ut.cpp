@@ -39,6 +39,7 @@ void FileUtilTest() {
             CloseHandle(locked);
 #endif
             utassert(output.Commit());
+            utassert(len(output.tempPath) == 0);
         }
         bytes = file::ReadFile(target);
         utassert(str::Eq(bytes, StrL("complete")));

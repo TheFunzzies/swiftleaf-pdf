@@ -618,7 +618,11 @@ bool AtomicFile::Commit() {
     }
     bool ok = fsync(fd) == 0;
     close(fd);
-    return ok && RenameReplace(destination, tempPath);
+    if (!ok || !RenameReplace(destination, tempPath)) {
+        return false;
+    }
+    str::FreePtr(&tempPath);
+    return true;
 }
 
 bool OverwriteAtomicRetry(Str dst, Str src, int retryCount, int retrySleepMs) {

@@ -3097,6 +3097,7 @@ void pdf_save_document(fz_context *ctx, pdf_document *doc, const char *filename,
 			fz_throw(ctx, FZ_ERROR_SYSTEM, "cannot flush PDF: error %lu", error);
 		if (!MoveFileExW(temporary, full, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
 			fz_throw(ctx, FZ_ERROR_SYSTEM, "cannot replace PDF: error %lu", GetLastError());
+		temporary[0] = 0;
 	}
 	fz_always(ctx)
 	{

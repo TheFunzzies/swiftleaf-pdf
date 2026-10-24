@@ -1681,13 +1681,23 @@ bool AtomicFile::Commit() {
     if (len(tempPath) == 0) {
         return false;
     }
+    DWORD attrs = GetAttributes(tempPath);
+    if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_READONLY)) {
+        if (!SetAttributes(tempPath, attrs & ~FILE_ATTRIBUTE_READONLY)) {
+            return false;
+        }
+    }
     auto h = OpenReadWrite(tempPath, false);
     if (h == kInvalidFileHandle) {
         return false;
     }
     bool ok = Flush(h);
     Close(h);
-    return ok && RenameReplace(destination, tempPath);
+    if (!ok || !RenameReplace(destination, tempPath)) {
+        return false;
+    }
+    str::FreePtr(&tempPath);
+    return true;
 }
 
 bool OverwriteAtomicRetry(Str dst, Str src, int retryCount, int retrySleepMs) {
