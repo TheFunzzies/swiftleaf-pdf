@@ -62,6 +62,7 @@ export async function testit(): Promise<void> {
   const pdf = join(dir, "two-pages.pdf");
   writeFileSync(pdf, fixture(), "latin1");
   const appdata = join(dir, "appdata");
+  const appLog = join(dir, "app.log");
   mkdirSync(appdata, { recursive: true });
   writeFileSync(join(appdata, "SumatraPDF-settings.txt"), "UiLanguage = en\nRestoreSession = false\n");
 
@@ -148,7 +149,11 @@ export async function testit(): Promise<void> {
           controls.push(`${getClassName(hwnd)}=${getWindowText(hwnd)}`);
           return true;
         });
-        throw new Error(`${e}; dialog controls: ${controls.join(" | ")}`);
+        let log = "";
+        try {
+          log = readFileSync(appLog, "utf8").split(/\r?\n/).slice(-30).join("\n");
+        } catch {}
+        throw new Error(`${e}; dialog controls: ${controls.join(" | ")}; app log:\n${log}`);
       }
       if (!saved.startsWith("%PDF-")) throw new Error("Saved output is not a PDF");
       postMessage(dlg, WM_CLOSE, 0, 0);
@@ -172,7 +177,7 @@ export async function testit(): Promise<void> {
       await client.request(ControlCommand.Ping);
       console.log(`OCR: current page, all pages, PDF save/reopen/search, and close-during-work passed (${dir})`);
     },
-    ["-appdata", appdata, pdf],
+    ["-appdata", appdata, "-log-to-file", appLog, pdf],
   );
 }
 

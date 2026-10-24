@@ -262,12 +262,15 @@ static void RunOcr(OcrJob* job) {
         TempStr dir = path::GetDirTemp(job->destination);
         WCHAR temporary[MAX_PATH];
         bool made = GetTempFileNameW(ToWStrTemp(dir).s, L"ocr", 0, temporary) != 0;
+        logf("OCR PDF save started: destination '%s', temp created: %d\n", job->destination, made);
         bool ok = made && EngineMupdfSaveCopy(job->output, ToUtf8Temp(temporary));
+        logf("OCR PDF serialization finished: success %d\n", ok);
         bool cancelled = WaitForSingleObject(job->cancel, 0) == WAIT_OBJECT_0;
         if (ok && !cancelled) {
             ok = MoveFileExW(temporary, ToWStrTemp(job->destination).s,
                              MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
         }
+        logf("OCR PDF publish finished: success %d, error %u, cancelled %d\n", ok, GetLastError(), cancelled);
         if (made) DeleteFileW(temporary);
         job->error = cancelled ? HRESULT_FROM_WIN32(ERROR_CANCELLED) : ok ? S_OK : E_FAIL;
         InterlockedExchange(&job->done, 1);
