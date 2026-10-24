@@ -509,6 +509,8 @@ void OcrDialog::Save(VirtMouseEvent*) {
     ofn.nMaxFile = dimof(path);
     ofn.lpstrFilter = L"PDF files (*.pdf)\0*.pdf\0\0";
     ofn.lpstrDefExt = L"pdf";
+    TempWStr sourceDir = ToWStrTemp(path::GetDirTemp(job->source->FilePath()));
+    ofn.lpstrInitialDir = sourceDir.s;
     ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
     saving = true;
     bool picked = GetSaveFileNameW(&ofn);

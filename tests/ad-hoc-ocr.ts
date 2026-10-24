@@ -21,7 +21,7 @@ import {
   sleep,
   WM_CLOSE,
 } from "./winapi.ts";
-import { pressEnter, pressTab, typeIntoInput } from "./win-automation.ts";
+import { pressEnter, pressTab } from "./win-automation.ts";
 
 async function waitFor<T>(read: () => T, ready: (v: T) => boolean, label: string, timeoutMs = 30_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
@@ -108,21 +108,7 @@ export async function testit(): Promise<void> {
       await pressTab(dlg);
       await pressEnter(dlg);
       const save = await waitFor(() => topWindow(proc.pid, "Save As"), Boolean, "PDF save dialog");
-      const filename = await waitFor(
-        () => {
-          let field = 0;
-          enumChildWindows(save, (h) => {
-            if (getClassName(h) === "Edit" && /^Searchable(?:\.pdf)?$/i.test(getControlText(h))) field = h;
-            return true;
-          });
-          return field;
-        },
-        Boolean,
-        "initialized save filename edit",
-      );
-      const dest = join(dir, `ocr-${Date.now()}.pdf`);
-      await typeIntoInput(filename, dest, false);
-      if (getControlText(filename) !== dest) throw new Error("Save filename was not set");
+      const dest = join(dir, "Searchable.pdf");
       await pressEnter(save);
       await waitFor(
         () => topWindow(proc.pid, "Save As"),
