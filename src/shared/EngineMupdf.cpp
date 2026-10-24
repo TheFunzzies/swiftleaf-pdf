@@ -10422,6 +10422,19 @@ static pdf_obj* MergeRoot(fz_context* ctx, pdf_document* doc) {
     return pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Root));
 }
 
+static void SetMergeWidgetPages(fz_context* ctx, pdf_document* doc) {
+    // P is optional in a widget, but the page rearranger uses it to prune field Kids.
+    for (int i = 0; i < pdf_count_pages(ctx, doc); i++) {
+        pdf_obj* page = pdf_lookup_page_obj(ctx, doc, i);
+        pdf_obj* annots = pdf_dict_get(ctx, page, PDF_NAME(Annots));
+        for (int j = 0; j < pdf_array_len(ctx, annots); j++) {
+            pdf_obj* annot = pdf_array_get(ctx, annots, j);
+            if (pdf_dict_get(ctx, annot, PDF_NAME(Subtype)) == PDF_NAME(Widget))
+                pdf_dict_put(ctx, annot, PDF_NAME(P), page);
+        }
+    }
+}
+
 // Visit direct children only; each indirect object gets its own xref visit.
 typedef void (*PdfObjectVisitor)(fz_context*, pdf_document*, pdf_obj*, void*);
 static void VisitPdfObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, PdfObjectVisitor visit, void* arg,
@@ -10845,6 +10858,7 @@ bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePag
     fz_try(ctx) {
         if (!len(output.tempPath)) fz_throw(ctx, FZ_ERROR_SYSTEM, "Cannot stage PDF output");
         doc = OpenPdfForMerge(ctx, srcs[0]);
+        SetMergeWidgetPages(ctx, doc);
         int nBase = pdf_count_pages(ctx, doc);
         for (auto& p : pages) {
             if (p.src < kPdfMergeBlankPage || p.src >= len(srcs))
@@ -10862,6 +10876,7 @@ bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePag
             for (auto& p : pages) used |= p.src == s;
             if (!used) continue;
             src = OpenPdfForMerge(ctx, srcs[s]);
+            SetMergeWidgetPages(ctx, src);
             if (pdf_dict_gets(ctx, pdf_dict_get(ctx, MergeRoot(ctx, src), PDF_NAME(AcroForm)), "XFA")) {
                 pdf_bake_document(ctx, src, 0, 1);
                 warnings |= PdfMergeFormFallback;

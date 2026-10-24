@@ -843,7 +843,6 @@ static void ToolsTestFixture(fz_context* ctx, const char* path) {
     pdf_dict_put_text_string(ctx, widget, PDF_NAME(V), "FORM-SECRET");
     pdf_dict_put_text_string(ctx, widget, PDF_NAME(DV), "FORM-DEFAULT-SECRET");
     pdf_dict_put_rect(ctx, widget, PDF_NAME(Rect), fz_make_rect(20, 20, 100, 40));
-    pdf_dict_put(ctx, widget, PDF_NAME(P), p0);
     pdf_obj* ref = pdf_add_object(ctx, doc, widget);
     pdf_array_push(ctx, annots, ref);
     pdf_obj* group = pdf_new_dict(ctx, doc, 2);
