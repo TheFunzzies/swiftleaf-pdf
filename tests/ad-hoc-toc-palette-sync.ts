@@ -12,7 +12,14 @@
 
 import { writeFileSync } from "node:fs";
 import { cmdId, runStandalone, tmpPath } from "./util.ts";
-import { launchApp, waitForFrame, findChildByClass, sendCommand, pressEnter, killAndWait } from "./win-automation.ts";
+import {
+  launchApp,
+  waitForFrame,
+  findChildByClass,
+  sendCommand,
+  pressEnter,
+  killAndWait,
+} from "./win-automation.ts";
 import { sleep, moveWindow, treeGetSelection, enumWindows, getWindowPid, findChildWindow, sendText } from "./winapi.ts";
 
 const CmdCommandPaletteTOC = cmdId("CmdCommandPaletteTOC");
