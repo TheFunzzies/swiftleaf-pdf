@@ -4,6 +4,8 @@ Choose **Edit Text**, then click a paragraph or use an existing text selection.
 Enter commits; Shift+Enter inserts a paragraph break; Escape cancels. A failed
 commit keeps the draft open for correction or copying. Save and Save As use the
 atomic sibling-file replacement described in [recovery.md](recovery.md).
+While a CJK input method is composing a character, Enter and Escape belong to
+the input method. Commit the completed draft with Enter after composition ends.
 
 ## Unicode and fonts
 
@@ -43,8 +45,8 @@ This is a partial implementation, not Acrobat editing parity:
 - RTL, joining scripts, combining marks, variation selectors and multi-character
   emoji sequences are rejected. HarfBuzz shaping and bidi editing are not wired
   into this path. Use precomposed Latin characters where available.
-- Blocks overlapping annotations are rejected to prevent redaction from removing
-  those annotations. Text removal still uses geometric text-only redaction;
+- Blocks overlapping annotations, links or form fields are rejected to prevent
+  redaction from removing interactive content. Text removal still uses geometric text-only redaction;
   original content-stream operators are not edited in place. Images and vector
   artwork are excluded from that redaction.
 - Existing-image/vector selection, replacement, move, resize, crop, rotation,
@@ -61,6 +63,9 @@ also checks embedded subset Type0 fonts, ToUnicode streams, undo/redo and CJK
 reflow, and confirms unsupported text and off-page edits leave the source
 unchanged. `tests/edit-safety.cpp` checks strict UTF-8
 validation and unsupported shaping/control characters before document access.
+`tests/existing-text-edit.ts` checks failed-draft retention, IME key handling and
+saving/reopening CJK text through the editor. The unit suite also checks that
+overlapping links reject edits without removing source text.
 
 Run the Debug build and `bun cmd/run-unit-tests.ts -dbg --no-build`. On a host
 where Device Guard blocks execution, dispatch `.github/workflows/build.yml` for

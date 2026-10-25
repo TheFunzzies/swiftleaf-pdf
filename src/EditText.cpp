@@ -41,6 +41,7 @@ struct EditTextSession {
     HWND hwndEdit = nullptr;
     HFONT font = nullptr;
     bool closing = false;
+    bool imeComposing = false;
 };
 
 static EditTextSession* gSession = nullptr;
@@ -104,9 +105,17 @@ static void PostedCloseSession(void* commit) {
 
 static LRESULT CALLBACK EditTextWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR) {
     switch (msg) {
+        case WM_IME_STARTCOMPOSITION:
+            if (gSession && gSession->hwndEdit == hwnd) gSession->imeComposing = true;
+            break;
+        case WM_IME_ENDCOMPOSITION:
+            if (gSession && gSession->hwndEdit == hwnd) gSession->imeComposing = false;
+            break;
         case WM_GETDLGCODE:
             return DLGC_WANTALLKEYS;
         case WM_KEYDOWN:
+            // Enter/Escape belong to the IME while choosing a CJK candidate.
+            if (gSession && gSession->hwndEdit == hwnd && gSession->imeComposing) break;
             if (wp == VK_ESCAPE) {
                 uitask::Post(MkFunc0(PostedCloseSession, (void*)nullptr), "EditTextCancel");
                 return 0;
@@ -117,6 +126,7 @@ static LRESULT CALLBACK EditTextWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
             }
             break;
         case WM_CHAR:
+            if (gSession && gSession->hwndEdit == hwnd && gSession->imeComposing) break;
             // the Enter / Esc above would otherwise beep or add a line
             if ((wp == '\r' && !IsShiftPressed()) || wp == 27) {
                 return 0;

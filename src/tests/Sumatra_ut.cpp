@@ -688,7 +688,7 @@ static void AdvancedFormsTest() {
     file::Delete(flattened);
 }
 
-static void TextEditUnicodeTest() {
+static TempStr TextEditFixture(Str pageExtra = {}) {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> "
                              ">> /Contents 5 0 R >>",
@@ -699,18 +699,25 @@ static void TextEditUnicodeTest() {
     int offsets[5];
     for (int i = 0; i < 5; i++) {
         offsets[i] = len(pdf);
-        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, Str(objects[i])));
+        Str object = Str(objects[i]);
+        if (i == 2) object = str::ReplaceTemp(object, StrL("/Contents"), fmt("%s /Contents", pageExtra));
+        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, object));
     }
     int xref = len(pdf);
     pdf.Append(StrL("xref\n0 6\n0000000000 65535 f \n"));
     for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
     pdf.Append(fmt("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+    return ToStrTemp(pdf);
+}
+
+static void TextEditUnicodeTest() {
+    TempStr pdf = TextEditFixture();
     Str samples[] = {StrL("Caf\xc3\xa9 \xc5\x92uvre"), StrL("\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82"),
                      StrL("\xce\x95\xce\xbb\xce\xbb\xce\xb7\xce\xbd\xce\xb9\xce\xba\xce\xac"),
                      StrL("\xe4\xb8\xad\xe6\x96\x87 \xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e \xed\x95\x9c\xea\xb8\x80"),
                      StrL("space\xc2\xa0space")};
     for (Str sample : samples) {
-        EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("unicode-edit.pdf"), nullptr);
+        EngineBase* e = CreateEngineMupdfFromData(pdf, StrL("unicode-edit.pdf"), nullptr);
         utassert(e != nullptr);
         if (!e) continue;
         PdfTextRun run;
@@ -745,6 +752,8 @@ static void TextEditUnicodeTest() {
         PdfTextRun reopened;
         utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 500, 50}, TextRunScope::Lines, &reopened));
         utassert(str::Eq(reopened.text, sample));
+        utassert(fabsf(reopened.fontSize - run.fontSize) < 0.01f && reopened.color == run.color);
+        utassert(fabsf(reopened.origin.x - run.origin.x) < 0.01f && fabsf(reopened.origin.y - run.origin.y) < 0.01f);
         str::Free(reopened.text);
         SafeEngineRelease(&e);
 
@@ -783,7 +792,7 @@ static void TextEditUnicodeTest() {
         file::Delete(path);
     }
 
-    EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("reflow-edit.pdf"), nullptr);
+    EngineBase* e = CreateEngineMupdfFromData(pdf, StrL("reflow-edit.pdf"), nullptr);
     utassert(e != nullptr);
     if (!e) return;
     PdfTextRun run;
@@ -805,6 +814,25 @@ static void TextEditUnicodeTest() {
     str::Free(run.text);
     SafeEngineRelease(&e);
     file::Delete(path);
+
+    // Links are not exposed by pdf_first_annot, but redaction removes them.
+    TempStr linked =
+        TextEditFixture(StrL("/Annots [<< /Type /Annot /Subtype /Link /Rect [70 695 155 715] "
+                             "/A << /S /URI /URI (https://example.com/) >> >>]"));
+    e = CreateEngineMupdfFromData(linked, StrL("linked-edit.pdf"), nullptr);
+    utassert(e != nullptr);
+    if (!e) return;
+    PdfTextRun linkedRun;
+    utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 400, 30}, TextRunScope::Lines, &linkedRun));
+    Str error;
+    utassert(!EngineMupdfReplaceText(e, 1, linkedRun, StrL("Replacement"), removed, &error));
+    utassert(len(error) > 0 && len(removed) == 0);
+    PdfTextRun retained;
+    utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 400, 30}, TextRunScope::Lines, &retained));
+    utassert(str::Eq(retained.text, linkedRun.text));
+    str::Free(retained.text);
+    str::Free(linkedRun.text);
+    SafeEngineRelease(&e);
 }
 
 static void FormAuthoringTest() {

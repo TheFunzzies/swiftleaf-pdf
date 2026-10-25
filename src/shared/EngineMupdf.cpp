@@ -10245,12 +10245,16 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
             pdf_insert_page(ctx, prepared, -1, preparedPage);
             pdf_subset_fonts(ctx, prepared, 0, nullptr);
             preparedForm = pdf_new_xobject(ctx, prepared, media, fz_identity, resources, buffer);
-            // Keep annotations intact: redaction deletes intersecting annotations.
-            for (pdf_annot* a = pdf_first_annot(ctx, page); a; a = pdf_next_annot(ctx, a)) {
-                fz_rect bounds = pdf_bound_annot(ctx, a);
+            // Redaction also deletes links, which pdf_first_annot excludes.
+            // Inspect the complete array in page coordinates before mutation.
+            pdf_obj* annots = pdf_dict_get(ctx, page->obj, PDF_NAME(Annots));
+            for (int a = 0; a < pdf_array_len(ctx, annots); a++) {
+                pdf_obj* annot = pdf_array_get(ctx, annots, a);
+                fz_rect bounds = fz_transform_rect(pdf_dict_get_rect(ctx, annot, PDF_NAME(Rect)), ctm);
                 fz_rect box{run.bbox.x, run.bbox.y, run.bbox.x + run.bbox.dx, run.bbox.y + run.bbox.dy};
                 if (RectsTouch(bounds, box))
-                    fz_throw(ctx, FZ_ERROR_UNSUPPORTED, "An annotation overlaps this block. Original text was kept.");
+                    fz_throw(ctx, FZ_ERROR_UNSUPPORTED,
+                             "An annotation, link or form field overlaps this block. Original text was kept.");
             }
             // Only the prepared replacement's fonts are subset. Existing fonts
             // and shared resources are never changed by that operation.

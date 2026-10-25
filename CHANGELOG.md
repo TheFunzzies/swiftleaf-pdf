@@ -9,6 +9,9 @@
   character-aware wrapping. Unsupported glyphs and block styles are rejected
   before source removal; failed edits keep the draft. See `docs/text-editing.md`
   for remaining shaping, style and object-editing limits.
+- Existing-text editing keeps CJK IME candidate keys inside composition and
+  refuses edits overlapping links, annotations or form fields. Added editor
+  save/reopen and failed-draft smoke coverage.
 
 - Accessibility & Standards Tools (TASK W2-STANDARDS):
   - Accessibility checker: comprehensive inspection for tagged structure (`/MarkInfo /Marked`), document language (`/Lang`), title and window title display (`/ViewerPreferences /DisplayDocTitle`), figure alternate text (`/Alt`), reading order structure tree (`/StructTreeRoot`), table headers (`/TH`), form field tooltips (`/TU`), and scanned image-only pages, with interactive dialog reporting pass/warn/fail status and direct "Go to Page" navigation.
