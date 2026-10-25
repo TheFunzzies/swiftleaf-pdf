@@ -132,10 +132,19 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action) {
     return false;
 }
 
-static TempStr BatchOutputPath(Str input, Str suffix, Str folder) {
+static Str BatchExportExt(Str type) {
+    if (str::Eq(type, StrL("export-text"))) return StrL(".txt");
+    if (str::Eq(type, StrL("export-html"))) return StrL(".html");
+    if (str::Eq(type, StrL("export-markdown"))) return StrL(".md");
+    if (str::Eq(type, StrL("export-json"))) return StrL(".json");
+    if (str::Eq(type, StrL("export-svg"))) return StrL(".svg");
+    return {};
+}
+
+static TempStr BatchOutputPath(Str input, Str suffix, Str folder, Str outputExt = {}) {
     TempStr base = path::GetBaseNameTemp(input);
     TempStr stem = path::GetPathNoExtTemp(base);
-    TempStr ext = path::GetExtTemp(input);
+    TempStr ext = outputExt ? str::DupTemp(outputExt) : path::GetExtTemp(input);
     TempStr name = fmt("%s%s%s", stem, suffix, ext);
     if (folder) return path::JoinTemp(folder, name);
     return path::JoinTemp(path::GetDirTemp(input), name);
@@ -145,6 +154,9 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
     BatchDefinition batch;
     if (!json::Parse(definition, MkFunc1(ReadActionValue, &batch))) {
         return str::DupTemp(StrL("{\"error\":\"invalid action JSON\",\"results\":[]}"));
+    }
+    if (batch.outputFolder && !file::CreateAll(batch.outputFolder, nullptr)) {
+        return str::DupTemp(StrL("{\"error\":\"cannot create output folder\",\"results\":[]}"));
     }
     str::Builder out;
     bool allOk = true;
@@ -159,16 +171,21 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
         for (int j = 0; j < len(batch.actions); j++) {
             const BatchAction& action = batch.actions[j];
             bool last = j == len(batch.actions) - 1;
+            Str outputExt = last ? BatchExportExt(action.type) : Str();
             TempStr dest;
             if (last) {
-                dest = BatchOutputPath(files[i], batch.suffix, batch.outputFolder);
+                dest = BatchOutputPath(files[i], batch.suffix, batch.outputFolder, outputExt);
             } else {
                 TempStr suffix = fmt("%s_%d_%d", batch.suffix, i + 1, j + 1);
                 dest = BatchOutputPath(files[i], suffix, batch.outputFolder);
             }
-            ok = ApplyBatchAction(current, dest, action);
+            TempStr staged =
+                last ? BatchOutputPath(files[i], fmt("%s_partial", batch.suffix), batch.outputFolder, outputExt) : dest;
+            ok = ApplyBatchAction(current, staged, action);
+            if (ok && last) ok = file::RenameReplace(dest, staged);
             if (!ok) {
                 error = action.type;
+                file::Delete(staged);
                 if (j > 0 && !str::Eq(current, files[i])) file::Delete(current);
                 break;
             }
