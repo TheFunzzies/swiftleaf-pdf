@@ -95,3 +95,5 @@ The debug control command `TestRecovery` uses action 0 for the production timer
 callback, 1 to count unlocked leftovers, 2 to restore the first leftover to the
 supplied destination, and 3 to discard unlocked leftovers. Normal launches use
 the same scanner and restoration functions through the recovery dialog.
+Action 4 reports the number of outstanding worker jobs so tests can wait for
+atomic publication without making the timer synchronous.

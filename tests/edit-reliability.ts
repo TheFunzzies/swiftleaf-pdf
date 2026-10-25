@@ -22,6 +22,12 @@ function check(ok: boolean, message: string): asserts ok {
 async function recovery(client: ControlClient, action: number, dest = ""): Promise<string> {
   const result = await client.request(ControlCommand.TestRecovery, [action, dest]);
   check(result[0] === 0, `recovery command failed: ${result}`);
+  if (action === 0) {
+    await pollUntil(
+      async () => String((await client.request(ControlCommand.TestRecovery, [4, ""]))[1] ?? ""),
+      (pending) => pending === "0",
+    );
+  }
   return String(result[1] ?? "");
 }
 async function markup(client: ControlClient): Promise<string> {

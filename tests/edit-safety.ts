@@ -13,11 +13,7 @@ function slice(s: string, start: string, end: string) {
   return s.slice(a, b);
 }
 const organize = readFileSync("src/PageOrganize.cpp", "utf8");
-writeFileSync(
-  `${dest}/organize-under-test.inc`,
-  slice(organize, "// one step Undo", "// pages 1..n") +
-    slice(organize, "static int LastUndoStepFor", "// thumbnails can be dragged"),
-);
+writeFileSync(`${dest}/organize-under-test.inc`, slice(organize, "PdfToolEdit::PdfToolEdit", "// pages 1..n"));
 const engine = readFileSync("src/shared/EngineMupdf.cpp", "utf8");
 writeFileSync(`${dest}/encoding-under-test.inc`, slice(engine, "// UTF-8 to a PDF string", "static float TextWidth"));
 // Stop immediately before document access: reaching here means validation allowed mutation.

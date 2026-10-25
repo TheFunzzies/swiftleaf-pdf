@@ -5895,6 +5895,7 @@ static Str gRecoverySession;
 static HANDLE gRecoveryLock = INVALID_HANDLE_VALUE;
 static UINT_PTR gRecoveryTimer = 0;
 static bool gRecoveryBusy = false;
+static int gRecoveryJobs = 0;
 
 static bool CreateRecoverySession() {
     if (len(gRecoverySession) > 0) {
@@ -5924,9 +5925,15 @@ static bool CreateRecoverySession() {
     return true;
 }
 
+static void FinishRecovery(PdfRecoveryJob* job) {
+    DropPdfRecovery(job);
+    gRecoveryJobs--;
+    AtomicIntDec(&gDangerousThreadCount);
+}
+
 static void RecoveryWriteThread(PdfRecoveryJob* job) {
     WritePdfRecovery(job);
-    uitask::Post(MkFunc0(DropPdfRecovery, job), "FinishRecovery");
+    uitask::Post(MkFunc0(FinishRecovery, job), "FinishRecovery");
 }
 
 void UpdatePdfUndoStorage(EngineBase* engine) {
@@ -5963,11 +5970,13 @@ static void CALLBACK RecoveryTimerProc(HWND, UINT, UINT_PTR, DWORD) {
             }
             TempStr snapshot = path::JoinTemp(gRecoverySession, fmt("document-%p.pdf", engine));
             if (auto* job = EngineMupdfFreezeRecovery(engine, snapshot)) {
+                gRecoveryJobs++;
+                AtomicIntInc(&gDangerousThreadCount);
                 ThreadHandle thread = StartThread(MkFunc0(RecoveryWriteThread, job), StrL("Recovery"));
                 if (thread)
                     SafeCloseThreadHandle(&thread);
                 else
-                    DropPdfRecovery(job);
+                    FinishRecovery(job);
             }
         }
     }
@@ -6104,6 +6113,9 @@ TempStr RecoveryTestResultTemp(int action, Str destination, int* exitCodeOut) {
     if (action == 0) {
         RecoveryTimerProc(nullptr, 0, 0, 0);
         return str::DupTemp(gRecoverySession);
+    }
+    if (action == 4) {
+        return fmt("%d", gRecoveryJobs);
     }
     if (action < 1 || action > 3) {
         *exitCodeOut = 1;

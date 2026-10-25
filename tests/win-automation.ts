@@ -12,7 +12,8 @@
 // These are for *ad-hoc* tests (not checked in). Put reusable helpers here, not
 // in the individual ad-hoc scripts.
 
-import { cmdId, drainProcStderr, EXE, setFailureContext } from "./util.ts";
+import { writeFileSync } from "node:fs";
+import { cmdId, drainProcStderr, EXE, setFailureContext, tmpPath } from "./util.ts";
 import {
   testWindowPos,
   waitForWindowIdle,
@@ -101,6 +102,7 @@ async function lastProcStderrTail(): Promise<string> {
   }
   const timeout = new Promise<string>((resolve) => setTimeout(() => resolve(""), STDERR_GRACE_MS));
   const s = await Promise.race([takeStderr(gLastProc), timeout]);
+  if (s) writeFileSync(tmpPath("last-failure-stderr.txt"), s);
   return s.length > STDERR_TAIL_CHARS ? "..." + s.slice(-STDERR_TAIL_CHARS) : s;
 }
 
