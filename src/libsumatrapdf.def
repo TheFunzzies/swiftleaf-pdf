@@ -2153,3 +2153,14 @@ EXPORTS
 	pdf_array_push_dict
 	fz_string_from_buffer
 	fz_new_buffer_from_stext_page
+
+; Swiftleaf: export formats & create PDF
+	fz_new_pdf_writer
+	fz_close_document_writer
+	fz_drop_document_writer
+	fz_new_buffer_from_image_as_png
+	fz_new_svg_device
+	fz_new_story
+	fz_place_story_flags
+	fz_draw_story
+	fz_drop_story
