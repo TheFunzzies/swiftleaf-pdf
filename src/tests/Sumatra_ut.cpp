@@ -688,12 +688,12 @@ static void AdvancedFormsTest() {
     file::Delete(flattened);
 }
 
-static TempStr TextEditFixture(Str pageExtra = {}) {
+static TempStr TextEditFixture(Str pageExtra = {},
+                               Str content = StrL("BT /F1 12 Tf 72 700 Td (Original text) Tj ET\n")) {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> "
                              ">> /Contents 5 0 R >>",
-                             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-                             "<< /Length 45 >>\nstream\nBT /F1 12 Tf 72 700 Td (Original text) Tj ET\nendstream"};
+                             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>", ""};
     str::Builder pdf;
     pdf.Append(StrL("%PDF-1.7\n"));
     int offsets[5];
@@ -701,6 +701,7 @@ static TempStr TextEditFixture(Str pageExtra = {}) {
         offsets[i] = len(pdf);
         Str object = Str(objects[i]);
         if (i == 2) object = str::ReplaceTemp(object, StrL("/Contents"), fmt("%s /Contents", pageExtra));
+        if (i == 4) object = fmt("<< /Length %d >>\nstream\n%sendstream", len(content), content);
         pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, object));
     }
     int xref = len(pdf);
@@ -833,6 +834,21 @@ static void TextEditUnicodeTest() {
     str::Free(retained.text);
     str::Free(linkedRun.text);
     SafeEngineRelease(&e);
+
+    // Fill+stroke and fill+clip must not be mistaken for ordinary filled text.
+    for (int mode = 1; mode <= 7; mode++) {
+        TempStr styled = TextEditFixture({}, fmt("BT /F1 12 Tf %d Tr 72 700 Td (Original text) Tj ET\n", mode));
+        e = CreateEngineMupdfFromData(styled, StrL("styled-edit.pdf"), nullptr);
+        utassert(e != nullptr);
+        if (!e) continue;
+        PdfTextRun styledRun;
+        utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 400, 30}, TextRunScope::Lines, &styledRun));
+        utassert(!styledRun.supported);
+        utassert(!EngineMupdfReplaceText(e, 1, styledRun, StrL("Replacement"), removed, &error));
+        utassert(len(error) > 0 && len(removed) == 0);
+        str::Free(styledRun.text);
+        SafeEngineRelease(&e);
+    }
 }
 
 static void FormAuthoringTest() {

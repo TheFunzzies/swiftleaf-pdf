@@ -9735,7 +9735,9 @@ bool EngineMupdfGetTextRun(EngineBase* engine, int pageNo, RectF area, TextRunSc
         if (!pi || !pi->page) {
             return false;
         }
-        fz_stext_options opts = NewTextPageOptions(FZ_STEXT_PRESERVE_WHITESPACE);
+        // Without style collection MuPDF deduplicates fill+stroke/clip calls,
+        // hiding rendering modes that this editor cannot preserve.
+        fz_stext_options opts = NewTextPageOptions(FZ_STEXT_PRESERVE_WHITESPACE | FZ_STEXT_COLLECT_STYLES);
         fz_try(ctx) {
             stext = fz_new_stext_page_from_page(ctx, pi->page, &opts);
         }
