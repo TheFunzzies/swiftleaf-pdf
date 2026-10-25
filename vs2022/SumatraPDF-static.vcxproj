@@ -1414,6 +1414,8 @@
     <ClInclude Include="..\src\NavRail.h" />
     <ClInclude Include="..\src\Notifications.h" />
     <ClInclude Include="..\src\Ocr.h" />
+    <ClInclude Include="..\src\ScannerWia.h" />
+    <ClInclude Include="..\src\SignaturePanel.h" />
     <ClInclude Include="..\src\OverlayScrollbar.h" />
     <ClInclude Include="..\src\PageOrganize.h" />
     <ClInclude Include="..\src\PageThumbnails.h" />
@@ -1657,6 +1659,8 @@
     <ClCompile Include="..\src\NavRail.cpp" />
     <ClCompile Include="..\src\Notifications.cpp" />
     <ClCompile Include="..\src\Ocr.cpp" />
+    <ClCompile Include="..\src\ScannerWia.cpp" />
+    <ClCompile Include="..\src\SignaturePanel.cpp" />
     <ClCompile Include="..\src\OverlayScrollbar.cpp" />
     <ClCompile Include="..\src\PageGridDialog.cpp" />
     <ClCompile Include="..\src\PageOrganize.cpp" />

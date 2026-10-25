@@ -38,6 +38,7 @@
 #include <mupdf/pdf.h>
 #include "AppUnitTests.h"
 #include "Ocr.h"
+#include "SignaturePanel.h"
 #if !defined(SUMATRA_NG)
 #include "ExportFormats.h"
 #endif
@@ -255,12 +256,12 @@ static void BenchRangeTest() {
 static void versioncheck_test() {
     utassert(IsValidProgramVersion(StrL("1")));
     utassert(IsValidProgramVersion(StrL("1.1")));
-    utassert(IsValidProgramVersion(StrL("1.1.1\r\n")));
+    utassert(IsValidProgramVersion(StrL("1.1.1\n")));
     utassert(IsValidProgramVersion(StrL("2662")));
 
     utassert(!IsValidProgramVersion(StrL("1.1b")));
     utassert(!IsValidProgramVersion(StrL("1..1")));
-    utassert(!IsValidProgramVersion(StrL("1.1\r\n.1")));
+    utassert(!IsValidProgramVersion(StrL("1.1\n.1")));
 
     utassert(CompareProgramVersion(StrL("0.9.3.900"), StrL("0.9.3")) > 0);
     utassert(CompareProgramVersion(StrL("1.09.300"), StrL("1.09.3")) > 0);
@@ -1913,6 +1914,7 @@ int RunAppUnitTests(bool forAi) {
     }
     printf("Running unit tests\n");
     utassert(Ocr_UnitTests());
+    utassert(Signature_UnitTests());
     DocumentPanel_UnitTests();
     PanelLayout_UnitTests();
     Animation_UnitTests();

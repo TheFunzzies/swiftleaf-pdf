@@ -423,8 +423,14 @@ enum {
     CmdPdfAValidate = 617,
     CmdPreflight = 618,
     CmdPdfConvertColors = 619,
+    CmdScanAcquire = 620,
+    CmdImportCameraImage = 621,
+    CmdBatchOcr = 622,
+    CmdSignaturePanel = 623,
+    CmdCertifyDocument = 624,
+    CmdClearSignature = 625,
 
-    CmdLast = 619,
+    CmdLast = 625,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

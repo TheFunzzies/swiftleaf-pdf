@@ -80,6 +80,11 @@ static const ToolDef tools[] = {
     {gLucideBadgeCheck, TrN("Validate PDF/A"), CmdPdfAValidate},
     {gLucideInfo, TrN("Preflight"), CmdPreflight},
     {gLucideBadgeCheck, TrN("Convert colors"), CmdPdfConvertColors},
+    {gLucideScanText, TrN("Acquire from scanner"), CmdScanAcquire},
+    {gLucideScanText, TrN("Import camera image"), CmdImportCameraImage},
+    {gLucideScanText, TrN("Batch OCR"), CmdBatchOcr},
+    {gLucideBadgeCheck, TrN("Digital signatures"), CmdSignaturePanel},
+    {gLucideBadgeCheck, TrN("Certify document"), CmdCertifyDocument},
 };
 
 static const ToolDef stripTools[] = {

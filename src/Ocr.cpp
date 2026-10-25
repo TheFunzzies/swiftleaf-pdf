@@ -11,6 +11,7 @@
 #include <roapi.h>
 #include <robuffer.h>
 #include <windows.media.ocr.h>
+#include <shlobj.h>
 #include "gui/Dpi.h"
 #include "gui/UIModels.h"
 #include "gui/Layout.h"
@@ -255,6 +256,239 @@ struct OcrJob {
     }
 };
 
+
+void RemoveBordersPixmap(Pixmap* px) {
+    if (!px || !px->data || (px->format != PixmapFormat::BGRA8 && px->format != PixmapFormat::BGR8)) {
+        return;
+    }
+    int bpp = (px->format == PixmapFormat::BGRA8) ? 4 : 3;
+    int w = px->width;
+    int h = px->height;
+    if (w < 10 || h < 10) return;
+
+    auto getLuma = [px, bpp](int x, int y) -> int {
+        const u8* p = px->data + (size_t)y * px->stride + (size_t)x * bpp;
+        return (p[0] * 114 + p[1] * 587 + p[2] * 299) / 1000;
+    };
+    auto setWhite = [px, bpp](int x, int y) {
+        u8* p = px->data + (size_t)y * px->stride + (size_t)x * bpp;
+        p[0] = 255; p[1] = 255; p[2] = 255;
+        if (bpp == 4) p[3] = 255;
+    };
+
+    int maxBorderY = h / 7;
+    int maxBorderX = w / 7;
+
+    int topCut = 0;
+    for (int y = 0; y < maxBorderY; y++) {
+        int darkCount = 0;
+        for (int x = 0; x < w; x += 2) {
+            if (getLuma(x, y) < 90) darkCount++;
+        }
+        if (darkCount > (w / 2) * 35 / 100) {
+            topCut = y + 1;
+        } else if (topCut > 0 && y > topCut + 2) {
+            break;
+        }
+    }
+    for (int y = 0; y < topCut; y++) {
+        for (int x = 0; x < w; x++) setWhite(x, y);
+    }
+
+    int bottomCut = 0;
+    for (int y = h - 1; y >= h - maxBorderY; y--) {
+        int darkCount = 0;
+        for (int x = 0; x < w; x += 2) {
+            if (getLuma(x, y) < 90) darkCount++;
+        }
+        if (darkCount > (w / 2) * 35 / 100) {
+            bottomCut = (h - 1) - y + 1;
+        } else if (bottomCut > 0 && (h - 1 - y) > bottomCut + 2) {
+            break;
+        }
+    }
+    for (int y = h - bottomCut; y < h; y++) {
+        for (int x = 0; x < w; x++) setWhite(x, y);
+    }
+
+    int leftCut = 0;
+    for (int x = 0; x < maxBorderX; x++) {
+        int darkCount = 0;
+        for (int y = 0; y < h; y += 2) {
+            if (getLuma(x, y) < 90) darkCount++;
+        }
+        if (darkCount > (h / 2) * 35 / 100) {
+            leftCut = x + 1;
+        } else if (leftCut > 0 && x > leftCut + 2) {
+            break;
+        }
+    }
+    for (int x = 0; x < leftCut; x++) {
+        for (int y = 0; y < h; y++) setWhite(x, y);
+    }
+
+    int rightCut = 0;
+    for (int x = w - 1; x >= w - maxBorderX; x--) {
+        int darkCount = 0;
+        for (int y = 0; y < h; y += 2) {
+            if (getLuma(x, y) < 90) darkCount++;
+        }
+        if (darkCount > (h / 2) * 35 / 100) {
+            rightCut = (w - 1) - x + 1;
+        } else if (rightCut > 0 && (w - 1 - x) > rightCut + 2) {
+            break;
+        }
+    }
+    for (int x = w - rightCut; x < w; x++) {
+        for (int y = 0; y < h; y++) setWhite(x, y);
+    }
+}
+
+void DespecklePixmap(Pixmap* px) {
+    if (!px || !px->data || (px->format != PixmapFormat::BGRA8 && px->format != PixmapFormat::BGR8)) {
+        return;
+    }
+    int bpp = (px->format == PixmapFormat::BGRA8) ? 4 : 3;
+    int w = px->width;
+    int h = px->height;
+    if (w < 5 || h < 5) return;
+
+    auto getLuma = [px, bpp](int x, int y) -> int {
+        const u8* p = px->data + (size_t)y * px->stride + (size_t)x * bpp;
+        return (p[0] * 114 + p[1] * 587 + p[2] * 299) / 1000;
+    };
+    auto setWhite = [px, bpp](int x, int y) {
+        u8* p = px->data + (size_t)y * px->stride + (size_t)x * bpp;
+        p[0] = 255; p[1] = 255; p[2] = 255;
+        if (bpp == 4) p[3] = 255;
+    };
+
+    for (int y = 1; y < h - 1; y++) {
+        for (int x = 1; x < w - 1; x++) {
+            if (getLuma(x, y) < 100) {
+                int darkNeighbors = 0;
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        if (dx == 0 && dy == 0) continue;
+                        if (getLuma(x + dx, y + dy) < 130) {
+                            darkNeighbors++;
+                        }
+                    }
+                }
+                if (darkNeighbors <= 1) {
+                    setWhite(x, y);
+                }
+            }
+        }
+    }
+}
+
+double DetectDeskewAngle(const Pixmap* px) {
+    if (!px || !px->data || px->width < 20 || px->height < 20) return 0.0;
+    int bpp = (px->format == PixmapFormat::BGRA8) ? 4 : 3;
+    int w = px->width;
+    int h = px->height;
+
+    int step = std::max(1, w / 400);
+    int sampleW = w / step;
+    int sampleH = h / step;
+    if (sampleW <= 0 || sampleH <= 0) return 0.0;
+
+    auto isDark = [px, bpp, step](int sx, int sy) -> bool {
+        int x = sx * step;
+        int y = sy * step;
+        const u8* p = px->data + (size_t)y * px->stride + (size_t)x * bpp;
+        int luma = (p[0] * 114 + p[1] * 587 + p[2] * 299) / 1000;
+        return luma < 128;
+    };
+
+    double bestAngle = 0.0;
+    double maxVariance = -1.0;
+    int* proj = (int*)malloc((size_t)sampleH * sizeof(int));
+    if (!proj) return 0.0;
+
+    for (int a = -20; a <= 20; a++) {
+        double deg = a * 0.5;
+        double rad = deg * 3.14159265358979323846 / 180.0;
+        double tanTheta = tan(rad);
+
+        memset(proj, 0, (size_t)sampleH * sizeof(int));
+        int totalDark = 0;
+
+        int midX = sampleW / 2;
+        for (int y = 0; y < sampleH; y++) {
+            for (int x = 0; x < sampleW; x++) {
+                if (isDark(x, y)) {
+                    int shearedY = y + (int)((x - midX) * tanTheta);
+                    if (shearedY >= 0 && shearedY < sampleH) {
+                        proj[shearedY]++;
+                        totalDark++;
+                    }
+                }
+            }
+        }
+
+        if (totalDark == 0) continue;
+        double mean = (double)totalDark / sampleH;
+        double variance = 0.0;
+        for (int y = 0; y < sampleH; y++) {
+            double diff = proj[y] - mean;
+            variance += diff * diff;
+        }
+
+        if (variance > maxVariance) {
+            maxVariance = variance;
+            bestAngle = deg;
+        }
+    }
+
+    free(proj);
+    return bestAngle;
+}
+
+void DeskewPixmap(Pixmap* px) {
+    if (!px || !px->data || px->width < 20 || px->height < 20) return;
+    double angle = DetectDeskewAngle(px);
+    if (fabs(angle) < 0.25 || fabs(angle) > 15.0) {
+        return;
+    }
+
+    Gdiplus::Bitmap* srcBmp = WrapPixmapGdiplus(px);
+    if (!srcBmp) return;
+
+    Gdiplus::Bitmap* dstBmp = new Gdiplus::Bitmap(px->width, px->height, PixelFormat32bppARGB);
+    if (!dstBmp) {
+        delete srcBmp;
+        return;
+    }
+
+    {
+        Gdiplus::Graphics g(dstBmp);
+        g.Clear(Gdiplus::Color(255, 255, 255, 255));
+        g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBilinear);
+        g.TranslateTransform((float)px->width / 2.0f, (float)px->height / 2.0f);
+        g.RotateTransform((float)(-angle));
+        g.TranslateTransform(-(float)px->width / 2.0f, -(float)px->height / 2.0f);
+        g.DrawImage(srcBmp, 0, 0);
+    }
+
+    Gdiplus::Rect rect(0, 0, px->width, px->height);
+    Gdiplus::BitmapData bdata{};
+    if (dstBmp->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, &bdata) == Gdiplus::Ok) {
+        CopyPixmapRows(px, (const u8*)bdata.Scan0, bdata.Stride);
+        dstBmp->UnlockBits(&bdata);
+    }
+
+    delete dstBmp;
+    delete srcBmp;
+}
+
+void PreprocessOcrPixmap(Pixmap* px) {
+    RemoveBordersPixmap(px);
+    DeskewPixmap(px);
+    DespecklePixmap(px);
+}
+
 static void RunOcr(OcrJob* job) {
     if (job->saveOnly) {
         // Write beside the destination, then publish atomically. Cancellation or
@@ -299,6 +533,7 @@ static void RunOcr(OcrJob* job) {
         }
         RenderPageArgs args(page, zoom, job->rotation, nullptr, RenderTarget::Export);
         Pixmap* px = PixmapToBgra(engine->RenderPage(args));
+        PreprocessOcrPixmap(px);
         str::Builder pageText;
         Vec<PdfOcrWord> words;
         job->error = reader.Recognize(px, job->cancel, pageText, words);
@@ -690,6 +925,354 @@ void ShowOcrDialog(MainWindow* win) {
     if (!dlg->Create(win)) delete dlg;
 }
 
+bool BatchOcrPdf(Str inputPdfPath, Str outputPdfPath, Str language, BatchOcrProgressFn progress, void* user, Str* errOut) {
+    if (len(inputPdfPath) == 0 || len(outputPdfPath) == 0) {
+        if (errOut) *errOut = str::Dup(StrL("Invalid file path"));
+        return false;
+    }
+    EngineBase* engine = CreateEngineFromFile(inputPdfPath, nullptr, false);
+    if (!engine || !EngineMupdfIsPdf(engine)) {
+        if (engine) engine->Release();
+        if (errOut) *errOut = str::Dup(StrL("Could not open input PDF"));
+        return false;
+    }
+    OcrReader reader;
+    HRESULT hr = reader.Open(language);
+    if (FAILED(hr)) {
+        engine->Release();
+        if (errOut) *errOut = str::Dup(StrL("Windows OCR engine could not be initialized"));
+        return false;
+    }
+
+    int pageCount = engine->PageCount();
+    file::AtomicFile output(outputPdfPath);
+    if (len(output.tempPath) == 0) {
+        engine->Release();
+        if (errOut) *errOut = str::Dup(StrL("Could not create destination temporary file"));
+        return false;
+    }
+
+    AutoCloseHandle cancel(CreateEventW(nullptr, TRUE, FALSE, nullptr));
+    bool ok = true;
+    for (int p = 1; p <= pageCount; p++) {
+        if (progress && !progress(1, 1, p, pageCount, user)) {
+            ok = false;
+            break;
+        }
+        float zoom = OcrZoom(engine->PageMediabox(p), engine->fileDPI, reader.maxDimension);
+        if (zoom <= 0) zoom = 1.0f;
+        RenderPageArgs args(p, zoom, 0, nullptr, RenderTarget::Export);
+        Pixmap* px = PixmapToBgra(engine->RenderPage(args));
+        if (!px) continue;
+        PreprocessOcrPixmap(px);
+        str::Builder pageText;
+        Vec<PdfOcrWord> words;
+        hr = reader.Recognize(px, cancel, pageText, words);
+        FreePixmap(px);
+        if (SUCCEEDED(hr)) {
+            EngineMupdfAddOcrText(engine, p, zoom, 0, words);
+        }
+        for (auto& w : words) str::Free(w.text);
+    }
+
+    if (ok) {
+        ok = EngineMupdfSaveCopy(engine, output.tempPath) && output.Commit();
+    }
+    engine->Release();
+    return ok;
+}
+
+struct BatchOcrJob {
+    LONG refs = 1;
+    LONG done = 0;
+    LONG currentFile = 0;
+    LONG totalFiles = 0;
+    LONG currentPage = 0;
+    LONG totalPages = 0;
+    HANDLE cancel = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    StrVec inputFiles;
+    Str outputFolder;
+    Str language;
+    HRESULT error = S_OK;
+
+    ~BatchOcrJob() {
+        if (cancel) CloseHandle(cancel);
+        str::Free(outputFolder);
+        str::Free(language);
+    }
+    void Release() {
+        if (!InterlockedDecrement(&refs)) delete this;
+    }
+};
+
+static void RunBatchOcr(BatchOcrJob* job) {
+    int total = len(job->inputFiles);
+    InterlockedExchange(&job->totalFiles, total);
+    for (int i = 0; i < total; i++) {
+        if (WaitForSingleObject(job->cancel, 0) == WAIT_OBJECT_0) {
+            job->error = HRESULT_FROM_WIN32(ERROR_CANCELLED);
+            break;
+        }
+        InterlockedExchange(&job->currentFile, i + 1);
+        Str inPath = job->inputFiles[i];
+        TempStr baseName = path::GetBaseNameTemp(inPath);
+        TempStr outName = fmt("%s_searchable.pdf", baseName);
+        TempStr outPath = len(job->outputFolder) > 0 ? path::JoinTemp(job->outputFolder, outName) : fmt("%s_searchable.pdf", inPath);
+
+        auto progressCb = [](int, int, int curP, int totP, void* user) -> bool {
+            auto* j = (BatchOcrJob*)user;
+            if (WaitForSingleObject(j->cancel, 0) == WAIT_OBJECT_0) return false;
+            InterlockedExchange(&j->currentPage, curP);
+            InterlockedExchange(&j->totalPages, totP);
+            return true;
+        };
+
+        Str err;
+        bool ok = BatchOcrPdf(inPath, outPath, job->language, progressCb, job, &err);
+        str::Free(err);
+        if (!ok && WaitForSingleObject(job->cancel, 0) == WAIT_OBJECT_0) {
+            job->error = HRESULT_FROM_WIN32(ERROR_CANCELLED);
+            break;
+        }
+    }
+    InterlockedExchange(&job->done, 1);
+    job->Release();
+}
+
+struct BatchOcrDialog : WindowBase {
+    BatchOcrJob* job = new BatchOcrJob();
+    VirtFixedLinesText* status = nullptr;
+    VirtText* fileCountText = nullptr;
+    VirtButton* btnAddFiles = nullptr;
+    VirtButton* btnSetFolder = nullptr;
+    VirtButton* btnStart = nullptr;
+    VirtButton* btnCancel = nullptr;
+    DropDown* language = nullptr;
+    StrVec languageTags;
+    bool running = false;
+
+    ~BatchOcrDialog() override {
+        SetEvent(job->cancel);
+        job->Release();
+    }
+    bool Create(MainWindow*);
+    void OnAddFiles(VirtMouseEvent* = nullptr);
+    void OnSetFolder(VirtMouseEvent* = nullptr);
+    void OnStart(VirtMouseEvent* = nullptr);
+    void OnCancel(VirtMouseEvent* = nullptr);
+    void Poll(WindowBase::TimerEvent* = nullptr);
+    void Closed(WindowBase::CloseEvent*);
+};
+
+void BatchOcrDialog::Closed(WindowBase::CloseEvent*) {
+    SetEvent(job->cancel);
+    ScheduleDelete();
+}
+
+void BatchOcrDialog::OnCancel(VirtMouseEvent*) {
+    if (!running) {
+        Close();
+        return;
+    }
+    SetEvent(job->cancel);
+    status->SetText(Tr("Cancelling batch OCR..."));
+    btnCancel->SetIsEnabled(false);
+}
+
+void BatchOcrDialog::OnAddFiles(VirtMouseEvent*) {
+    WCHAR fileBuf[32768]{};
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = hwnd;
+    ofn.lpstrFile = fileBuf;
+    ofn.nMaxFile = dimof(fileBuf);
+    ofn.lpstrFilter = L"PDF files (*.pdf)\0*.pdf\0\0";
+    ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_FILEMUSTEXIST;
+    if (!GetOpenFileNameW(&ofn)) return;
+
+    WCHAR* p = fileBuf;
+    Str dir = ToUtf8Temp(WStr(p));
+    p += wcslen(p) + 1;
+    if (*p == 0) {
+        job->inputFiles.Append(dir);
+    } else {
+        while (*p) {
+            TempStr fullPath = path::JoinTemp(dir, ToUtf8Temp(WStr(p)));
+            job->inputFiles.Append(Str(fullPath));
+            p += wcslen(p) + 1;
+        }
+    }
+    fileCountText->SetText(fmt(Tr("%d PDF files selected").s, len(job->inputFiles)));
+    btnStart->SetIsEnabled(len(job->inputFiles) > 0);
+}
+
+void BatchOcrDialog::OnSetFolder(VirtMouseEvent*) {
+    WCHAR pathBuf[MAX_PATH]{};
+    BROWSEINFOW bi{};
+    bi.hwndOwner = hwnd;
+    bi.lpszTitle = L"Select Output Folder for Searchable PDFs";
+    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
+    if (pidl) {
+        if (SHGetPathFromIDListW(pidl, pathBuf)) {
+            str::ReplaceWithCopy(&job->outputFolder, ToUtf8Temp(WStr(pathBuf)));
+            status->SetText(fmt(Tr("Output folder: %s").s, job->outputFolder));
+        }
+        CoTaskMemFree(pidl);
+    }
+}
+
+void BatchOcrDialog::OnStart(VirtMouseEvent*) {
+    if (running || len(job->inputFiles) == 0) return;
+    int choice = CbGetCurrentSelection(language);
+    Str tag = choice >= 0 && choice < len(languageTags) ? languageTags[choice] : Str();
+    str::ReplaceWithCopy(&job->language, tag);
+
+    ResetEvent(job->cancel);
+    InterlockedExchange(&job->done, 0);
+    InterlockedExchange(&job->currentFile, 0);
+    running = true;
+    btnAddFiles->SetIsEnabled(false);
+    btnSetFolder->SetIsEnabled(false);
+    language->SetIsEnabled(false);
+    btnStart->SetIsEnabled(false);
+    btnCancel->SetText(Tr("Cancel"));
+    status->SetText(Tr("Starting batch OCR..."));
+    InterlockedIncrement(&job->refs);
+    ThreadHandle thread = StartThread(MkFunc0(RunBatchOcr, job), StrL("Batch OCR"));
+    if (!thread) {
+        job->Release();
+        running = false;
+        return;
+    }
+    SafeCloseThreadHandle(&thread);
+    SetTimer(hwnd, 2, 150, nullptr);
+}
+
+void BatchOcrDialog::Poll(WindowBase::TimerEvent*) {
+    if (!InterlockedCompareExchange(&job->done, 0, 0)) {
+        int f = InterlockedCompareExchange(&job->currentFile, 0, 0);
+        int totF = InterlockedCompareExchange(&job->totalFiles, 0, 0);
+        int p = InterlockedCompareExchange(&job->currentPage, 0, 0);
+        int totP = InterlockedCompareExchange(&job->totalPages, 0, 0);
+        if (totP > 0) {
+            status->SetText(fmt(Tr("File %d of %d (page %d of %d)...").s, f, totF, p, totP));
+        } else if (f > 0) {
+            status->SetText(fmt(Tr("Processing file %d of %d...").s, f, totF));
+        }
+        return;
+    }
+    KillTimer(hwnd, 2);
+    running = false;
+    btnAddFiles->SetIsEnabled(true);
+    btnSetFolder->SetIsEnabled(true);
+    language->SetIsEnabled(true);
+    btnStart->SetIsEnabled(len(job->inputFiles) > 0);
+    btnCancel->SetText(Tr("Close"));
+    btnCancel->SetIsEnabled(true);
+    if (job->error == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+        status->SetText(Tr("Batch OCR cancelled."));
+    } else {
+        status->SetText(Tr("Batch OCR completed successfully."));
+    }
+}
+
+bool BatchOcrDialog::Create(MainWindow* win) {
+    closeOnEsc = true;
+    onClose = MkMethod1<BatchOcrDialog, WindowBase::CloseEvent*, &BatchOcrDialog::Closed>(this);
+    onTimer = MkMethod1<BatchOcrDialog, WindowBase::TimerEvent*, &BatchOcrDialog::Poll>(this);
+
+    CreateCustomArgs args;
+    args.owner = win ? win->hwndFrame : nullptr;
+    args.title = Tr("Batch OCR");
+    args.font = GetDefaultGuiFont();
+    args.style = WS_OVERLAPPEDWINDOW;
+    args.visible = false;
+    args.bgColor = DarkModeDialogBgColor();
+    if (!CreateCustom(args)) return false;
+
+    auto* box = new VBox();
+    box->alignCross = CrossAxisAlign::Stretch;
+    box->gap = DpiScale(10);
+
+    status = new VirtFixedLinesText();
+    status->font = font;
+    status->nLines = 2;
+    status->SetText(Tr("Make multiple PDF documents searchable using Windows OCR."));
+    box->AddChild(status);
+
+    fileCountText = NewVirtText({.s = Tr("No PDF files selected"), .font = font});
+    box->AddChild(fileCountText);
+
+    auto* h1 = new HBox();
+    h1->gap = DpiScale(8);
+    btnAddFiles = NewThemedButton(hwnd, Tr("Select PDF files..."), font, false);
+    btnAddFiles->onClick = MkMethod1<BatchOcrDialog, VirtMouseEvent*, &BatchOcrDialog::OnAddFiles>(this);
+    h1->AddChild(btnAddFiles);
+
+    btnSetFolder = NewThemedButton(hwnd, Tr("Choose Output Folder..."), font, false);
+    btnSetFolder->onClick = MkMethod1<BatchOcrDialog, VirtMouseEvent*, &BatchOcrDialog::OnSetFolder>(this);
+    h1->AddChild(btnSetFolder);
+    box->AddChild(h1);
+
+    box->AddChild(NewVirtText({.s = Tr("OCR language"), .font = font}));
+    language = new DropDown();
+    language->Create({.parent = hwnd, .font = font});
+    StrVec names;
+    names.Append(Tr("Automatic (Windows profile)"));
+    languageTags.Append(StrL(""));
+
+    HRESULT init = RoInitialize(RO_INIT_SINGLETHREADED);
+    {
+        AutoReleaseComPtr<ocr::IOcrEngineStatics> factory;
+        if (SUCCEEDED(OcrFactory(RuntimeClass_Windows_Media_Ocr_OcrEngine, factory))) {
+            AutoReleaseComPtr<ABI::Windows::Foundation::Collections::IVectorView<ABI::Windows::Globalization::Language*>> available;
+            UINT32 count = 0;
+            if (SUCCEEDED(factory->get_AvailableRecognizerLanguages(&available)) && SUCCEEDED(available->get_Size(&count))) {
+                for (UINT32 i = 0; i < count; i++) {
+                    AutoReleaseComPtr<ABI::Windows::Globalization::ILanguage> item;
+                    OcrString tag, name;
+                    if (FAILED(available->GetAt(i, &item)) || FAILED(item->get_LanguageTag(&tag.value)) || FAILED(item->get_DisplayName(&name.value)))
+                        continue;
+                    languageTags.Append(ToUtf8Temp(WindowsGetStringRawBuffer(tag.value, nullptr)));
+                    names.Append(ToUtf8Temp(WindowsGetStringRawBuffer(name.value, nullptr)));
+                }
+            }
+        }
+    }
+    if (SUCCEEDED(init)) RoUninitialize();
+    language->SetItems(names);
+    CbSetCurrentSelection(language, 0);
+    box->AddChild(language);
+
+    auto* buttons = new HBox();
+    buttons->gap = DpiScale(8);
+    btnStart = NewThemedButton(hwnd, Tr("Start Batch OCR"), font, true);
+    btnStart->onClick = MkMethod1<BatchOcrDialog, VirtMouseEvent*, &BatchOcrDialog::OnStart>(this);
+    btnStart->SetIsEnabled(false);
+    buttons->AddChild(btnStart);
+
+    btnCancel = NewThemedButton(hwnd, Tr("Close"), font, false);
+    btnCancel->onClick = MkMethod1<BatchOcrDialog, VirtMouseEvent*, &BatchOcrDialog::OnCancel>(this);
+    buttons->AddChild(btnCancel);
+    box->AddChild(buttons);
+
+    layout = new Padding(box, DpiScaledInsets(16));
+    RECT rect = {0, 0, DpiScale(500), DpiScale(320)};
+    AdjustWindowRectEx(&rect, args.style, FALSE, 0);
+    SetWindowPos(hwnd, nullptr, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER);
+    UpdateTheme();
+    HwndCenterDialog(hwnd, win ? win->hwndFrame : nullptr);
+    SetIsVisible(true);
+    return true;
+}
+
+void ShowBatchOcrDialog(MainWindow* win) {
+    auto* dlg = new BatchOcrDialog();
+    if (!dlg->Create(win)) delete dlg;
+}
+
+
 #if IS_DEBUG
 // A real xref table keeps this regression independent of PDF repair heuristics.
 static Str OcrFixture(int rotation) {
@@ -877,6 +1460,39 @@ bool Ocr_UnitTests() {
         }
     }
     if (!OcrCancelSaveTest()) return false;
+    // Test border removal and despeckle
+    {
+        Pixmap* px = AllocPixmapDIB(60, 60);
+        if (px) {
+            for (int y = 0; y < 60; y++) {
+                for (int x = 0; x < 60; x++) {
+                    u8* p = px->data + y * px->stride + x * 4;
+                    p[0] = p[1] = p[2] = 255; p[3] = 255;
+                }
+            }
+            for (int y = 0; y < 3; y++) {
+                for (int x = 0; x < 60; x++) {
+                    u8* p = px->data + y * px->stride + x * 4;
+                    p[0] = p[1] = p[2] = 10;
+                }
+            }
+            RemoveBordersPixmap(px);
+            u8* p0 = px->data;
+            if (p0[0] < 200 || p0[1] < 200 || p0[2] < 200) {
+                FreePixmap(px);
+                return false;
+            }
+            // Speckle at (30, 30)
+            u8* sp = px->data + 30 * px->stride + 30 * 4;
+            sp[0] = sp[1] = sp[2] = 0;
+            DespecklePixmap(px);
+            if (sp[0] < 200) {
+                FreePixmap(px);
+                return false;
+            }
+            FreePixmap(px);
+        }
+    }
     bool ok = false;
     ThreadHandle thread = StartThread(MkFunc0(OcrSmokeTest, &ok), StrL("OCR smoke"));
     if (!thread) return false;

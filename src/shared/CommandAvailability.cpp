@@ -29,6 +29,9 @@
 static const i32 gNoDocWhitelist[] = {
     CmdCreatePdfFiles,
     CmdCreatePdfClipboard,
+    CmdScanAcquire,
+    CmdImportCameraImage,
+    CmdBatchOcr,
     CmdOpenFile,
     CmdOpenFileNoHistory,
     CmdOpenFileWithOSFilePicker,
@@ -242,6 +245,9 @@ static const i32 removeIfAnnotsNotSupported[] = {
     // signing writes a signature widget into the PDF, so it needs the same
     // "this engine can be edited and re-saved" support annotations do
     CmdSignDocument,
+    CmdCertifyDocument,
+    CmdClearSignature,
+    CmdSignaturePanel,
     CmdDeleteAnnotation,
     CmdShowAnnotations,
     CmdHideAnnotations,

@@ -429,6 +429,12 @@ const CommandInfo gCommands[] = {
     {CmdPdfAValidate, "CmdPdfAValidate\0", StrL("Validate PDF/A...")},
     {CmdPreflight, "CmdPreflight\0", StrL("Preflight & Standards...")},
     {CmdPdfConvertColors, "CmdPdfConvertColors\0", StrL("Convert Colors...")},
+    {CmdScanAcquire, "CmdScanAcquire\0", StrL("Acquire from Scanner...")},
+    {CmdImportCameraImage, "CmdImportCameraImage\0", StrL("Import Photo/Camera Image...")},
+    {CmdBatchOcr, "CmdBatchOcr\0", StrL("Batch OCR...")},
+    {CmdSignaturePanel, "CmdSignaturePanel\0", StrL("Digital Signatures...")},
+    {CmdCertifyDocument, "CmdCertifyDocument\0", StrL("Certify Document...")},
+    {CmdClearSignature, "CmdClearSignature\0", StrL("Clear Signature")},
 };
 const int gCommandsCount = dimofi(gCommands);
 
@@ -456,6 +462,10 @@ const CommandInfo gCommandAltDescs[] = {
     {CmdPdfAValidate, "CmdPdfAValidate\0", StrL("PDF/A Compliance Check")},
     {CmdPreflight, "CmdPreflight\0", StrL("Document Preflight")},
     {CmdPdfConvertColors, "CmdPdfConvertColors\0", StrL("Convert Document Colors")},
+    {CmdScanAcquire, "CmdScanAcquire\0", StrL("Scan Document...")},
+    {CmdImportCameraImage, "CmdImportCameraImage\0", StrL("Camera Image...")},
+    {CmdSignaturePanel, "CmdSignaturePanel\0", StrL("Signatures Panel")},
+    {CmdCertifyDocument, "CmdCertifyDocument\0", StrL("Certify PDF")},
 };
 const int gCommandAltDescsCount = dimofi(gCommandAltDescs);
 // clang-format on

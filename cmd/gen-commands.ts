@@ -430,6 +430,12 @@ const commandsRaw = [
     "CmdPdfAValidate", "Validate PDF/A...",
     "CmdPreflight", "Preflight & Standards...",
     "CmdPdfConvertColors", "Convert Colors...",
+    "CmdScanAcquire", "Acquire from Scanner...",
+    "CmdImportCameraImage", "Import Photo/Camera Image...",
+    "CmdBatchOcr", "Batch OCR...",
+    "CmdSignaturePanel", "Digital Signatures...",
+    "CmdCertifyDocument", "Certify Document...",
+    "CmdClearSignature", "Clear Signature",
 
 ];
 
@@ -463,6 +469,10 @@ export const commandAltDescs: [string, string][] = [
     ["CmdPdfAValidate", "PDF/A Compliance Check"],
     ["CmdPreflight", "Document Preflight"],
     ["CmdPdfConvertColors", "Convert Document Colors"],
+    ["CmdScanAcquire", "Scan Document..."],
+    ["CmdImportCameraImage", "Camera Image..."],
+    ["CmdSignaturePanel", "Signatures Panel"],
+    ["CmdCertifyDocument", "Certify PDF"],
 ];
 
 function getNames(): string[] {
