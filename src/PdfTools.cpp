@@ -42,6 +42,7 @@
 #include "Material.h"
 #include "Commands.h"
 #include "PageOrganize.h"
+#include "ExportFormats.h"
 #include <mupdf/pdf.h>
 #include "PdfTools.h"
 
@@ -162,7 +163,7 @@ VirtButton* PdfToolDialog::NewButton(Str text, bool isDefault) {
 
 bool PdfToolDialog::CreateToolDialog(MainWindow* w, WindowTab* tab, Str title) {
     win = w;
-    srcPath = str::Dup(tab->filePath);
+    srcPath = tab ? str::Dup(tab->filePath) : Str();
     PlatformFont* dialogFont = GetDefaultGuiFont();
     closeOnEsc = true;
     onClose = MkFunc1Void(PdfToolDialogOnClose);
@@ -4129,4 +4130,247 @@ void ShowPdfRedactSearchDialog(MainWindow* win) {
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dialog = new PdfPrivacyDialog();
     if (!dialog->Create(win, tab, true)) delete dialog;
+}
+
+struct ConversionJob {
+    volatile LONG refs = 1;
+    volatile LONG done = 0;
+    ConversionProgress progress;
+    StrVec sources;
+    Str destination;
+    Str temporaryInput;
+    Str range;
+    ExportFormat format = ExportFormat::Docx;
+    bool create = false;
+    bool ok = false;
+    ~ConversionJob() {
+        if (len(temporaryInput)) file::Delete(temporaryInput);
+        str::Free(temporaryInput);
+        str::Free(destination);
+        str::Free(range);
+    }
+    void Release() {
+        if (InterlockedDecrement(&refs) == 0) delete this;
+    }
+};
+
+static void RunConversion(ConversionJob* job) {
+    job->ok = job->create ? CreatePdfFiles(job->sources, job->destination, job->range, job->progress)
+                          : ExportPdf(job->sources[0], job->destination, job->format, job->range, job->progress);
+    InterlockedExchange(&job->done, 1);
+    job->Release();
+}
+
+struct ExportPdfDialog : PdfToolDialog {
+    DropDown* formats = nullptr;
+    Edit* range = nullptr;
+    VirtText* status = nullptr;
+    ConversionJob* job = nullptr;
+    StrVec inputs;
+    bool create = false;
+    Str clipboardPath;
+    ~ExportPdfDialog() override {
+        if (job) {
+            InterlockedExchange(&job->progress.cancelled, 1);
+            job->Release();
+        }
+        if (len(clipboardPath)) file::Delete(clipboardPath);
+        str::Free(clipboardPath);
+    }
+    void ChangeFormat();
+    void DoIt(VirtMouseEvent*) override;
+    void Poll(WindowBase::TimerEvent*);
+    void Cancel(VirtMouseEvent*);
+    bool Create(MainWindow*, bool fromClipboard);
+};
+
+static const char* kExportExtensions[] = {"docx", "pptx", "xlsx", "html", "rtf", "md", "txt", "json", "zip"};
+void ExportPdfDialog::ChangeFormat() {
+    int index = CbGetCurrentSelection(formats);
+    if (index < 0 || index >= dimof(kExportExtensions)) return;
+    destEdit->SetText(fmt("%s.%s", path::GetPathNoExtTemp(destEdit->GetTextTemp()), Str(kExportExtensions[index])));
+    // Browse extensions must outlive the temporary string arena.
+    browseDefExt = index == 0   ? WStrL(L"docx")
+                   : index == 1 ? WStrL(L"pptx")
+                   : index == 2 ? WStrL(L"xlsx")
+                   : index == 3 ? WStrL(L"html")
+                   : index == 4 ? WStrL(L"rtf")
+                   : index == 5 ? WStrL(L"md")
+                   : index == 6 ? WStrL(L"txt")
+                   : index == 7 ? WStrL(L"json")
+                                : WStrL(L"zip");
+}
+void ExportPdfDialog::Cancel(VirtMouseEvent*) {
+    if (job && !InterlockedCompareExchange(&job->done, 0, 0)) {
+        InterlockedExchange(&job->progress.cancelled, 1);
+        status->SetText(Tr("Cancelling... Office may need to finish its current call."));
+        return;
+    }
+    Close();
+}
+void ExportPdfDialog::Poll(WindowBase::TimerEvent*) {
+    if (!job) return;
+    if (!InterlockedCompareExchange(&job->done, 0, 0)) {
+        if (!InterlockedCompareExchange(&job->progress.cancelled, 0, 0))
+            status->SetText(fmt(Tr("Converting: %d of %d").s,
+                                (int)InterlockedCompareExchange(&job->progress.completed, 0, 0),
+                                (int)InterlockedCompareExchange(&job->progress.total, 0, 0)));
+        return;
+    }
+    KillTimer(hwnd, 1);
+    actionBtn->SetIsEnabled(true);
+    cancelBtn->SetText(Tr("Close"));
+    status->SetText(job->ok ? Tr("Saved. Review the converted document before using it.") : job->progress.error);
+    if (!job->ok) MessageBoxWarning(hwnd, job->progress.error, Tr("Conversion"));
+}
+void ExportPdfDialog::DoIt(VirtMouseEvent*) {
+    if (job && !InterlockedCompareExchange(&job->done, 0, 0)) return;
+    if (job) {
+        job->Release();
+        job = nullptr;
+    }
+    Str destination = destEdit->GetTextTemp();
+    if (!len(destination)) {
+        status->SetText(Tr("Choose a destination file."));
+        return;
+    }
+    if (file::Exists(destination) && MessageBoxW(hwnd, ToWStrTemp(Tr("Replace the existing destination file?")).s,
+                                                 ToWStrTemp(Tr("Conversion")).s, MB_YESNO | MB_ICONQUESTION) != IDYES)
+        return;
+    job = new ConversionJob();
+    job->create = create;
+    job->destination = str::Dup(destination);
+    job->range = str::Dup(range->GetTextTemp());
+    if (len(clipboardPath)) {
+        job->temporaryInput = str::Dup(GetTempFilePathTemp(StrL("conversion.bmp")));
+        if (!CopyFileW(ToWStrTemp(clipboardPath).s, ToWStrTemp(job->temporaryInput).s, FALSE)) {
+            job->Release();
+            job = nullptr;
+            status->SetText(Tr("Cannot copy the clipboard image for conversion."));
+            return;
+        }
+        job->sources.Append(job->temporaryInput);
+    } else
+        for (Str input : inputs) job->sources.Append(input);
+    if (!create) job->format = (ExportFormat)CbGetCurrentSelection(formats);
+    actionBtn->SetIsEnabled(false);
+    cancelBtn->SetText(Tr("Cancel"));
+    status->SetText(Tr("Starting conversion..."));
+    InterlockedIncrement(&job->refs);
+    ThreadHandle thread = StartThread(MkFunc0(RunConversion, job), StrL("PDF conversion"));
+    if (!thread) {
+        job->progress.error = str::Dup(Tr("Could not start conversion."));
+        InterlockedExchange(&job->done, 1);
+        job->Release();
+    }
+    SafeCloseThreadHandle(&thread);
+    SetTimer(hwnd, 1, 150, nullptr);
+}
+
+static bool ChooseCreateInputs(HWND owner, StrVec& paths) {
+    WCHAR files[32768]{};
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = owner;
+    ofn.lpstrFile = files;
+    ofn.nMaxFile = dimof(files);
+    ofn.lpstrFilter =
+        L"Supported "
+        L"documents\0*.pdf;*.doc;*.docx;*.xls;*.xlsx;*.ppt;*.pptx;*.odt;*.ods;*.odp;*.txt;*.rtf;*.html;*.htm;*.md;*."
+        L"markdown;*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff;*.webp\0All files\0*.*\0";
+    ofn.lpstrTitle = L"Select files to create or combine into a PDF";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_ALLOWMULTISELECT | OFN_EXPLORER | OFN_NOCHANGEDIR;
+    if (!GetOpenFileNameW(&ofn)) return false;
+    const WCHAR* next = files + wcslen(files) + 1;
+    if (!*next) {
+        paths.Append(ToUtf8Temp(files));
+        return true;
+    }
+    for (; *next; next += wcslen(next) + 1) paths.Append(path::JoinTemp(ToUtf8Temp(files), ToUtf8Temp(next)));
+    return len(paths) > 0;
+}
+
+bool ExportPdfDialog::Create(MainWindow* w, bool fromClipboard) {
+    if (create) {
+        if (fromClipboard) {
+            Pixmap* image = GetClipboardImageAsPixmap();
+            if (!image) {
+                MessageBoxWarning(w->hwndFrame, Tr("The clipboard does not contain an image."), Tr("Create PDF"));
+                return false;
+            }
+            Str bmp = PixmapToBmpFormat(image);
+            FreePixmap(image);
+            clipboardPath = str::Dup(GetTempFilePathTemp(StrL("clipboard.bmp")));
+            bool ok = file::WriteFile(clipboardPath, bmp);
+            str::Free(bmp);
+            if (!ok) return false;
+            inputs.Append(clipboardPath);
+        } else if (!ChooseCreateInputs(w->hwndFrame, inputs))
+            return false;
+    } else
+        inputs.Append(w->CurrentTab()->filePath);
+    if (!CreateToolDialog(w, create ? nullptr : w->CurrentTab(), create ? Tr("Create PDF") : Tr("Export a PDF")))
+        return false;
+    if (create) srcPath = str::Dup(inputs[0]);
+    AddPathRow();
+    if (create && len(inputs) > 1)
+        AddRow()->AddChild(NewVirtText(
+            {.s = fmt(Tr("Combine %d files in selection order into one PDF.").s, len(inputs)), .font = font}));
+    AddDestRow(fmt("%s-converted.%s", path::GetPathNoExtTemp(inputs[0]), create ? StrL("pdf") : StrL("docx")),
+               WStrL(L"Converted document\0*.*\0"), create ? WStrL(L"pdf") : WStrL(L"docx"));
+    if (!create) {
+        formats = new DropDown();
+        DropDown::CreateArgs args;
+        args.parent = hwnd;
+        args.font = font;
+        formats->Create(args);
+        StrVec items;
+        const char* names[] = {"Word (.docx)",
+                               "PowerPoint (.pptx)",
+                               "Excel (.xlsx)",
+                               "HTML (.html)",
+                               "Rich text (.rtf)",
+                               "Markdown (.md)",
+                               "Text with spacing (.txt)",
+                               "JSON: text and bounding boxes (.json)",
+                               "SVG pages in ZIP (.zip)"};
+        for (auto name : names) items.Append(Str(name));
+        formats->SetItems(items);
+        CbSetCurrentSelection(formats, 0);
+        formats->SetColors(ThemeWindowTextColor(), ThemeWindowControlBackgroundColor());
+        formats->onSelectionChanged = MkMethod0<ExportPdfDialog, &ExportPdfDialog::ChangeFormat>(this);
+        AddRow()->AddChild(formats, 1);
+    }
+    range = AddLabeledEdit(create ? Tr("Pages (each input):") : Tr("Pages:"), StrL("all"));
+    AddRow()->AddChild(NewVirtText(
+        {.s = Tr("Page range: all, 1-3,5. Exports use the saved file; save changes first."), .font = font}));
+    AddRow()->AddChild(NewVirtText(
+        {.s = create
+                  ? Tr("Office needs Microsoft Office or LibreOffice. RTF imports text; HTML uses print layout.")
+                  : Tr("Layout is approximate. Headings, lists and ruled tables are inferred. Scans need OCR first."),
+         .font = font}));
+    AddRow()->AddChild(NewVirtText(
+        {.s = create ? Tr("Combining preserves visible pages, not forms, bookmarks or interactive links.")
+                     : Tr("Excel keeps table cells as text. SVG ZIP preserves appearance; use To Images for PNG/JPEG."),
+         .font = font}));
+    status = NewVirtText({.s = Tr("Ready"), .font = font});
+    AddRow()->AddChild(status, 1);
+    AddButtonsRow(create ? Tr("Create PDF") : Tr("Export"));
+    cancelBtn->onClick = MkMethod1<ExportPdfDialog, VirtMouseEvent*, &ExportPdfDialog::Cancel>(this);
+    onTimer = MkMethod1<ExportPdfDialog, WindowBase::TimerEvent*, &ExportPdfDialog::Poll>(this);
+    FinishDialog(destEdit, 650);
+    return true;
+}
+void ShowExportPdfDialog(MainWindow* win) {
+    if (!win || !CanAccessDisk() || !HasPermission(Perm::CopySelection) || !win->IsDocLoaded() ||
+        !IsPdfDoc(win->CurrentTab()))
+        return;
+    auto* dlg = new ExportPdfDialog();
+    if (!dlg->Create(win, false)) delete dlg;
+}
+void ShowCreatePdfFilesDialog(MainWindow* win, bool clipboard) {
+    if (!win || !CanAccessDisk()) return;
+    auto* dlg = new ExportPdfDialog();
+    dlg->create = true;
+    if (!dlg->Create(win, clipboard)) delete dlg;
 }

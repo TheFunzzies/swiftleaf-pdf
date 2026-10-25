@@ -267,6 +267,9 @@ static const RibbonItemDef gOrganizeItems[] = {
     {gIconTypewriter, CmdAddHeaderFooter, TrN("Header/Footer"), TrN("Add header or footer to pages")},
     {gIconAnnotStamp, CmdBatesNumbering, TrN("Bates Numbering"), TrN("Add Bates numbering to pages")},
     {nullptr, 0, TrN("Convert")},
+    {gIconPageExtract, CmdExportPdf, TrN("Export PDF"), TrN("Export to Office, HTML, RTF, Markdown, text, JSON or SVG")},
+    {gIconPageInsert, CmdCreatePdfFiles, TrN("From Files"), TrN("Create PDF from Office, text, web pages or images; combine selected files")},
+    {gIconClipboard, CmdCreatePdfClipboard, TrN("From Clipboard"), TrN("Create PDF from a clipboard image")},
     {gIconExportImages, CmdConvertPdfToImages, TrN("To Images"), TrN("Save pages as images")},
     {gIconImage, CmdConvertImageToPdf, TrN("From Image"), TrN("Create a PDF from images")},
 };

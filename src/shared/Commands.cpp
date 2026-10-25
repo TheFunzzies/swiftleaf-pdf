@@ -365,6 +365,9 @@ const CommandInfo gCommands[] = {
     {CmdBatesNumbering, "CmdBatesNumbering\0", StrL("Bates Numbering...")},
     {CmdPdfSanitize, "CmdPdfSanitize\0", StrL("Sanitize Document...")},
     {CmdPdfRedactSearch, "CmdPdfRedactSearch\0", StrL("Redact All Search Matches...")},
+    {CmdExportPdf, "CmdExportPdf\0", StrL("Export a PDF...")},
+    {CmdCreatePdfFiles, "CmdCreatePdfFiles\0", StrL("Create PDF from Files...")},
+    {CmdCreatePdfClipboard, "CmdCreatePdfClipboard\0", StrL("Create PDF from Clipboard Image...")},
 };
 const int gCommandsCount = dimofi(gCommands);
 

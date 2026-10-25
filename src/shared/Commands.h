@@ -359,8 +359,11 @@ enum {
     CmdBatesNumbering = 553,
     CmdPdfSanitize = 554,
     CmdPdfRedactSearch = 555,
+    CmdExportPdf = 556,
+    CmdCreatePdfFiles = 557,
+    CmdCreatePdfClipboard = 558,
 
-    CmdLast = 555,
+    CmdLast = 558,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Export PDF pages to DOCX, PPTX, XLSX, HTML, RTF, Markdown, spaced text, JSON and per-page SVG ZIP with page ranges and a limitations note.
+- Create or combine PDFs from Office files, text, RTF, HTML, Markdown, images and clipboard images. Office uses Microsoft Office automation or LibreOffice when available.
+
 ## 0.5.0 - 2026-10-24
 
 ### Added

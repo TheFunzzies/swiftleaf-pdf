@@ -27,6 +27,8 @@
 // clang-format off
 
 static const i32 gNoDocWhitelist[] = {
+    CmdCreatePdfFiles,
+    CmdCreatePdfClipboard,
     CmdOpenFile,
     CmdOpenFileNoHistory,
     CmdOpenFileWithOSFilePicker,
@@ -189,6 +191,9 @@ static const i32 removeIfNoCopyPerms[] = {
 };
 
 static const i32 removeIfNoDiskAccessPerm[] = {
+    CmdExportPdf,
+    CmdCreatePdfFiles,
+    CmdCreatePdfClipboard,
     CmdNewWindow,
     CmdOpenFile,
     CmdOpenFileNoHistory,
@@ -492,6 +497,9 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
         return CommandVisibility::Hide;
     }
 
+    if (cmdId == CmdExportPdf && (!ctx.allowsCopyingText || !HasPermission(Perm::CopySelection))) {
+        return CommandVisibility::Hide;
+    }
     if (cmdId == CmdScanOcr && (!ctx.isFixedPage || !ctx.allowsCopyingText || !HasPermission(Perm::CopySelection))) {
         return CommandVisibility::Hide;
     }
@@ -567,12 +575,12 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
     }
 
     if (!ctx.isPdf) {
-        if (cmdId == CmdPdfShowInfo || cmdId == CmdPdfBake || cmdId == CmdPdfCompress || cmdId == CmdPdfDecompress ||
-            cmdId == CmdPdfEncrypt || cmdId == CmdPdfDecrypt || cmdId == CmdPdfDeletePages ||
-            cmdId == CmdPdfExtractPages || cmdId == CmdTogglePageBoxes || cmdId == CmdConvertPdfToImages ||
-            cmdId == CmdToggleEditPDF || cmdId == CmdMergePDF || cmdId == CmdAddWatermark ||
-            cmdId == CmdAddHeaderFooter || cmdId == CmdBatesNumbering || cmdId == CmdPdfSanitize ||
-            cmdId == CmdPdfRedactSearch) {
+        if (cmdId == CmdExportPdf || cmdId == CmdPdfShowInfo || cmdId == CmdPdfBake || cmdId == CmdPdfCompress ||
+            cmdId == CmdPdfDecompress || cmdId == CmdPdfEncrypt || cmdId == CmdPdfDecrypt ||
+            cmdId == CmdPdfDeletePages || cmdId == CmdPdfExtractPages || cmdId == CmdTogglePageBoxes ||
+            cmdId == CmdConvertPdfToImages || cmdId == CmdToggleEditPDF || cmdId == CmdMergePDF ||
+            cmdId == CmdAddWatermark || cmdId == CmdAddHeaderFooter || cmdId == CmdBatesNumbering ||
+            cmdId == CmdPdfSanitize || cmdId == CmdPdfRedactSearch) {
             return CommandVisibility::Hide;
         }
         // Swiftleaf page organizing
