@@ -74,6 +74,11 @@ static const ToolDef tools[] = {
     {gLucideType, TrN("Page numbering"), CmdEditPageLabels},
     {gLucideShield, TrN("Repair PDF"), CmdPdfRepair},
     {gLucideLayers, TrN("Document layers"), CmdPdfManageLayers},
+    {gLucideScanText, TrN("Acquire from scanner"), CmdScanAcquire},
+    {gLucideScanText, TrN("Import camera image"), CmdImportCameraImage},
+    {gLucideScanText, TrN("Batch OCR"), CmdBatchOcr},
+    {gLucideBadgeCheck, TrN("Digital signatures"), CmdSignaturePanel},
+    {gLucideBadgeCheck, TrN("Certify document"), CmdCertifyDocument},
 };
 
 static const ToolDef stripTools[] = {

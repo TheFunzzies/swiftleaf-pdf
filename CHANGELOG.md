@@ -1,19 +1,20 @@
-# Changelo- Review & Measurement tools (TASK W-REVIEW):
-  - Comments import and export in XFDF (ISO 19444-1) and FDF formats.
-  - Comment summary generation to PDF, text outline, and CSV tabular formats.
-  - Flatten comments baking annotations directly into page content streams.
-  - Comment review status workflow: Accepted, Rejected, Completed, Cancelled, Marked persisted in /State and /StateModel dictionaries per PDF specification.
-  - Threaded comment replies referencing parent annotations via /IRT.
-  - Measurement tools: page scale calibration, distance, perimeter, and area measurement with live on-screen labels.
-  - Vertex and endpoint snapping to existing annotations and page content.
-  - Measurement persistence in PDF /Measure dictionary and CSV export.
-  - Callout, Arrow, Text Box, Replace Text, Polygon, Polyline, Squiggly, and Caret annotation tools registered in Ribbon, Edit tab, All tools, and context menus.
-  - Documentation in docs/review-tools.md and roundtrip unit tests in src/tests/Sumatra_ut.cpp.
-g
+# Changelog
 
 ## Unreleased
 
 ### Added
+
+- Scan & OCR and Digital Signatures (TASK W2-SCAN-SIGN):
+  - Scanner acquisition via Windows Image Acquisition (WIA COM) with device selection, resolution presets (150/300/600 DPI), color modes (RGB, Grayscale, B&W), and source selection (flatbed, feeder, duplex) to multi-page PDF with immediate OCR prompt.
+  - Camera and mobile photo import with 4-corner perspective crop, grayscale/contrast/threshold image enhancements, and auto-deskewing.
+  - OCR preprocessing pipeline: automated deskewing, despeckling, and scanner edge/border suppression; exposed multi-page batch OCR API and interactive dialog.
+  - Digital signatures panel: real-time cryptographic validation (integrity ok, modified after signing, unknown signer, expired, revoked), signer metadata, and native Windows certificate viewer (CryptUIDlgViewContext).
+  - Document certification (DocMDP) with customizable author permissions (P=1 strict lock, P=2 form fill-in and signing, P=3 annotations and forms).
+  - RFC 3161 cryptographic timestamping via configurable TSA server URL setting (TsaUrl).
+  - Clear signature functionality to reset signed form fields back to unsigned state.
+  - Registered commands in Ribbon ('Convert' and 'E-Sign' tabs), All Tools panel, and Command Palette.
+  - Unit tests in Sumatra_ut.cpp verifying signature creation, verification, DocMDP checks, tampering detection, and clearing.
+  - Documentation in docs/scan-and-sign.md.
 
 - Export PDF pages to DOCX, PPTX, XLSX, HTML, RTF, Markdown, spaced text, JSON and per-page SVG ZIP with page ranges and a limitations note.
 - Create or combine PDFs from Office files, text, RTF, HTML, Markdown, images and clipboard images. Office uses Microsoft Office automation or LibreOffice when available.

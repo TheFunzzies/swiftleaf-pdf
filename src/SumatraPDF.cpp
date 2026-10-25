@@ -62,6 +62,8 @@
 #include "DocumentPanel.h"
 #include "SignatureCreate.h"
 #include "Ocr.h"
+#include "ScannerWia.h"
+#include "SignaturePanel.h"
 #include "Ribbon.h"
 #include "Material.h"
 #include "MergePdf.h"
@@ -10241,7 +10243,7 @@ static Annotation* MakeAnnotationsFromSelection(WindowTab* tab, AnnotCreateArgs*
 
     if (args->setContentToSelection) {
         bool isTextOnlySelection = false;
-        args->content = GetSelectedTextTemp(tab, StrL("\r\n"), isTextOnlySelection);
+        args->content = GetSelectedTextTemp(tab, StrL("\n"), isTextOnlySelection);
     }
 
     Annotation* annot = nullptr;
@@ -13249,8 +13251,32 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             break;
         }
 
+        case CmdScanAcquire:
+            ShowScanDialog(win);
+            break;
+
+        case CmdImportCameraImage:
+            ShowCameraImportDialog(win);
+            break;
+
+        case CmdBatchOcr:
+            ShowBatchOcrDialog(win);
+            break;
+
         case CmdSignDocument:
             ShowSignDocumentDialog(win);
+            break;
+
+        case CmdCertifyDocument:
+            ShowCertifyDocumentDialog(win);
+            break;
+
+        case CmdSignaturePanel:
+            ShowSignaturePanel(win);
+            break;
+
+        case CmdClearSignature:
+            ClearDocumentSignature(win);
             break;
 
         case CmdToggleMenuBar: {
