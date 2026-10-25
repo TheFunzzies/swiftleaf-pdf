@@ -49,6 +49,7 @@ export type PanelRow = {
   dy: number;
   text: string;
   tip: string;
+  category: string;
 };
 
 export async function toolsDump(client: ControlClient): Promise<string> {
@@ -58,7 +59,7 @@ export async function toolsDump(client: ControlClient): Promise<string> {
 export function panelRows(raw: string): PanelRow[] {
   return [
     ...raw.matchAll(
-      /^panel-row=(\d+) cmd=(\d+) enabled=(\d) checked=(\d) rect=(-?\d+),(-?\d+),(-?\d+),(-?\d+) text=(.*?) tip=(.*)$/gm,
+      /^panel-row=(\d+) cmd=(\d+) enabled=(\d) checked=(\d) rect=(-?\d+),(-?\d+),(-?\d+),(-?\d+) text=(.*?) tip=(.*?) category=(.*)$/gm,
     ),
   ].map((m) => ({
     idx: +m[1]!,
@@ -71,6 +72,7 @@ export function panelRows(raw: string): PanelRow[] {
     dy: +m[8]! - +m[6]!,
     text: m[9]!,
     tip: m[10]!.trim(),
+    category: m[11]!.trim(),
   }));
 }
 
@@ -155,7 +157,14 @@ export async function testit(): Promise<void> {
           raw,
         );
         if (!mode) {
-          want(rows.length === 33, "All tools must retain its 33 rows", raw);
+          const categoryNames = new Set(rows.map((r) => r.category));
+          want(
+            ["Export", "Create", "Edit", "Organize", "Review", "Forms", "Protect & Redact", "Optimize", "Sign", "Scan/OCR", "Standards"].every((c) => categoryNames.has(c)),
+            "All tools must expose every category in its data table",
+            raw,
+          );
+          want(rows.every((r) => r.category.length > 0), "Every tool must belong to a category", raw);
+          want(new Set(rows.map((r) => r.cmd)).size === rows.length, "Tools must have unique commands", raw);
           for (const command of ["CmdPdfSanitize", "CmdPdfRedactSearch"]) {
             want(
               rows.some((r) => r.cmd === cmdId(command) && r.enabled),
