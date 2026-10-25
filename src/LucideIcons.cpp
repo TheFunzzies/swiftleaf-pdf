@@ -57,6 +57,9 @@ const char* gLucideBadgeCheck = LUCIDE_SVG(
     R"(<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" /><path d="m16 9-5.5 5.5L8 12" />)");
 // check
 const char* gLucideCheck = LUCIDE_SVG(R"(<path d="M20 6 9 17l-5-5" />)");
+// star
+const char* gLucideStar = LUCIDE_SVG(
+    R"(<path d="m12 3 2.7 5.47 6.03.88-4.36 4.25 1.03 6.01L12 16.77l-5.4 2.84 1.03-6.01L3.27 9.35l6.03-.88L12 3z" />)");
 // x
 const char* gLucideX = LUCIDE_SVG(R"(<path d="M18 6 6 18" /><path d="m6 6 12 12" />)");
 // panel-left

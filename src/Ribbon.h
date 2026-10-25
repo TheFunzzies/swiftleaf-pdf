@@ -54,6 +54,7 @@ struct RibbonItemDef {
 
 int RibbonPageCount();
 Str RibbonPageName(RibbonPage);
+TempStr RibbonCommandHelpTemp(int cmdId, Str* pageOut);
 RibbonPage RibbonPageAtTab(int tabPos);
 // buttons of the pages built purely from RibbonItemDef (Edit, Organize, ...)
 void RibbonPageItems(RibbonPage, const RibbonItemDef** items, int* count);
@@ -135,6 +136,11 @@ struct RibbonTabRow : HBox {
     Animation* underlineX = nullptr;
     Animation* underlineWidth = nullptr;
     Size paintedSize;
+    VirtCtrl* overflowBtn = nullptr;
+    ILayout* searchBox = nullptr;
+    VirtCtrl* propsBtn = nullptr;
+    VirtCtrl* saveBtn = nullptr;
+    VirtCtrl* printBtn = nullptr;
     RibbonTabRow();
     ~RibbonTabRow() override;
     Size Layout(Constraints bc) override;
