@@ -577,21 +577,19 @@ static void CollectItems(Annotation* annot, Vec<AnnotEditItem>& out) {
         VecAppend(out, it);
     }
     {
-        // last, so a mis-aimed click lands on a harmless chip, not on delete
-        {
+        if (!isFreeText && type != AnnotationType::Widget) {
             Str state = GetAnnotationState(annot);
             AnnotEditItem it;
             it.kind = AnnotEditKind::Status;
             it.text = state.len > 0 ? state : StrL("Status");
             it.tooltip = Tr("Review Status");
             VecAppend(out, it);
-        }
-        {
-            AnnotEditItem it;
-            it.kind = AnnotEditKind::Reply;
-            it.text = StrL("Reply");
-            it.tooltip = Tr("Reply");
-            VecAppend(out, it);
+
+            AnnotEditItem itReply;
+            itReply.kind = AnnotEditKind::Reply;
+            itReply.text = StrL("Reply");
+            itReply.tooltip = Tr("Reply");
+            VecAppend(out, itReply);
         }
         AnnotEditItem it;
         it.kind = AnnotEditKind::Delete;
