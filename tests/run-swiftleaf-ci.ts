@@ -39,12 +39,7 @@ const smokeTests = [
 ];
 
 // Keep observed baseline failures visible; a different failure still fails CI.
-const knownFailures: Record<string, { reason: string; pattern: RegExp }> = {
-  "pdf-edit-toolbar-interaction": {
-    reason: "The annotation hover date omits the UTC suffix required by the test.",
-    pattern: /annotation metadata is wrong[\s\S]*row author=Ada[\s\S]*row date=2026-08-24 12:34\r?\n/,
-  },
-};
+const knownFailures: Record<string, { reason: string; pattern: RegExp }> = {};
 
 export function matchesKnown(name: string, output: string): boolean {
   const known = knownFailures[name];

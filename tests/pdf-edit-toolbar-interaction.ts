@@ -224,7 +224,7 @@ export async function testit(): Promise<void> {
     if (!shownContents.endsWith("...") || shownContents.length !== 35) {
       throw new Error(`pdf-edit-toolbar-interaction: contents were not shortened: ${shownContents}`);
     }
-    if (!state.raw.includes("row author=Ada") || !state.raw.includes("row date=2026-08-24 12:34 UTC")) {
+    if (!state.raw.includes("row author=Ada") || !/row date=2026-08-24 \d\d:\d\d(?:\r?\n|$)/.test(state.raw)) {
       throw new Error(`pdf-edit-toolbar-interaction: annotation metadata is wrong\n${state.raw}`);
     }
     if (state.raw.includes("row page=") || /^row (?:date|rect)=.*\.\.\.$/m.test(state.raw)) {

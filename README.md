@@ -11,33 +11,23 @@ A fast, lightweight PDF reader and editor for Windows.
 | `Swiftleaf.exe`        | portable: download and run, nothing to install         |
 | `Swiftleaf-install.exe`| installer: adds Start menu entry and file associations |
 
-See the [changelog](CHANGELOG.md) for versioned changes and known limitations.
+See the [changelog](CHANGELOG.md) for versioned changes and known limitations, and read our [comparison with PDFCraft](docs/comparison-pdfcraft.md).
 
 ## Features
 
-- **Ribbon UI** in Foxit's order: File, Home, Comment, Edit, Organize, View,
-  Fill & Sign, Protect and Help, with labeled buttons, a quick access toolbar
-  (Open, Save, Print, Undo, Redo) in the title bar and an icon rail on the left
-  for bookmarks, pages, comments, search and favorites.
-- **Home**: Hand, Select and Snapshot tools (Snapshot copies a dragged area as
-  an image), zoom, fit, rotate, typewriter, highlight, Fill & Sign.
-- **Comment**: highlight, underline, squiggly, strikeout, sticky notes, text
-  boxes, lines, rectangles, ovals, polygons, freehand ink, stamps, file
-  attachments, a comments list, undo / redo.
-- **Edit**: change the existing text of a page (Edit Text: click a paragraph,
-  type, Enter; the text re-flows to the paragraph's width), add text and images,
-  links, compress.
-- **Organize**: works on the open PDF like Foxit / Acrobat: drag thumbnails to
-  reorder pages, rotate, insert blank pages or another PDF's pages, move,
-  delete, split, with Undo; plus extract, merge and export pages as images.
-- **Fill & Sign**: fill AcroForms; create a signature by drawing it, typing your
-  name in a handwriting font or uploading a photo (the paper turns
-  transparent), then place it on the page; sign with a digital ID.
-- **Protect**: password protect / unprotect, redact, flatten.
-- **Updates**: Help > Update (and a daily check) downloads the newest release
-  from GitHub, verifies its SHA-256 and installs it.
-- **Fast**: single ~13 MB executable, opens large documents instantly, also reads
-  EPUB, MOBI, CBZ/CBR, XPS, DjVu, CHM and images.
+- **Five workflow modes**: organized into five focused task modes:
+  - **All tools**: complete tools workspace palette for quick access to all document capabilities.
+  - **Read**: clean reading interface with zoom, fit, rotation, search, navigation, bookmarks, and dual/continuous page views.
+  - **Edit**: modify existing page text with automatic line wrapping, add text boxes, images, links, highlight, annotations, shapes, freehand ink, and comments.
+  - **Convert**: extract text, render pages to images, export, and run searchable OCR.
+  - **E-Sign**: fill interactive AcroForms, create and place signatures (drawn, typed, or image upload with transparent background), and certify with digital signatures.
+- **Searchable OCR**: ad-hoc and document OCR powered by native Windows OCR engines, generating selectable, searchable text layers directly in your PDF.
+- **Atomic saves & recovery**: journaled atomic file writes protect against corruption during power loss or crashes, with automatic session and unsaved edit recovery.
+- **Sanitize & redaction**: permanently redact sensitive text and areas with black-out or custom colors, and sanitize PDFs by stripping hidden metadata, annotations, scripts, and embedded attachments.
+- **Page marks & stamps**: apply custom stamps, Bates numbering, headers, footers, and page numbers across page ranges.
+- **Lossless merge & page tools**: reorder pages via thumbnail drag-and-drop, insert blank pages or pages from other PDFs without re-compressing streams, extract, rotate, and lossless merge.
+- **Fast & lightweight**: single ~13 MB portable executable, instant startup, low memory footprint, and broad support for EPUB, MOBI, CBZ/CBR, XPS, DjVu, CHM, and images.
+- **Updates**: in-app updater (and optional check) downloads releases from GitHub, verifies publisher signature and SHA-256 checksums, and updates safely.
 
 ## Building
 
@@ -57,7 +47,7 @@ Every tagged release is built by CI and published on the Releases page.
 ## Project layout
 
 | Path                | What                                                    |
-| ------------------- | ------------------------------------------------------- |
+| ------------------- | ------------------------------------------------------- |\
 | `src/`              | the application                                         |
 | `ext/`              | vendored libraries (MuPDF, FreeType, HarfBuzz, ...)     |
 | `vs2022/`, `premake5*.lua`, `bin/` | build system and build tools            |
@@ -70,7 +60,7 @@ Every tagged release is built by CI and published on the Releases page.
 SwiftLeaf is a fork of [SumatraPDF](https://github.com/sumatrapdfreader/sumatrapdf)
 by Krzysztof Kowalczyk and contributors (see `AUTHORS`; the upstream readme is
 kept in `docs/upstream-readme.md`). Its interface is inspired by
-[PDFCraft](https://github.com/PDFCraftTool/pdfcraft) and its editing features
+[PDFCraft](https://github.com/PDFCraftTool/pdfcraft) (see [SwiftLeaf vs PDFCraft](docs/comparison-pdfcraft.md)) and its editing features
 by [Okular](https://invent.kde.org/graphics/okular).
 
 GPLv3 (see `COPYING`), with parts under BSD (`COPYING.BSD`) and MuPDF under
