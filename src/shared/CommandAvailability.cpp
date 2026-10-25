@@ -544,7 +544,9 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
     }
 
 #if !defined(SUMATRA_NG)
-    if (cmdId >= CmdPrepareForm && cmdId <= CmdCreateFormSignature && (!ctx.supportsAnnots || !ctx.isPdf)) {
+    if (((cmdId >= CmdPrepareForm && cmdId <= CmdCreateFormSignature) ||
+         (cmdId >= CmdCreateFormListBox && cmdId <= CmdFlattenForm)) &&
+        (!ctx.supportsAnnots || !ctx.isPdf)) {
         return CommandVisibility::Hide;
     }
 #endif

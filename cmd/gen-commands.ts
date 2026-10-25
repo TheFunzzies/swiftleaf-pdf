@@ -369,6 +369,16 @@ const commandsRaw = [
     "CmdExportPdf", "Export a PDF...",
     "CmdCreatePdfFiles", "Create PDF from Files...",
     "CmdCreatePdfClipboard", "Create PDF from Clipboard Image...",
+    "CmdCreateFormListBox", "Create List Box Field",
+    "CmdCreateFormPushButton", "Create Push Button Field",
+    "CmdCreateFormImage", "Create Image Field",
+    "CmdCreateFormDate", "Create Date Field",
+    "CmdDetectFormFields", "Detect Fields...",
+    "CmdFormTabOrder", "Edit Form Tab Order...",
+    "CmdImportFormData", "Import Form Data...",
+    "CmdExportFormData", "Export Form Data...",
+    "CmdClearForm", "Clear Form...",
+    "CmdFlattenForm", "Flatten Form...",
 ];
 
 // removed slots are dropped: nothing outside the generators should see them

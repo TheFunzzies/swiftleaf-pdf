@@ -14311,11 +14311,24 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             return 0;
         }
 
+        case CmdDetectFormFields:
+        case CmdFormTabOrder:
+        case CmdImportFormData:
+        case CmdExportFormData:
+        case CmdClearForm:
+        case CmdFlattenForm:
+            RunFormOperation(win, cmdId);
+            return 0;
+
         case CmdPrepareForm:
         case CmdCreateFormText:
         case CmdCreateFormCheckbox:
         case CmdCreateFormRadio:
         case CmdCreateFormCombo:
+        case CmdCreateFormListBox:
+        case CmdCreateFormPushButton:
+        case CmdCreateFormImage:
+        case CmdCreateFormDate:
         case CmdCreateFormSignature: {
             if (!win || !tab || !dm || !EngineMupdfIsPdf(dm->GetEngine()) ||
                 !EngineSupportsAnnotations(dm->GetEngine()))

@@ -334,6 +334,7 @@ function sumatrapdf_files()
     "FindWindow.*",
     "FormFields.*",
     "FormAuthoring.*",
+    "FormOperations.*",
     "ImageReader.h",
     "ImageReader.cpp",
     "GlobalHotkeys.*",
@@ -575,6 +576,7 @@ end
 function engines_files()
   files_in_dir("src", {
     "Annotation.*",
+    "AdvancedForms.*",
     "PdfSign.*",
     "ChapterTable.*",
     "ChmFile.*",

@@ -362,8 +362,18 @@ enum {
     CmdExportPdf = 556,
     CmdCreatePdfFiles = 557,
     CmdCreatePdfClipboard = 558,
+    CmdCreateFormListBox = 559,
+    CmdCreateFormPushButton = 560,
+    CmdCreateFormImage = 561,
+    CmdCreateFormDate = 562,
+    CmdDetectFormFields = 563,
+    CmdFormTabOrder = 564,
+    CmdImportFormData = 565,
+    CmdExportFormData = 566,
+    CmdClearForm = 567,
+    CmdFlattenForm = 568,
 
-    CmdLast = 558,
+    CmdLast = 568,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

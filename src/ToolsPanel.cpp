@@ -54,6 +54,7 @@ static const ToolDef tools[] = {
     {gLucideRectangleHorizontal, TrN("Redact a PDF"), CmdCreateAnnotRedact},
     {gLucideFileArchive, TrN("Compress a PDF"), CmdPdfCompress},
     {gLucideTextCursorInput, TrN("Prepare a form"), CmdPrepareForm},
+    {gLucideTextCursorInput, TrN("Detect fields"), CmdDetectFormFields},
     {gLucideStamp, TrN("Add a stamp"), CmdCreateAnnotStamp},
     {gLucideBadgeCheck, TrN("Use a certificate"), CmdSignDocument},
     {gLucideStamp, TrN("Add watermark"), CmdAddWatermark},

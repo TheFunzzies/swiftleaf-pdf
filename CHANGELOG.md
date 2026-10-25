@@ -6,6 +6,12 @@
 
 - Export PDF pages to DOCX, PPTX, XLSX, HTML, RTF, Markdown, spaced text, JSON and per-page SVG ZIP with page ranges and a limitations note.
 - Create or combine PDFs from Office files, text, RTF, HTML, Markdown, images and clipboard images. Office uses Microsoft Office automation or LibreOffice when available.
+- Advanced AcroForm tools: field detection with candidate preview, list boxes,
+  reset/link/submit-action buttons, image and date fields, expanded field
+  properties, tab-order editing, FDF/XFDF/CSV/JSON data exchange, Clear Form
+  and flatten-to-copy. Submit actions are for other readers; calculations,
+  validation ranges and input masks require JavaScript and are not authored.
+  See `docs/form-authoring.md` for compatibility limits.
 
 ## 0.5.0 - 2026-10-24
 

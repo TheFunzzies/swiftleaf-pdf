@@ -275,6 +275,12 @@ static const RibbonItemDef gOrganizeItems[] = {
 };
 
 static const RibbonItemDef gFormsSignItems[] = {
+    {gIconForms, CmdDetectFormFields, TrN("Detect Fields"), TrN("Review likely fields before creating them")},
+    {gIconForms, CmdFormTabOrder, TrN("Tab Order"), TrN("Order fields by row, column, structure or manually")},
+    {gIconForms, CmdImportFormData, TrN("Import Data"), TrN("Import FDF, XFDF, CSV or JSON field values")},
+    {gIconForms, CmdExportFormData, TrN("Export Data"), TrN("Export FDF, XFDF, CSV or JSON field values")},
+    {gIconForms, CmdClearForm, TrN("Clear Form"), TrN("Clear field values while keeping fields and defaults")},
+    {gIconFlatten, CmdFlattenForm, TrN("Flatten Form"), TrN("Save a copy with fields merged into page content")},
     {gIconForms, CmdPrepareForm, TrN("Prepare a Form"), TrN("Draw a field, then choose its type and properties")},
     {gIconForms, CmdToggleHighlightFormFields, TrN("Highlight Fields"), TrN("Highlight form fields")},
     {gIconTypewriter, CmdCreateAnnotFreeText, TrN("Typewriter"), TrN("Type text anywhere on the page")},
