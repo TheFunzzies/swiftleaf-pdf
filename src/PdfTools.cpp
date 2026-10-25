@@ -3305,9 +3305,8 @@ void PdfWatermarkDialog::OnPagesModeChanged() {
 
 void PdfWatermarkDialog::UpdateButton() {
     if (!actionBtn) return;
-    TempStr dest = destEdit ? destEdit->GetTextTemp() : TempStr{};
     TempStr txt = textEdit ? textEdit->GetTextTemp() : TempStr{};
-    bool ok = len(dest) > 0 && len(txt) > 0;
+    bool ok = len(txt) > 0;
     if (radioCustom && radioCustom->IsChecked()) {
         TempStr pages = pagesEdit ? pagesEdit->GetTextTemp() : TempStr{};
         Vec<int> p;
@@ -3317,7 +3316,9 @@ void PdfWatermarkDialog::UpdateButton() {
 }
 
 void PdfWatermarkDialog::DoIt(VirtMouseEvent*) {
-    TempStr destPath = destEdit->GetTextTemp();
+    PdfToolEdit edit(win, srcPath);
+    if (!edit.IsReady()) return;
+    Str destPath = edit.outputPath;
     if (len(destPath) == 0) {
         return;
     }
@@ -3374,31 +3375,13 @@ void PdfWatermarkDialog::DoIt(VirtMouseEvent*) {
         params.pagesSpec = StrL("all");
     }
 
-    Str inputPath = srcPath;
-    TempStr tmpPath;
-    WindowTab* tab = win ? win->CurrentTab() : nullptr;
-    EngineBase* engine = tab ? tab->GetEngine() : nullptr;
-    if (engine && EngineHasUnsavedAnnotations(engine)) {
-        tmpPath = GetTempFilePathTemp(StrL("watermark-input"));
-        if (len(tmpPath) == 0 || !EngineMupdfSaveCopy(engine, tmpPath)) {
-            MessageBoxWarning(hwnd, StrL("Failed to save copy of PDF file."), Tr("Add Watermark"));
-            return;
-        }
-        inputPath = tmpPath;
-    }
+    Str inputPath = edit.inputPath;
 
     logf("PdfWatermarkDialog::DoIt: applying watermark to '%s'\n", destPath);
     bool ok = PdfApplyWatermark(inputPath, destPath, params);
-    if (tmpPath) {
-        file::Delete(tmpPath);
-    }
 
     if (ok) {
-        MainWindow* w = win;
-        TempStr path = str::DupTemp(destPath);
-        Close();
-        LoadArgs args(path, w);
-        StartLoadDocument(&args);
+        if (edit.Apply("Add watermark")) Close();
     } else {
         MessageBoxWarning(hwnd, StrL("Failed to add watermark to PDF file."), Tr("Add Watermark"));
     }
@@ -3412,13 +3395,6 @@ bool PdfWatermarkDialog::Create(MainWindow* w, WindowTab* tab) {
     currentPage = w->ctrl ? w->ctrl->CurrentPageNo() : 1;
 
     AddPathRow();
-
-    Str stem = str::DupTemp(srcPath);
-    if (str::EndsWithI(stem, StrL(".pdf"))) {
-        stem.len -= 4;
-    }
-    TempStr dest = MakeUniqueFilePathTemp(fmt("%s_watermark.pdf", stem));
-    AddDestRow(dest, L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
 
     textEdit = AddLabeledEdit(Tr("Watermark Text:"), StrL("CONFIDENTIAL"));
 
@@ -3538,7 +3514,6 @@ bool PdfWatermarkDialog::Create(MainWindow* w, WindowTab* tab) {
     AddButtonsRow(Tr("Add Watermark"));
     FinishDialog(textEdit);
 
-    destEdit->onTextChanged = MkMethod0<PdfWatermarkDialog, &PdfWatermarkDialog::UpdateButton>(this);
     textEdit->onTextChanged = MkMethod0<PdfWatermarkDialog, &PdfWatermarkDialog::UpdateButton>(this);
     pagesEdit->onTextChanged = MkMethod0<PdfWatermarkDialog, &PdfWatermarkDialog::UpdateButton>(this);
     UpdateButton();
@@ -3594,14 +3569,13 @@ void PdfHeaderFooterDialog::OnPagesModeChanged() {
 
 void PdfHeaderFooterDialog::UpdateButton() {
     if (!actionBtn) return;
-    TempStr dest = destEdit ? destEdit->GetTextTemp() : TempStr{};
     bool hasAny = (headerLeftEdit && len(headerLeftEdit->GetTextTemp()) > 0) ||
                   (headerCenterEdit && len(headerCenterEdit->GetTextTemp()) > 0) ||
                   (headerRightEdit && len(headerRightEdit->GetTextTemp()) > 0) ||
                   (footerLeftEdit && len(footerLeftEdit->GetTextTemp()) > 0) ||
                   (footerCenterEdit && len(footerCenterEdit->GetTextTemp()) > 0) ||
                   (footerRightEdit && len(footerRightEdit->GetTextTemp()) > 0);
-    bool ok = len(dest) > 0 && hasAny;
+    bool ok = hasAny;
     if (radioCustom && radioCustom->IsChecked()) {
         TempStr pages = pagesEdit ? pagesEdit->GetTextTemp() : TempStr{};
         Vec<int> p;
@@ -3611,7 +3585,9 @@ void PdfHeaderFooterDialog::UpdateButton() {
 }
 
 void PdfHeaderFooterDialog::DoIt(VirtMouseEvent*) {
-    TempStr destPath = destEdit->GetTextTemp();
+    PdfToolEdit edit(win, srcPath);
+    if (!edit.IsReady()) return;
+    Str destPath = edit.outputPath;
     if (len(destPath) == 0) {
         return;
     }
@@ -3632,31 +3608,13 @@ void PdfHeaderFooterDialog::DoIt(VirtMouseEvent*) {
         params.pagesSpec = StrL("all");
     }
 
-    Str inputPath = srcPath;
-    TempStr tmpPath;
-    WindowTab* tab = win ? win->CurrentTab() : nullptr;
-    EngineBase* engine = tab ? tab->GetEngine() : nullptr;
-    if (engine && EngineHasUnsavedAnnotations(engine)) {
-        tmpPath = GetTempFilePathTemp(StrL("hf-input"));
-        if (len(tmpPath) == 0 || !EngineMupdfSaveCopy(engine, tmpPath)) {
-            MessageBoxWarning(hwnd, StrL("Failed to save copy of PDF file."), Tr("Add Header / Footer"));
-            return;
-        }
-        inputPath = tmpPath;
-    }
+    Str inputPath = edit.inputPath;
 
     logf("PdfHeaderFooterDialog::DoIt: applying header/footer to '%s'\n", destPath);
     bool ok = PdfApplyHeaderFooter(inputPath, destPath, params);
-    if (tmpPath) {
-        file::Delete(tmpPath);
-    }
 
     if (ok) {
-        MainWindow* w = win;
-        TempStr path = str::DupTemp(destPath);
-        Close();
-        LoadArgs args(path, w);
-        StartLoadDocument(&args);
+        if (edit.Apply("Add header/footer")) Close();
     } else {
         MessageBoxWarning(hwnd, StrL("Failed to add header/footer to PDF file."), Tr("Add Header / Footer"));
     }
@@ -3670,13 +3628,6 @@ bool PdfHeaderFooterDialog::Create(MainWindow* w, WindowTab* tab) {
     currentPage = w->ctrl ? w->ctrl->CurrentPageNo() : 1;
 
     AddPathRow();
-
-    Str stem = str::DupTemp(srcPath);
-    if (str::EndsWithI(stem, StrL(".pdf"))) {
-        stem.len -= 4;
-    }
-    TempStr dest = MakeUniqueFilePathTemp(fmt("%s_header_footer.pdf", stem));
-    AddDestRow(dest, L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
 
     HBox* hRow = AddRow();
     hRow->gap = font->averageCharWidth;
@@ -3756,7 +3707,6 @@ bool PdfHeaderFooterDialog::Create(MainWindow* w, WindowTab* tab) {
     AddButtonsRow(Tr("Add Header / Footer"));
     FinishDialog(footerCenterEdit);
 
-    destEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
     headerLeftEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
     headerCenterEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
     headerRightEdit->onTextChanged = MkMethod0<PdfHeaderFooterDialog, &PdfHeaderFooterDialog::UpdateButton>(this);
@@ -3815,8 +3765,7 @@ void PdfBatesDialog::OnPagesModeChanged() {
 
 void PdfBatesDialog::UpdateButton() {
     if (!actionBtn) return;
-    TempStr dest = destEdit ? destEdit->GetTextTemp() : TempStr{};
-    bool ok = len(dest) > 0;
+    bool ok = true;
     if (radioCustom && radioCustom->IsChecked()) {
         TempStr pages = pagesEdit ? pagesEdit->GetTextTemp() : TempStr{};
         Vec<int> p;
@@ -3826,7 +3775,9 @@ void PdfBatesDialog::UpdateButton() {
 }
 
 void PdfBatesDialog::DoIt(VirtMouseEvent*) {
-    TempStr destPath = destEdit->GetTextTemp();
+    PdfToolEdit edit(win, srcPath);
+    if (!edit.IsReady()) return;
+    Str destPath = edit.outputPath;
     if (len(destPath) == 0) {
         return;
     }
@@ -3855,31 +3806,13 @@ void PdfBatesDialog::DoIt(VirtMouseEvent*) {
         params.pagesSpec = StrL("all");
     }
 
-    Str inputPath = srcPath;
-    TempStr tmpPath;
-    WindowTab* tab = win ? win->CurrentTab() : nullptr;
-    EngineBase* engine = tab ? tab->GetEngine() : nullptr;
-    if (engine && EngineHasUnsavedAnnotations(engine)) {
-        tmpPath = GetTempFilePathTemp(StrL("bates-input"));
-        if (len(tmpPath) == 0 || !EngineMupdfSaveCopy(engine, tmpPath)) {
-            MessageBoxWarning(hwnd, StrL("Failed to save copy of PDF file."), Tr("Bates Numbering"));
-            return;
-        }
-        inputPath = tmpPath;
-    }
+    Str inputPath = edit.inputPath;
 
     logf("PdfBatesDialog::DoIt: applying bates numbering to '%s'\n", destPath);
     bool ok = PdfApplyBatesNumbering(inputPath, destPath, params);
-    if (tmpPath) {
-        file::Delete(tmpPath);
-    }
 
     if (ok) {
-        MainWindow* w = win;
-        TempStr path = str::DupTemp(destPath);
-        Close();
-        LoadArgs args(path, w);
-        StartLoadDocument(&args);
+        if (edit.Apply("Bates numbering")) Close();
     } else {
         MessageBoxWarning(hwnd, StrL("Failed to add Bates numbering to PDF file."), Tr("Bates Numbering"));
     }
@@ -3893,13 +3826,6 @@ bool PdfBatesDialog::Create(MainWindow* w, WindowTab* tab) {
     currentPage = w->ctrl ? w->ctrl->CurrentPageNo() : 1;
 
     AddPathRow();
-
-    Str stem = str::DupTemp(srcPath);
-    if (str::EndsWithI(stem, StrL(".pdf"))) {
-        stem.len -= 4;
-    }
-    TempStr dest = MakeUniqueFilePathTemp(fmt("%s_bates.pdf", stem));
-    AddDestRow(dest, L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
 
     HBox* pRow = AddRow();
     pRow->gap = font->averageCharWidth;
@@ -3984,7 +3910,6 @@ bool PdfBatesDialog::Create(MainWindow* w, WindowTab* tab) {
     AddButtonsRow(Tr("Add Bates Numbering"));
     FinishDialog(prefixEdit);
 
-    destEdit->onTextChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::UpdateButton>(this);
     prefixEdit->onTextChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::UpdateButton>(this);
     startNumEdit->onTextChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::UpdateButton>(this);
     digitsEdit->onTextChanged = MkMethod0<PdfBatesDialog, &PdfBatesDialog::UpdateButton>(this);

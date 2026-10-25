@@ -813,6 +813,17 @@ static bool IsPointerToolCmd(int cmdId) {
     return cmdId >= CmdToolHand && cmdId <= CmdToolSnapshot;
 }
 
+static void UpdateUndoButton(MainWindow* win, VirtCtrl* button) {
+    if (!button || (button->id != CmdUndo && button->id != CmdRedo && button->id != CmdUndoPageChange)) return;
+    bool redo = button->id == CmdRedo;
+    auto* tab = win->CurrentTab();
+    auto* engine = tab ? tab->GetEngine() : nullptr;
+    TempStr label = EngineMupdfUndoLabel(engine, redo);
+    Str action = redo ? Tr("Redo") : Tr("Undo");
+    TempStr text = len(label) ? fmt("%s %s", action, label) : TempStr(action);
+    button->SetTooltip(ToolbarTipTemp(button->id, text, false));
+}
+
 static void UpdateRibbonItemsState(MainWindow* win, AppCommandCtx* ctx, bool annotButtonsEnabled) {
     ToolbarVirt* tb = win->toolbarVirt;
     if (!tb) {
@@ -924,6 +935,12 @@ void ToolbarUpdateStateForWindow(MainWindow* win, bool setButtonsVisibility) {
     }
 
     UpdateRibbonItemsState(win, ctx, annotButtonsEnabled);
+    if (auto* tb = win->toolbarVirt) {
+        for (auto* button : tb->items) UpdateUndoButton(win, button);
+        for (auto* button : tb->annotationItems) UpdateUndoButton(win, button);
+        for (auto* button : tb->ribbonItems) UpdateUndoButton(win, button);
+        for (auto* button : tb->topBarItems) UpdateUndoButton(win, button);
+    }
     ToolsPanelUpdate(win);
     StatusBarUpdate(win);
     NavRailUpdate(win);

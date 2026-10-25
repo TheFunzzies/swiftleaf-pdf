@@ -94,7 +94,7 @@ static Accel gBuiltInAccelerators[] = {
     {{kShift | kCtrl | kVirt, 'S'}, CmdSaveAnnotations},
     {{kCtrl | kVirt, 'P'}, CmdPrint},
     {{kCtrl | kVirt, 'Q'}, CmdExit},
-    {{kCtrl | kVirt, 'Y'}, CmdZoomCustom},
+    {{kCtrl | kVirt, 'Y'}, CmdRedo},
     {{kCtrl | kVirt, '0'}, CmdZoomFitPage},
     {{kCtrl | kVirt, VK_NUMPAD0}, CmdZoomFitPage},
     {{kCtrl | kVirt, '1'}, CmdZoomActualSize},

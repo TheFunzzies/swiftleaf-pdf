@@ -5918,6 +5918,11 @@ static bool CreateRecoverySession() {
     return true;
 }
 
+static void RecoveryWriteThread(PdfRecoveryJob* job) {
+    WritePdfRecovery(job);
+    uitask::Post(MkFunc0(DropPdfRecovery, job), "FinishRecovery");
+}
+
 static void CALLBACK RecoveryTimerProc(HWND, UINT, UINT_PTR, DWORD) {
     if (!CanAccessDisk() || gPluginMode || IsStressTesting() || gRecoveryBusy) {
         return;
@@ -5943,18 +5948,8 @@ static void CALLBACK RecoveryTimerProc(HWND, UINT, UINT_PTR, DWORD) {
                 return;
             }
             TempStr snapshot = path::JoinTemp(gRecoverySession, fmt("document-%p.pdf", engine));
-            TempStr info = str::JoinTemp(snapshot, StrL(".path"));
-            if (!file::Exists(info)) {
-                file::AtomicFile output(info);
-                if (len(output.tempPath) == 0 || !file::WriteFile(output.tempPath, tab->filePath) || !output.Commit()) {
-                    continue;
-                }
-            }
-            if (!EngineMupdfAutoSave(engine, snapshot)) {
-                if (!file::Exists(snapshot)) {
-                    file::Delete(info);
-                }
-                logf("Recovery: snapshot failed for '%s'\n", tab->filePath);
+            if (auto* job = EngineMupdfFreezeRecovery(engine, snapshot)) {
+                RunAsync(MkFunc0(RecoveryWriteThread, job), StrL("Recovery"));
             }
         }
     }
@@ -12410,6 +12405,35 @@ void EndPdfEditOperation(MainWindow* win) {
 
 // Step the document's edit history. MuPDF restores the objects; every wrapper,
 // selection and cached rendering that pointed at the old state has to go.
+bool ApplyPdfEdit(MainWindow* win, Str result, const char* label, int goToPage) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    DisplayModel* dm = tab ? tab->AsFixed() : nullptr;
+    if (!dm || !EngineMupdfIsPdf(dm->GetEngine())) return false;
+    CancelAnnotationPlacement(win);
+    CancelDrag(win);
+    SetSelectedAnnotation(tab, nullptr);
+    AbortFinding(win, true);
+    ClearTocBox(win);
+    tab->currToc = nullptr;
+    if (gRenderCache) gRenderCache->AbortRendering(dm);
+    Vec<Annotation*> removed;
+    bool ok = EngineMupdfImportEdit(dm->GetEngine(), result, label, removed);
+    for (auto* a : removed) {
+        DetachAnnotationFromUI(a);
+        DeleteAnnotation(a);
+    }
+    tab->formFieldCount = -1;
+    DeleteOldSelectionInfo(win, true);
+    dm->SyncWithEngineLayout();
+    if (goToPage > 0) dm->GoToPage(std::min(goToPage, dm->PageCount()), false);
+    RefreshAnnotationLists(tab);
+    NotifyAnnotationsChanged(tab);
+    LoadTocTree(win);
+    ToolbarUpdateStateForWindow(win, true);
+    MainWindowRerender(win, true);
+    return ok;
+}
+
 static void UndoRedoInTab(WindowTab* tab, bool redo) {
     if (!tab) {
         return;
@@ -12432,6 +12456,9 @@ static void UndoRedoInTab(WindowTab* tab, bool redo) {
     CancelAnnotationPlacement(win);
     CancelDrag(win);
     SetSelectedAnnotation(tab, nullptr);
+    AbortFinding(win, true);
+    ClearTocBox(win);
+    tab->currToc = nullptr;
     if (gRenderCache) {
         gRenderCache->AbortRendering(dm);
     }
@@ -12444,9 +12471,12 @@ static void UndoRedoInTab(WindowTab* tab, bool redo) {
     }
     // the wrapper deletes above mark the document modified; the journal knows better
     EngineMupdfRefreshModifiedState(engine);
+    tab->formFieldCount = -1;
+    dm->SyncWithEngineLayout();
     DeleteOldSelectionInfo(win, true);
     RefreshAnnotationLists(tab);
     NotifyAnnotationsChanged(tab);
+    LoadTocTree(win);
     ToolbarUpdateStateForWindow(win, true);
     MainWindowRerender(win, true);
     if (!ok) {
@@ -13883,7 +13913,7 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             ShowPdfSplitDialog(win);
             break;
         case CmdUndoPageChange:
-            OrganizeUndo(win);
+            UndoRedoInTab(tab, false);
             break;
         case CmdEditText:
             StartEditText(win);

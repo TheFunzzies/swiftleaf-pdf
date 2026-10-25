@@ -216,6 +216,8 @@ class EngineMupdf : public EngineBase {
     u64 editGeneration = 1;
     u64 recoveryGeneration = 0;
     Str recoveryPath;
+    struct PdfRecoveryState* recoveryState = nullptr;
+    Vec<int> structuralSteps;
 
     // set when a Redact annotation is created in this editing session. Apply
     // Redactions is offered for marks the user made, not for marks that came
@@ -275,6 +277,7 @@ class EngineMupdf : public EngineBase {
     bool Load(Str filePath, PasswordUI* pwdUI = nullptr);
     bool LoadFromStream(fz_stream* stm, Str nameHint, PasswordUI* pwdUI = nullptr);
     bool FinishLoading();
+    void ResetEditCaches(Vec<Annotation*>& removedOut);
     RenderedBitmap* GetPageImage(int pageNo, RectF rect, int imageIdx);
 
     FzPageInfo* GetFzPageInfoCanFail(int pageNo);

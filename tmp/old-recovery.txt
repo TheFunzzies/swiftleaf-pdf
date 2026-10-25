@@ -1,0 +1,40 @@
+void EngineMupdfClearRecovery(EngineBase* engine) {
+    auto* e = AsEngineMupdf(engine);
+    if (!e || len(e->recoveryPath) == 0) {
+        return;
+    }
+    file::Delete(e->recoveryPath);
+    file::Delete(str::JoinTemp(e->recoveryPath, StrL(".path")));
+    str::FreePtr(&e->recoveryPath);
+    e->recoveryGeneration = 0;
+}
+
+// UI thread only: form calculation and appearance synthesis use the base context.
+bool EngineMupdfAutoSave(EngineBase* engine, Str path) {
+    auto* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc) {
+        return false;
+    }
+    if (!e->modifiedAnnotations) {
+        EngineMupdfClearRecovery(e);
+        return true;
+    }
+    if (e->journalNesting > 0 || pdf_has_unsaved_sigs(e->BaseCtx(), e->pdfdoc)) {
+        return false;
+    }
+    if (e->recoveryGeneration == e->editGeneration) {
+        return true;
+    }
+    if (len(e->recoveryPath) > 0) {
+        path = e->recoveryPath;
+    }
+    if (!EngineMupdfSaveCopy(e, path)) {
+        return false;
+    }
+    if (len(e->recoveryPath) == 0) {
+        e->recoveryPath = str::Dup(path);
+    }
+    e->recoveryGeneration = e->editGeneration;
+    return true;
+}
+

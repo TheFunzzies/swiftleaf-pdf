@@ -119,6 +119,8 @@ void EngineMupdfBeginOperation(EngineBase*, const char* name);
 void EngineMupdfEndOperation(EngineBase*);
 bool EngineMupdfCanUndo(EngineBase*);
 bool EngineMupdfCanRedo(EngineBase*);
+TempStr EngineMupdfUndoLabel(EngineBase*, bool redo);
+bool EngineMupdfImportEdit(EngineBase*, Str path, const char* label, Vec<Annotation*>& removedOut);
 bool EngineMupdfUndo(EngineBase*, Vec<Annotation*>& removedOut);
 bool EngineMupdfRedo(EngineBase*, Vec<Annotation*>& removedOut);
 void EngineMupdfRefreshModifiedState(EngineBase*);
@@ -207,6 +209,13 @@ bool EngineMupdfSaveUpdated(EngineBase* engine, Str path, const ShowErrorCb& sho
 bool EngineMupdfSaveCopy(EngineBase* engine, Str path);
 void EngineMupdfClearRecovery(EngineBase* engine);
 bool EngineMupdfAutoSave(EngineBase* engine, Str path);
+struct PdfRecoveryJob;
+PdfRecoveryJob* EngineMupdfFreezeRecovery(EngineBase*, Str path);
+bool WritePdfRecovery(PdfRecoveryJob*);
+void DropPdfRecovery(PdfRecoveryJob*);
+#if IS_DEBUG
+bool TestPdfRecoveryFault(PdfRecoveryJob*, int failAfter);
+#endif
 
 // digitally signing a PDF (SignDocumentDialog.cpp drives this)
 // appearance flag bits match mupdf's PDF_SIGNATURE_SHOW_* (logo is never used)

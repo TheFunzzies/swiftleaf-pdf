@@ -685,6 +685,120 @@ static void AdvancedFormsTest() {
     file::Delete(flattened);
 }
 
+static Annotation* FirstUndoTestField(EngineBase* e) {
+    Vec<Annotation*> widgets;
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    return len(widgets) ? widgets[0] : nullptr;
+}
+
+static void UnifiedUndoTest(Str source) {
+    auto* e = CreateEngineMupdfFromData(source, StrL("unified-undo.pdf"), nullptr);
+    utassert(e != nullptr);
+    auto* other = CreateEngineMupdfFromData(source, StrL("other-tab.pdf"), nullptr);
+    TempStr input = GetTempFilePathTemp(StrL("undo-input"));
+    TempStr result = GetTempFilePathTemp(StrL("undo-result"));
+    TempStr recovery = GetTempFilePathTemp(StrL("undo-recovery"));
+    FormFieldProperties props;
+    props.kind = FormFieldKind::Text;
+    props.name = StrL("Customer");
+    props.defaultValue = StrL("First");
+    Str error;
+    utassert(CreateFormField(e, 1, {40, 40, 160, 50}, props, error));
+    utassert(EngineMupdfSaveCopy(e, input));
+    utassert(PdfInsertBlankPages(input, result, 1, 1));
+    Vec<Annotation*> removed;
+    auto dispose = [&]() {
+        for (auto* a : removed) DeleteAnnotation(a);
+        VecClear(removed);
+        EngineMupdfRefreshModifiedState(e);
+    };
+    utassert(EngineMupdfImportEdit(e, result, "Insert blank page", removed));
+    dispose();
+    utassert(e->PageCount() == 2 && EngineMupdfCountFormFields(e) == 1);
+    utassert(str::Eq(EngineMupdfUndoLabel(e, false), StrL("Insert blank page")));
+    utassert(SetWidgetTextValue(FirstUndoTestField(e), StrL("Second")));
+    utassert(!EngineMupdfCanUndo(other));
+    utassert(EngineMupdfUndo(e, removed));
+    dispose();
+    utassert(e->PageCount() == 2 && str::Eq(GetWidgetValue(FirstUndoTestField(e)), StrL("First")));
+    utassert(EngineMupdfUndo(e, removed));
+    dispose();
+    utassert(e->PageCount() == 1 && EngineMupdfCountFormFields(e) == 1);
+    utassert(str::Eq(EngineMupdfUndoLabel(e, true), StrL("Insert blank page")));
+    utassert(EngineMupdfUndo(e, removed));
+    dispose();
+    utassert(EngineMupdfCountFormFields(e) == 0 && !EngineMupdfCanUndo(e));
+    for (int i = 0; i < 3; i++) {
+        utassert(EngineMupdfRedo(e, removed));
+        dispose();
+    }
+    utassert(e->PageCount() == 2 && str::Eq(GetWidgetValue(FirstUndoTestField(e)), StrL("Second")));
+
+    utassert(EngineMupdfSaveCopy(e, input));
+    PdfDocPropsParams metadata;
+    metadata.title = StrL("Journal title");
+    utassert(PdfSetDocProps(input, result, metadata));
+    utassert(EngineMupdfImportEdit(e, result, "Edit properties", removed));
+    dispose();
+    utassert(str::Eq(e->GetPropertyTemp(DocProp::Title), metadata.title));
+    utassert(EngineMupdfUndo(e, removed));
+    dispose();
+    utassert(!str::Eq(e->GetPropertyTemp(DocProp::Title), metadata.title));
+    utassert(EngineMupdfRedo(e, removed));
+    dispose();
+    utassert(str::Eq(e->GetPropertyTemp(DocProp::Title), metadata.title));
+
+    auto* frozen = EngineMupdfFreezeRecovery(e, recovery);
+    utassert(frozen != nullptr);
+    utassert(SetWidgetTextValue(FirstUndoTestField(e), StrL("Third")));
+    utassert(WritePdfRecovery(frozen));
+    DropPdfRecovery(frozen);
+    auto* restored = CreateEngineMupdfFromFile(recovery, FileType::PDF, 96);
+    utassert(restored && restored->PageCount() == 2);
+    utassert(str::Eq(GetWidgetValue(FirstUndoTestField(restored)), StrL("Second")));
+    SafeEngineRelease(&restored);
+
+    // A failed serialization must preserve both the original and last complete recovery.
+    Str original = file::ReadFile(input);
+    Str previous = file::ReadFile(recovery);
+    frozen = EngineMupdfFreezeRecovery(e, recovery);
+    utassert(frozen != nullptr);
+    utassert(!TestPdfRecoveryFault(frozen, 64));
+    DropPdfRecovery(frozen);
+    Str after = file::ReadFile(recovery);
+    utassert(str::Eq(previous, after));
+    str::Free(after);
+    after = file::ReadFile(input);
+    utassert(str::Eq(original, after));
+    str::Free(after);
+    str::Free(original);
+    str::Free(previous);
+    restored = CreateEngineMupdfFromFile(recovery, FileType::PDF, 96);
+    utassert(restored && str::Eq(GetWidgetValue(FirstUndoTestField(restored)), StrL("Second")));
+    SafeEngineRelease(&restored);
+    utassert(EngineMupdfAutoSave(e, recovery));
+    restored = CreateEngineMupdfFromFile(recovery, FileType::PDF, 96);
+    utassert(restored && str::Eq(GetWidgetValue(FirstUndoTestField(restored)), StrL("Third")));
+    SafeEngineRelease(&restored);
+
+    utassert(SetWidgetTextValue(FirstUndoTestField(e), StrL("Fourth")));
+    frozen = EngineMupdfFreezeRecovery(e, recovery);
+    utassert(frozen != nullptr);
+    EngineMupdfClearRecovery(e);
+    utassert(!WritePdfRecovery(frozen));
+    DropPdfRecovery(frozen);
+    utassert(!file::Exists(recovery));
+    utassert(EngineMupdfUndo(e, removed));
+    dispose();
+    utassert(SetWidgetTextValue(FirstUndoTestField(e), StrL("Branch")));
+    utassert(!EngineMupdfCanRedo(e));
+    SafeEngineRelease(&other);
+    SafeEngineRelease(&e);
+    file::Delete(input);
+    file::Delete(result);
+    file::Delete(recovery);
+}
+
 static void FormAuthoringTest() {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Rotate 90 >>"};
@@ -699,6 +813,7 @@ static void FormAuthoringTest() {
     pdf.Append(StrL("xref\n0 4\n0000000000 65535 f \n"));
     for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
     pdf.Append(fmt("trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+    UnifiedUndoTest(ToStrTemp(pdf));
     EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("form-authoring.pdf"), nullptr);
     utassert(e != nullptr);
     Str error;
@@ -1077,7 +1192,6 @@ static bool ToolsTestObjectText(fz_context* ctx, pdf_document* doc, const char* 
     return false;
 }
 
-
 static void ReviewToolsTest() {
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
     fz_register_document_handlers(ctx);
@@ -1141,7 +1255,8 @@ static void ReviewToolsTest() {
     VecAppend(linePts, p1);
     VecAppend(linePts, p2);
     AnnotCreateArgs measArgs{AnnotationType::Line};
-    measArgs.hasLineEnd = true; measArgs.lineEnd = p2;
+    measArgs.hasLineEnd = true;
+    measArgs.lineEnd = p2;
     measArgs.isMeasurement = true;
     measArgs.content = StrL("10 ft");
     Annotation* measAnnot = EngineMupdfCreateAnnotation(engine, 1, p1, &measArgs);
@@ -1517,7 +1632,6 @@ static void PageStampsTest() {
 
     file::Delete(basePdf);
 }
-
 
 static void PageTools2Test() {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",

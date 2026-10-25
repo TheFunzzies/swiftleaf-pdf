@@ -39,6 +39,7 @@
 #include <mupdf/fitz/deskew.h>
 #include <mupdf/pdf/recolor.h>
 
+#include "PageOrganize.h"
 #include "PageTools2.h"
 
 extern const pdf_write_options gPdfDefaultWriteOptions;
@@ -315,11 +316,21 @@ bool PdfApplyPageBoxes(Str srcPath, Str destPath, const PdfPageBoxesParams& para
 
         pdf_obj* boxKey = PDF_NAME(CropBox);
         switch (params.boxType) {
-            case 0: boxKey = PDF_NAME(MediaBox); break;
-            case 1: boxKey = PDF_NAME(CropBox); break;
-            case 2: boxKey = PDF_NAME(TrimBox); break;
-            case 3: boxKey = PDF_NAME(BleedBox); break;
-            case 4: boxKey = PDF_NAME(ArtBox); break;
+            case 0:
+                boxKey = PDF_NAME(MediaBox);
+                break;
+            case 1:
+                boxKey = PDF_NAME(CropBox);
+                break;
+            case 2:
+                boxKey = PDF_NAME(TrimBox);
+                break;
+            case 3:
+                boxKey = PDF_NAME(BleedBox);
+                break;
+            case 4:
+                boxKey = PDF_NAME(ArtBox);
+                break;
         }
 
         for (int pNum : pages) {
@@ -402,7 +413,9 @@ struct CropPagesDialog : PageToolDialog {
 };
 
 void CropPagesDialog::DoIt(VirtMouseEvent*) {
-    TempStr destPath = destEdit->GetTextTemp();
+    PdfToolEdit edit(win, srcPath);
+    if (!edit.IsReady()) return;
+    Str destPath = edit.outputPath;
     if (len(destPath) == 0) return;
 
     PdfPageBoxesParams params;
@@ -420,13 +433,9 @@ void CropPagesDialog::DoIt(VirtMouseEvent*) {
     params.marginRight = r;
     params.marginTop = t;
 
-    bool ok = PdfApplyPageBoxes(srcPath, destPath, params);
+    bool ok = PdfApplyPageBoxes(edit.inputPath, destPath, params);
     if (ok) {
-        MainWindow* w = win;
-        TempStr path = str::DupTemp(destPath);
-        Close();
-        LoadArgs args(path, w);
-        StartLoadDocument(&args);
+        if (edit.Apply("Crop pages")) Close();
     } else {
         MessageBoxWarning(hwnd, StrL("Failed to crop pages."), Tr("Crop Pages"));
     }
@@ -437,7 +446,6 @@ bool CropPagesDialog::Create(MainWindow* w, WindowTab* tab) {
         return false;
     }
     AddPathRow();
-    AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
 
     pagesEdit = AddLabeledEdit(Tr("Pages:"), StrL("all"));
 
@@ -653,13 +661,29 @@ bool PdfApplyNUp(Str srcPath, Str destPath, const PdfNUpParams& params) {
 
         int cols = 1, rows = 1;
         int nup = params.pagesPerSheet;
-        if (nup == 2) { cols = 2; rows = 1; }
-        else if (nup == 4) { cols = 2; rows = 2; }
-        else if (nup == 6) { cols = 3; rows = 2; }
-        else if (nup == 8) { cols = 4; rows = 2; }
-        else if (nup == 9) { cols = 3; rows = 3; }
-        else if (nup == 16) { cols = 4; rows = 4; }
-        else { cols = 2; rows = 1; nup = 2; }
+        if (nup == 2) {
+            cols = 2;
+            rows = 1;
+        } else if (nup == 4) {
+            cols = 2;
+            rows = 2;
+        } else if (nup == 6) {
+            cols = 3;
+            rows = 2;
+        } else if (nup == 8) {
+            cols = 4;
+            rows = 2;
+        } else if (nup == 9) {
+            cols = 3;
+            rows = 3;
+        } else if (nup == 16) {
+            cols = 4;
+            rows = 4;
+        } else {
+            cols = 2;
+            rows = 1;
+            nup = 2;
+        }
 
         pdf_obj* root = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Root));
         pdf_obj* pages = pdf_dict_get(ctx, root, PDF_NAME(Pages));
@@ -946,12 +970,13 @@ bool PdfApplyPageBackground(Str srcPath, Str destPath, const PdfBackgroundParams
                 u8 r = GetRValue(params.color);
                 u8 g = GetGValue(params.color);
                 u8 b = GetBValue(params.color);
-                bgContent.Append(fmt("q %.3f %.3f %.3f rg %.2f %.2f %.2f %.2f re f Q\n",
-                                     r / 255.f, g / 255.f, b / 255.f, media.x0, media.y0, w, h));
+                bgContent.Append(fmt("q %.3f %.3f %.3f rg %.2f %.2f %.2f %.2f re f Q\n", r / 255.f, g / 255.f,
+                                     b / 255.f, media.x0, media.y0, w, h));
             } else if (len(params.imagePath) > 0) {
                 Str imgData = file::ReadFile(params.imagePath);
                 if (len(imgData) > 0) {
-                    fz_buffer* imgBuf = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)imgData.s, (size_t)len(imgData));
+                    fz_buffer* imgBuf =
+                        fz_new_buffer_from_copied_data(ctx, (const unsigned char*)imgData.s, (size_t)len(imgData));
                     str::Free(imgData);
                     fz_image* img = fz_new_image_from_buffer(ctx, imgBuf);
                     fz_drop_buffer(ctx, imgBuf);
@@ -970,7 +995,8 @@ bool PdfApplyPageBackground(Str srcPath, Str destPath, const PdfBackgroundParams
                             pdf_dict_put_drop(ctx, res, PDF_NAME(XObject), xobjs);
                         }
                         pdf_dict_puts_drop(ctx, xobjs, "SwiftleafBg", imgObj);
-                        bgContent.Append(fmt("q %.2f 0 0 %.2f %.2f %.2f cm /SwiftleafBg Do Q\n", w, h, media.x0, media.y0));
+                        bgContent.Append(
+                            fmt("q %.2f 0 0 %.2f %.2f %.2f cm /SwiftleafBg Do Q\n", w, h, media.x0, media.y0));
                     }
                 }
             }
@@ -1237,8 +1263,7 @@ static bool IsPageBlank(fz_context* ctx, pdf_page* page) {
         return true;
     }
 
-    fz_pixmap* pm = fz_new_pixmap_from_page(ctx, (fz_page*)page,
-                                            fz_scale(0.5f, 0.5f), fz_device_rgb(ctx), 0);
+    fz_pixmap* pm = fz_new_pixmap_from_page(ctx, (fz_page*)page, fz_scale(0.5f, 0.5f), fz_device_rgb(ctx), 0);
     if (!pm) return true;
     int n = pm->w * pm->h * pm->n;
     unsigned char* s = pm->samples;
@@ -1333,8 +1358,7 @@ bool PdfDeskewPages(Str srcPath, Str destPath, double minAngleThreshold) {
         for (int i = 0; i < numPages; i++) {
             pdf_page* page = pdf_load_page(ctx, doc, i);
             if (!page) continue;
-            fz_pixmap* pm = fz_new_pixmap_from_page(ctx, (fz_page*)page,
-                                                    fz_scale(1.0f, 1.0f), fz_device_gray(ctx), 0);
+            fz_pixmap* pm = fz_new_pixmap_from_page(ctx, (fz_page*)page, fz_scale(1.0f, 1.0f), fz_device_gray(ctx), 0);
             if (pm) {
                 double skew = fz_detect_skew(ctx, pm);
                 fz_drop_pixmap(ctx, pm);
@@ -1347,8 +1371,8 @@ bool PdfDeskewPages(Str srcPath, Str destPath, double minAngleThreshold) {
                     float s = (float)sin(rad);
 
                     str::Builder stm;
-                    stm.Append(fmt("q %.5f %.5f %.5f %.5f %.2f %.2f cm 1 0 0 1 %.2f %.2f cm\n",
-                                   c, s, -s, c, cx, cy, -cx, -cy));
+                    stm.Append(fmt("q %.5f %.5f %.5f %.5f %.2f %.2f cm 1 0 0 1 %.2f %.2f cm\n", c, s, -s, c, cx, cy,
+                                   -cx, -cy));
                     pdf_obj* stmHead = AddContentStream(ctx, doc, ToStrTemp(stm));
                     pdf_obj* stmTail = AddContentStream(ctx, doc, StrL("Q\n"));
 
@@ -1467,11 +1491,13 @@ bool PdfSetDocProps(Str srcPath, Str destPath, const PdfDocPropsParams& params) 
         if (len(params.title) > 0) pdf_dict_put_text_string(ctx, info, PDF_NAME(Title), CStrTemp(params.title));
         if (len(params.author) > 0) pdf_dict_put_text_string(ctx, info, PDF_NAME(Author), CStrTemp(params.author));
         if (len(params.subject) > 0) pdf_dict_put_text_string(ctx, info, PDF_NAME(Subject), CStrTemp(params.subject));
-        if (len(params.keywords) > 0) pdf_dict_put_text_string(ctx, info, PDF_NAME(Keywords), CStrTemp(params.keywords));
+        if (len(params.keywords) > 0)
+            pdf_dict_put_text_string(ctx, info, PDF_NAME(Keywords), CStrTemp(params.keywords));
 
         pdf_obj* root = pdf_dict_get(ctx, trailer, PDF_NAME(Root));
         if (len(params.xmp) > 0) {
-            fz_buffer* xmpBuf = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)params.xmp.s, len(params.xmp));
+            fz_buffer* xmpBuf =
+                fz_new_buffer_from_copied_data(ctx, (const unsigned char*)params.xmp.s, len(params.xmp));
             pdf_obj* xmpStream = pdf_add_stream(ctx, doc, xmpBuf, nullptr, 0);
             pdf_dict_put(ctx, xmpStream, PDF_NAME(Type), PDF_NAME(Metadata));
             pdf_dict_put(ctx, xmpStream, PDF_NAME(Subtype), PDF_NAME(XML));
@@ -1914,10 +1940,14 @@ bool PdfSetPageLabelRanges(Str srcPath, Str destPath, const Vec<PdfPageLabelRang
 
         for (const auto& r : ranges) {
             pdf_page_label_style st = PDF_PAGE_LABEL_DECIMAL;
-            if (r.style == 'R') st = PDF_PAGE_LABEL_ROMAN_UC;
-            else if (r.style == 'r') st = PDF_PAGE_LABEL_ROMAN_LC;
-            else if (r.style == 'A') st = PDF_PAGE_LABEL_ALPHA_UC;
-            else if (r.style == 'a') st = PDF_PAGE_LABEL_ALPHA_LC;
+            if (r.style == 'R')
+                st = PDF_PAGE_LABEL_ROMAN_UC;
+            else if (r.style == 'r')
+                st = PDF_PAGE_LABEL_ROMAN_LC;
+            else if (r.style == 'A')
+                st = PDF_PAGE_LABEL_ALPHA_UC;
+            else if (r.style == 'a')
+                st = PDF_PAGE_LABEL_ALPHA_LC;
 
             const char* pfx = len(r.prefix) > 0 ? CStrTemp(r.prefix) : nullptr;
             pdf_set_page_labels(ctx, doc, r.startPageIndex, st, pfx, r.startNum);
@@ -2200,8 +2230,8 @@ bool PdfInvertColors(Str srcPath, Str destPath) {
             pdf_dict_puts_drop(ctx, egs, "GSDiff", gsDiff);
 
             str::Builder overlay;
-            overlay.Append(fmt("q /GSDiff gs 1 1 1 rg %.2f %.2f %.2f %.2f re f Q\n",
-                               media.x0, media.y0, media.x1 - media.x0, media.y1 - media.y0));
+            overlay.Append(fmt("q /GSDiff gs 1 1 1 rg %.2f %.2f %.2f %.2f re f Q\n", media.x0, media.y0,
+                               media.x1 - media.x0, media.y1 - media.y0));
             pdf_obj* stm = AddContentStream(ctx, doc, ToStrTemp(overlay));
 
             pdf_obj* origContents = pdf_dict_get(ctx, page->obj, PDF_NAME(Contents));
@@ -2464,14 +2494,12 @@ struct GenericActionDialog : PageToolDialog {
 };
 
 void GenericActionDialog::DoIt(VirtMouseEvent*) {
-    TempStr destPath = destEdit->GetTextTemp();
+    PdfToolEdit edit(win, srcPath);
+    if (!edit.IsReady()) return;
+    Str destPath = edit.outputPath;
     if (len(destPath) == 0) return;
-    if (runner && runner(srcPath, destPath)) {
-        MainWindow* w = win;
-        TempStr path = str::DupTemp(destPath);
-        Close();
-        LoadArgs args(path, w);
-        StartLoadDocument(&args);
+    if (runner && runner(edit.inputPath, destPath)) {
+        if (edit.Apply(CStrTemp(actionName))) Close();
     } else {
         MessageBoxWarning(hwnd, fmt("Failed to execute %s", actionName), actionName);
     }
@@ -2482,9 +2510,9 @@ bool GenericActionDialog::Create(MainWindow* w, WindowTab* tab, Str title, Str a
     runner = fn;
     if (!CreateToolDialog(w, tab, title)) return false;
     AddPathRow();
-    AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+
     AddButtonsRow(action);
-    FinishDialog(destEdit);
+    FinishDialog(nullptr);
     return true;
 }
 
@@ -2494,9 +2522,12 @@ void ShowPdfNUpDialog(MainWindow* win) {
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
     if (!dlg->Create(win, tab, Tr("N-Up / Grid Pages"), Tr("Generate N-Up"), [](Str s, Str d) {
-        PdfNUpParams p; p.pagesPerSheet = 2; p.drawBorders = true;
-        return PdfApplyNUp(s, d, p);
-    })) delete dlg;
+            PdfNUpParams p;
+            p.pagesPerSheet = 2;
+            p.drawBorders = true;
+            return PdfApplyNUp(s, d, p);
+        }))
+        delete dlg;
 }
 
 void ShowPdfBookletDialog(MainWindow* win) {
@@ -2505,9 +2536,10 @@ void ShowPdfBookletDialog(MainWindow* win) {
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
     if (!dlg->Create(win, tab, Tr("Create Booklet"), Tr("Create Booklet"), [](Str s, Str d) {
-        PdfBookletParams p;
-        return PdfApplyBooklet(s, d, p);
-    })) delete dlg;
+            PdfBookletParams p;
+            return PdfApplyBooklet(s, d, p);
+        }))
+        delete dlg;
 }
 
 void ShowPdfPosterizeDialog(MainWindow* win) {
@@ -2516,9 +2548,13 @@ void ShowPdfPosterizeDialog(MainWindow* win) {
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
     if (!dlg->Create(win, tab, Tr("Posterize Pages"), Tr("Posterize"), [](Str s, Str d) {
-        PdfPosterizeParams p; p.xTiles = 2; p.yTiles = 2; p.overlapPoints = 18.f;
-        return PdfApplyPosterize(s, d, p);
-    })) delete dlg;
+            PdfPosterizeParams p;
+            p.xTiles = 2;
+            p.yTiles = 2;
+            p.overlapPoints = 18.f;
+            return PdfApplyPosterize(s, d, p);
+        }))
+        delete dlg;
 }
 
 void ShowPdfDividePagesDialog(MainWindow* win) {
@@ -2527,9 +2563,12 @@ void ShowPdfDividePagesDialog(MainWindow* win) {
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
     if (!dlg->Create(win, tab, Tr("Divide Pages"), Tr("Divide"), [](Str s, Str d) {
-        PdfDividePagesParams p; p.horizontalDivisions = 2; p.verticalDivisions = 1;
-        return PdfApplyDividePages(s, d, p);
-    })) delete dlg;
+            PdfDividePagesParams p;
+            p.horizontalDivisions = 2;
+            p.verticalDivisions = 1;
+            return PdfApplyDividePages(s, d, p);
+        }))
+        delete dlg;
 }
 
 void ShowPdfCombineLongPageDialog(MainWindow* win) {
@@ -2537,9 +2576,9 @@ void ShowPdfCombineLongPageDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Combine into Long Page"), Tr("Combine"), [](Str s, Str d) {
-        return PdfApplyCombineLongPage(s, d);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Combine into Long Page"), Tr("Combine"),
+                     [](Str s, Str d) { return PdfApplyCombineLongPage(s, d); }))
+        delete dlg;
 }
 
 void ShowPdfPageBackgroundDialog(MainWindow* win) {
@@ -2548,12 +2587,13 @@ void ShowPdfPageBackgroundDialog(MainWindow* win) {
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
     if (!dlg->Create(win, tab, Tr("Page Background"), Tr("Apply Background"), [](Str s, Str d) {
-        PdfBackgroundParams p;
-        p.useColor = true;
-        p.color = RGB(253, 246, 227); // Soft solarized cream
-        p.pagesSpec = StrL("all");
-        return PdfApplyPageBackground(s, d, p);
-    })) delete dlg;
+            PdfBackgroundParams p;
+            p.useColor = true;
+            p.color = RGB(253, 246, 227); // Soft solarized cream
+            p.pagesSpec = StrL("all");
+            return PdfApplyPageBackground(s, d, p);
+        }))
+        delete dlg;
 }
 
 struct DuplicatePagesDialog : PageToolDialog {
@@ -2562,20 +2602,18 @@ struct DuplicatePagesDialog : PageToolDialog {
         pageNo = currPage;
         if (!CreateToolDialog(w, tab, Tr("Duplicate Pages"))) return false;
         AddPathRow();
-        AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+
         AddButtonsRow(Tr("Duplicate"));
-        FinishDialog(destEdit);
+        FinishDialog(nullptr);
         return true;
     }
     void DoIt(VirtMouseEvent*) override {
-        TempStr destPath = destEdit->GetTextTemp();
+        PdfToolEdit edit(win, srcPath);
+        if (!edit.IsReady()) return;
+        Str destPath = edit.outputPath;
         if (len(destPath) == 0) return;
-        if (PdfDuplicatePages(srcPath, destPath, fmt("%d", pageNo))) {
-            MainWindow* w = win;
-            TempStr path = str::DupTemp(destPath);
-            Close();
-            LoadArgs args(path, w);
-            StartLoadDocument(&args);
+        if (PdfDuplicatePages(edit.inputPath, destPath, fmt("%d", pageNo))) {
+            if (edit.Apply("Duplicate pages")) Close();
         } else {
             MessageBoxWarning(hwnd, StrL("Failed to duplicate pages"), Tr("Duplicate Pages"));
         }
@@ -2596,9 +2634,9 @@ void ShowReversePageOrderDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Reverse Page Order"), Tr("Reverse Order"), [](Str s, Str d) {
-        return PdfReversePageOrder(s, d);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Reverse Page Order"), Tr("Reverse Order"),
+                     [](Str s, Str d) { return PdfReversePageOrder(s, d); }))
+        delete dlg;
 }
 
 struct InsertBlankPagesDialog : PageToolDialog {
@@ -2607,20 +2645,18 @@ struct InsertBlankPagesDialog : PageToolDialog {
         pageNo = currPage;
         if (!CreateToolDialog(w, tab, Tr("Insert Blank Page"))) return false;
         AddPathRow();
-        AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+
         AddButtonsRow(Tr("Insert Blank Page"));
-        FinishDialog(destEdit);
+        FinishDialog(nullptr);
         return true;
     }
     void DoIt(VirtMouseEvent*) override {
-        TempStr destPath = destEdit->GetTextTemp();
+        PdfToolEdit edit(win, srcPath);
+        if (!edit.IsReady()) return;
+        Str destPath = edit.outputPath;
         if (len(destPath) == 0) return;
-        if (PdfInsertBlankPages(srcPath, destPath, pageNo, 1)) {
-            MainWindow* w = win;
-            TempStr path = str::DupTemp(destPath);
-            Close();
-            LoadArgs args(path, w);
-            StartLoadDocument(&args);
+        if (PdfInsertBlankPages(edit.inputPath, destPath, pageNo, 1)) {
+            if (edit.Apply("Insert blank pages")) Close();
         } else {
             MessageBoxWarning(hwnd, StrL("Failed to insert blank page"), Tr("Insert Blank Page"));
         }
@@ -2642,9 +2678,10 @@ void ShowRemoveBlankPagesDialog(MainWindow* win) {
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
     if (!dlg->Create(win, tab, Tr("Remove Blank Pages"), Tr("Remove Blank"), [](Str s, Str d) {
-        int rm = 0;
-        return PdfRemoveBlankPages(s, d, &rm);
-    })) delete dlg;
+            int rm = 0;
+            return PdfRemoveBlankPages(s, d, &rm);
+        }))
+        delete dlg;
 }
 
 void ShowDeskewPagesDialog(MainWindow* win) {
@@ -2652,9 +2689,9 @@ void ShowDeskewPagesDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Deskew Pages"), Tr("Deskew"), [](Str s, Str d) {
-        return PdfDeskewPages(s, d, 0.2);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Deskew Pages"), Tr("Deskew"),
+                     [](Str s, Str d) { return PdfDeskewPages(s, d, 0.2); }))
+        delete dlg;
 }
 
 //--- Document Properties Dialog ---
@@ -2670,7 +2707,9 @@ struct DocPropsDialog : PageToolDialog {
 };
 
 void DocPropsDialog::DoIt(VirtMouseEvent*) {
-    TempStr destPath = destEdit->GetTextTemp();
+    PdfToolEdit edit(win, srcPath);
+    if (!edit.IsReady()) return;
+    Str destPath = edit.outputPath;
     if (len(destPath) == 0) return;
 
     PdfDocPropsParams params;
@@ -2679,12 +2718,8 @@ void DocPropsDialog::DoIt(VirtMouseEvent*) {
     params.subject = subjectEdit->GetTextTemp();
     params.keywords = keywordsEdit->GetTextTemp();
 
-    if (PdfSetDocProps(srcPath, destPath, params)) {
-        MainWindow* w = win;
-        TempStr path = str::DupTemp(destPath);
-        Close();
-        LoadArgs args(path, w);
-        StartLoadDocument(&args);
+    if (PdfSetDocProps(edit.inputPath, destPath, params)) {
+        if (edit.Apply("Edit properties")) Close();
     } else {
         MessageBoxWarning(hwnd, StrL("Failed to save document properties."), Tr("Properties"));
     }
@@ -2693,7 +2728,6 @@ void DocPropsDialog::DoIt(VirtMouseEvent*) {
 bool DocPropsDialog::Create(MainWindow* w, WindowTab* tab) {
     if (!CreateToolDialog(w, tab, Tr("Edit Document Properties"))) return false;
     AddPathRow();
-    AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
 
     PdfDocPropsParams curProps;
     PdfGetDocProps(srcPath, curProps);
@@ -2727,9 +2761,7 @@ void ShowManageAttachmentsDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Manage Attachments"), Tr("Close"), [](Str, Str) {
-        return true;
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Manage Attachments"), Tr("Close"), [](Str, Str) { return true; })) delete dlg;
 }
 
 void ShowEditBookmarksDialog(MainWindow* win) {
@@ -2737,9 +2769,9 @@ void ShowEditBookmarksDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Edit Bookmarks"), Tr("Auto-generate from Headings"), [](Str s, Str d) {
-        return PdfAutoGenerateBookmarksFromHeadings(s, d);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Edit Bookmarks"), Tr("Auto-generate from Headings"),
+                     [](Str s, Str d) { return PdfAutoGenerateBookmarksFromHeadings(s, d); }))
+        delete dlg;
 }
 
 void ShowEditPageLabelsDialog(MainWindow* win) {
@@ -2748,11 +2780,12 @@ void ShowEditPageLabelsDialog(MainWindow* win) {
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
     if (!dlg->Create(win, tab, Tr("Page Numbering & Labels"), Tr("Apply Numbering"), [](Str s, Str d) {
-        Vec<PdfPageLabelRange> r;
-        PdfPageLabelRange r0{0, 'D', {}, 1};
-        VecAppend(r, r0);
-        return PdfSetPageLabelRanges(s, d, r);
-    })) delete dlg;
+            Vec<PdfPageLabelRange> r;
+            PdfPageLabelRange r0{0, 'D', {}, 1};
+            VecAppend(r, r0);
+            return PdfSetPageLabelRanges(s, d, r);
+        }))
+        delete dlg;
 }
 
 void ShowPdfLinearizeDialog(MainWindow* win) {
@@ -2760,9 +2793,9 @@ void ShowPdfLinearizeDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Linearize PDF (Fast Web View)"), Tr("Linearize"), [](Str s, Str d) {
-        return PdfLinearize(s, d);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Linearize PDF (Fast Web View)"), Tr("Linearize"),
+                     [](Str s, Str d) { return PdfLinearize(s, d); }))
+        delete dlg;
 }
 
 void ShowPdfRepairDialog(MainWindow* win) {
@@ -2770,9 +2803,9 @@ void ShowPdfRepairDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Repair Damaged PDF"), Tr("Repair PDF"), [](Str s, Str d) {
-        return PdfRepair(s, d);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Repair Damaged PDF"), Tr("Repair PDF"),
+                     [](Str s, Str d) { return PdfRepair(s, d); }))
+        delete dlg;
 }
 
 void ShowPdfRasterizeDialog(MainWindow* win) {
@@ -2780,9 +2813,9 @@ void ShowPdfRasterizeDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Rasterize Document"), Tr("Rasterize"), [](Str s, Str d) {
-        return PdfRasterize(s, d, 150);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Rasterize Document"), Tr("Rasterize"),
+                     [](Str s, Str d) { return PdfRasterize(s, d, 150); }))
+        delete dlg;
 }
 
 void ShowPdfGrayscaleDialog(MainWindow* win) {
@@ -2790,9 +2823,9 @@ void ShowPdfGrayscaleDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Convert to Grayscale"), Tr("Convert"), [](Str s, Str d) {
-        return PdfConvertToGrayscale(s, d);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Convert to Grayscale"), Tr("Convert"),
+                     [](Str s, Str d) { return PdfConvertToGrayscale(s, d); }))
+        delete dlg;
 }
 
 void ShowPdfInvertColorsDialog(MainWindow* win) {
@@ -2800,9 +2833,9 @@ void ShowPdfInvertColorsDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Invert Document Colors"), Tr("Invert Colors"), [](Str s, Str d) {
-        return PdfInvertColors(s, d);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Invert Document Colors"), Tr("Invert Colors"),
+                     [](Str s, Str d) { return PdfInvertColors(s, d); }))
+        delete dlg;
 }
 
 void ShowPdfRemoveAnnotationsDialog(MainWindow* win) {
@@ -2810,9 +2843,9 @@ void ShowPdfRemoveAnnotationsDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Remove Annotations"), Tr("Remove"), [](Str s, Str d) {
-        return PdfRemoveAnnotations(s, d);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Remove Annotations"), Tr("Remove"),
+                     [](Str s, Str d) { return PdfRemoveAnnotations(s, d); }))
+        delete dlg;
 }
 
 void ShowPdfRemoveLinksDialog(MainWindow* win) {
@@ -2820,9 +2853,9 @@ void ShowPdfRemoveLinksDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Remove All Links"), Tr("Remove Links"), [](Str s, Str d) {
-        return PdfRemoveAllLinks(s, d);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Remove All Links"), Tr("Remove Links"),
+                     [](Str s, Str d) { return PdfRemoveAllLinks(s, d); }))
+        delete dlg;
 }
 
 void ShowPdfManageLayersDialog(MainWindow* win) {
@@ -2830,7 +2863,7 @@ void ShowPdfManageLayersDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Document Layers (OCG)"), Tr("Flatten Layers"), [](Str s, Str d) {
-        return PdfFlattenLayers(s, d);
-    })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Document Layers (OCG)"), Tr("Flatten Layers"),
+                     [](Str s, Str d) { return PdfFlattenLayers(s, d); }))
+        delete dlg;
 }

@@ -1,11 +1,18 @@
 /* Copyright 2026 the Swiftleaf PDF authors.
    License: GPLv3 */
 
-// Swiftleaf: change the pages of the PDF that is open, in place. Each change
-// writes the whole document anew (EngineMupdfMergePdfs), keeps the previous
-// file for Undo Page Change and reopens the result in the same tab.
-
 struct MainWindow;
+
+struct PdfToolEdit {
+    MainWindow* win = nullptr;
+    Str inputPath;
+    Str outputPath;
+    Str originalPath;
+    PdfToolEdit(MainWindow*, Str original);
+    ~PdfToolEdit();
+    bool IsReady();
+    bool Apply(const char* label);
+};
 
 void OrganizeRotatePage(MainWindow*, int degrees);
 void OrganizeInsertBlankPage(MainWindow*);

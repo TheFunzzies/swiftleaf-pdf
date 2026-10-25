@@ -4774,6 +4774,13 @@ bool EngineMupdf::FinishLoading() {
         // that edits the document goes through EngineMupdfBeginOperation()
         // (MuPDF's own annotation setters begin one themselves).
         fz_try(ctx) {
+            // A stable indirect Info dictionary makes properties journalled too.
+            pdf_obj* trailer = pdf_trailer(ctx, pdfdoc);
+            pdf_obj* info = pdf_dict_get(ctx, trailer, PDF_NAME(Info));
+            if (!pdf_is_indirect(ctx, info)) {
+                pdf_obj* dict = info ? pdf_copy_dict(ctx, info) : pdf_new_dict(ctx, pdfdoc, 4);
+                pdf_dict_put_drop(ctx, trailer, PDF_NAME(Info), pdf_add_object_drop(ctx, pdfdoc, dict));
+            }
             pdf_enable_journal(ctx, pdfdoc);
         }
         fz_catch(ctx) {
@@ -9090,18 +9097,304 @@ bool EngineMupdfSaveCopy(EngineBase* engine, Str path) {
     return ok;
 }
 
+struct PdfRecoveryState {
+    Mutex lock;
+    bool cancelled = false;
+};
+
+struct FrozenPdfObject {
+    int num = 0;
+    pdf_obj* obj = nullptr;
+    fz_buffer* stream = nullptr;
+    fz_buffer* retainedStream = nullptr;
+};
+
+struct PdfRecoveryJob {
+    EngineMupdf* owner = nullptr;
+    PdfRecoveryState state;
+    fz_context* ctx = nullptr;
+    pdf_document* overlay = nullptr;
+    Vec<FrozenPdfObject> objects;
+    pdf_obj* trailer = nullptr;
+    Str path;
+    Str original;
+    Str password;
+    const u8* base = nullptr;
+    size_t baseSize = 0;
+    int xrefSize = 0;
+    u64 generation = 0;
+    bool ok = false;
+};
+
+// Copy containers without resolving references. Only changed xref objects cross threads.
+static pdf_obj* CopyFrozenObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, int depth = 0) {
+    if (depth > 100) fz_throw(ctx, FZ_ERROR_LIMIT, "PDF object nesting is too deep");
+    if (pdf_is_indirect(ctx, obj)) {
+        return pdf_new_indirect(ctx, doc, pdf_to_num(ctx, obj), pdf_to_gen(ctx, obj));
+    }
+    if (pdf_is_array(ctx, obj) || pdf_is_dict(ctx, obj)) {
+        bool dict = pdf_is_dict(ctx, obj);
+        int n = dict ? pdf_dict_len(ctx, obj) : pdf_array_len(ctx, obj);
+        pdf_obj* copy = dict ? pdf_new_dict(ctx, doc, n) : pdf_new_array(ctx, doc, n);
+        fz_try(ctx) {
+            for (int i = 0; i < n; i++) {
+                pdf_obj* val = dict ? pdf_dict_get_val(ctx, obj, i) : pdf_array_get(ctx, obj, i);
+                pdf_obj* child = CopyFrozenObject(ctx, doc, val, depth + 1);
+                if (dict) {
+                    pdf_dict_puts_drop(ctx, copy, pdf_to_name(ctx, pdf_dict_get_key(ctx, obj, i)), child);
+                } else {
+                    pdf_array_push_drop(ctx, copy, child);
+                }
+            }
+        }
+        fz_catch(ctx) {
+            pdf_drop_obj(ctx, copy);
+            fz_rethrow(ctx);
+        }
+        return copy;
+    }
+    if (pdf_is_string(ctx, obj)) return pdf_new_string(ctx, pdf_to_str_buf(ctx, obj), pdf_to_str_len(ctx, obj));
+    if (pdf_is_name(ctx, obj)) return pdf_new_name(ctx, pdf_to_name(ctx, obj));
+    if (pdf_is_int(ctx, obj)) return pdf_new_int(ctx, pdf_to_int64(ctx, obj));
+    if (pdf_is_real(ctx, obj)) return pdf_new_real(ctx, pdf_to_real(ctx, obj));
+    return pdf_keep_obj(ctx, obj);
+}
+
+void DropPdfRecovery(PdfRecoveryJob* job) {
+    if (!job) return;
+    auto* e = job->owner;
+    if (e->recoveryState == &job->state) {
+        e->recoveryState = nullptr;
+        if (job->ok) e->recoveryGeneration = job->generation;
+    }
+    for (auto& obj : job->objects) {
+        pdf_drop_obj(job->ctx, obj.obj);
+        fz_drop_buffer(job->ctx, obj.stream);
+        fz_drop_buffer(e->BaseCtx(), obj.retainedStream);
+    }
+    pdf_drop_obj(job->ctx, job->trailer);
+    pdf_drop_document(job->ctx, job->overlay);
+    fz_drop_context(job->ctx);
+    str::Free(job->path);
+    str::Free(job->original);
+    str::Free(job->password);
+    delete job;
+    e->Release();
+}
+
+PdfRecoveryJob* EngineMupdfFreezeRecovery(EngineBase* engine, Str path) {
+    auto* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc || !e->modifiedAnnotations || e->journalNesting || e->recoveryState ||
+        e->recoveryGeneration == e->editGeneration || !len(path)) {
+        return nullptr;
+    }
+    // The first edit starts the base-file read. Never perform disk I/O in this callback.
+    if (!e->pagesLock.TryLock()) return nullptr;
+    defer {
+        e->pagesLock.Unlock();
+    };
+    if (!e->renderLock.TryLock()) return nullptr;
+    defer {
+        e->renderLock.Unlock();
+    };
+    if (!e->docLock.TryLock()) return nullptr;
+    defer {
+        e->docLock.Unlock();
+    };
+    if (!e->fileBytes || pdf_has_unsaved_sigs(e->BaseCtx(), e->pdfdoc)) return nullptr;
+    auto* job = new PdfRecoveryJob();
+    e->AddRef();
+    job->owner = e;
+    job->path = str::Dup(len(e->recoveryPath) ? e->recoveryPath : path);
+    job->original = str::Dup(e->FilePath());
+    job->password = str::Dup(e->pdfPassword);
+    job->generation = e->editGeneration;
+    job->base = e->fileBytes->data;
+    job->baseSize = e->fileBytes->len;
+    job->ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!job->ctx) {
+        DropPdfRecovery(job);
+        return nullptr;
+    }
+    auto* ctx = job->ctx;
+    bool ok = false;
+    fz_var(ok);
+    fz_try(ctx) {
+        job->overlay = pdf_create_document(ctx);
+        job->trailer = CopyFrozenObject(ctx, job->overlay, pdf_trailer(ctx, e->pdfdoc));
+        int n = pdf_xref_len(ctx, e->pdfdoc);
+        job->xrefSize = n;
+        for (int i = 1; i < n; i++) {
+            if (!pdf_xref_is_incremental(ctx, e->pdfdoc, i)) continue;
+            auto* entry = pdf_get_xref_entry(ctx, e->pdfdoc, i);
+            FrozenPdfObject frozen;
+            frozen.num = i;
+            VecAppend(job->objects, frozen);
+            auto& dst = job->objects[len(job->objects) - 1];
+            if (entry->type == 'f') continue;
+            // Incremental objects are already resident after an edit.
+            if (!entry->obj) fz_throw(ctx, FZ_ERROR_ARGUMENT, "changed PDF object is not resident");
+            dst.obj = CopyFrozenObject(ctx, job->overlay, entry->obj);
+            if (entry->stm_buf) {
+                // Journal stream data is immutable; worker refcounts use a separate wrapper.
+                dst.retainedStream = fz_keep_buffer(e->BaseCtx(), entry->stm_buf);
+                dst.stream = fz_new_buffer_from_shared_data(ctx, entry->stm_buf->data, entry->stm_buf->len);
+            }
+        }
+        ok = true;
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        logf("Recovery: could not freeze '%s'\n", job->original);
+    }
+    if (!ok) {
+        DropPdfRecovery(job);
+        return nullptr;
+    }
+    if (!len(e->recoveryPath)) e->recoveryPath = str::Dup(job->path);
+    e->recoveryState = &job->state;
+    return job;
+}
+
+struct RecoveryOutput {
+    fz_output* output = nullptr;
+    int remaining = -1;
+};
+
+static void RecoveryOutputWrite(fz_context* ctx, void* opaque, const void* data, size_t size) {
+    auto* state = (RecoveryOutput*)opaque;
+    if (state->remaining >= 0 && size > (size_t)state->remaining) {
+        fz_write_data(ctx, state->output, data, state->remaining);
+        fz_flush_output(ctx, state->output);
+        fz_throw(ctx, FZ_ERROR_SYSTEM, "injected mid-save failure");
+    }
+    fz_write_data(ctx, state->output, data, size);
+    if (state->remaining >= 0) state->remaining -= (int)size;
+}
+
+static int64_t RecoveryOutputTell(fz_context* ctx, void* opaque) {
+    return fz_tell_output(ctx, ((RecoveryOutput*)opaque)->output);
+}
+
+static void RecoveryOutputSeek(fz_context* ctx, void* opaque, int64_t offset, int whence) {
+    fz_seek_output(ctx, ((RecoveryOutput*)opaque)->output, offset, whence);
+}
+
+static void WriteRecoveryPdf(fz_context* ctx, pdf_document* doc, Str path, int failAfter) {
+    fz_output* output = nullptr;
+    fz_output* wrapper = nullptr;
+    fz_var(output);
+    fz_var(wrapper);
+    RecoveryOutput state;
+    state.remaining = failAfter;
+    fz_try(ctx) {
+        output = fz_new_output_with_path(ctx, CStrTemp(path), 0);
+        state.output = output;
+        wrapper = fz_new_output(ctx, 0, &state, RecoveryOutputWrite, nullptr, nullptr);
+        wrapper->tell = RecoveryOutputTell;
+        wrapper->seek = RecoveryOutputSeek;
+        pdf_write_options opts = gPdfDefaultWriteOptions;
+        opts.dont_regenerate_id = 1;
+        pdf_write_document(ctx, doc, wrapper, &opts);
+        fz_close_output(ctx, wrapper);
+        fz_close_output(ctx, output);
+    }
+    fz_always(ctx) {
+        fz_drop_output(ctx, wrapper);
+        fz_drop_output(ctx, output);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+}
+
+// Worker owns this context and document; edits continue on the live engine.
+static bool WritePdfRecoveryImpl(PdfRecoveryJob* job, int failAfter) {
+    if (!job) return false;
+    {
+        ScopedMutex scope(&job->state.lock);
+        if (job->state.cancelled) return false;
+    }
+    auto* ctx = job->ctx;
+    fz_stream* stream = nullptr;
+    pdf_document* doc = nullptr;
+    fz_var(stream);
+    fz_var(doc);
+    file::AtomicFile output(job->path);
+    TempStr sidecar = str::JoinTemp(job->path, StrL(".path"));
+    file::AtomicFile info(sidecar);
+    fz_try(ctx) {
+        if (!len(output.tempPath) || !len(info.tempPath)) fz_throw(ctx, FZ_ERROR_SYSTEM, "cannot stage recovery");
+        stream = fz_open_memory(ctx, job->base, job->baseSize);
+        doc = pdf_open_document_with_stream(ctx, stream);
+        if (pdf_needs_password(ctx, doc) && !pdf_authenticate_password(ctx, doc, CStrTemp(job->password))) {
+            fz_throw(ctx, FZ_ERROR_ARGUMENT, "cannot authenticate recovery base");
+        }
+        pdf_ensure_solid_xref(ctx, doc, job->xrefSize);
+        for (auto& frozen : job->objects) {
+            if (!frozen.obj) {
+                pdf_delete_object(ctx, doc, frozen.num);
+                continue;
+            }
+            pdf_obj* obj = CopyFrozenObject(ctx, doc, frozen.obj);
+            pdf_update_object(ctx, doc, frozen.num, obj);
+            pdf_drop_obj(ctx, obj);
+            if (frozen.stream) {
+                pdf_obj* ref = pdf_new_indirect(ctx, doc, frozen.num, 0);
+                pdf_update_stream(ctx, doc, ref, frozen.stream, 1);
+                pdf_drop_obj(ctx, ref);
+            }
+        }
+        pdf_obj* trailer = CopyFrozenObject(ctx, doc, job->trailer);
+        pdf_set_trailer(ctx, doc, trailer);
+        pdf_drop_obj(ctx, trailer);
+        WriteRecoveryPdf(ctx, doc, output.tempPath, failAfter);
+        if (!file::WriteFile(info.tempPath, job->original))
+            fz_throw(ctx, FZ_ERROR_SYSTEM, "cannot write recovery path");
+        {
+            ScopedMutex scope(&job->state.lock);
+            if (!job->state.cancelled) job->ok = info.Commit() && output.Commit();
+        }
+    }
+    fz_always(ctx) {
+        pdf_drop_document(ctx, doc);
+        fz_drop_stream(ctx, stream);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        logf("Recovery: writing '%s' failed\n", job->original);
+    }
+    return job->ok;
+}
+
+bool WritePdfRecovery(PdfRecoveryJob* job) {
+    return WritePdfRecoveryImpl(job, -1);
+}
+
+#if IS_DEBUG
+bool TestPdfRecoveryFault(PdfRecoveryJob* job, int failAfter) {
+    return WritePdfRecoveryImpl(job, failAfter);
+}
+#endif
+
 void EngineMupdfClearRecovery(EngineBase* engine) {
     auto* e = AsEngineMupdf(engine);
-    if (!e || len(e->recoveryPath) == 0) {
+    if (!e) {
         return;
     }
+    if (e->recoveryState) {
+        ScopedMutex scope(&e->recoveryState->lock);
+        e->recoveryState->cancelled = true;
+        e->recoveryState = nullptr;
+    }
+    if (!len(e->recoveryPath)) return;
     file::Delete(e->recoveryPath);
     file::Delete(str::JoinTemp(e->recoveryPath, StrL(".path")));
     str::FreePtr(&e->recoveryPath);
     e->recoveryGeneration = 0;
 }
 
-// UI thread only: form calculation and appearance synthesis use the base context.
+// Synchronous adapter for tests; the timer dispatches the frozen job to a worker.
 bool EngineMupdfAutoSave(EngineBase* engine, Str path) {
     auto* e = AsEngineMupdf(engine);
     if (!e || !e->pdfdoc) {
@@ -9117,17 +9410,10 @@ bool EngineMupdfAutoSave(EngineBase* engine, Str path) {
     if (e->recoveryGeneration == e->editGeneration) {
         return true;
     }
-    if (len(e->recoveryPath) > 0) {
-        path = e->recoveryPath;
-    }
-    if (!EngineMupdfSaveCopy(e, path)) {
-        return false;
-    }
-    if (len(e->recoveryPath) == 0) {
-        e->recoveryPath = str::Dup(path);
-    }
-    e->recoveryGeneration = e->editGeneration;
-    return true;
+    auto* job = EngineMupdfFreezeRecovery(e, path);
+    bool ok = WritePdfRecovery(job);
+    DropPdfRecovery(job);
+    return ok;
 }
 
 // caller must hold pagesLock (protects pages[] and pageInfo->images)
@@ -9271,7 +9557,7 @@ EngineBase* CreateEngineMupdfFromFile(Str path, FileType kind, int displayDPI, P
 
 EngineBase* CreateEngineMupdfFromData(Str data, Str nameHint, PasswordUI* pwdUI) {
     EngineMupdf* engine = new EngineMupdf();
-    fz_stream* stm = FzStreamFromData(engine->Ctx(), (u8*)data.s, data.len);
+    fz_stream* stm = FzStreamFromData(engine->Ctx(), (u8*)data.s, data.len, &engine->fileBytes);
     if (!engine->LoadFromStream(stm, nameHint, pwdUI) || !engine->FinishLoading()) {
         SafeEngineRelease(&engine);
         return nullptr;
@@ -9378,6 +9664,7 @@ static int CountLoadedAnnots(EngineMupdf* e) {
 }
 
 static int LoadAnnotsForPageNo(EngineMupdf* e, int pageNo) {
+    ScopedRecursiveMutex pagesScope(&e->pagesLock);
     if (pageNo < 1 || pageNo > e->pageCount) {
         return 0;
     }
@@ -10294,6 +10581,163 @@ bool EngineMupdfCanRedo(EngineBase* engine) {
     int steps = 0;
     int pos = EngineMupdfUndoPos(e, &steps);
     return pos >= 0 && pos < steps;
+}
+
+TempStr EngineMupdfUndoLabel(EngineBase* engine, bool redo) {
+    auto* e = AsEngineMupdf(engine);
+    int steps = 0;
+    int pos = EngineMupdfUndoPos(e, &steps);
+    if (pos < 0 || (redo ? pos >= steps : pos == 0)) {
+        return {};
+    }
+    auto* ctx = e->Ctx();
+    ScopedRecursiveMutex scope(&e->docLock);
+    TempStr label;
+    fz_try(ctx) {
+        label = str::DupTemp(Str(pdf_undoredo_step(ctx, e->pdfdoc, redo ? pos : pos - 1)));
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    return label;
+}
+
+// A structural journal step invalidates page numbers, wrappers, outlines and boxes.
+void EngineMupdf::ResetEditCaches(Vec<Annotation*>& removedOut) {
+    auto* e = this;
+    auto* ctx = e->Ctx();
+    for (int page = 1; page <= e->pageCount; page++) e->InvalidateTextForPage(page);
+    for (auto* pages : e->chapterPages) {
+        for (auto* pi : *pages) {
+            for (auto* a : pi->annotations) {
+                a->pdfannot = nullptr;
+                VecAppend(removedOut, a);
+            }
+            for (auto* a : pi->widgets) {
+                a->pdfannot = nullptr;
+                VecAppend(removedOut, a);
+            }
+            VecClear(pi->annotations);
+            VecClear(pi->widgets);
+            FreePageInfo(ctx, pi);
+            pi->~FzPageInfo();
+        }
+        pages->~Vec<FzPageInfo*>();
+    }
+    VecClear(e->chapterPages);
+    pdf_drop_page_tree(ctx, e->pdfdoc);
+    e->pageCount = pdf_count_pages(ctx, e->pdfdoc);
+    InitChapterPagesFlat(e);
+    e->chapters.SetPageCount(1, e->pageCount);
+    e->chapters.BumpGeneration();
+    {
+        ScopedMutex scope(&e->clipOptLock);
+        VecClear(e->clipOptKnown);
+    }
+    LoadPdfPageMediaboxes(e);
+    LoadPdfPageLabels(e);
+    fz_drop_outline(ctx, e->outline);
+    e->outline = nullptr;
+    fz_drop_outline(ctx, e->attachments);
+    e->attachments = nullptr;
+    DestroyTocTree(e->tocTree);
+    e->tocTree = nullptr;
+    e->outline = fz_load_outline(ctx, e->_doc);
+    e->attachments = PdfLoadAttachments(ctx, e->pdfdoc, e->FilePath());
+    pdf_drop_obj(ctx, e->pdfInfo);
+    pdf_obj* info = PdfInfoFromTrailers(ctx, e->pdfdoc);
+    e->pdfInfo = info ? PdfCopyStrDict(ctx, e->pdfdoc, info) : nullptr;
+    pdf_drop_obj(ctx, info);
+    if (!e->pdfInfo) {
+        e->pdfInfo = pdf_new_dict(ctx, e->pdfdoc, 4);
+    }
+    PdfFillInfoFromXmp(ctx, e->pdfdoc, e->pdfInfo);
+}
+
+// Import the tool's complete result into the live journal; the original file is untouched.
+bool EngineMupdfImportEdit(EngineBase* engine, Str path, const char* label, Vec<Annotation*>& removedOut) {
+    auto* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc || e->journalNesting || !len(path)) {
+        return false;
+    }
+    auto* ctx = e->BaseCtx();
+    ScopedRecursiveMutex pagesScope(&e->pagesLock);
+    ScopedMutex renderScope(&e->renderLock);
+    ScopedRecursiveMutex docScope(&e->docLock);
+    if (pdf_has_unsaved_sigs(ctx, e->pdfdoc)) {
+        return false;
+    }
+    pdf_document* source = nullptr;
+    pdf_graft_map* map = nullptr;
+    pdf_obj* root = nullptr;
+    pdf_obj* info = nullptr;
+    bool opened = false;
+    bool ok = false;
+    fz_var(source);
+    fz_var(map);
+    fz_var(root);
+    fz_var(info);
+    fz_var(opened);
+    fz_var(ok);
+    fz_try(ctx) {
+        source = pdf_open_document(ctx, CStrTemp(path));
+        if (pdf_needs_password(ctx, source) && !pdf_authenticate_password(ctx, source, CStrTemp(e->pdfPassword))) {
+            fz_throw(ctx, FZ_ERROR_ARGUMENT, "cannot authenticate tool result");
+        }
+        if (pdf_count_pages(ctx, source) < 1) {
+            fz_throw(ctx, FZ_ERROR_ARGUMENT, "tool result has no pages");
+        }
+        int pos = EngineMupdfUndoPos(e, nullptr);
+        if (pos < e->savedUndoPos) {
+            e->savedUndoPos = -1;
+        }
+        pdf_begin_operation(ctx, e->pdfdoc, label);
+        opened = true;
+        map = pdf_new_graft_map(ctx, e->pdfdoc);
+        root = pdf_graft_mapped_object(ctx, map, pdf_dict_get(ctx, pdf_trailer(ctx, source), PDF_NAME(Root)));
+        info = pdf_graft_mapped_object(ctx, map, pdf_dict_get(ctx, pdf_trailer(ctx, source), PDF_NAME(Info)));
+        pdf_obj* trailer = pdf_trailer(ctx, e->pdfdoc);
+        pdf_obj* destinations[] = {pdf_dict_get(ctx, trailer, PDF_NAME(Root)),
+                                   pdf_dict_get(ctx, trailer, PDF_NAME(Info))};
+        pdf_obj* sources[] = {root, info};
+        for (int i = 0; i < 2; i++) {
+            pdf_obj* dst = destinations[i];
+            while (pdf_dict_len(ctx, dst)) {
+                pdf_dict_del(ctx, dst, pdf_dict_get_key(ctx, dst, 0));
+            }
+            for (int j = 0; j < pdf_dict_len(ctx, sources[i]); j++) {
+                pdf_dict_put(ctx, dst, pdf_dict_get_key(ctx, sources[i], j), pdf_dict_get_val(ctx, sources[i], j));
+            }
+        }
+        pdf_end_operation(ctx, e->pdfdoc);
+        opened = false;
+        for (int i = len(e->structuralSteps) - 1; i >= 0; i--) {
+            if (e->structuralSteps[i] > pos) VecRemoveAt(e->structuralSteps, i);
+        }
+        VecAppend(e->structuralSteps, EngineMupdfUndoPos(e, nullptr));
+        e->modifiedAnnotations = true;
+        e->editGeneration++;
+        e->ResetEditCaches(removedOut);
+        ok = true;
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, root);
+        pdf_drop_obj(ctx, info);
+        pdf_drop_graft_map(ctx, map);
+        pdf_drop_document(ctx, source);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        if (opened) {
+            fz_try(ctx) {
+                pdf_abandon_operation(ctx, e->pdfdoc);
+            }
+            fz_catch(ctx) {
+                fz_report_error(ctx);
+            }
+        }
+    }
+    return ok;
 }
 
 static Annotation* FindWrapperForPdfAnnot(const Vec<Annotation*>& annots, pdf_annot* a) {
@@ -11325,8 +11769,12 @@ static bool EngineMupdfUndoRedo(EngineBase* engine, bool redo, Vec<Annotation*>&
         return false;
     }
     auto* ctx = e->Ctx();
+    ScopedRecursiveMutex pagesScope(&e->pagesLock);
+    int step = EngineMupdfUndoPos(e, nullptr) + (redo ? 1 : 0);
+    bool structural = VecContains(e->structuralSteps, step);
     bool ok = false;
     {
+        ScopedMutex renderScope(&e->renderLock);
         ScopedRecursiveMutex docScope(&e->docLock);
         fz_try(ctx) {
             if (redo) {
@@ -11337,6 +11785,9 @@ static bool EngineMupdfUndoRedo(EngineBase* engine, bool redo, Vec<Annotation*>&
             // Undo can remove newly allocated objects still held by resource caches.
             pdf_drop_resource_tables(ctx, e->pdfdoc);
             e->pdfdoc->resources = {};
+            if (structural) {
+                e->ResetEditCaches(removedOut);
+            }
             ok = true;
         }
         fz_catch(ctx) {
@@ -11347,7 +11798,9 @@ static bool EngineMupdfUndoRedo(EngineBase* engine, bool redo, Vec<Annotation*>&
     if (!ok) {
         return false;
     }
-    SyncPagesAfterUndoRedo(e, removedOut);
+    if (!structural) {
+        SyncPagesAfterUndoRedo(e, removedOut);
+    }
     return true;
 }
 
