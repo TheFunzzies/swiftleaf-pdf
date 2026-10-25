@@ -11,6 +11,12 @@ test("resolved FreeText failures must fail normally if they recur", () => {
   expect(matchesKnown("free-text-transparent", 'Typing obscures page background: {"blue":115,"total":390}\n')).toBe(
     false,
   );
+  expect(
+    matchesKnown(
+      "pdf-edit-toolbar-interaction",
+      "annotation metadata is wrong\nrow author=Ada\nrow date=2026-08-24 12:34\n",
+    ),
+  ).toBe(false);
 });
 
 test("resolved contextual panel failures must fail normally", () => {
@@ -25,12 +31,4 @@ test("resolved contextual panel failures must fail normally", () => {
     expect(matchesKnown(name!, message!)).toBe(false);
     expect(matchesKnown(name!, "app crashed")).toBe(false);
   }
-});
-
-test("the metadata exception requires the precise observed date row", () => {
-  const baseline = "annotation metadata is wrong\nrow author=Ada\nrow date=2026-08-24 12:34\n";
-  expect(matchesKnown("pdf-edit-toolbar-interaction", baseline)).toBe(true);
-  expect(matchesKnown("pdf-edit-toolbar-interaction", baseline.replaceAll("\n", "\r\n"))).toBe(true);
-  expect(matchesKnown("pdf-edit-toolbar-interaction", baseline.replace("12:34", "12:35"))).toBe(false);
-  expect(matchesKnown("pdf-edit-toolbar-interaction", baseline.replace("author=Ada", "author=Bob"))).toBe(false);
 });
