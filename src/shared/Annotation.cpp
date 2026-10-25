@@ -903,8 +903,14 @@ static void WriteFieldProps(fz_context* ctx, pdf_document* doc, pdf_obj* field, 
         else
             pdf_dict_del(ctx, field, PDF_NAME(MaxLen));
     }
-    pdf_dict_put_text_string(ctx, field, PDF_NAME(TU), CStrTemp(p.tooltip));
-    pdf_dict_puts_drop(ctx, field, "SwiftLeafFormat", pdf_new_text_string(ctx, CStrTemp(p.format)));
+    if (len(p.tooltip))
+        pdf_dict_put_text_string(ctx, field, PDF_NAME(TU), CStrTemp(p.tooltip));
+    else
+        pdf_dict_del(ctx, field, PDF_NAME(TU));
+    if (len(p.format))
+        pdf_dict_puts_drop(ctx, field, "SwiftLeafFormat", pdf_new_text_string(ctx, CStrTemp(p.format)));
+    else
+        pdf_dict_dels(ctx, field, "SwiftLeafFormat");
     if (p.kind == FormFieldKind::PushButton || p.kind == FormFieldKind::Image) {
         if (p.kind == FormFieldKind::Image)
             pdf_dict_puts(ctx, field, "SwiftLeafImage", PDF_TRUE);
@@ -916,7 +922,7 @@ static void WriteFieldProps(fz_context* ctx, pdf_document* doc, pdf_obj* field, 
                                                                   : "URI");
             if (!str::Eq(p.action, StrL("reset")))
                 pdf_dict_put_text_string(ctx, action, str::Eq(p.action, StrL("link")) ? PDF_NAME(URI) : PDF_NAME(F),
-                                         CStrTemp(p.target));
+                                         len(p.target) ? CStrTemp(p.target) : "");
         }
     }
     pdf_dict_put_int(ctx, field, PDF_NAME(Ff), flags);
@@ -954,7 +960,12 @@ static void StyleFieldWidget(fz_context* ctx, pdf_annot* a, const FormFieldPrope
         pdf_array_push_real(ctx, bc, p.borderColor[i]);
         pdf_array_push_real(ctx, bg, p.backgroundColor[i]);
     }
-    if (p.kind == FormFieldKind::PushButton) pdf_dict_put_text_string(ctx, mk, PDF_NAME(CA), CStrTemp(p.defaultValue));
+    if (p.kind == FormFieldKind::PushButton) {
+        if (len(p.defaultValue))
+            pdf_dict_put_text_string(ctx, mk, PDF_NAME(CA), CStrTemp(p.defaultValue));
+        else
+            pdf_dict_del(ctx, mk, PDF_NAME(CA));
+    }
     if (p.kind != FormFieldKind::Image || !pdf_dict_get(ctx, obj, PDF_NAME(AP))) {
         pdf_dirty_annot(ctx, a);
         pdf_update_annot(ctx, a);
@@ -1094,7 +1105,7 @@ Annotation* CreateFormField(EngineBase* engine, int pageNo, RectF rect, const Fo
                     pdf_array_push(ctx, fields, field);
                     pdf_obj* ft = (p.kind == FormFieldKind::Text || p.kind == FormFieldKind::Date)       ? PDF_NAME(Tx)
                                   : (p.kind == FormFieldKind::Combo || p.kind == FormFieldKind::ListBox) ? PDF_NAME(Ch)
-                                  : p.kind == FormFieldKind::Signature ? PDF_NAME(Sig)
+                                  : p.kind == FormFieldKind::Signature                                   ? PDF_NAME(Sig)
                                                                        : PDF_NAME(Btn);
                     pdf_dict_put(ctx, obj, PDF_NAME(FT), ft);
                     pdf_dict_put_int(ctx, obj, PDF_NAME(Ff),

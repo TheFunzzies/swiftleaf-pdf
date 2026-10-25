@@ -502,14 +502,18 @@ static void ReadXmlFields(fz_context* ctx, fz_xml* node, Str parent, StrVec& nam
         if (!fz_xml_is_tag(node, "field")) continue;
         Str name = Str(fz_xml_att(node, "name"));
         if (!len(name)) fz_throw(ctx, FZ_ERROR_ARGUMENT, "XFDF field needs a name");
-        if (len(parent)) name = fmt("%s.%s", parent, name);
+        if (len(parent))
+            name = fmt("%s.%s", parent, name);
+        else
+            name = str::DupTemp(name);
         fz_xml* child = fz_xml_down(node);
         int count = 0;
         for (fz_xml* v = child; v; v = fz_xml_next(v)) {
             if (!fz_xml_is_tag(v, "value")) continue;
             if (++count > 1) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Multi-select XFDF is not supported");
             names.Append(name);
-            values.Append(Str(fz_xml_text(fz_xml_down(v))));
+            const char* val = fz_xml_text(fz_xml_down(v));
+            values.Append(str::DupTemp(Str(val)));
         }
         ReadXmlFields(ctx, child, name, names, values, depth + 1);
     }
@@ -519,13 +523,17 @@ static void ReadFdfFields(fz_context* ctx, pdf_obj* fields, Str parent, StrVec& 
     for (int i = 0; i < pdf_array_len(ctx, fields); i++) {
         pdf_obj* field = pdf_array_get(ctx, fields, i);
         Str name = Str(pdf_dict_get_text_string(ctx, field, PDF_NAME(T)));
-        if (len(parent)) name = fmt("%s.%s", parent, name);
+        if (len(parent))
+            name = fmt("%s.%s", parent, name);
+        else
+            name = str::DupTemp(name);
         pdf_obj* v = pdf_dict_get(ctx, field, PDF_NAME(V));
         if (v) {
             if (!pdf_is_name(ctx, v) && !pdf_is_string(ctx, v))
                 fz_throw(ctx, FZ_ERROR_ARGUMENT, "FDF value must be a string or name");
             names.Append(name);
-            values.Append(Str(pdf_is_name(ctx, v) ? pdf_to_name(ctx, v) : pdf_to_text_string(ctx, v)));
+            const char* val = pdf_is_name(ctx, v) ? pdf_to_name(ctx, v) : pdf_to_text_string(ctx, v);
+            values.Append(str::DupTemp(Str(val)));
         }
         ReadFdfFields(ctx, pdf_dict_get(ctx, field, PDF_NAME(Kids)), name, names, values, depth + 1);
     }
@@ -575,7 +583,7 @@ bool ImportFormData(EngineBase* engine, FormDataFormat format, Str data, Str& er
         fz_var(xml);
         fz_var(valid);
         fz_try(ctx) {
-            buffer = fz_new_buffer_from_shared_data(ctx, (const u8*)data.s, len(data));
+            buffer = fz_new_buffer_from_copied_data(ctx, (const u8*)data.s, len(data));
             if (format == FormDataFormat::Xfdf) {
                 xml = fz_parse_xml(ctx, buffer, 1);
                 fz_xml* root = fz_xml_root(xml);
@@ -608,7 +616,8 @@ bool ImportFormData(EngineBase* engine, FormDataFormat format, Str data, Str& er
     Vec<pdf_obj*> fields;
     return ChangeForm(engine, "Import form data", error, [&](fz_context* ctx, EngineMupdf* e) {
         for (int i = 0; i < len(names); i++) {
-            if (memchr(names[i].s, 0, len(names[i])) || memchr(values[i].s, 0, len(values[i])))
+            if (!len(names[i])) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Field name cannot be empty");
+            if (memchr(names[i].s, 0, len(names[i])) || (len(values[i]) && memchr(values[i].s, 0, len(values[i]))))
                 fz_throw(ctx, FZ_ERROR_ARGUMENT, "Field names and values cannot contain NUL characters");
             if (seen.Contains(names[i])) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Duplicate field name");
             seen.Append(names[i]);
@@ -620,7 +629,8 @@ bool ImportFormData(EngineBase* engine, FormDataFormat format, Str data, Str& er
                 (pdf_name_eq(ctx, ft, PDF_NAME(Btn)) && (flags & PDF_BTN_FIELD_IS_PUSHBUTTON)))
                 fz_throw(ctx, FZ_ERROR_ARGUMENT, "Read-only, signature or push-button field cannot be imported");
             int maxLength = pdf_dict_get_int(ctx, field, PDF_NAME(MaxLen));
-            if (maxLength > 0 && fz_utflen(CStrTemp(values[i])) > maxLength)
+            const char* valZ = len(values[i]) ? CStrTemp(values[i]) : "";
+            if (maxLength > 0 && fz_utflen(valZ) > maxLength)
                 fz_throw(ctx, FZ_ERROR_ARGUMENT, "Value exceeds maximum length");
             if (pdf_name_eq(ctx, ft, PDF_NAME(Ch))) {
                 bool found = !len(values[i]);
@@ -641,7 +651,8 @@ bool ImportFormData(EngineBase* engine, FormDataFormat format, Str data, Str& er
             VecAppend(fields, field);
         }
         for (int i = 0; i < len(fields); i++) {
-            if (!pdf_set_field_value(ctx, e->pdfdoc, fields[i], CStrTemp(values[i]), 0))
+            const char* valZ = len(values[i]) ? CStrTemp(values[i]) : "";
+            if (!pdf_set_field_value(ctx, e->pdfdoc, fields[i], valZ, 0))
                 fz_throw(ctx, FZ_ERROR_ARGUMENT, "Field rejected imported value");
         }
     });
