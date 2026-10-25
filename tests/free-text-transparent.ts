@@ -30,6 +30,16 @@ import { findCanvas, launchControlled, killAndWait, sendCommandSync } from "./wi
 
 type Rect = { x: number; y: number; dx: number; dy: number };
 
+async function waitFor<T>(read: () => T, ready: (v: T) => boolean, label: string, timeoutMs = 15_000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = read();
+    if (ready(value)) return value;
+    await Bun.sleep(50);
+  }
+  throw new Error(`free-text-transparent: timed out waiting for ${label}`);
+}
+
 export async function testit(): Promise<void> {
   setProcessDpiAware();
   const dir = tmpPath("free-text-transparent");
@@ -236,27 +246,34 @@ export async function testit(): Promise<void> {
         packCoords(Math.floor(getClientRect(canvas).right / 2), Math.floor(getClientRect(canvas).bottom / 2)),
       );
     place();
+    await editorRect();
     sendText(box(), "Unicode: café Ελληνικά 日本語\r\nsecond line");
-    const tools = findTopWindow(proc.pid!, "SwiftLeafFreeTextTools");
-    if (!tools) throw new Error("No contextual text controls");
+    await editorRect();
+    const tools = await waitFor(
+      () => findTopWindow(proc.pid!, "SwiftLeafFreeTextTools"),
+      Boolean,
+      "contextual text controls",
+    );
     for (const index of [0, 3]) {
       // Font and Color dialogs must preserve the draft on cancel.
       sendMessage(box(), WM_KEYDOWN, VK_TAB, 0);
+      await waitFor(() => getFocusedHwnd(frame) === tools, Boolean, "focus on formatting controls");
       for (let i = 0; i < index; i++) sendMessage(tools, WM_KEYDOWN, VK_TAB, 0);
       sendMessage(tools, WM_KEYDOWN, VK_SPACE, 0);
-      let dialog = 0;
-      const deadline = Date.now() + 3000;
-      while (!dialog && Date.now() < deadline) {
-        dialog = findTopWindow(proc.pid!, "#32770");
-        if (!dialog) await Bun.sleep(20);
-      }
-      if (!dialog) throw new Error(`Formatting dialog ${index} did not open`);
+      const dialog = await waitFor(
+        () => findTopWindow(proc.pid!, "#32770"),
+        Boolean,
+        `formatting dialog ${index}`,
+        15_000,
+      );
       sendMessage(dialog, WM_COMMAND, 2, 0); // IDCANCEL
+      await waitFor(() => findTopWindow(proc.pid!, "#32770") === 0, Boolean, `formatting dialog ${index} close`, 5_000);
       await editorRect();
       if (!getControlText(box()).includes("日本語")) throw new Error("A formatting dialog lost draft text");
     }
     const beforeFont = getWindowFontHeight(box());
     sendMessage(box(), WM_KEYDOWN, VK_TAB, 0);
+    await waitFor(() => getFocusedHwnd(frame) === tools, Boolean, "focus on formatting controls");
     await dump();
     if (getFocusedHwnd(frame) !== tools) throw new Error("Tab did not reach the formatting controls");
     sendMessage(tools, WM_KEYDOWN, VK_TAB, 0); // Smaller
@@ -322,7 +339,12 @@ export async function testit(): Promise<void> {
     };
     const clickTool = async (index: number) => {
       sendMessage(box(), WM_KEYDOWN, VK_TAB, 0);
-      const host = findTopWindow(proc.pid!, "SwiftLeafFreeTextTools");
+      const host = await waitFor(
+        () => findTopWindow(proc.pid!, "SwiftLeafFreeTextTools"),
+        Boolean,
+        "contextual text controls in clickTool",
+      );
+      await waitFor(() => getFocusedHwnd(frame) === host, Boolean, "focus on formatting controls in clickTool");
       for (let i = 0; i < index; i++) sendMessage(host, WM_KEYDOWN, VK_TAB, 0);
       sendMessage(host, WM_KEYDOWN, VK_SPACE, 0);
       await dump();
