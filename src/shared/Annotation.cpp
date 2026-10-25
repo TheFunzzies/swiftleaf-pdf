@@ -867,8 +867,28 @@ static bool ValidateFieldProps(const FormFieldProperties& p, StrVec& options, St
     return true;
 }
 
+static void EnsureFieldFont(fz_context* ctx, pdf_document* doc, const FormFieldProperties& p) {
+    pdf_obj* root = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Root));
+    pdf_obj* acro = pdf_dict_get(ctx, root, PDF_NAME(AcroForm));
+    if (!acro) acro = pdf_dict_put_dict(ctx, root, PDF_NAME(AcroForm), 3);
+    pdf_obj* dr = pdf_dict_get(ctx, acro, PDF_NAME(DR));
+    if (!dr) dr = pdf_dict_put_dict(ctx, acro, PDF_NAME(DR), 1);
+    pdf_obj* fonts = pdf_dict_get(ctx, dr, PDF_NAME(Font));
+    if (!fonts) fonts = pdf_dict_put_dict(ctx, dr, PDF_NAME(Font), 1);
+    if (pdf_dict_gets(ctx, fonts, CStrTemp(p.font))) return;
+    pdf_obj* font = pdf_add_new_dict(ctx, doc, 3);
+    pdf_dict_puts_drop(ctx, fonts, CStrTemp(p.font), font);
+    pdf_dict_put(ctx, font, PDF_NAME(Type), PDF_NAME(Font));
+    pdf_dict_put(ctx, font, PDF_NAME(Subtype), PDF_NAME(Type1));
+    pdf_dict_put_name(ctx, font, PDF_NAME(BaseFont),
+                      str::Eq(p.font, StrL("Cour"))   ? "Courier"
+                      : str::Eq(p.font, StrL("TiRo")) ? "Times-Roman"
+                                                      : "Helvetica");
+}
+
 static void WriteFieldProps(fz_context* ctx, pdf_document* doc, pdf_obj* field, const FormFieldProperties& p,
                             const StrVec& options) {
+    EnsureFieldFont(ctx, doc, p);
     pdf_dict_put_text_string(ctx, field, PDF_NAME(T), CStrTemp(p.name));
     int flags = pdf_field_flags(ctx, field) & ~(PDF_FIELD_IS_READ_ONLY | PDF_FIELD_IS_REQUIRED);
     flags |= p.readOnly ? PDF_FIELD_IS_READ_ONLY : 0;
@@ -1046,21 +1066,7 @@ Annotation* CreateFormField(EngineBase* engine, int pageNo, RectF rect, const Fo
             if (!fields) fields = pdf_dict_put_array(ctx, acro, PDF_NAME(Fields), 1);
             if (pdf_lookup_field(ctx, fields, CStrTemp(p.name)))
                 fz_throw(ctx, FZ_ERROR_ARGUMENT, "field name already exists");
-            // Give other readers a font resource for /DA as well as the generated /AP.
-            pdf_obj* dr = pdf_dict_get(ctx, acro, PDF_NAME(DR));
-            if (!dr) dr = pdf_dict_put_dict(ctx, acro, PDF_NAME(DR), 1);
-            pdf_obj* fonts = pdf_dict_get(ctx, dr, PDF_NAME(Font));
-            if (!fonts) fonts = pdf_dict_put_dict(ctx, dr, PDF_NAME(Font), 1);
-            if (!pdf_dict_gets(ctx, fonts, CStrTemp(p.font))) {
-                pdf_obj* font = pdf_add_new_dict(ctx, e->pdfdoc, 3);
-                pdf_dict_puts_drop(ctx, fonts, CStrTemp(p.font), font);
-                pdf_dict_put(ctx, font, PDF_NAME(Type), PDF_NAME(Font));
-                pdf_dict_put(ctx, font, PDF_NAME(Subtype), PDF_NAME(Type1));
-                pdf_dict_put_name(ctx, font, PDF_NAME(BaseFont),
-                                  str::Eq(p.font, StrL("Cour"))   ? "Courier"
-                                  : str::Eq(p.font, StrL("TiRo")) ? "Times-Roman"
-                                                                  : "Helvetica");
-            }
+            EnsureFieldFont(ctx, e->pdfdoc, p);
             pdf_page* page = pdf_page_from_fz_page(ctx, pi->page);
             pdf_obj* field = nullptr;
             pdf_obj* kids = nullptr;

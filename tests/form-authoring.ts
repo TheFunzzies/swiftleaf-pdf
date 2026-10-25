@@ -98,6 +98,13 @@ export async function testit(): Promise<void> {
         const raw = await dump(client);
         if (!raw.includes(`formFields=${i + 1} widgets=${i < 2 ? i + 1 : i + 2}`)) throw new Error(raw);
       }
+      postMessage(frame, WM_COMMAND, cmdId("CmdFormTabOrder"), 0);
+      const orderDialog = await until(() => findTopWindow(proc.pid!, "#32770"), Boolean);
+      postMessage(orderDialog, WM_COMMAND, 2, 0);
+      await until(
+        () => findTopWindow(proc.pid!, "#32770"),
+        (h) => !h,
+      );
       const before = rect(await dump(client), "Smoke0");
       sendMessage(canvas, WM_LBUTTONDOWN, MK_LBUTTON, packCoords(before[0]! + 8, before[1]! + 8));
       sendMessage(canvas, WM_LBUTTONUP, 0, packCoords(before[0]! + 8, before[1]! + 8));

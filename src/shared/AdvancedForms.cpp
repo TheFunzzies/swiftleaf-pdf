@@ -205,28 +205,46 @@ static void CollectFields(fz_context* ctx, pdf_obj* fields, Vec<pdf_obj*>& out, 
     if (depth > 32) fz_throw(ctx, FZ_ERROR_ARGUMENT, "form hierarchy too deep");
     for (int i = 0; i < pdf_array_len(ctx, fields); i++) {
         pdf_obj* field = pdf_array_get(ctx, fields, i);
-        if (pdf_dict_get(ctx, field, PDF_NAME(FT))) {
-            if (pdf_name_eq(ctx, pdf_dict_get_inheritable(ctx, field, PDF_NAME(FT)), PDF_NAME(Sig)) ||
-                (pdf_field_flags(ctx, field) & PDF_BTN_FIELD_IS_PUSHBUTTON))
-                continue;
-            VecAppend(out, field);
-        } else
-            CollectFields(ctx, pdf_dict_get(ctx, field, PDF_NAME(Kids)), out, depth + 1);
+        pdf_obj* kids = pdf_dict_get(ctx, field, PDF_NAME(Kids));
+        bool namedKids = false;
+        for (int j = 0; j < pdf_array_len(ctx, kids); j++)
+            if (pdf_dict_get(ctx, pdf_array_get(ctx, kids, j), PDF_NAME(T))) namedKids = true;
+        pdf_obj* ft = pdf_dict_get_inheritable(ctx, field, PDF_NAME(FT));
+        if (namedKids || !ft) {
+            CollectFields(ctx, kids, out, depth + 1);
+            continue;
+        }
+        if (pdf_name_eq(ctx, ft, PDF_NAME(Sig)) ||
+            (pdf_name_eq(ctx, ft, PDF_NAME(Btn)) && (pdf_field_flags(ctx, field) & PDF_BTN_FIELD_IS_PUSHBUTTON)))
+            continue;
+        VecAppend(out, field);
     }
 }
 
 TempStr GetFormTabNames(EngineBase* engine) {
     str::Builder names;
     StrVec seen;
+    auto* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc) return {};
     for (int p = 1; p <= engine->PageCount(); p++) {
         Vec<Annotation*> widgets;
         EngineMupdfGetPageWidgets(engine, p, widgets);
-        for (Annotation* w : widgets) {
-            FormFieldProperties props;
-            if (!GetFormFieldProperties(w, props) || seen.Contains(props.name)) continue;
-            seen.Append(props.name);
-            if (len(names)) names.Append(StrL("\r\n"));
-            names.Append(props.name);
+        auto* ctx = e->BaseCtx();
+        ScopedRecursiveMutex lock(&e->docLock);
+        fz_try(ctx) {
+            for (Annotation* w : widgets) {
+                char* raw = pdf_load_field_name(ctx, pdf_annot_obj(ctx, w->pdfannot));
+                Str name = str::DupTemp(Str(raw));
+                fz_free(ctx, raw);
+                if (seen.Contains(name)) continue;
+                seen.Append(name);
+                if (len(names)) names.Append(StrL("\r\n"));
+                names.Append(name);
+            }
+        }
+        fz_catch(ctx) {
+            fz_report_error(ctx);
+            return {};
         }
     }
     return ToStrTemp(names);
@@ -239,6 +257,21 @@ bool SetFormTabOrder(EngineBase* engine, FormTabOrder order, Str manualNames, St
         Str s = names[i];
         str::TrimWs(s);
         names.SetAt(i, s);
+    }
+    if (order == FormTabOrder::Manual) {
+        StrVec existing, seen;
+        Split(&existing, GetFormTabNames(engine), StrL("\r\n"), true);
+        for (Str name : names) {
+            if (!len(name) || seen.Contains(name) || !existing.Contains(name)) {
+                error = StrL("Manual order must list each field name once.");
+                return false;
+            }
+            seen.Append(name);
+        }
+        if (len(names) != len(existing)) {
+            error = StrL("Manual order must list every field name.");
+            return false;
+        }
     }
     // Load widgets before acquiring docLock (page loading takes pagesLock first).
     Vec<FzPageInfo*> pages;
@@ -417,6 +450,7 @@ TempStr ExportFormData(EngineBase* engine, FormDataFormat format, Str& error) {
 static bool ParseCsv(Str data, StrVec& cells) {
     str::Builder cell;
     bool quoted = false, closed = false;
+    int column = 0;
     for (int i = 0; i < len(data); i++) {
         char c = data.s[i];
         if (quoted) {
@@ -441,6 +475,13 @@ static bool ParseCsv(Str data, StrVec& cells) {
             cells.Append(ToStrTemp(cell));
             cell.Reset();
             closed = false;
+            column++;
+            if (c == ',') {
+                if (column != 1) return false;
+                continue;
+            }
+            if (column != 2) return false;
+            column = 0;
             if (c == '\r' && i + 1 < len(data) && data.s[i + 1] == '\n') i++;
             continue;
         }
@@ -448,8 +489,11 @@ static bool ParseCsv(Str data, StrVec& cells) {
         cell.AppendChar(c);
     }
     if (quoted) return false;
-    if (len(cell) || closed || (len(data) && data.s[len(data) - 1] == ',')) cells.Append(ToStrTemp(cell));
-    return len(cells) >= 2 && len(cells) % 2 == 0;
+    if (len(cell) || closed || column) {
+        cells.Append(ToStrTemp(cell));
+        column++;
+    }
+    return (column == 0 || column == 2) && len(cells) >= 2 && len(cells) % 2 == 0;
 }
 
 static void ReadXmlFields(fz_context* ctx, fz_xml* node, Str parent, StrVec& names, StrVec& values, int depth) {
@@ -560,10 +604,12 @@ bool ImportFormData(EngineBase* engine, FormDataFormat format, Str data, Str& er
         if (!len(error)) error = StrL("Expected named string values in FDF, XFDF, name/value CSV or a JSON object.");
         return false;
     }
+    StrVec seen;
+    Vec<pdf_obj*> fields;
     return ChangeForm(engine, "Import form data", error, [&](fz_context* ctx, EngineMupdf* e) {
-        StrVec seen;
-        Vec<pdf_obj*> fields;
         for (int i = 0; i < len(names); i++) {
+            if (memchr(names[i].s, 0, len(names[i])) || memchr(values[i].s, 0, len(values[i])))
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "Field names and values cannot contain NUL characters");
             if (seen.Contains(names[i])) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Duplicate field name");
             seen.Append(names[i]);
             pdf_obj* field = pdf_lookup_field(ctx, FormRoots(ctx, e), CStrTemp(names[i]));
