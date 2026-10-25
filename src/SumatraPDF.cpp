@@ -5927,6 +5927,14 @@ static void RecoveryWriteThread(PdfRecoveryJob* job) {
     uitask::Post(MkFunc0(DropPdfRecovery, job), "FinishRecovery");
 }
 
+void UpdatePdfUndoStorage(EngineBase* engine) {
+    constexpr size_t kUndoMemoryBudget = 32 * 1024 * 1024;
+    if (!engine || !CanAccessDisk() || gPluginMode || !EngineHasUnsavedAnnotations(engine) || !CreateRecoverySession())
+        return;
+    TempStr prefix = path::JoinTemp(gRecoverySession, fmt("history-%p", engine));
+    EngineMupdfSetUndoStorage(engine, prefix, kUndoMemoryBudget);
+}
+
 static void CALLBACK RecoveryTimerProc(HWND, UINT, UINT_PTR, DWORD) {
     if (!CanAccessDisk() || gPluginMode || IsStressTesting() || gRecoveryBusy) {
         return;
@@ -5953,7 +5961,11 @@ static void CALLBACK RecoveryTimerProc(HWND, UINT, UINT_PTR, DWORD) {
             }
             TempStr snapshot = path::JoinTemp(gRecoverySession, fmt("document-%p.pdf", engine));
             if (auto* job = EngineMupdfFreezeRecovery(engine, snapshot)) {
-                RunAsync(MkFunc0(RecoveryWriteThread, job), StrL("Recovery"));
+                ThreadHandle thread = StartThread(MkFunc0(RecoveryWriteThread, job), StrL("Recovery"));
+                if (thread)
+                    SafeCloseThreadHandle(&thread);
+                else
+                    DropPdfRecovery(job);
             }
         }
     }
@@ -6034,6 +6046,11 @@ static int ScanRecovery(HWND hwnd, RecoveryChoice choice, Str destination = {}) 
         StrVec snapshots;
         DirIter files{session};
         for (DirIterEntry* entry : files) {
+            if (str::StartsWith(entry->name, StrL("history-")) &&
+                str::EqI(path::GetExtTemp(entry->name), StrL(".undo"))) {
+                file::Delete(entry->filePath);
+                continue;
+            }
             if (str::EqI(path::GetExtTemp(entry->name), StrL(".pdf")) &&
                 !(entry->fd->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
                 snapshots.Append(entry->filePath);

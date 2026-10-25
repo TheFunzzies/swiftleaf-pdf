@@ -230,6 +230,7 @@ class EngineMupdf : public EngineBase {
     int journalNesting = 0;
     // position in the undo history the file was last saved at
     int savedUndoPos = 0;
+    u64 savedUndoId = 0;
 
     // The whole file, once the document reads from memory (a small file at
     // load, a big one after its first change). Saving then never re-reads the

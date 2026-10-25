@@ -17,6 +17,7 @@
 
 #include "Settings.h"
 #include "DocController.h"
+#include "DocProperties.h"
 #include "EngineBase.h"
 #include "base/GuessFileType.h"
 #include "EngineAll.h"
@@ -2494,6 +2495,10 @@ struct GenericActionDialog : PageToolDialog {
 };
 
 void GenericActionDialog::DoIt(VirtMouseEvent*) {
+    if (!runner) {
+        Close();
+        return;
+    }
     PdfToolEdit edit(win, srcPath);
     if (!edit.IsReady()) return;
     Str destPath = edit.outputPath;
@@ -2730,7 +2735,11 @@ bool DocPropsDialog::Create(MainWindow* w, WindowTab* tab) {
     AddPathRow();
 
     PdfDocPropsParams curProps;
-    PdfGetDocProps(srcPath, curProps);
+    auto* engine = tab->GetEngine();
+    curProps.title = str::Dup(engine->GetPropertyTemp(DocProp::Title));
+    curProps.author = str::Dup(engine->GetPropertyTemp(DocProp::Author));
+    curProps.subject = str::Dup(engine->GetPropertyTemp(DocProp::Subject));
+    curProps.keywords = str::Dup(engine->GetPropertyTemp(DocProp::Keywords));
 
     titleEdit = AddLabeledEdit(Tr("Title:"), curProps.title);
     authorEdit = AddLabeledEdit(Tr("Author:"), curProps.author);
@@ -2761,7 +2770,7 @@ void ShowManageAttachmentsDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Manage Attachments"), Tr("Close"), [](Str, Str) { return true; })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Manage Attachments"), Tr("Close"), nullptr)) delete dlg;
 }
 
 void ShowEditBookmarksDialog(MainWindow* win) {

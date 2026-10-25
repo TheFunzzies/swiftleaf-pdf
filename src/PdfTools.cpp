@@ -935,8 +935,8 @@ void PdfDeletePageDialog::UpdateButton() {
 }
 
 void PdfDeletePageDialog::DoIt(VirtMouseEvent*) {
-    TempStr destPath = destEdit->GetTextTemp();
-    if (len(destPath) == 0) {
+    TempStr destPath = isExtract ? destEdit->GetTextTemp() : TempStr{};
+    if (isExtract && len(destPath) == 0) {
         return;
     }
 
@@ -947,6 +947,24 @@ void PdfDeletePageDialog::DoIt(VirtMouseEvent*) {
         return;
     }
     if (!isExtract && len(parsedPages) >= pageCount) {
+        return;
+    }
+
+    if (!isExtract) {
+        PdfToolEdit edit(win, srcPath);
+        if (!edit.IsReady()) return;
+        auto* tab = win->CurrentTab();
+        Vec<PdfMergeSource> sources;
+        VecAppend(sources, PdfMergeSource{edit.inputPath, EngineMupdfGetPassword(tab->GetEngine())});
+        Vec<PdfMergePage> keep;
+        for (int page = 1; page <= pageCount; page++) {
+            if (!VecContains(parsedPages, page)) VecAppend(keep, PdfMergePage{0, page, 0});
+        }
+        if (EngineMupdfMergePdfs(sources, keep, edit.outputPath) && edit.Apply("Delete pages")) {
+            Close();
+        } else {
+            MessageBoxWarning(hwnd, Tr("Couldn't change the pages of this PDF"), Tr("Delete Pages"));
+        }
         return;
     }
 
@@ -1062,7 +1080,7 @@ bool PdfDeletePageDialog::Create(MainWindow* w, WindowTab* tab, bool isExtractAr
     }
     pageCount = w->ctrl ? w->ctrl->PageCount() : 0;
     AddPathRow();
-    AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+    if (isExtract) AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
 
     int currentPage = w->ctrl ? w->ctrl->CurrentPageNo() : 1;
     Str pagesLabel = isExtract ? Tr("Pages To Extract:") : Tr("Pages To Delete:");

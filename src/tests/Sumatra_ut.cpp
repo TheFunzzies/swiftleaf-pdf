@@ -701,6 +701,7 @@ static void UnifiedUndoTest(Str source) {
     TempStr input = GetTempFilePathTemp(StrL("undo-input"));
     TempStr result = GetTempFilePathTemp(StrL("undo-result"));
     TempStr recovery = GetTempFilePathTemp(StrL("undo-recovery"));
+    EngineMupdfSetUndoStorage(e, recovery, 1);
     FormFieldProperties props;
     props.kind = FormFieldKind::Text;
     props.name = StrL("Customer");
@@ -795,6 +796,13 @@ static void UnifiedUndoTest(Str source) {
     dispose();
     utassert(SetWidgetTextValue(FirstUndoTestField(e), StrL("Branch")));
     utassert(!EngineMupdfCanRedo(e));
+    utassert(EngineMupdfSaveUpdated(e, input, {}));
+    utassert(!EngineHasUnsavedAnnotations(e));
+    utassert(EngineMupdfUndo(e, removed));
+    dispose();
+    utassert(SetWidgetTextValue(FirstUndoTestField(e), StrL("Different branch")));
+    EngineMupdfRefreshModifiedState(e);
+    utassert(EngineHasUnsavedAnnotations(e));
     SafeEngineRelease(&other);
     SafeEngineRelease(&e);
     file::Delete(input);
@@ -802,7 +810,49 @@ static void UnifiedUndoTest(Str source) {
     file::Delete(recovery);
 }
 
+static void JournalStorageTest() {
+    auto* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    auto* doc = pdf_create_document(ctx);
+    TempStr prefix = GetTempFilePathTemp(StrL("journal-test"));
+    pdf_obj* root = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Root));
+    pdf_enable_journal(ctx, doc);
+    pdf_set_journal_storage(ctx, doc, CStrTemp(prefix), 1);
+    for (int i = 1; i <= 4; i++) {
+        pdf_begin_operation(ctx, doc, "Gesture");
+        for (int j = 0; j < 10; j++) {
+            pdf_begin_operation(ctx, doc, "Drag");
+            pdf_dict_put_int(ctx, root, PDF_NAME(UserUnit), i * 10 + j);
+            pdf_end_operation(ctx, doc);
+        }
+        pdf_end_operation(ctx, doc);
+        utassert(pdf_journal_memory(ctx, doc) <= 1);
+    }
+    int steps = 0;
+    utassert(pdf_undoredo_state(ctx, doc, &steps) == 4 && steps == 4);
+    u64 saved = pdf_journal_position(ctx, doc);
+    for (int i = 3; i >= 0; i--) {
+        pdf_undo(ctx, doc);
+        utassert(pdf_dict_get_int(ctx, root, PDF_NAME(UserUnit)) == (i ? i * 10 + 9 : 0));
+        utassert(pdf_journal_memory(ctx, doc) <= 1);
+    }
+    for (int i = 1; i <= 4; i++) {
+        pdf_redo(ctx, doc);
+        utassert(pdf_dict_get_int(ctx, root, PDF_NAME(UserUnit)) == i * 10 + 9);
+    }
+    utassert(pdf_journal_position(ctx, doc) == saved);
+    pdf_undo(ctx, doc);
+    pdf_begin_operation(ctx, doc, "Branch");
+    pdf_dict_put_int(ctx, root, PDF_NAME(UserUnit), 100);
+    pdf_end_operation(ctx, doc);
+    utassert(pdf_journal_position(ctx, doc) != saved);
+    utassert(pdf_undoredo_state(ctx, doc, &steps) == steps);
+    pdf_drop_document(ctx, doc);
+    fz_drop_context(ctx);
+    file::Delete(prefix);
+}
+
 static void FormAuthoringTest() {
+    JournalStorageTest();
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Rotate 90 >>"};
     str::Builder pdf;

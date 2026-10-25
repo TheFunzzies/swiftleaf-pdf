@@ -4779,7 +4779,8 @@ bool EngineMupdf::FinishLoading() {
             pdf_obj* info = pdf_dict_get(ctx, trailer, PDF_NAME(Info));
             if (!pdf_is_indirect(ctx, info)) {
                 pdf_obj* dict = info ? pdf_copy_dict(ctx, info) : pdf_new_dict(ctx, pdfdoc, 4);
-                pdf_dict_put_drop(ctx, trailer, PDF_NAME(Info), pdf_add_object_drop(ctx, pdfdoc, dict));
+                pdf_obj* ref = pdf_add_object_drop(ctx, pdfdoc, dict);
+                pdf_dict_put_drop(ctx, pdf_trailer(ctx, pdfdoc), PDF_NAME(Info), ref);
             }
             pdf_enable_journal(ctx, pdfdoc);
         }
@@ -9052,6 +9053,7 @@ bool EngineMupdfSaveUpdated(EngineBase* engine, Str path, const ShowErrorCb& sho
         EngineMupdfClearRecovery(epdf);
         // undoing back to here means the file on disk matches again
         epdf->savedUndoPos = EngineMupdfUndoPos(epdf, nullptr);
+        epdf->savedUndoId = pdf_journal_position(ctx, epdf->pdfdoc);
     }
     return ok;
 }
@@ -9258,11 +9260,16 @@ PdfRecoveryJob* EngineMupdfFreezeRecovery(EngineBase* engine, Str path) {
 
 struct RecoveryOutput {
     fz_output* output = nullptr;
+    PdfRecoveryState* recovery = nullptr;
     int remaining = -1;
 };
 
 static void RecoveryOutputWrite(fz_context* ctx, void* opaque, const void* data, size_t size) {
     auto* state = (RecoveryOutput*)opaque;
+    {
+        ScopedMutex scope(&state->recovery->lock);
+        if (state->recovery->cancelled) fz_throw(ctx, FZ_ERROR_ABORT, "recovery cancelled");
+    }
     if (state->remaining >= 0 && size > (size_t)state->remaining) {
         fz_write_data(ctx, state->output, data, state->remaining);
         fz_flush_output(ctx, state->output);
@@ -9280,13 +9287,14 @@ static void RecoveryOutputSeek(fz_context* ctx, void* opaque, int64_t offset, in
     fz_seek_output(ctx, ((RecoveryOutput*)opaque)->output, offset, whence);
 }
 
-static void WriteRecoveryPdf(fz_context* ctx, pdf_document* doc, Str path, int failAfter) {
+static void WriteRecoveryPdf(fz_context* ctx, pdf_document* doc, Str path, int failAfter, PdfRecoveryState* recovery) {
     fz_output* output = nullptr;
     fz_output* wrapper = nullptr;
     fz_var(output);
     fz_var(wrapper);
     RecoveryOutput state;
     state.remaining = failAfter;
+    state.recovery = recovery;
     fz_try(ctx) {
         output = fz_new_output_with_path(ctx, CStrTemp(path), 0);
         state.output = output;
@@ -9348,7 +9356,7 @@ static bool WritePdfRecoveryImpl(PdfRecoveryJob* job, int failAfter) {
         pdf_obj* trailer = CopyFrozenObject(ctx, doc, job->trailer);
         pdf_set_trailer(ctx, doc, trailer);
         pdf_drop_obj(ctx, trailer);
-        WriteRecoveryPdf(ctx, doc, output.tempPath, failAfter);
+        WriteRecoveryPdf(ctx, doc, output.tempPath, failAfter, &job->state);
         if (!file::WriteFile(info.tempPath, job->original))
             fz_throw(ctx, FZ_ERROR_SYSTEM, "cannot write recovery path");
         {
@@ -10602,6 +10610,19 @@ TempStr EngineMupdfUndoLabel(EngineBase* engine, bool redo) {
     return label;
 }
 
+void EngineMupdfSetUndoStorage(EngineBase* engine, Str prefix, size_t budget) {
+    auto* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc) return;
+    auto* ctx = e->Ctx();
+    ScopedRecursiveMutex scope(&e->docLock);
+    fz_try(ctx) {
+        pdf_set_journal_storage(ctx, e->pdfdoc, CStrTemp(prefix), budget);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+}
+
 // A structural journal step invalidates page numbers, wrappers, outlines and boxes.
 void EngineMupdf::ResetEditCaches(Vec<Annotation*>& removedOut) {
     auto* e = this;
@@ -10647,7 +10668,6 @@ void EngineMupdf::ResetEditCaches(Vec<Annotation*>& removedOut) {
     pdf_drop_obj(ctx, e->pdfInfo);
     pdf_obj* info = PdfInfoFromTrailers(ctx, e->pdfdoc);
     e->pdfInfo = info ? PdfCopyStrDict(ctx, e->pdfdoc, info) : nullptr;
-    pdf_drop_obj(ctx, info);
     if (!e->pdfInfo) {
         e->pdfInfo = pdf_new_dict(ctx, e->pdfdoc, 4);
     }
@@ -10693,6 +10713,13 @@ bool EngineMupdfImportEdit(EngineBase* engine, Str path, const char* label, Vec<
         }
         pdf_begin_operation(ctx, e->pdfdoc, label);
         opened = true;
+        int oldSize = pdf_xref_len(ctx, e->pdfdoc);
+        Vec<int> retained;
+        pdf_obj* oldTrailer = pdf_trailer(ctx, e->pdfdoc);
+        for (int i = 0; i < pdf_dict_len(ctx, oldTrailer); i++) {
+            pdf_obj* value = pdf_dict_get_val(ctx, oldTrailer, i);
+            if (pdf_is_indirect(ctx, value)) VecAppend(retained, pdf_to_num(ctx, value));
+        }
         map = pdf_new_graft_map(ctx, e->pdfdoc);
         root = pdf_graft_mapped_object(ctx, map, pdf_dict_get(ctx, pdf_trailer(ctx, source), PDF_NAME(Root)));
         info = pdf_graft_mapped_object(ctx, map, pdf_dict_get(ctx, pdf_trailer(ctx, source), PDF_NAME(Info)));
@@ -10709,6 +10736,12 @@ bool EngineMupdfImportEdit(EngineBase* engine, Str path, const char* label, Vec<
                 pdf_dict_put(ctx, dst, pdf_dict_get_key(ctx, sources[i], j), pdf_dict_get_val(ctx, sources[i], j));
             }
         }
+        // Retire the previous imported graph into the journal so its streams can spill.
+        for (int i = 1; i < oldSize; i++) {
+            if (VecContains(retained, i) || !pdf_xref_is_incremental(ctx, e->pdfdoc, i)) continue;
+            auto* entry = pdf_get_xref_entry(ctx, e->pdfdoc, i);
+            if (entry->type == 'n' || entry->type == 'o') pdf_journal_delete_object(ctx, e->pdfdoc, i);
+        }
         pdf_end_operation(ctx, e->pdfdoc);
         opened = false;
         for (int i = len(e->structuralSteps) - 1; i >= 0; i--) {
@@ -10717,6 +10750,9 @@ bool EngineMupdfImportEdit(EngineBase* engine, Str path, const char* label, Vec<
         VecAppend(e->structuralSteps, EngineMupdfUndoPos(e, nullptr));
         e->modifiedAnnotations = true;
         e->editGeneration++;
+        StartLoadingFileBytes(e);
+        pdf_drop_resource_tables(ctx, e->pdfdoc);
+        e->pdfdoc->resources = {};
         e->ResetEditCaches(removedOut);
         ok = true;
     }
@@ -11824,7 +11860,10 @@ void EngineMupdfRefreshModifiedState(EngineBase* engine) {
     if (pos < 0) {
         return;
     }
-    e->modifiedAnnotations = (pos != e->savedUndoPos);
+    {
+        ScopedRecursiveMutex scope(&e->docLock);
+        e->modifiedAnnotations = pdf_journal_position(e->Ctx(), e->pdfdoc) != e->savedUndoId;
+    }
     e->editGeneration++;
 }
 

@@ -822,6 +822,11 @@ static void UpdateUndoButton(MainWindow* win, VirtCtrl* button) {
     Str action = redo ? Tr("Redo") : Tr("Undo");
     TempStr text = len(label) ? fmt("%s %s", action, label) : TempStr(action);
     button->SetTooltip(ToolbarTipTemp(button->id, text, false));
+    if (auto* ribbon = AsRibbonButton(button); ribbon && !str::Eq(ribbon->label, text)) {
+        ribbon->SetLabel(text);
+        ribbon->RequestLayout();
+        ribbon->Invalidate();
+    }
 }
 
 static void UpdateRibbonItemsState(MainWindow* win, AppCommandCtx* ctx, bool annotButtonsEnabled) {
@@ -866,6 +871,8 @@ static void UpdateRibbonItemsState(MainWindow* win, AppCommandCtx* ctx, bool ann
 // TODO: this is called too often
 // TODO: also set checked state instead of calling SetToolbarButtonCheckedState() all over
 void ToolbarUpdateStateForWindow(MainWindow* win, bool setButtonsVisibility) {
+    auto* currentTab = win->CurrentTab();
+    UpdatePdfUndoStorage(currentTab ? currentTab->GetEngine() : nullptr);
     int n = TotalButtonsCount();
     bool visibilityChanged = false;
     // One command ctx for the whole pass. Building it per button used to call

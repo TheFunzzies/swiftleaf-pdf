@@ -5,6 +5,10 @@
 LIBRARY libsumatrapdf
 
 EXPORTS
+    pdf_journal_delete_object
+    pdf_set_journal_storage
+    pdf_journal_memory
+    pdf_journal_position
     fz_new_output_with_path
     fz_seek_output
     fz_tell_output

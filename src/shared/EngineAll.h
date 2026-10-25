@@ -121,6 +121,7 @@ void EngineMupdfEndOperation(EngineBase*);
 bool EngineMupdfCanUndo(EngineBase*);
 bool EngineMupdfCanRedo(EngineBase*);
 TempStr EngineMupdfUndoLabel(EngineBase*, bool redo);
+void EngineMupdfSetUndoStorage(EngineBase*, Str prefix, size_t budget);
 bool EngineMupdfImportEdit(EngineBase*, Str path, const char* label, Vec<Annotation*>& removedOut);
 bool EngineMupdfUndo(EngineBase*, Vec<Annotation*>& removedOut);
 bool EngineMupdfRedo(EngineBase*, Vec<Annotation*>& removedOut);

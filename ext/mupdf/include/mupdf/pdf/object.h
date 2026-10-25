@@ -388,6 +388,11 @@ enum {
 */
 void pdf_set_str_len(fz_context *ctx, pdf_obj *obj, size_t newlen);
 
+void pdf_set_journal_storage(fz_context *ctx, pdf_document *doc, const char *prefix, size_t budget);
+size_t pdf_journal_memory(fz_context *ctx, pdf_document *doc);
+uint64_t pdf_journal_position(fz_context *ctx, pdf_document *doc);
+void pdf_journal_delete_object(fz_context *ctx, pdf_document *doc, int num);
+
 
 /* Journalling */
 
