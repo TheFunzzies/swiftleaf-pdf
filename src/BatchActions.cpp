@@ -3,9 +3,14 @@
 #include "base/Base.h"
 #include "base/File.h"
 #include "base/JsonParser.h"
+#include "base/GuessFileType.h"
+#include "gui/UIModels.h"
+#include "shared/AppTools.h"
 #include "shared/PdfTools.h"
 #include "PageTools2.h"
 #include "ExportFormats.h"
+#include "EngineBase.h"
+#include "EngineAll.h"
 #include "BatchActions.h"
 
 struct BatchAction {
@@ -40,25 +45,47 @@ static void ReadActionValue(BatchDefinition* batch, json::Value* v) {
     BatchAction& action = batch->actions[idx];
     Str key = json::PathSegKey(a->next->next);
     Str value = str::Dup(GetPermArena(), v->value);
-    if (str::Eq(key, StrL("/type")))
+    if (str::Eq(key, StrL("type")))
         action.type = value;
-    else if (str::Eq(key, StrL("/text")))
+    else if (str::Eq(key, StrL("text")))
         action.text = value;
-    else if (str::Eq(key, StrL("/pages")))
+    else if (str::Eq(key, StrL("pages")))
         action.pages = value;
-    else if (str::Eq(key, StrL("/title")))
+    else if (str::Eq(key, StrL("title")))
         action.title = value;
-    else if (str::Eq(key, StrL("/author")))
+    else if (str::Eq(key, StrL("author")))
         action.author = value;
-    else if (str::Eq(key, StrL("/subject")))
+    else if (str::Eq(key, StrL("subject")))
         action.subject = value;
-    else if (str::Eq(key, StrL("/keywords")))
+    else if (str::Eq(key, StrL("keywords")))
         action.keywords = value;
-    else if (str::Eq(key, StrL("/value")))
+    else if (str::Eq(key, StrL("value")))
         action.value = (float)atof(CStrTemp(value));
 }
 
-static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action) {
+static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action, PdfOptimizationAudit* audit) {
+    if (str::Eq(action.type, StrL("optimize")) || str::Eq(action.type, StrL("optimizer"))) {
+        PdfOptimizerPreset preset = PdfOptimizerPreset::Web;
+        if (str::Eq(action.text, StrL("print")))
+            preset = PdfOptimizerPreset::Print;
+        else if (str::Eq(action.text, StrL("archive")))
+            preset = PdfOptimizerPreset::Archive;
+        else if (str::Eq(action.text, StrL("min-size")))
+            preset = PdfOptimizerPreset::MinSize;
+        return PdfOptimizeFile(src, dst, preset, audit);
+    }
+    if (str::Eq(action.type, StrL("encrypt"))) return PdfEncryptFile(src, dst, action.text);
+    if (str::Eq(action.type, StrL("sanitize"))) {
+        PdfSanitizeOptions options{};
+        Str error;
+        return EngineMupdfSanitizePdf(PdfMergeSource{src, {}}, dst, options, &error);
+    }
+    if (str::Eq(action.type, StrL("redact-matches"))) {
+        Str error;
+        int count = 0;
+        return len(action.text) > 0 &&
+               EngineMupdfRedactMatches(PdfMergeSource{src, {}}, dst, action.text, PdfSearchMode::Text, &count, &error);
+    }
     if (str::Eq(action.type, StrL("watermark"))) {
         PdfWatermarkParams p{};
         p.text = action.text;
@@ -82,6 +109,10 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action) {
         p.pagesSpec = action.pages;
         p.marginLeft = p.marginBottom = p.marginRight = p.marginTop = action.value;
         return PdfApplyPageBoxes(src, dst, p);
+    }
+    if (str::Eq(action.type, StrL("rotate"))) {
+        int degrees = action.value == 0 ? 90 : (int)action.value;
+        return PdfRotatePages(src, dst, action.pages, degrees);
     }
     if (str::Eq(action.type, StrL("flatten-layers"))) return PdfFlattenLayers(src, dst);
     if (str::Eq(action.type, StrL("properties"))) {
@@ -123,6 +154,7 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
         Str current = files[i];
         bool ok = true;
         Str error;
+        PdfOptimizationAudit audit{};
         for (int j = 0; j < len(batch.actions); j++) {
             const BatchAction& action = batch.actions[j];
             bool last = j == len(batch.actions) - 1;
@@ -133,7 +165,7 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
                 TempStr suffix = fmt("%s_%d_%d", batch.suffix, i + 1, j + 1);
                 dest = BatchOutputPath(files[i], suffix, batch.outputFolder);
             }
-            ok = ApplyBatchAction(current, dest, action);
+            ok = ApplyBatchAction(current, dest, action, &audit);
             if (!ok) {
                 error = action.type;
                 break;
@@ -154,6 +186,9 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
             out.Append(StrL(",\"output\":\""));
             out.Append(json::EscapeStrTemp(current));
             out.AppendChar('"');
+            if (audit.beforeBytes > 0) {
+                out.Append(fmt(",\"sizeBefore\":%lld,\"sizeAfter\":%lld", audit.beforeBytes, audit.afterBytes));
+            }
         } else {
             out.Append(StrL(",\"error\":\"action failed: "));
             out.Append(json::EscapeStrTemp(error));
@@ -167,4 +202,37 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
         return str::ReplaceTemp(json, StrL("\"ok\":true"), StrL("\"ok\":false"));
     }
     return ToStrTemp(out);
+}
+
+static bool IsPresetName(Str name) {
+    if (len(name) == 0 || len(name) > 80) return false;
+    for (int i = 0; i < len(name); i++) {
+        char c = name.s[i];
+        if (!str::IsAlNum(c) && c != '-' && c != '_' && c != ' ') return false;
+    }
+    return true;
+}
+
+static TempStr PresetPath(Str name) {
+    if (!IsPresetName(name)) return {};
+    TempStr dir = path::JoinTemp(GetAppDataDirTemp(), StrL("BatchActions"));
+    if (!dir::CreateAll(dir)) return {};
+    TempStr fileName = fmt("%s.json", str::ReplaceTemp(name, StrL(" "), StrL("_")));
+    return path::JoinTemp(dir, fileName);
+}
+
+bool SaveBatchPreset(Str name, Str definition) {
+    TempStr path = PresetPath(name);
+    if (len(path) == 0) return false;
+    file::AtomicFile output(path);
+    return len(output.tempPath) > 0 && file::WriteFile(output.tempPath, definition) && output.Commit();
+}
+
+TempStr LoadBatchPreset(Str name) {
+    TempStr path = PresetPath(name);
+    if (len(path) == 0) return {};
+    Str data = file::ReadFile(path);
+    TempStr result = str::DupTemp(data);
+    str::Free(data);
+    return result;
 }

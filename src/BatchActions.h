@@ -6,5 +6,7 @@
 // Runs a saved batch definition against PDF paths and returns one JSON record
 // per input. The caller may run this on a worker thread.
 TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files);
+bool SaveBatchPreset(Str name, Str definition);
+TempStr LoadBatchPreset(Str name);
 
 #endif

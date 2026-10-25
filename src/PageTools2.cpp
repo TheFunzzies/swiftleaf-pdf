@@ -398,6 +398,45 @@ bool PdfApplyPageBoxes(Str srcPath, Str destPath, const PdfPageBoxesParams& para
     return ok;
 }
 
+bool PdfRotatePages(Str srcPath, Str destPath, Str pagesSpec, int degrees) {
+    if (len(srcPath) == 0 || len(destPath) == 0 || degrees % 90 != 0) return false;
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) return false;
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return false;
+    fz_register_document_handlers(ctx);
+    pdf_document* doc = nullptr;
+    bool ok = false;
+    fz_var(doc);
+    fz_var(ok);
+    fz_try(ctx) {
+        doc = pdf_open_document(ctx, CStrTemp(srcPath));
+        if (pdf_needs_password(ctx, doc)) fz_throw(ctx, FZ_ERROR_GENERIC, "encrypted PDF not supported");
+        int pageCount = pdf_count_pages(ctx, doc);
+        Vec<int> pages;
+        if (!ResolvePageRange(pagesSpec, pageCount, pages)) fz_throw(ctx, FZ_ERROR_GENERIC, "invalid page range");
+        int normalized = ((degrees % 360) + 360) % 360;
+        for (int pageNo : pages) {
+            pdf_obj* page = pdf_lookup_page_obj(ctx, doc, pageNo - 1);
+            int rotation = pdf_to_int(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Rotate)));
+            pdf_dict_put_int(ctx, page, PDF_NAME(Rotate), ((rotation + normalized) % 360 + 360) % 360);
+        }
+        pdf_write_options opts = gPdfDefaultWriteOptions;
+        pdf_save_document(ctx, doc, CStrTemp(output.tempPath), &opts);
+        pdf_drop_document(ctx, doc);
+        doc = nullptr;
+        ok = output.Commit();
+    }
+    fz_always(ctx) {
+        if (doc) pdf_drop_document(ctx, doc);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    fz_drop_context(ctx);
+    return ok;
+}
+
 struct CropPagesDialog : PageToolDialog {
     Edit* pagesEdit = nullptr;
     Edit* leftEdit = nullptr;

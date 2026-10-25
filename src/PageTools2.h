@@ -18,6 +18,7 @@ struct PdfPageBoxesParams {
 };
 void ShowCropPagesDialog(MainWindow* win);
 bool PdfApplyPageBoxes(Str srcPath, Str destPath, const PdfPageBoxesParams& params);
+bool PdfRotatePages(Str srcPath, Str destPath, Str pagesSpec, int degrees);
 
 // (2) N-up / Grid, Booklet, Posterize, Divide, Combine Long Page
 struct PdfNUpParams {

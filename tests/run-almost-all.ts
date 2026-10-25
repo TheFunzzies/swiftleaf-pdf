@@ -380,6 +380,7 @@ import { testit as sessionRestoreTabState } from "./session-restore-tab-state.ts
 import { testit as issue6239 } from "./issue-6239.ts";
 import { testit as toolPoster } from "./tool-poster.ts";
 import { testit as toolMerge } from "./tool-merge.ts";
+import { testit as batchCompare } from "./batch-compare.ts";
 import { testit as mergeStructParents } from "./merge-struct-parents.ts";
 import { testit as reuseInstanceFullscreen } from "./reuse-instance-fullscreen.ts";
 import { testit as attachmentOpenExternal } from "./attachment-open-external.ts";
@@ -759,6 +760,7 @@ export const tests: NamedTest[] = [
   ["issue-6239", issue6239],
   ["tool-poster", toolPoster],
   ["tool-merge", toolMerge],
+  ["batch-compare-cli", batchCompare],
   ["merge-struct-parents", mergeStructParents],
   ["reuse-instance-fullscreen", reuseInstanceFullscreen],
   ["attachment-open-external", attachmentOpenExternal],

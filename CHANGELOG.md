@@ -1,4 +1,10 @@
-# Changelo- Review & Measurement tools (TASK W-REVIEW):
+# Changelog
+
+## Unreleased
+
+### Added
+
+- Review and measurement tools:
   - Comments import and export in XFDF (ISO 19444-1) and FDF formats.
   - Comment summary generation to PDF, text outline, and CSV tabular formats.
   - Flatten comments baking annotations directly into page content streams.
@@ -9,12 +15,6 @@
   - Measurement persistence in PDF /Measure dictionary and CSV export.
   - Callout, Arrow, Text Box, Replace Text, Polygon, Polyline, Squiggly, and Caret annotation tools registered in Ribbon, Edit tab, All tools, and context menus.
   - Documentation in docs/review-tools.md and roundtrip unit tests in src/tests/Sumatra_ut.cpp.
-g
-
-## Unreleased
-
-### Added
-
 - Export PDF pages to DOCX, PPTX, XLSX, HTML, RTF, Markdown, spaced text, JSON and per-page SVG ZIP with page ranges and a limitations note.
 - Create or combine PDFs from Office files, text, RTF, HTML, Markdown, images and clipboard images. Office uses Microsoft Office automation or LibreOffice when available.
 - Advanced AcroForm tools: field detection with candidate preview, list boxes,
@@ -37,6 +37,8 @@ g
   - Registered all tools under Ribbon tabs (Organize, Edit, Protect), All tools panel, and Command palette.
   - Unit tests in `Sumatra_ut.cpp` verifying page transformations, text extraction, properties, attachments, bookmarks, labels, and recovery.
   - Documentation in `docs/page-tools.md`.
+  - Ordered JSON batch actions, optimizer size audits, and headless compare
+    reports. See `docs/batch-compare.md` and `docs/cli.md`.
 
 ## 0.5.0 - 2026-10-24
 

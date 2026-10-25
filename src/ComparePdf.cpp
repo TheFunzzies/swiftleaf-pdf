@@ -62,7 +62,64 @@ static int CountWords(Str s) {
     return count;
 }
 
-static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int pageNo, double* ratioOut) {
+static void SplitWords(Str s, Vec<Str>& words) {
+    int start = 0;
+    while (start < len(s)) {
+        while (start < len(s) && str::IsWs(s.s[start])) start++;
+        int end = start;
+        while (end < len(s) && !str::IsWs(s.s[end])) end++;
+        if (end > start) VecAppend(words, Str(s.s + start, end - start));
+        start = end;
+    }
+}
+
+static void AppendWords(str::Builder& html, const Vec<Str>& words, int first, int last) {
+    for (int i = first; i < last; i++) {
+        if (i > first) html.AppendChar(' ');
+        AppendHtml(html, words[i]);
+    }
+}
+
+static void AppendWordDiff(str::Builder& html, Str left, Str right) {
+    Vec<Str> a, b;
+    SplitWords(left, a);
+    SplitWords(right, b);
+    int prefix = 0;
+    while (prefix < len(a) && prefix < len(b) && str::Eq(a[prefix], b[prefix])) prefix++;
+    int suffix = 0;
+    while (suffix < len(a) - prefix && suffix < len(b) - prefix &&
+           str::Eq(a[len(a) - suffix - 1], b[len(b) - suffix - 1]))
+        suffix++;
+    AppendWords(html, a, 0, prefix);
+    if (prefix) html.AppendChar(' ');
+    if (prefix < len(a) - suffix) {
+        html.Append(StrL("<del>"));
+        AppendWords(html, a, prefix, len(a) - suffix);
+        html.Append(StrL("</del> "));
+    }
+    if (prefix < len(b) - suffix) {
+        html.Append(StrL("<ins>"));
+        AppendWords(html, b, prefix, len(b) - suffix);
+        html.Append(StrL("</ins> "));
+    }
+    AppendWords(html, a, len(a) - suffix, len(a));
+}
+
+static int CountWordChanges(Str left, Str right) {
+    Vec<Str> a, b;
+    SplitWords(left, a);
+    SplitWords(right, b);
+    int prefix = 0;
+    while (prefix < len(a) && prefix < len(b) && str::Eq(a[prefix], b[prefix])) prefix++;
+    int suffix = 0;
+    while (suffix < len(a) - prefix && suffix < len(b) - prefix &&
+           str::Eq(a[len(a) - suffix - 1], b[len(b) - suffix - 1]))
+        suffix++;
+    return len(a) + len(b) - 2 * (prefix + suffix);
+}
+
+static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int pageNo, double* ratioOut,
+                        str::Builder& svg) {
     fz_page* pa = nullptr;
     fz_page* pb = nullptr;
     fz_pixmap* xa = nullptr;
@@ -77,6 +134,10 @@ static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int pag
         int w = std::max(aw, bw), h = std::max(ah, bh), changed = 0;
         const unsigned char* as = fz_pixmap_samples(ctx, xa);
         const unsigned char* bs = fz_pixmap_samples(ctx, xb);
+        svg.Append(
+            fmt("<svg role=\"img\" aria-label=\"Pixel difference on page %d\" viewBox=\"0 0 %d %d\" width=\"320\" "
+                "style=\"background:#fff;border:1px solid #aaa\">",
+                pageNo + 1, w, h));
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 bool different = x >= aw || y >= ah || x >= bw || y >= bh;
@@ -87,8 +148,11 @@ static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int pag
                                 abs((int)as[ao + 2] - (int)bs[bo + 2]) > 24;
                 }
                 changed += different;
+                if (different)
+                    svg.Append(fmt("<rect x=\"%d\" y=\"%d\" width=\"1\" height=\"1\" fill=\"#e11d48\"/>", x, y));
             }
         }
+        svg.Append(StrL("</svg>"));
         int total = std::max(1, w * h);
         *ratioOut = (double)changed / total;
         ok = true;
@@ -142,20 +206,19 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
         TempStr a = PageText(ctx, left, i);
         TempStr b = PageText(ctx, right, i);
         int aw = CountWords(a), bw = CountWords(b);
-        int wc = abs(aw - bw);
-        if (wc == 0 && !str::Eq(a, b)) wc = 1;
-        wordChanges += wc;
+        wordChanges += CountWordChanges(a, b);
         double pixelRatio = 0;
-        PixelChange(ctx, left, right, i, &pixelRatio);
+        str::Builder svg;
+        PixelChange(ctx, left, right, i, &pixelRatio, svg);
         pixelChanges += pixelRatio;
         html.Append(
             fmt("<section class=\"page\" id=\"page-%d\"><h2>Page %d</h2><p>%d vs %d words; %.2f%% changed "
-                "pixels</p><h3>Text (left)</h3><pre>",
+                "pixels</p><h3>Pixel difference heatmap</h3>",
                 i + 1, i + 1, aw, bw, pixelRatio * 100.0));
-        AppendHtml(html, a);
-        html.Append(StrL("</pre><h3>Text (right)</h3><pre>"));
-        AppendHtml(html, b);
-        html.Append(StrL("</pre></section>"));
+        html.Append(ToStrTemp(svg));
+        html.Append(StrL("<h3>Word changes</h3><p>"));
+        AppendWordDiff(html, a, b);
+        html.Append(StrL("</p></section>"));
     }
     if (leftPages != rightPages) wordChanges += abs(leftPages - rightPages);
     html.Append(StrL("<h2>Summary</h2><ul>"));

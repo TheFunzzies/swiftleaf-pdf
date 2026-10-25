@@ -535,6 +535,18 @@ bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOp
     return true;
 }
 
+bool PdfEncryptFile(Str srcPath, Str destPath, Str password) {
+    if (len(password) == 0) return false;
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) return false;
+    char* pwd = CStrTemp(password);
+    char* argv[] = {
+        (char*)"clean",           (char*)"-E", (char*)"aes-256", (char*)"-U", pwd, (char*)"-O", pwd, CStrTemp(srcPath),
+        CStrTemp(output.tempPath)};
+    fz_set_optind(0);
+    return pdfclean_main(dimof(argv), argv) == 0 && output.Commit();
+}
+
 struct PdfCompressDialog : PdfToolDialog {
     CompressLevel level = CompressLevel::Medium;
     VirtButton* levelBtns[kCompressLevelCount]{};

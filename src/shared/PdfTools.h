@@ -19,6 +19,7 @@ struct PdfOptimizationAudit {
     i64 afterBytes = 0;
 };
 bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOptimizationAudit* auditOut = nullptr);
+bool PdfEncryptFile(Str srcPath, Str destPath, Str password);
 void ShowPdfDecompressDialog(MainWindow* win);
 void ShowPdfDeletePageDialog(MainWindow* win);
 void ShowPdfExtractPagesDialog(MainWindow* win);
