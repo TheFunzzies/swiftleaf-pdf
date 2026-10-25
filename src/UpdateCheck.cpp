@@ -695,7 +695,8 @@ static void DownloadUpdateFinish(DownloadUpdateAsyncData* data) {
     RemoveNotificationsForGroup(hwndForNotif, kNotifUpdateCheckInProgress);
     if (updateInfo->checksumFailed) {
         MessageBoxWarning(hwndForNotif,
-                          StrL("The downloaded update could not be verified against its published SHA-256 checksum and was not installed."),
+                          StrL("The downloaded update could not be verified against its published SHA-256 checksum and "
+                               "was not installed."),
                           Tr("Swiftleaf Update"));
         delete updateInfo;
         gUpdateCheckInProgress = false;

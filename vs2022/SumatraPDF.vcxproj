@@ -1537,6 +1537,8 @@
     <ClInclude Include="..\src\shared\PdfTools.h" />
     <ClInclude Include="..\src\ExportFormats.h" />
     <ClInclude Include="..\src\PageTools2.h" />
+    <ClInclude Include="..\src\BatchActions.h" />
+    <ClInclude Include="..\src\ComparePdf.h" />
     <ClInclude Include="..\src\Accessibility.h" />
     <ClInclude Include="..\src\Preflight.h" />
     <ClInclude Include="..\src\shared\PngOptimizer.h" />
@@ -1683,6 +1685,8 @@
     <ClCompile Include="..\src\PageThumbnails.cpp" />
     <ClCompile Include="..\src\PanelLayout.cpp" />
     <ClCompile Include="..\src\PdfTools.cpp" />
+    <ClCompile Include="..\src\BatchActions.cpp" />
+    <ClCompile Include="..\src\ComparePdf.cpp" />
     <ClCompile Include="..\src\ExportFormats.cpp" />
     <ClCompile Include="..\src\PageTools2.cpp" />
     <ClCompile Include="..\src\Accessibility.cpp" />

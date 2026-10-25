@@ -83,6 +83,8 @@ static const ToolDef tools[] = {
     {gLucideScanText, TrN("Acquire from scanner"), CmdScanAcquire},
     {gLucideScanText, TrN("Import camera image"), CmdImportCameraImage},
     {gLucideScanText, TrN("Batch OCR"), CmdBatchOcr},
+    {gLucideFileOutput, TrN("Action wizard"), CmdBatchActions},
+    {gLucideCombine, TrN("Compare documents"), CmdComparePdf},
     {gLucideBadgeCheck, TrN("Digital signatures"), CmdSignaturePanel},
     {gLucideBadgeCheck, TrN("Certify document"), CmdCertifyDocument},
 };

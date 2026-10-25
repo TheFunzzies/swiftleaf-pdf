@@ -429,8 +429,10 @@ enum {
     CmdSignaturePanel = 623,
     CmdCertifyDocument = 624,
     CmdClearSignature = 625,
+    CmdBatchActions = 626,
+    CmdComparePdf = 627,
 
-    CmdLast = 625,
+    CmdLast = 627,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

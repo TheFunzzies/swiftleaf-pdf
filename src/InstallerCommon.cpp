@@ -1082,8 +1082,8 @@ bool DrawMaterialButton(DRAWITEMSTRUCT* dis, bool filled) {
         Gdiplus::GraphicsPath path;
         AddRoundRect(path, pill, pill.Height / 2.f);
         if (filled) {
-            Gdiplus::Color fill = disabled ? Gdiplus::Color(31, 0x17, 0x1d, 0x1b)
-                                           : GdipColor(pressed ? kM3PrimaryPressed : kM3Primary);
+            Gdiplus::Color fill =
+                disabled ? Gdiplus::Color(31, 0x17, 0x1d, 0x1b) : GdipColor(pressed ? kM3PrimaryPressed : kM3Primary);
             SolidBrush b(fill);
             g.FillPath(&b, &path);
         } else {

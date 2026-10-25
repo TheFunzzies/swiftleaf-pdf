@@ -164,7 +164,8 @@ bool SnapToPageContent(EngineBase* engine, int pageNo, PointF pt, PointF& outSna
     return false;
 }
 
-bool AttachMeasureDictToAnnotation(EngineBase* engine, Annotation* annot, const MeasureScale& scale, const char* measureType) {
+bool AttachMeasureDictToAnnotation(EngineBase* engine, Annotation* annot, const MeasureScale& scale,
+                                   const char* measureType) {
     if (!annot || !annot->pdfannot) return false;
     EngineMupdf* e = AsEngineMupdf(engine);
     if (!e || !e->pdfdoc) return false;
@@ -207,7 +208,8 @@ bool AttachMeasureDictToAnnotation(EngineBase* engine, Annotation* annot, const 
     return true;
 }
 
-Annotation* CreateMeasureAnnotation(EngineBase* engine, int pageNo, int cmdId, const Vec<PointF>& pts, const MeasureScale& scale) {
+Annotation* CreateMeasureAnnotation(EngineBase* engine, int pageNo, int cmdId, const Vec<PointF>& pts,
+                                    const MeasureScale& scale) {
     EngineMupdf* e = AsEngineMupdf(engine);
     if (!e || !e->pdfdoc) return nullptr;
 
@@ -299,12 +301,30 @@ bool ExportMeasurementsToCsv(EngineBase* engine, const char* filePath, Str& errO
         }
 
         b.Append(fmt("%d,\"%s\",\"", page, typeName));
-        for (int i = 0; i < contents.len; i++) { char c = contents.s[i]; if (c == '"') b.Append(StrL("\"\"")); else b.AppendChar(c); }
+        for (int i = 0; i < contents.len; i++) {
+            char c = contents.s[i];
+            if (c == '"')
+                b.Append(StrL("\"\""));
+            else
+                b.AppendChar(c);
+        }
         b.Append(fmt("\",\"%s\",\"", unitName.len > 0 ? unitName : StrL("in")));
-        for (int i = 0; i < scaleLabel.len; i++) { char c = scaleLabel.s[i]; if (c == '"') b.Append(StrL("\"\"")); else b.AppendChar(c); }
+        for (int i = 0; i < scaleLabel.len; i++) {
+            char c = scaleLabel.s[i];
+            if (c == '"')
+                b.Append(StrL("\"\""));
+            else
+                b.AppendChar(c);
+        }
         b.Append(fmt("\",\"%s\",\"", author.len > 0 ? author : StrL("")));
         b.Append(fmt("%s\",\"", Str(dateBuf)));
-        for (int i = 0; i < contents.len; i++) { char c = contents.s[i]; if (c == '"') b.Append(StrL("\"\"")); else b.AppendChar(c); }
+        for (int i = 0; i < contents.len; i++) {
+            char c = contents.s[i];
+            if (c == '"')
+                b.Append(StrL("\"\""));
+            else
+                b.AppendChar(c);
+        }
         b.Append(StrL("\"\n"));
     }
 

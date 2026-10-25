@@ -42,12 +42,24 @@ static void XmlEscape(str::Builder& b, Str text) {
     for (int i = 0; i < text.len; i++) {
         char c = text.s[i];
         switch (c) {
-            case '&': b.Append(StrL("&amp;")); break;
-            case '<': b.Append(StrL("&lt;")); break;
-            case '>': b.Append(StrL("&gt;")); break;
-            case '"': b.Append(StrL("&quot;")); break;
-            case '\'': b.Append(StrL("&apos;")); break;
-            default: b.AppendChar(c); break;
+            case '&':
+                b.Append(StrL("&amp;"));
+                break;
+            case '<':
+                b.Append(StrL("&lt;"));
+                break;
+            case '>':
+                b.Append(StrL("&gt;"));
+                break;
+            case '"':
+                b.Append(StrL("&quot;"));
+                break;
+            case '\'':
+                b.Append(StrL("&apos;"));
+                break;
+            default:
+                b.AppendChar(c);
+                break;
         }
     }
 }
@@ -200,26 +212,60 @@ bool ExportAnnotationsToXfdf(EngineBase* engine, const char* filePath, Str& errO
         RectF r = a->bounds;
         Str typeName = {};
         switch (a->type) {
-            case AnnotationType::Text: typeName = StrL("text"); break;
-            case AnnotationType::FreeText: typeName = StrL("freetext"); break;
-            case AnnotationType::Line: typeName = StrL("line"); break;
-            case AnnotationType::Square: typeName = StrL("square"); break;
-            case AnnotationType::Circle: typeName = StrL("circle"); break;
-            case AnnotationType::Polygon: typeName = StrL("polygon"); break;
-            case AnnotationType::PolyLine: typeName = StrL("polyline"); break;
-            case AnnotationType::Highlight: typeName = StrL("highlight"); break;
-            case AnnotationType::Underline: typeName = StrL("underline"); break;
-            case AnnotationType::Squiggly: typeName = StrL("squiggly"); break;
-            case AnnotationType::StrikeOut: typeName = StrL("strikeout"); break;
-            case AnnotationType::Stamp: typeName = StrL("stamp"); break;
-            case AnnotationType::Caret: typeName = StrL("caret"); break;
-            case AnnotationType::Ink: typeName = StrL("ink"); break;
-            case AnnotationType::FileAttachment: typeName = StrL("fileattachment"); break;
-            case AnnotationType::Redact: typeName = StrL("redact"); break;
-            default: continue;
+            case AnnotationType::Text:
+                typeName = StrL("text");
+                break;
+            case AnnotationType::FreeText:
+                typeName = StrL("freetext");
+                break;
+            case AnnotationType::Line:
+                typeName = StrL("line");
+                break;
+            case AnnotationType::Square:
+                typeName = StrL("square");
+                break;
+            case AnnotationType::Circle:
+                typeName = StrL("circle");
+                break;
+            case AnnotationType::Polygon:
+                typeName = StrL("polygon");
+                break;
+            case AnnotationType::PolyLine:
+                typeName = StrL("polyline");
+                break;
+            case AnnotationType::Highlight:
+                typeName = StrL("highlight");
+                break;
+            case AnnotationType::Underline:
+                typeName = StrL("underline");
+                break;
+            case AnnotationType::Squiggly:
+                typeName = StrL("squiggly");
+                break;
+            case AnnotationType::StrikeOut:
+                typeName = StrL("strikeout");
+                break;
+            case AnnotationType::Stamp:
+                typeName = StrL("stamp");
+                break;
+            case AnnotationType::Caret:
+                typeName = StrL("caret");
+                break;
+            case AnnotationType::Ink:
+                typeName = StrL("ink");
+                break;
+            case AnnotationType::FileAttachment:
+                typeName = StrL("fileattachment");
+                break;
+            case AnnotationType::Redact:
+                typeName = StrL("redact");
+                break;
+            default:
+                continue;
         }
 
-        b.Append(fmt("  <%s page=\"%d\" rect=\"%.2f,%.2f,%.2f,%.2f\"", typeName, page0, r.x, r.y, r.x + r.dx, r.y + r.dy));
+        b.Append(
+            fmt("  <%s page=\"%d\" rect=\"%.2f,%.2f,%.2f,%.2f\"", typeName, page0, r.x, r.y, r.x + r.dx, r.y + r.dy));
 
         Str author = Author(a);
         if (author.len > 0) {
@@ -365,22 +411,38 @@ bool ImportAnnotationsFromXfdf(EngineBase* engine, const char* filePath, Str& er
         char* tag = fz_xml_tag(node);
         if (tag) {
             AnnotationType atype = AnnotationType::Unknown;
-            if (str::EqI(Str(tag), StrL("text"))) atype = AnnotationType::Text;
-            else if (str::EqI(Str(tag), StrL("freetext"))) atype = AnnotationType::FreeText;
-            else if (str::EqI(Str(tag), StrL("line"))) atype = AnnotationType::Line;
-            else if (str::EqI(Str(tag), StrL("square"))) atype = AnnotationType::Square;
-            else if (str::EqI(Str(tag), StrL("circle"))) atype = AnnotationType::Circle;
-            else if (str::EqI(Str(tag), StrL("polygon"))) atype = AnnotationType::Polygon;
-            else if (str::EqI(Str(tag), StrL("polyline"))) atype = AnnotationType::PolyLine;
-            else if (str::EqI(Str(tag), StrL("highlight"))) atype = AnnotationType::Highlight;
-            else if (str::EqI(Str(tag), StrL("underline"))) atype = AnnotationType::Underline;
-            else if (str::EqI(Str(tag), StrL("squiggly"))) atype = AnnotationType::Squiggly;
-            else if (str::EqI(Str(tag), StrL("strikeout"))) atype = AnnotationType::StrikeOut;
-            else if (str::EqI(Str(tag), StrL("stamp"))) atype = AnnotationType::Stamp;
-            else if (str::EqI(Str(tag), StrL("caret"))) atype = AnnotationType::Caret;
-            else if (str::EqI(Str(tag), StrL("ink"))) atype = AnnotationType::Ink;
-            else if (str::EqI(Str(tag), StrL("fileattachment"))) atype = AnnotationType::FileAttachment;
-            else if (str::EqI(Str(tag), StrL("redact"))) atype = AnnotationType::Redact;
+            if (str::EqI(Str(tag), StrL("text")))
+                atype = AnnotationType::Text;
+            else if (str::EqI(Str(tag), StrL("freetext")))
+                atype = AnnotationType::FreeText;
+            else if (str::EqI(Str(tag), StrL("line")))
+                atype = AnnotationType::Line;
+            else if (str::EqI(Str(tag), StrL("square")))
+                atype = AnnotationType::Square;
+            else if (str::EqI(Str(tag), StrL("circle")))
+                atype = AnnotationType::Circle;
+            else if (str::EqI(Str(tag), StrL("polygon")))
+                atype = AnnotationType::Polygon;
+            else if (str::EqI(Str(tag), StrL("polyline")))
+                atype = AnnotationType::PolyLine;
+            else if (str::EqI(Str(tag), StrL("highlight")))
+                atype = AnnotationType::Highlight;
+            else if (str::EqI(Str(tag), StrL("underline")))
+                atype = AnnotationType::Underline;
+            else if (str::EqI(Str(tag), StrL("squiggly")))
+                atype = AnnotationType::Squiggly;
+            else if (str::EqI(Str(tag), StrL("strikeout")))
+                atype = AnnotationType::StrikeOut;
+            else if (str::EqI(Str(tag), StrL("stamp")))
+                atype = AnnotationType::Stamp;
+            else if (str::EqI(Str(tag), StrL("caret")))
+                atype = AnnotationType::Caret;
+            else if (str::EqI(Str(tag), StrL("ink")))
+                atype = AnnotationType::Ink;
+            else if (str::EqI(Str(tag), StrL("fileattachment")))
+                atype = AnnotationType::FileAttachment;
+            else if (str::EqI(Str(tag), StrL("redact")))
+                atype = AnnotationType::Redact;
 
             if (atype != AnnotationType::Unknown) {
                 const char* pageAtt = fz_xml_att(node, "page");
@@ -402,7 +464,9 @@ bool ImportAnnotationsFromXfdf(EngineBase* engine, const char* filePath, Str& er
                             u8 cr = (c >> 16) & 0xFF;
                             u8 cg = (c >> 8) & 0xFF;
                             u8 cb = c & 0xFF;
-                            args.col.parsedOk = true; args.col.col = MkRgb(cr, cg, cb); args.col.pdfCol = MkPdfColor(cr, cg, cb);
+                            args.col.parsedOk = true;
+                            args.col.col = MkRgb(cr, cg, cb);
+                            args.col.pdfCol = MkPdfColor(cr, cg, cb);
                         }
                     }
                     fz_xml* contentsNode = fz_xml_find_down(node, "contents");
@@ -487,23 +551,56 @@ bool ExportAnnotationsToFdf(EngineBase* engine, const char* filePath, Str& errOu
         RectF r = a->bounds;
         Str subtype = {};
         switch (a->type) {
-            case AnnotationType::Text: subtype = StrL("Text"); break;
-            case AnnotationType::FreeText: subtype = StrL("FreeText"); break;
-            case AnnotationType::Line: subtype = StrL("Line"); break;
-            case AnnotationType::Square: subtype = StrL("Square"); break;
-            case AnnotationType::Circle: subtype = StrL("Circle"); break;
-            case AnnotationType::Polygon: subtype = StrL("Polygon"); break;
-            case AnnotationType::PolyLine: subtype = StrL("PolyLine"); break;
-            case AnnotationType::Highlight: subtype = StrL("Highlight"); break;
-            case AnnotationType::Underline: subtype = StrL("Underline"); break;
-            case AnnotationType::Squiggly: subtype = StrL("Squiggly"); break;
-            case AnnotationType::StrikeOut: subtype = StrL("StrikeOut"); break;
-            case AnnotationType::Stamp: subtype = StrL("Stamp"); break;
-            case AnnotationType::Caret: subtype = StrL("Caret"); break;
-            case AnnotationType::Ink: subtype = StrL("Ink"); break;
-            case AnnotationType::FileAttachment: subtype = StrL("FileAttachment"); break;
-            case AnnotationType::Redact: subtype = StrL("Redact"); break;
-            default: continue;
+            case AnnotationType::Text:
+                subtype = StrL("Text");
+                break;
+            case AnnotationType::FreeText:
+                subtype = StrL("FreeText");
+                break;
+            case AnnotationType::Line:
+                subtype = StrL("Line");
+                break;
+            case AnnotationType::Square:
+                subtype = StrL("Square");
+                break;
+            case AnnotationType::Circle:
+                subtype = StrL("Circle");
+                break;
+            case AnnotationType::Polygon:
+                subtype = StrL("Polygon");
+                break;
+            case AnnotationType::PolyLine:
+                subtype = StrL("PolyLine");
+                break;
+            case AnnotationType::Highlight:
+                subtype = StrL("Highlight");
+                break;
+            case AnnotationType::Underline:
+                subtype = StrL("Underline");
+                break;
+            case AnnotationType::Squiggly:
+                subtype = StrL("Squiggly");
+                break;
+            case AnnotationType::StrikeOut:
+                subtype = StrL("StrikeOut");
+                break;
+            case AnnotationType::Stamp:
+                subtype = StrL("Stamp");
+                break;
+            case AnnotationType::Caret:
+                subtype = StrL("Caret");
+                break;
+            case AnnotationType::Ink:
+                subtype = StrL("Ink");
+                break;
+            case AnnotationType::FileAttachment:
+                subtype = StrL("FileAttachment");
+                break;
+            case AnnotationType::Redact:
+                subtype = StrL("Redact");
+                break;
+            default:
+                continue;
         }
 
         b.Append(StrL("<< /Type /Annot\n"));
@@ -588,19 +685,32 @@ bool ImportAnnotationsFromFdf(EngineBase* engine, const char* filePath, Str& err
 
         if (str::Contains(block, StrL("/Subtype"))) {
             AnnotationType atype = AnnotationType::Text;
-            if (str::Contains(block, StrL("/Subtype /FreeText"))) atype = AnnotationType::FreeText;
-            else if (str::Contains(block, StrL("/Subtype /Line"))) atype = AnnotationType::Line;
-            else if (str::Contains(block, StrL("/Subtype /Square"))) atype = AnnotationType::Square;
-            else if (str::Contains(block, StrL("/Subtype /Circle"))) atype = AnnotationType::Circle;
-            else if (str::Contains(block, StrL("/Subtype /Polygon"))) atype = AnnotationType::Polygon;
-            else if (str::Contains(block, StrL("/Subtype /PolyLine"))) atype = AnnotationType::PolyLine;
-            else if (str::Contains(block, StrL("/Subtype /Highlight"))) atype = AnnotationType::Highlight;
-            else if (str::Contains(block, StrL("/Subtype /Underline"))) atype = AnnotationType::Underline;
-            else if (str::Contains(block, StrL("/Subtype /Squiggly"))) atype = AnnotationType::Squiggly;
-            else if (str::Contains(block, StrL("/Subtype /StrikeOut"))) atype = AnnotationType::StrikeOut;
-            else if (str::Contains(block, StrL("/Subtype /Stamp"))) atype = AnnotationType::Stamp;
-            else if (str::Contains(block, StrL("/Subtype /Caret"))) atype = AnnotationType::Caret;
-            else if (str::Contains(block, StrL("/Subtype /Ink"))) atype = AnnotationType::Ink;
+            if (str::Contains(block, StrL("/Subtype /FreeText")))
+                atype = AnnotationType::FreeText;
+            else if (str::Contains(block, StrL("/Subtype /Line")))
+                atype = AnnotationType::Line;
+            else if (str::Contains(block, StrL("/Subtype /Square")))
+                atype = AnnotationType::Square;
+            else if (str::Contains(block, StrL("/Subtype /Circle")))
+                atype = AnnotationType::Circle;
+            else if (str::Contains(block, StrL("/Subtype /Polygon")))
+                atype = AnnotationType::Polygon;
+            else if (str::Contains(block, StrL("/Subtype /PolyLine")))
+                atype = AnnotationType::PolyLine;
+            else if (str::Contains(block, StrL("/Subtype /Highlight")))
+                atype = AnnotationType::Highlight;
+            else if (str::Contains(block, StrL("/Subtype /Underline")))
+                atype = AnnotationType::Underline;
+            else if (str::Contains(block, StrL("/Subtype /Squiggly")))
+                atype = AnnotationType::Squiggly;
+            else if (str::Contains(block, StrL("/Subtype /StrikeOut")))
+                atype = AnnotationType::StrikeOut;
+            else if (str::Contains(block, StrL("/Subtype /Stamp")))
+                atype = AnnotationType::Stamp;
+            else if (str::Contains(block, StrL("/Subtype /Caret")))
+                atype = AnnotationType::Caret;
+            else if (str::Contains(block, StrL("/Subtype /Ink")))
+                atype = AnnotationType::Ink;
 
             int pageNo = 1;
             const char* pageStr = strstr(block.s, "/Page ");
@@ -669,7 +779,8 @@ static bool ExportCommentSummaryTxt(EngineBase* engine, const char* filePath, St
         }
         if (len(pageAnnots) == 0) continue;
 
-        b.Append(fmt("--- Page %d (%d comment%s) ---\n", p, len(pageAnnots), len(pageAnnots) == 1 ? StrL("") : StrL("s")));
+        b.Append(
+            fmt("--- Page %d (%d comment%s) ---\n", p, len(pageAnnots), len(pageAnnots) == 1 ? StrL("") : StrL("s")));
         int idx = 1;
         for (auto* a : pageAnnots) {
             Str author = Author(a);
@@ -731,13 +842,37 @@ static bool ExportCommentSummaryCsv(EngineBase* engine, const char* filePath, St
         }
 
         b.Append(fmt("%d,\"%s\",\"", page, typeName));
-        for (int i = 0; i < author.len; i++) { char c = author.s[i]; if (c == '"') b.Append(StrL("\"\"")); else b.AppendChar(c); }
+        for (int i = 0; i < author.len; i++) {
+            char c = author.s[i];
+            if (c == '"')
+                b.Append(StrL("\"\""));
+            else
+                b.AppendChar(c);
+        }
         b.Append(fmt("\",\"%s\",\"", Str(dateBuf)));
-        for (int i = 0; i < state.len; i++) { char c = state.s[i]; if (c == '"') b.Append(StrL("\"\"")); else b.AppendChar(c); }
+        for (int i = 0; i < state.len; i++) {
+            char c = state.s[i];
+            if (c == '"')
+                b.Append(StrL("\"\""));
+            else
+                b.AppendChar(c);
+        }
         b.Append(StrL("\",\""));
-        for (int i = 0; i < model.len; i++) { char c = model.s[i]; if (c == '"') b.Append(StrL("\"\"")); else b.AppendChar(c); }
+        for (int i = 0; i < model.len; i++) {
+            char c = model.s[i];
+            if (c == '"')
+                b.Append(StrL("\"\""));
+            else
+                b.AppendChar(c);
+        }
         b.Append(fmt("\",\"%d\",\"", irt));
-        for (int i = 0; i < contents.len; i++) { char c = contents.s[i]; if (c == '"') b.Append(StrL("\"\"")); else b.AppendChar(c); }
+        for (int i = 0; i < contents.len; i++) {
+            char c = contents.s[i];
+            if (c == '"')
+                b.Append(StrL("\"\""));
+            else
+                b.AppendChar(c);
+        }
         b.Append(StrL("\"\n"));
     }
 
@@ -797,7 +932,8 @@ static bool ExportCommentSummaryPdf(EngineBase* engine, const char* filePath, St
             Str state = GetAnnotationState(a);
             Str contents = Contents(a);
 
-            TempStr line = fmt("[%s] %s: %s", typeName, author.len > 0 ? author : StrL("Unknown"), contents.len > 0 ? contents : StrL(""));
+            TempStr line = fmt("[%s] %s: %s", typeName, author.len > 0 ? author : StrL("Unknown"),
+                               contents.len > 0 ? contents : StrL(""));
             if (state.len > 0) {
                 line = fmt("%s (%s)", line, state);
             }
@@ -1046,7 +1182,8 @@ void OnSetCommentStatus(MainWindow* win, Annotation* annot, const char* status) 
     WindowTab* tab = win->CurrentTab();
     Annotation* sel = annot ? annot : tab->selectedAnnotation;
     if (!sel) {
-        ShowWarningNotification(win->hwndCanvas, Tr("Please select an annotation to update status."), kNotif5SecsTimeOut);
+        ShowWarningNotification(win->hwndCanvas, Tr("Please select an annotation to update status."),
+                                kNotif5SecsTimeOut);
         return;
     }
     if (SetAnnotationState(sel, Str(status), StrL(kStateModelReview))) {

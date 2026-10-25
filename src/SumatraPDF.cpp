@@ -52,6 +52,8 @@
 #include "Measure.h"
 #include "ExportFormats.h"
 #include "PageTools2.h"
+#include "BatchActions.h"
+#include "ComparePdf.h"
 #include "Accessibility.h"
 #include "Preflight.h"
 #include "PageOrganize.h"
@@ -13264,6 +13266,12 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
         case CmdBatchOcr:
             ShowBatchOcrDialog(win);
             break;
+        case CmdBatchActions:
+            ShowBatchActionsDialog(win);
+            break;
+        case CmdComparePdf:
+            ShowComparePdfDialog(win);
+            break;
 
         case CmdSignDocument:
             ShowSignDocumentDialog(win);
@@ -18560,13 +18568,78 @@ static bool IsRunningTool() {
     }
     bool isTool = false;
     for (int i = 1; i < argc; i++) {
-        if (wstr::EqI(wargv[i], WStrL(L"-dump-chm")) || wstr::EqI(wargv[i], WStrL(L"-dump-exif"))) {
+        if (wstr::EqI(wargv[i], WStrL(L"-dump-chm")) || wstr::EqI(wargv[i], WStrL(L"-dump-exif")) ||
+            wstr::EqI(wargv[i], WStrL(L"-batch")) || wstr::EqI(wargv[i], WStrL(L"-compare"))) {
             isTool = true;
             break;
         }
     }
     LocalFree((void*)wargv);
     return isTool;
+}
+
+static bool AddBatchInput(Str path, Vec<Str>& files) {
+    if (!path::IsDirectory(path)) {
+        VecAppend(files, str::DupTemp(path));
+        return true;
+    }
+    DirIter it{path};
+    it.includeDirs = false;
+    it.includeFiles = true;
+    it.recurse = true;
+    for (DirIterEntry* e : it) {
+        if (!str::EqI(path::GetExtTemp(e->name), StrL(".pdf"))) continue;
+        VecAppend(files, str::DupTemp(e->filePath));
+    }
+    return len(files) > 0;
+}
+
+// Batch commands return before settings, windows, or session restoration start.
+static bool RunBatchCli(int* exitCodeOut) {
+    int argc = 0;
+    WCHAR** wargv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (!wargv) return false;
+    bool isCompare = argc >= 6 && wstr::EqI(wargv[1], WStrL(L"-compare"));
+    bool isBatch = argc >= 3 && wstr::EqI(wargv[1], WStrL(L"-batch"));
+    if (!isBatch && !isCompare) {
+        LocalFree((void*)wargv);
+        return false;
+    }
+
+    InstallEmbeddedFontLoader();
+
+    if (isCompare) {
+        bool argsOk = wstr::EqI(wargv[4], WStrL(L"-report"));
+        TempStr left = ToUtf8Temp(wargv[2]);
+        TempStr right = ToUtf8Temp(wargv[3]);
+        TempStr report = argsOk ? ToUtf8Temp(wargv[5]) : TempStr();
+        LocalFree((void*)wargv);
+        Str result;
+        bool ok = argsOk && ComparePdfReport(left, right, report, &result);
+        WriteStdoutLn(result ? result : StrL("{\"ok\":false,\"error\":\"compare failed\"}"));
+        *exitCodeOut = ok ? 0 : 1;
+        return true;
+    }
+
+    TempStr definitionPath = ToUtf8Temp(wargv[2]);
+    Str definition = file::ReadFile(definitionPath);
+    Vec<Str> files;
+    bool valid = len(definition) > 0;
+    for (int i = 3; valid && i < argc; i++) valid = AddBatchInput(ToUtf8Temp(wargv[i]), files);
+    LocalFree((void*)wargv);
+
+    if (!valid || len(files) == 0) {
+        WriteStdoutLn(StrL("{\"ok\":false,\"error\":\"action file or PDF inputs unavailable\"}"));
+        str::Free(definition);
+        *exitCodeOut = 1;
+        return true;
+    }
+
+    TempStr result = RunBatchActionsJson(definition, files);
+    WriteStdoutLn(result);
+    *exitCodeOut = str::Contains(result, StrL("\"ok\":false")) || str::Contains(result, StrL("\"error\":")) ? 1 : 0;
+    str::Free(definition);
+    return true;
 }
 
 // returns the pointer into the command line just past the first argument
@@ -19056,6 +19129,7 @@ static void InstallSumatraCrashHandler(bool localOnly) {
 int APIENTRY WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevInstance*/, _In_ LPSTR /*lpCmdLine*/,
                      _In_ int /*nCmdShow*/) {
     int exitCode = 1; // by default it's error
+    int batchExitCode = 0;
     int nWithDde = 0;
     MainWindow* win = nullptr;
     bool showStartPage = false;
@@ -19347,6 +19421,12 @@ int APIENTRY WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE /*hPrevIns
     // during installation or extract libsumatrapdf.dll need not be loaded yet
     if (!LoadLibsumatrapdf(!flags.silent)) {
         ::ExitProcess(1);
+    }
+
+    if (RunBatchCli(&batchExitCode)) {
+        ShutdownCommon();
+        HandleRedirectedConsoleOnShutdown();
+        return batchExitCode;
     }
 
 #if IS_DEBUG
