@@ -3,6 +3,7 @@
    License: GPLv3 */
 
 #include "base/GuessFileType.h"
+class EngineBase;
 struct Annotation;
 enum class AnnotationType;
 struct PasswordUI;

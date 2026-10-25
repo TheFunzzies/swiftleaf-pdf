@@ -3,6 +3,29 @@
 #include "base/Base.h"
 #include "base/File.h"
 #include "base/JsonParser.h"
+#include "base/Win.h"
+#include <commdlg.h>
+#include "gui/Dpi.h"
+#include "gui/UIModels.h"
+#include "gui/Layout.h"
+#include "gui/win/WinGui.h"
+#include "gui/PlatformFont.h"
+#include "gui/Gfx.h"
+#include "gui/GuiColors.h"
+#include "gui/VirtCtrl.h"
+#include "Settings.h"
+#include "AppSettings.h"
+#include "DocController.h"
+#include "EngineBase.h"
+#include "base/GuessFileType.h"
+#include "EngineAll.h"
+#include "MainWindow.h"
+#include "WindowTab.h"
+#include "SumatraPDF.h"
+#include "shared/AppTools.h"
+#include "shared/Theme.h"
+#include "DarkMode.h"
+#include "Translations.h"
 #include <mupdf/pdf.h>
 #include "ComparePdf.h"
 
@@ -244,7 +267,39 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     html.Append(StrL("<h2>Summary</h2><ul>"));
     for (int i = 0; i < compared; i++) html.Append(fmt("<li><a href=\"#page-%d\">Page %d</a></li>", i + 1, i + 1));
     html.Append(StrL("</ul>"));
-    bool ok = file::WriteFile(reportPath, ToStrTemp(html));
+
+    bool isPdf = str::EndsWithI(reportPath, StrL(".pdf"));
+    bool ok = false;
+    if (isPdf) {
+        fz_buffer* buffer = fz_new_buffer_from_copied_data(ctx, (unsigned char*)ToStr(html).s, len(ToStr(html)));
+        fz_archive* archive = fz_open_directory(ctx, CStrTemp(path::GetDirTemp(reportPath)));
+        fz_story* story = fz_new_story(ctx, buffer,
+                                       "body { font-family: sans-serif; font-size: 11pt; } img { max-width: 100%; } pre { white-space: pre-wrap; }", 11,
+                                       archive);
+        fz_document_writer* writer = fz_new_pdf_writer(ctx, CStrTemp(reportPath), "compress");
+        if (writer && story) {
+            int more = 1, count = 0;
+            while (more) {
+                if (++count > 1000) break;
+                fz_rect filled;
+                more = fz_place_story_flags(ctx, story, fz_make_rect(36, 36, 576, 756), &filled,
+                                            FZ_PLACE_STORY_FLAG_NO_OVERFLOW);
+                if (more == FZ_PLACE_STORY_RETURN_OVERFLOW_WIDTH) break;
+                fz_device* dev = fz_begin_page(ctx, writer, fz_make_rect(0, 0, 612, 792));
+                fz_draw_story(ctx, story, dev, fz_identity);
+                fz_end_page(ctx, writer);
+            }
+            fz_close_document_writer(ctx, writer);
+            ok = file::Exists(reportPath);
+        }
+        fz_drop_document_writer(ctx, writer);
+        fz_drop_story(ctx, story);
+        fz_drop_archive(ctx, archive);
+        fz_drop_buffer(ctx, buffer);
+    } else {
+        ok = file::WriteFile(reportPath, ToStrTemp(html));
+    }
+
     if (resultJsonOut) {
         *resultJsonOut = str::DupTemp(
             fmt("{\"ok\":%s,\"pages\":%d,\"wordChanges\":%d,\"pixelChangePercent\":%.2f,\"report\":\"%s\"}",
@@ -255,4 +310,178 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     fz_drop_document(ctx, right);
     fz_drop_context(ctx);
     return ok;
+}
+
+struct ComparePdfDialog : WindowBase {
+    MainWindow* win = nullptr;
+    VirtFixedLinesText* status = nullptr;
+    Edit* leftEdit = nullptr;
+    Edit* rightEdit = nullptr;
+    Edit* reportEdit = nullptr;
+    VirtButton* btnBrowseLeft = nullptr;
+    VirtButton* btnBrowseRight = nullptr;
+    VirtButton* btnBrowseReport = nullptr;
+    VirtButton* btnCompare = nullptr;
+    VirtButton* btnClose = nullptr;
+
+    bool Create(MainWindow* win);
+    void OnBrowseLeft(VirtMouseEvent*);
+    void OnBrowseRight(VirtMouseEvent*);
+    void OnBrowseReport(VirtMouseEvent*);
+    void OnCompare(VirtMouseEvent*);
+    void OnClose(VirtMouseEvent*) { Close(); }
+    void Closed(WindowBase::CloseEvent*) { Close(); }
+};
+
+static TempStr PickPdfFileTemp(HWND hwnd) {
+    WCHAR buf[MAX_PATH]{};
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = hwnd;
+    ofn.lpstrFile = buf;
+    ofn.nMaxFile = dimof(buf);
+    ofn.lpstrFilter = L"PDF Files\0*.pdf\0All Files\0*.*\0";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+    if (!GetOpenFileNameW(&ofn)) return {};
+    return ToUtf8Temp(WStr(buf));
+}
+
+void ComparePdfDialog::OnBrowseLeft(VirtMouseEvent*) {
+    TempStr path = PickPdfFileTemp(hwnd);
+    if (len(path) > 0) leftEdit->SetText(path);
+}
+
+void ComparePdfDialog::OnBrowseRight(VirtMouseEvent*) {
+    TempStr path = PickPdfFileTemp(hwnd);
+    if (len(path) > 0) rightEdit->SetText(path);
+}
+
+void ComparePdfDialog::OnBrowseReport(VirtMouseEvent*) {
+    WCHAR buf[MAX_PATH]{};
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = hwnd;
+    ofn.lpstrFile = buf;
+    ofn.nMaxFile = dimof(buf);
+    ofn.lpstrFilter = L"HTML Report\0*.html\0PDF Report\0*.pdf\0All Files\0*.*\0";
+    ofn.Flags = OFN_PATHMUSTEXIST;
+    if (!GetSaveFileNameW(&ofn)) return;
+    reportEdit->SetText(ToUtf8Temp(WStr(buf)));
+}
+
+void ComparePdfDialog::OnCompare(VirtMouseEvent*) {
+    TempStr left = leftEdit->GetTextTemp();
+    TempStr right = rightEdit->GetTextTemp();
+    TempStr report = reportEdit->GetTextTemp();
+    if (len(left) == 0 || len(right) == 0 || len(report) == 0) {
+        status->SetText(Tr("Please select two PDF documents and a report path."));
+        return;
+    }
+    status->SetText(Tr("Comparing documents..."));
+    Str resultJson;
+    bool ok = ComparePdfReport(left, right, report, &resultJson);
+    if (ok) {
+        OpenPathInDefaultFileManager(report);
+        Close();
+    } else {
+        status->SetText(Tr("Comparison failed. Could not open files or write report."));
+    }
+}
+
+bool ComparePdfDialog::Create(MainWindow* w) {
+    win = w;
+    closeOnEsc = true;
+    onClose = MkMethod1<ComparePdfDialog, WindowBase::CloseEvent*, &ComparePdfDialog::Closed>(this);
+
+    CreateCustomArgs args;
+    args.owner = win ? win->hwndFrame : nullptr;
+    args.title = Tr("Compare PDFs");
+    args.font = GetDefaultGuiFont();
+    args.style = WS_OVERLAPPEDWINDOW;
+    args.visible = false;
+    args.bgColor = DarkModeDialogBgColor();
+    if (!CreateCustom(args)) return false;
+
+    auto* box = new VBox();
+    box->alignCross = CrossAxisAlign::Stretch;
+    box->gap = DpiScale(10);
+
+    status = new VirtFixedLinesText();
+    status->font = font;
+    status->nLines = 2;
+    status->SetText(Tr("Select two PDF documents to compare visual layout and word differences."));
+    box->AddChild(status);
+
+    box->AddChild(NewVirtText({.s = Tr("First Document (Left):"), .font = font}));
+    auto* h1 = new HBox();
+    h1->gap = DpiScale(8);
+    Str cur = (win && win->CurrentTab()) ? win->CurrentTab()->filePath : Str();
+    Edit::CreateArgs e1;
+    e1.parent = hwnd;
+    e1.withBorder = true;
+    e1.text = cur;
+    e1.font = font;
+    leftEdit = new Edit();
+    leftEdit->Create(e1);
+    h1->AddChild(leftEdit, 1);
+    btnBrowseLeft = NewThemedButton(hwnd, Tr("Browse..."), font, false);
+    btnBrowseLeft->onClick = MkMethod1<ComparePdfDialog, VirtMouseEvent*, &ComparePdfDialog::OnBrowseLeft>(this);
+    h1->AddChild(btnBrowseLeft);
+    box->AddChild(h1);
+
+    box->AddChild(NewVirtText({.s = Tr("Second Document (Right):"), .font = font}));
+    auto* h2 = new HBox();
+    h2->gap = DpiScale(8);
+    Edit::CreateArgs e2;
+    e2.parent = hwnd;
+    e2.withBorder = true;
+    e2.font = font;
+    rightEdit = new Edit();
+    rightEdit->Create(e2);
+    h2->AddChild(rightEdit, 1);
+    btnBrowseRight = NewThemedButton(hwnd, Tr("Browse..."), font, false);
+    btnBrowseRight->onClick = MkMethod1<ComparePdfDialog, VirtMouseEvent*, &ComparePdfDialog::OnBrowseRight>(this);
+    h2->AddChild(btnBrowseRight);
+    box->AddChild(h2);
+
+    box->AddChild(NewVirtText({.s = Tr("Comparison Report Output:"), .font = font}));
+    auto* h3 = new HBox();
+    h3->gap = DpiScale(8);
+    Edit::CreateArgs e3;
+    e3.parent = hwnd;
+    e3.withBorder = true;
+    e3.text = path::JoinTemp(GetTempDirTemp(), StrL("compare_report.html"));
+    e3.font = font;
+    reportEdit = new Edit();
+    reportEdit->Create(e3);
+    h3->AddChild(reportEdit, 1);
+    btnBrowseReport = NewThemedButton(hwnd, Tr("Browse..."), font, false);
+    btnBrowseReport->onClick = MkMethod1<ComparePdfDialog, VirtMouseEvent*, &ComparePdfDialog::OnBrowseReport>(this);
+    h3->AddChild(btnBrowseReport);
+    box->AddChild(h3);
+
+    auto* buttons = new HBox();
+    buttons->gap = DpiScale(8);
+    btnCompare = NewThemedButton(hwnd, Tr("Compare"), font, true);
+    btnCompare->onClick = MkMethod1<ComparePdfDialog, VirtMouseEvent*, &ComparePdfDialog::OnCompare>(this);
+    buttons->AddChild(btnCompare);
+
+    btnClose = NewThemedButton(hwnd, Tr("Close"), font, false);
+    btnClose->onClick = MkMethod1<ComparePdfDialog, VirtMouseEvent*, &ComparePdfDialog::OnClose>(this);
+    buttons->AddChild(btnClose);
+    box->AddChild(buttons);
+
+    layout = new Padding(box, DpiScaledInsets(16));
+    RECT rect = {0, 0, DpiScale(540), DpiScale(320)};
+    AdjustWindowRectEx(&rect, args.style, FALSE, 0);
+    SetWindowPos(hwnd, nullptr, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER);
+    UpdateTheme();
+    HwndCenterDialog(hwnd, win ? win->hwndFrame : nullptr);
+    SetIsVisible(true);
+    return true;
+}
+
+void ShowComparePdfDialog(MainWindow* win) {
+    auto* dlg = new ComparePdfDialog();
+    if (!dlg->Create(win)) delete dlg;
 }

@@ -3,6 +3,9 @@
 #ifndef COMPAREPDF_H
 #define COMPAREPDF_H
 
-bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJsonOut);
+struct MainWindow;
+
+bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJsonOut = nullptr);
+void ShowComparePdfDialog(MainWindow* win);
 
 #endif

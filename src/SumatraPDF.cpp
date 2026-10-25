@@ -13266,6 +13266,12 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
         case CmdBatchOcr:
             ShowBatchOcrDialog(win);
             break;
+        case CmdBatchActions:
+            ShowBatchActionsDialog(win);
+            break;
+        case CmdComparePdf:
+            ShowComparePdfDialog(win);
+            break;
 
         case CmdSignDocument:
             ShowSignDocumentDialog(win);
@@ -18599,6 +18605,8 @@ static bool RunBatchCli(int* exitCodeOut) {
         LocalFree((void*)wargv);
         return false;
     }
+
+    InstallEmbeddedFontLoader();
 
     if (isCompare) {
         bool argsOk = wstr::EqI(wargv[4], WStrL(L"-report"));
