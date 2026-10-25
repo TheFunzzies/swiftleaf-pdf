@@ -993,6 +993,8 @@ static void TextReplaceToolsTest() {
     SafeEngineRelease(&reopened);
     SafeEngineRelease(&e);
     file::Delete(output);
+}
+
 static Annotation* FirstUndoTestField(EngineBase* e) {
     Vec<Annotation*> widgets;
     EngineMupdfGetPageWidgets(e, 1, widgets);
