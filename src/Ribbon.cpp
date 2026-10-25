@@ -19,6 +19,7 @@
 #include "Material.h"
 #include "Animation.h"
 #include "Ribbon.h"
+#include "ToolsPanel.h"
 
 //--- icons the classic toolbar doesn't have (Tabler icons, MIT license)
 
@@ -486,6 +487,16 @@ TempStr RibbonCommandHelpTemp(int cmdId, Str* pageOut) {
             Str help = len(item.tip) ? item.tip : item.label;
             return trans::GetTranslation(help);
         }
+    }
+    Str labelOut, descOut, pOut;
+    if (ToolPanelGetDef(cmdId, &labelOut, &descOut, &pOut)) {
+        if (pageOut) *pageOut = trans::GetTranslation(pOut);
+        return trans::GetTranslation(descOut);
+    }
+    Str desc = GetCommandDescription(cmdId);
+    if (len(desc) > 0) {
+        if (pageOut) *pageOut = trans::GetTranslation(StrL("Menu"));
+        return trans::GetTranslation(desc);
     }
     return {};
 }
@@ -1058,6 +1069,13 @@ void RibbonTabRow::PaintUnderline(Gfx* gfx, HWND hwnd) {
 }
 
 Size RibbonTabRow::Layout(Constraints bc) {
+    bool collapse = bc.HasBoundedWidth() && bc.max.dx <= DpiScale(800);
+    if (overflowBtn) overflowBtn->SetVisibility(collapse ? Visibility::Visible : Visibility::Collapse);
+    if (searchBox) searchBox->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
+    if (propsBtn) propsBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
+    if (saveBtn) saveBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
+    if (printBtn) printBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
+
     int nTabs = 0;
     int pad = DpiScale(kRibbonTabPadX);
     for (auto& item : children) {

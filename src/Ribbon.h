@@ -136,6 +136,11 @@ struct RibbonTabRow : HBox {
     Animation* underlineX = nullptr;
     Animation* underlineWidth = nullptr;
     Size paintedSize;
+    VirtCtrl* overflowBtn = nullptr;
+    ILayout* searchBox = nullptr;
+    VirtCtrl* propsBtn = nullptr;
+    VirtCtrl* saveBtn = nullptr;
+    VirtCtrl* printBtn = nullptr;
     RibbonTabRow();
     ~RibbonTabRow() override;
     Size Layout(Constraints bc) override;

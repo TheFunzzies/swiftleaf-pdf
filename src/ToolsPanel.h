@@ -20,5 +20,6 @@ bool ShouldShowToolsPanel(MainWindow*);
 void ToggleToolsPanel(MainWindow*);
 int ToolsPanelDx();
 void ShowTopBarMenu(MainWindow*, Rect anchorScreen);
+bool ToolPanelGetDef(int cmdId, Str* labelOut, Str* descOut, Str* pageOut);
 
 void PositionAnnotationStrip(MainWindow*);

@@ -143,6 +143,81 @@ static Str Rebrand(Str s) {
     return c->At(len(*c) - 1);
 }
 
+static bool IsKnownNewString(Str s) {
+    static const char* known[] = {
+        "Recommended",
+        "Export", "Create", "Edit", "Organize", "Review", "Forms",
+        "Protect & Redact", "Optimize", "Sign", "Scan/OCR", "Standards",
+        "Export a PDF", "Save a copy of the open document.",
+        "To images", "Export pages as image files.",
+        "Fill & Sign", "Fill a form or add a drawn signature.",
+        "Edit a PDF", "Edit text and objects in the document.",
+        "Create a PDF", "Create a PDF from files or clipboard content.",
+        "Combine files", "Join files into one PDF.",
+        "Organize pages", "Reorder, rotate, or remove pages.",
+        "Add comments", "Add notes and markups to pages.",
+        "Scan & OCR", "Recognize text in scanned pages.",
+        "Protect a PDF", "Set a password and permissions.",
+        "Redact a PDF", "Permanently remove sensitive content.",
+        "Compress a PDF", "Reduce the document file size.",
+        "Prepare a form", "Add fillable form fields.",
+        "Detect fields", "Find likely form fields on the page.",
+        "Add a stamp", "Place a stamp annotation on a page.",
+        "Use a certificate", "Sign the document with a certificate.",
+        "Add watermark", "Place text or an image behind page content.",
+        "Add header/footer", "Add text to page headers or footers.",
+        "Bates numbering", "Add sequential Bates numbers.",
+        "Sanitize document", "Remove hidden data and document metadata.",
+        "Redact all matches", "Find and redact matching text.",
+        "Measure", "Measure distances on the page.",
+        "Review & comments", "Review, summarize, and export comments.",
+        "Crop pages", "Set page crop boxes and remove margins.",
+        "N-up pages", "Arrange multiple pages on each sheet.",
+        "Page background", "Set a page color or image background.",
+        "Duplicate pages", "Copy selected pages in the document.",
+        "Document properties", "Edit title, author, and other metadata.",
+        "Attachments", "View and manage embedded files.",
+        "Edit bookmarks", "Create and organize document bookmarks.",
+        "Page numbering", "Change page labels and numbering.",
+        "Repair PDF", "Repair damaged PDF structure when possible.",
+        "Document layers", "Show and manage optional content layers.",
+        "Accessibility checker", "Check tags, reading order, language, and alternative text.",
+        "Accessibility fixes", "Add document language, title, and basic structure tags.",
+        "Convert to PDF/A", "Convert the document to a PDF/A archive format.",
+        "Validate PDF/A", "Check the document against PDF/A requirements.",
+        "Preflight", "Inspect fonts, colors, images, and page boxes.",
+        "Convert colors", "Convert document colors to grayscale or RGB.",
+        "Acquire from scanner", "Scan pages and create a PDF.",
+        "Import camera image", "Import and straighten a camera photo.",
+        "Batch OCR", "Recognize text across multiple documents.",
+        "Digital signatures", "Review document signatures and certificate status.",
+        "Certify document", "Apply a document certification signature.",
+        "Select", "Select text and objects.",
+        "Hand", "Pan around the page.",
+        "Add a note", "Add a note annotation.",
+        "Highlight", "Highlight text on the page.",
+        "Draw", "Draw freehand on the page.",
+        "Add text", "Add text to the page.",
+        "All tools", "Read", "Edit", "Convert", "E-Sign",
+        "Quick tour: 1. Open a document. 2. Search recent files. 3. Browse tools by category. 4. Star your favorites. Double-click this card to dismiss.",
+        "Quick tour: 1. Open a document. 2. Search recent files. 3. Browse tools by category. 4. Star your favorites. Double-click to dismiss.",
+        "Dismiss quick tour",
+        "Search tools by name or description",
+        "Find tools and commands",
+        "Close tools panel",
+        "Add to favorites", "Remove from favorites",
+        "View more",
+        "More options",
+        "Panels and all tools",
+        "Save changes to the PDF",
+        "Menu",
+    };
+    for (const char* k : known) {
+        if (str::Eq(s, Str(k))) return true;
+    }
+    return false;
+}
+
 static Str GetTranslationRaw(Str s);
 
 // don't free the result
@@ -185,6 +260,9 @@ static Str GetTranslationRaw(Str s) {
             }
             return tr;
         }
+    }
+    if (IsKnownNewString(s)) {
+        return s;
     }
     ReportDebugIf(true);
     return s;

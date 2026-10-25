@@ -841,7 +841,7 @@ static void UpdateRibbonItemsState(MainWindow* win, AppCommandCtx* ctx, bool ann
     // the top bar's document buttons; Menu and search are always on
     for (VirtCtrl* w : tb->topBarItems) {
         int cmdId = w->id;
-        if (cmdId == TopBarMenuId || cmdId == CmdCommandPalette) {
+        if (cmdId == TopBarMenuId || cmdId == CmdCommandPalette || cmdId == TopBarOverflowId) {
             continue;
         }
         bool enabled = IsCmdAvailable(win, cmdId, ctx) && IsCmdEnabled(win, cmdId, ctx);
@@ -3686,6 +3686,30 @@ void ToolbarShowRibbonPage(MainWindow* win, int page) {
     SetRibbonPage(win, page, true);
 }
 
+static void ShowTopBarOverflowMenu(MainWindow* win, Rect anchor) {
+    HMENU menu = CreatePopupMenu();
+    auto ctx = NewAppCommandCtx(win);
+    auto appendItem = [&](int cmdId, Str label) {
+        bool remove = false, disable = false;
+        GetCommandIdState(&ctx, cmdId, &remove, &disable);
+        if (remove) return;
+        UINT flags = MF_STRING | (disable ? MF_GRAYED : MF_ENABLED);
+        TempStr text = str::DupTemp(label);
+        TempStr accel = AppendAccelKeyToMenuStringTemp(text, cmdId);
+        AppendMenuW(menu, flags, cmdId, CWStrTemp(accel));
+    };
+    appendItem(CmdCommandPalette, Tr("Find tools and commands"));
+    appendItem(CmdProperties, Tr("Document properties"));
+    appendItem(CmdSaveAnnotations, Tr("Save changes to the PDF"));
+    appendItem(CmdPrint, Tr("Print"));
+
+    int cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_LEFTALIGN, anchor.x, anchor.Bottom(), 0, win->hwndFrame, nullptr);
+    DestroyMenu(menu);
+    if (cmd) {
+        ToolbarPostCommand(win, cmd);
+    }
+}
+
 static void OnTopBarClicked(MainWindow* win, VirtMouseEvent* ev) {
     VirtCtrl* w = ev->target;
     ToolbarVirt* tb = win ? win->toolbarVirt : nullptr;
@@ -3695,6 +3719,10 @@ static void OnTopBarClicked(MainWindow* win, VirtMouseEvent* ev) {
     ev->didHandle = true;
     if (w->id == TopBarMenuId) {
         ShowTopBarMenu(win, tb->host->ToScreen(w->BoundsInWindow()));
+        return;
+    }
+    if (w->id == TopBarOverflowId) {
+        ShowTopBarOverflowMenu(win, tb->host->ToScreen(w->BoundsInWindow()));
         return;
     }
     ToolbarPostCommand(win, w->id);
@@ -3940,10 +3968,27 @@ static void BuildToolbarLayout(MainWindow* win) {
     nav->alignCross = CrossAxisAlign::CrossCenter;
     nav->rtl = rtl;
     tabRow->AddChild(nav);
-    tabRow->AddChild(new Padding(NewTopBarSearchBox(win), Insets{0, DpiScale(8), 0, DpiScale(12)}));
-    tabRow->AddChild(NewTopBarButton(win, gLucideInfo, CmdProperties, {}, Tr("Document properties")));
-    tabRow->AddChild(NewTopBarButton(win, gLucideSave, CmdSaveAnnotations, {}, Tr("Save changes to the PDF")));
-    tabRow->AddChild(NewTopBarButton(win, gLucidePrinter, CmdPrint, {}, Tr("Print")));
+    auto* sb = NewTopBarSearchBox(win);
+    auto* searchPad = new Padding(sb, Insets{0, DpiScale(8), 0, DpiScale(12)});
+    tabRow->searchBox = searchPad;
+    tabRow->AddChild(searchPad);
+
+    auto* propsBtn = NewTopBarButton(win, gLucideInfo, CmdProperties, {}, Tr("Document properties"));
+    tabRow->propsBtn = propsBtn;
+    tabRow->AddChild(propsBtn);
+
+    auto* saveBtn = NewTopBarButton(win, gLucideSave, CmdSaveAnnotations, {}, Tr("Save changes to the PDF"));
+    tabRow->saveBtn = saveBtn;
+    tabRow->AddChild(saveBtn);
+
+    auto* printBtn = NewTopBarButton(win, gLucidePrinter, CmdPrint, {}, Tr("Print"));
+    tabRow->printBtn = printBtn;
+    tabRow->AddChild(printBtn);
+
+    auto* overflowBtn = NewTopBarButton(win, gIconChevronDown, TopBarOverflowId, {}, Tr("More options"));
+    overflowBtn->SetVisibility(Visibility::Collapse);
+    tabRow->overflowBtn = overflowBtn;
+    tabRow->AddChild(overflowBtn);
 
     // Home: the classic toolbar's buttons, as large ribbon buttons
     HBox* home = NewRibbonPanel();

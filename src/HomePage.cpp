@@ -1872,7 +1872,9 @@ static void LayoutHomePage(HomePageLayout& l) {
     VirtRichText* tip = tipCtrl->rich;
     if (tip) {
         int tipPadding = DpiScale(8);
-        tipHeight = tip->MinIntrinsicHeight(thumbsContentWidth) + (2 * tipPadding);
+        int tipDx = std::min(thumbsContentWidth, rc.dx - 2 * DpiScale(kInnerPadding));
+        if (tipDx < 0) tipDx = thumbsContentWidth;
+        tipHeight = tip->MinIntrinsicHeight(tipDx) + (2 * tipPadding);
     }
 
     // --- Step 3: middle area for thumbnails/list ---
@@ -2028,7 +2030,9 @@ static void LayoutHomePage(HomePageLayout& l) {
         // text area aligned with thumbnails
         int tipStartX = thumbsStartX;
         int tipStartY = tipY + tipPadding;
-        l.rcTipText = {tipStartX, tipStartY, thumbsContentWidth, tip->MinIntrinsicHeight(thumbsContentWidth)};
+        int tipDx = std::min(thumbsContentWidth, rcClient.dx - tipStartX - tipPadding);
+        if (tipDx < 0) tipDx = thumbsContentWidth;
+        l.rcTipText = {tipStartX, tipStartY, tipDx, tip->MinIntrinsicHeight(tipDx)};
     }
 }
 
@@ -2608,7 +2612,7 @@ void HomeTipCtrl::Sync(const Rect& rcTip, const Rect& rcText) {
     }
     visibility = Visibility::Visible;
     SetBounds(rcTip);
-    rich->SetBounds(rcText);
+    rich->SetBounds({rcText.x - rcTip.x, rcText.y - rcTip.y, rcText.dx, rcText.dy});
 }
 
 //--- file entries

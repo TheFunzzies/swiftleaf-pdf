@@ -42,7 +42,9 @@ struct ToolDef {
     // why a command-less row is disabled; empty for rows with a command
     Str unavailableTip;
 };
+
 enum ToolCategory {
+    ToolCategoryRecommended,
     ToolCategoryExport,
     ToolCategoryCreate,
     ToolCategoryEdit,
@@ -56,13 +58,32 @@ enum ToolCategory {
     ToolCategoryStandards,
     ToolCategoryCount,
 };
+
 static const Str toolCategoryNames[] = {
+    TrN("Recommended"),
     TrN("Export"),           TrN("Create"),   TrN("Edit"), TrN("Organize"), TrN("Review"),   TrN("Forms"),
     TrN("Protect & Redact"), TrN("Optimize"), TrN("Sign"), TrN("Scan/OCR"), TrN("Standards")};
-static const char* toolCategoryIcons[] = {gLucideFileOutput, gLucideFilePlus,          gLucideFilePen,
-                                          gLucideLayoutGrid, gLucideMessageSquareText, gLucideTextCursorInput,
-                                          gLucideShield,     gLucideFileArchive,       gLucideSignature,
-                                          gLucideScanText,   gLucideBadgeCheck};
+
+static const char* toolCategoryIcons[] = {
+    gLucideStar,
+    gLucideFileOutput, gLucideFilePlus,          gLucideFilePen,
+    gLucideLayoutGrid, gLucideMessageSquareText, gLucideTextCursorInput,
+    gLucideShield,     gLucideFileArchive,       gLucideSignature,
+    gLucideScanText,   gLucideBadgeCheck};
+
+static const ToolDef recommendedTools[] = {
+    {gLucideFilePen, TrN("Edit a PDF"), TrN("Edit text and objects in the document."), CmdToggleEditPDF,
+     ToolCategoryRecommended},
+    {gLucidePenTool, TrN("Fill & Sign"), TrN("Fill a form or add a drawn signature."), CmdSignWithImage,
+     ToolCategoryRecommended},
+    {gLucideLayoutGrid, TrN("Organize pages"), TrN("Reorder, rotate, or remove pages."), CmdToggleThumbnails,
+     ToolCategoryRecommended},
+    {gLucideFileArchive, TrN("Compress a PDF"), TrN("Reduce the document file size."), CmdPdfCompress,
+     ToolCategoryRecommended},
+    {gLucideFileOutput, TrN("Export a PDF"), TrN("Save a copy of the open document."), CmdExportPdf,
+     ToolCategoryRecommended},
+};
+
 static const ToolDef tools[] = {
     {gLucideFileOutput, TrN("Export a PDF"), TrN("Save a copy of the open document."), CmdExportPdf,
      ToolCategoryExport},
@@ -159,6 +180,34 @@ static const ToolDef stripTools[] = {
     {gLucidePencil, TrN("Draw"), TrN("Draw freehand on the page."), CmdCreateAnnotInk, ToolCategoryReview},
     {gLucideType, TrN("Add text"), TrN("Add text to the page."), CmdCreateAnnotFreeText, ToolCategoryEdit},
 };
+
+bool ToolPanelGetDef(int cmdId, Str* labelOut, Str* descOut, Str* pageOut) {
+    for (const auto& d : recommendedTools) {
+        if (d.cmd == cmdId) {
+            if (labelOut) *labelOut = d.label;
+            if (descOut) *descOut = d.description;
+            if (pageOut) *pageOut = StrL("All tools");
+            return true;
+        }
+    }
+    for (const auto& d : tools) {
+        if (d.cmd == cmdId) {
+            if (labelOut) *labelOut = d.label;
+            if (descOut) *descOut = d.description;
+            if (pageOut) *pageOut = StrL("All tools");
+            return true;
+        }
+    }
+    for (const auto& d : stripTools) {
+        if (d.cmd == cmdId) {
+            if (labelOut) *labelOut = d.label;
+            if (descOut) *descOut = d.description;
+            if (pageOut) *pageOut = StrL("All tools");
+            return true;
+        }
+    }
+    return false;
+}
 
 struct ToolsPanelVirt {
     VirtHost* host = nullptr;
@@ -386,13 +435,17 @@ void ToolsPanelUpdate(MainWindow* win) {
             b->pixmap = icon->pixmap;
             b->pixmapDisabled = icon->pixmapDisabled;
         }
-        if (source) b->SetTooltip(len(source->tooltip) ? source->tooltip : b->label);
+        if (source) {
+            b->SetTooltip(len(source->tooltip) ? source->tooltip : b->label);
+        } else if (i < len(panel->rowDefs) && panel->rowDefs[i]) {
+            b->SetTooltip(trans::GetTranslation(panel->rowDefs[i]->description));
+        }
         b->Invalidate();
     }
 }
 
 static void OnRowFocus(MainWindow* win, VirtFocusEvent* ev) {
-    if (!ev->gotFocus) return;
+    if (!ev->gotFocus) return;\
     RibbonAccessFocus(win, ev);
     auto* panel = win->toolsPanel;
     auto* scroll = panel->scroll;
@@ -545,8 +598,16 @@ void ToolsPanelShowPage(MainWindow* win) {
     col->AddChild(header.box);
     if (page == RibbonPage::Home) {
         for (int category = 0; category < ToolCategoryCount; category++) {
+            bool isRec = (category == ToolCategoryRecommended);
+            const ToolDef* catTools = isRec ? recommendedTools : tools;
+            int catToolsCount = isRec ? dimofi(recommendedTools) : dimofi(tools);
             bool hasTools = false;
-            for (const auto& d : tools) hasTools |= d.category == category;
+            for (int ti = 0; ti < catToolsCount; ti++) {
+                if (catTools[ti].category == category) {
+                    hasTools = true;
+                    break;
+                }
+            }
             if (!hasTools) continue;
             auto* heading = new RibbonButton();
             heading->font = GetAppFont();
@@ -561,7 +622,8 @@ void ToolsPanelShowPage(MainWindow* win) {
             VecAppend(panel->categoryHeaders, heading);
             panel->categoryExpanded[category] = true;
             col->AddChild(heading);
-            for (const auto& d : tools) {
+            for (int ti = 0; ti < catToolsCount; ti++) {
+                const auto& d = catTools[ti];
                 if (d.category != category) continue;
                 auto* b = new RibbonButton();
                 b->SetLabel(trans::GetTranslation(d.label));
@@ -751,7 +813,7 @@ void CreateToolsPanel(MainWindow* win) {
             auto* b = new RibbonButton();
             b->font = GetAppFont();
             b->id = d.cmd;
-            b->SetTooltip(trans::GetTranslation(d.label));
+            b->SetTooltip(trans::GetTranslation(d.description));
             b->onClick = MkFunc1(OnTool, win);
             VecAppend(panel->stripRows, b);
             stripCol->AddChild(b);
