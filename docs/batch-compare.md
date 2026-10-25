@@ -7,8 +7,8 @@ without stopping the remaining files. See [the CLI reference](cli.md) for the
 action schema and command examples.
 
 Optimizer presets are `web`, `print`, `archive`, and `min-size`; `compress` is
-an alias for the optimizer. Presets use the existing PDF compressor and expose
-before/after byte counts through the optimizer API.
+an alias for the optimizer. Batch results include the source and output byte
+counts for each optimized file.
 
 PDF comparison produces an HTML report with page navigation, a word-level text
 diff, side-by-side page images, and a rendered-pixel change ratio for each
