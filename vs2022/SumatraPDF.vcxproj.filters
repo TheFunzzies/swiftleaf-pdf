@@ -486,6 +486,12 @@
     <ClInclude Include="..\src\PageTools2.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\Accessibility.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\Preflight.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\shared\PdfTools.h">
       <Filter>src\shared</Filter>
     </ClInclude>
@@ -822,6 +828,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\PageTools2.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\Accessibility.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\Preflight.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\PdfTools.cpp">

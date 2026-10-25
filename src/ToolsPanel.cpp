@@ -74,6 +74,12 @@ static const ToolDef tools[] = {
     {gLucideType, TrN("Page numbering"), CmdEditPageLabels},
     {gLucideShield, TrN("Repair PDF"), CmdPdfRepair},
     {gLucideLayers, TrN("Document layers"), CmdPdfManageLayers},
+    {gLucideBadgeCheck, TrN("Accessibility checker"), CmdAccessibilityChecker},
+    {gLucideFilePen, TrN("Accessibility fixes"), CmdAccessibilityFixes},
+    {gLucideBadgeCheck, TrN("Convert to PDF/A"), CmdPdfAConvert},
+    {gLucideBadgeCheck, TrN("Validate PDF/A"), CmdPdfAValidate},
+    {gLucideInfo, TrN("Preflight"), CmdPreflight},
+    {gLucideBadgeCheck, TrN("Convert colors"), CmdPdfConvertColors},
 };
 
 static const ToolDef stripTools[] = {
