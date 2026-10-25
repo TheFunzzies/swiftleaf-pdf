@@ -504,6 +504,37 @@ enum class CompressLevel {
 };
 constexpr int kCompressLevelCount = 3;
 
+bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOptimizationAudit* auditOut) {
+    CompressLevel level = CompressLevel::Light;
+    if (preset == PdfOptimizerPreset::Web) level = CompressLevel::Medium;
+    if (preset == PdfOptimizerPreset::MinSize) level = CompressLevel::High;
+    file::AtomicFile output(destPath);
+    if (len(output.tempPath) == 0) return false;
+    Vec<char*> argv;
+    const char* base[] = {"clean", "-gggg", "-e", "100", "-f", "-i", "-t", "-Z"};
+    for (const char* a : base) VecAppend(argv, (char*)a);
+    if (level == CompressLevel::Medium) {
+        VecAppend(argv, (char*)"--color-image-subsample-dpi=225,150");
+        VecAppend(argv, (char*)"--gray-image-subsample-dpi=225,150");
+        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:75");
+        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:75");
+    } else if (level == CompressLevel::High) {
+        VecAppend(argv, (char*)"--color-image-subsample-dpi=144,96");
+        VecAppend(argv, (char*)"--gray-image-subsample-dpi=144,96");
+        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:50");
+        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
+    }
+    VecAppend(argv, CStrTemp(srcPath));
+    VecAppend(argv, CStrTemp(output.tempPath));
+    fz_set_optind(0);
+    if (pdfclean_main(len(argv), argv.els) != 0 || !output.Commit()) return false;
+    if (auditOut) {
+        auditOut->beforeBytes = file::GetSize(srcPath);
+        auditOut->afterBytes = file::GetSize(destPath);
+    }
+    return true;
+}
+
 struct PdfCompressDialog : PdfToolDialog {
     CompressLevel level = CompressLevel::Medium;
     VirtButton* levelBtns[kCompressLevelCount]{};

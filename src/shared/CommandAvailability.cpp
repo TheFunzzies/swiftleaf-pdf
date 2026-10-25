@@ -32,6 +32,8 @@ static const i32 gNoDocWhitelist[] = {
     CmdScanAcquire,
     CmdImportCameraImage,
     CmdBatchOcr,
+    CmdBatchActions,
+    CmdComparePdf,
     CmdOpenFile,
     CmdOpenFileNoHistory,
     CmdOpenFileWithOSFilePicker,

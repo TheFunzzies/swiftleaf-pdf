@@ -13,6 +13,12 @@ void ShowPdfSanitizeDialog(MainWindow* win);
 void ShowPdfRedactSearchDialog(MainWindow* win);
 void ShowPdfExtractTextDialog(MainWindow* win);
 void ShowPdfCompressDialog(MainWindow* win);
+enum class PdfOptimizerPreset { Web, Print, Archive, MinSize };
+struct PdfOptimizationAudit {
+    i64 beforeBytes = 0;
+    i64 afterBytes = 0;
+};
+bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOptimizationAudit* auditOut = nullptr);
 void ShowPdfDecompressDialog(MainWindow* win);
 void ShowPdfDeletePageDialog(MainWindow* win);
 void ShowPdfExtractPagesDialog(MainWindow* win);

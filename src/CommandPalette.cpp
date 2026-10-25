@@ -54,6 +54,7 @@
 #include "AnnotPlacement.h"
 #include "PageThumbnails.h"
 #include "CommandPalette.h"
+#include "Ribbon.h"
 
 struct MainWindow;
 struct WindowTab;
@@ -1160,15 +1161,32 @@ void CommandPaletteWnd::UpdateHelpRow() {
 
 // the doc comment of the selected setting, like the advanced settings dialog
 void CommandPaletteWnd::UpdateSettingHelp() {
-    if (!settingHelpBox || IsCollapsed(settingHelpBox)) {
+    if (!settingHelpBox) {
         return;
     }
     Str comment;
+    bool show = false;
     int idx = listBox->GetCurrentSelection();
     auto* m = (ListBoxModelCP*)listBox->model;
     if (idx >= 0 && idx < m->ItemsCount()) {
-        comment = m->Data(idx)->settingComment;
+        ItemDataCP* data = m->Data(idx);
+        comment = data->settingComment;
+        show = IsSettingRow(data) && len(comment) > 0;
+        if (data->cmdId > 0) {
+            Str page;
+            TempStr description = RibbonCommandHelpTemp(data->cmdId, &page);
+            if (len(description)) {
+                if (len(page) > 0) {
+                    comment = fmt("%s — %s", page, description);
+                } else {
+                    comment = description;
+                }
+                show = true;
+            }
+        }
     }
+    settingHelpBox->SetVisibility(show ? Visibility::Visible : Visibility::Collapse);
+    settingHelp->SetIsVisible(show);
     settingHelp->SetText(comment);
 }
 
@@ -1509,10 +1527,6 @@ TempStr CommandPaletteStateTemp(int* exitCodeOut) {
             rendered, nAnnots, annotPage, annotsDone));
     out.Append(fmt("settingHelp=%d selValue=%s selText=%s\n", (int)helpShown, selValue, selText));
     return finish(0);
-}
-
-static bool AllowCommand(const AppCommandCtx& ctx, i32 cmdId) {
-    return CommandShouldShow(GetCommandVisibility(cmdId, ctx, CommandSurface::Palette));
 }
 
 static TempStr ConvertPathForDisplayTemp(Str s) {
@@ -2029,9 +2043,6 @@ void CommandPaletteWnd::CollectStrings(MainWindow* mainWin) {
     for (int i = 0; i < gCommandsCount; i++) {
         Str name = gCommands[i].description;
         cmdId = gCommands[i].id;
-        if (!AllowCommand(ctx, (i32)cmdId)) {
-            continue;
-        }
         ReportIf(len(name) == 0);
         ItemDataCP data;
         data.cmdId = (i32)cmdId;
@@ -2046,9 +2057,6 @@ void CommandPaletteWnd::CollectStrings(MainWindow* mainWin) {
     for (int i = 0; i < gCommandAltDescsCount; i++) {
         Str name = gCommandAltDescs[i].description;
         cmdId = gCommandAltDescs[i].id;
-        if (!AllowCommand(ctx, (i32)cmdId)) {
-            continue;
-        }
         ItemDataCP data;
         data.cmdId = (i32)cmdId;
         auto nameTranslated = trans::GetTranslation(name);
@@ -2061,12 +2069,10 @@ void CommandPaletteWnd::CollectStrings(MainWindow* mainWin) {
         TempStr name = curr->name;
         cmdId = curr->id;
         if (cmdId > 0 && !str::IsEmptyOrWhiteSpace(name)) {
-            if (AllowCommand(ctx, cmdId)) {
-                ItemDataCP data;
-                data.cmdId = cmdId;
-                name = RemovePrefixFromString(name);
-                tempCommands.Append(name, data);
-            }
+            ItemDataCP data;
+            data.cmdId = cmdId;
+            name = RemovePrefixFromString(name);
+            tempCommands.Append(name, data);
         }
         curr = curr->next;
     }
@@ -2270,6 +2276,15 @@ static void FilterStrings(StrVecCP& strs, const StrVec& words, StrVecCP& matched
         if (!matches && data && data->cmdId != 0) {
             TempStr shortcut = CommandPaletteShortcutTemp(data->cmdId);
             matches = FilterMatches(shortcut, words);
+            if (!matches) {
+                Str page;
+                TempStr help = RibbonCommandHelpTemp(data->cmdId, &page);
+                if (len(help) > 0 && FilterMatches(help, words)) {
+                    matches = true;
+                } else if (len(page) > 0 && FilterMatches(page, words)) {
+                    matches = true;
+                }
+            }
         }
         if (!matches && data && IsSettingRow(data)) {
             TempStr val = FormatSettingValueTemp(data->settingType, SettingRowPtr(data));

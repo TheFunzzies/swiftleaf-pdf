@@ -128,6 +128,7 @@ constexpr int PageInfoId = (int)CmdLast + 16;
 constexpr int WarningMsgId = (int)CmdLast + 17;
 // the top bar's Menu button
 constexpr int TopBarMenuId = (int)CmdLast + 18;
+constexpr int TopBarOverflowId = (int)CmdLast + 19;
 
 // the overlay toolbar's delayed-hide timer, on the toolbar's own host
 constexpr int kHideOverlayToolbarTimerId = 0x101;

@@ -436,7 +436,8 @@ const commandsRaw = [
     "CmdSignaturePanel", "Digital Signatures...",
     "CmdCertifyDocument", "Certify Document...",
     "CmdClearSignature", "Clear Signature",
-
+    "CmdBatchActions", "Action Wizard...",
+    "CmdComparePdf", "Compare PDFs...",
 ];
 
 // removed slots are dropped: nothing outside the generators should see them
@@ -473,6 +474,8 @@ export const commandAltDescs: [string, string][] = [
     ["CmdImportCameraImage", "Camera Image..."],
     ["CmdSignaturePanel", "Signatures Panel"],
     ["CmdCertifyDocument", "Certify PDF"],
+    ["CmdBatchActions", "Batch Actions..."],
+    ["CmdComparePdf", "Compare Documents..."],
 ];
 
 function getNames(): string[] {

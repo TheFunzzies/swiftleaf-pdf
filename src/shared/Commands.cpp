@@ -435,6 +435,8 @@ const CommandInfo gCommands[] = {
     {CmdSignaturePanel, "CmdSignaturePanel\0", StrL("Digital Signatures...")},
     {CmdCertifyDocument, "CmdCertifyDocument\0", StrL("Certify Document...")},
     {CmdClearSignature, "CmdClearSignature\0", StrL("Clear Signature")},
+    {CmdBatchActions, "CmdBatchActions\0", StrL("Action Wizard...")},
+    {CmdComparePdf, "CmdComparePdf\0", StrL("Compare PDFs...")},
 };
 const int gCommandsCount = dimofi(gCommands);
 
@@ -466,6 +468,8 @@ const CommandInfo gCommandAltDescs[] = {
     {CmdImportCameraImage, "CmdImportCameraImage\0", StrL("Camera Image...")},
     {CmdSignaturePanel, "CmdSignaturePanel\0", StrL("Signatures Panel")},
     {CmdCertifyDocument, "CmdCertifyDocument\0", StrL("Certify PDF")},
+    {CmdBatchActions, "CmdBatchActions\0", StrL("Batch Actions...")},
+    {CmdComparePdf, "CmdComparePdf\0", StrL("Compare Documents...")},
 };
 const int gCommandAltDescsCount = dimofi(gCommandAltDescs);
 // clang-format on

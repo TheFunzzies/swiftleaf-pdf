@@ -1479,6 +1479,7 @@ const globalPrefs: Field[] = [
       "(left is the default; right-to-left UI languages already put it on the right)",
   ).ver("3.7"),
   field("ToolsPanelWidth", Int, 240, "preferred tools panel width in 96-DPI units").ver("3.7"),
+  field("ToolsPanelFavorites", Str, "", "comma-separated command IDs favorited in the All tools panel").ver("3.7"),
   field("CommentsPanelWidth", Int, 300, "preferred comments panel width in 96-DPI units").ver("3.7"),
   field("ShowToolsPanel", Bool, true, "if true, show the All tools panel on the left of the window").ver("3.7"),
   field("ShowCommentsPanel", Bool, false, "if true, show the Comments panel on the right of PDF documents").ver("3.7"),
@@ -1587,6 +1588,7 @@ const globalPrefs: Field[] = [
     "if true, a PDF without an outline gets a table of contents built from numbered headings in its text (Generate Table Of Contents command does it on demand)",
   ).ver("3.7"),
   field("ShowStartPage", Bool, true, "if true, show a list of frequently read documents when no document is loaded"),
+  field("QuickTourDismissed", Bool, false, "if true, the start page quick tour was dismissed").ver("3.7"),
   field(
     "SidebarDx",
     Int,
@@ -1912,7 +1914,12 @@ const globalPrefs: Field[] = [
     .internal()
     .ver("3.7"),
   field("OcrLanguage", Str, "", "Windows OCR language tag; empty uses profile languages").internal(),
-  field("TsaUrl", Str, "", "RFC 3161 Timestamp Authority (TSA) server URL for digital signatures; empty means no timestamp").ver("3.7"),
+  field(
+    "TsaUrl",
+    Str,
+    "",
+    "RFC 3161 Timestamp Authority (TSA) server URL for digital signatures; empty means no timestamp",
+  ).ver("3.7"),
   field("TranslateFromLang", Str, "", "remembered source language for selection translation; empty means Auto")
     .internal()
     .ver("3.7"),
@@ -2169,6 +2176,7 @@ const globalPrefsLayout = [
   "ShowAnnotationAuthorInTooltip",
   "ShowTocPageNumbers",
   "ShowStartPage",
+  "QuickTourDismissed",
   "ScrollbarInSinglePage",
   "SmoothScroll",
   "PaddingAfterLastPage",

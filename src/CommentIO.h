@@ -31,7 +31,8 @@ bool ImportAnnotationsFromXfdf(EngineBase* engine, const char* filePath, Str& er
 bool ImportAnnotationsFromFdf(EngineBase* engine, const char* filePath, Str& errOut);
 
 // Summary & Flatten
-bool ExportCommentSummary(EngineBase* engine, const char* filePath, const char* format /* "pdf", "txt", "csv" */, Str& errOut);
+bool ExportCommentSummary(EngineBase* engine, const char* filePath, const char* format /* "pdf", "txt", "csv" */,
+                          Str& errOut);
 bool FlattenAnnotations(EngineBase* engine, Str& errOut);
 
 // UI Action handlers

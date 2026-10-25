@@ -30,6 +30,7 @@
 #include "Annotation.h"
 #include "AdvancedForms.h"
 #include "shared/PdfTools.h"
+#include "BatchActions.h"
 #include "CommentIO.h"
 #include "Measure.h"
 #include "PageTools2.h"
@@ -1577,8 +1578,36 @@ static void PageStampsTest() {
     for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
     pdf.Append(fmt("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
 
-    TempStr basePdf = GetTempFilePathTemp(StrL("base-stamps.pdf"));
+    TempStr basePdf = path::JoinTemp(path::GetDirTemp(GetTempFilePathTemp(StrL("base-stamps"))), StrL("base-stamps.pdf"));
     utassert(file::WriteFile(basePdf, ToStrTemp(pdf)));
+
+    {
+        Vec<Str> inputs;
+        VecAppend(inputs, basePdf);
+        Str result = RunBatchActionsJson(
+            StrL("{\"suffix\":\"_batch\",\"actions\":[{\"type\":\"watermark\",\"text\":\"BATCH\"}]}"), inputs);
+        TempStr output = path::JoinTemp(path::GetDirTemp(basePdf), StrL("base-stamps_batch.pdf"));
+        utassert(str::Contains(result, StrL("\"ok\":true")));
+        EngineBase* e = CreateEngineMupdfFromFile(output, FileType::PDF, 96);
+        utassert(e != nullptr);
+        PageText text = e->ExtractPageText(1);
+        utassert(str::Contains(text.text, StrL("BATCH")));
+        FreePageText(&text);
+        SafeEngineRelease(&e);
+        file::Delete(output);
+    }
+    {
+        Vec<Str> inputs;
+        VecAppend(inputs, basePdf);
+        Str result =
+            RunBatchActionsJson(StrL("{\"suffix\":\"_rot\",\"actions\":[{\"type\":\"rotate\",\"value\":90}]}"), inputs);
+        TempStr output = path::JoinTemp(path::GetDirTemp(basePdf), StrL("base-stamps_rot.pdf"));
+        utassert(str::Contains(result, StrL("\"ok\":true")));
+        EngineBase* e = CreateEngineMupdfFromFile(output, FileType::PDF, 96);
+        utassert(e != nullptr && e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(output);
+    }
 
     // 1. Watermark test (apply to page 1 only)
     {

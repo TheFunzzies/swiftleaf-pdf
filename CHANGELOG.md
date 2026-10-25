@@ -2,8 +2,21 @@
 
 ## Unreleased
 
+- Recommended section at top of the All tools panel for quick access to primary workflows.
+- Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
+- Command palette lists all commands with description and ribbon tab destination.
+- Small-window layout: at <=800px width the ribbon collapses with an overflow chevron menu.
+- Start page layout: prevent text clipping on narrow windows and 800x600/1024x768 virtual desktops.
+- First-run dismissible Quick tour card on the start page, persisted in settings (QuickTourDismissed).
+
 ### Added
 
+- Batch processing and PDF comparison with ordered JSON actions, OCR,
+  optimizer presets, sanitization, redaction, metadata and text exports;
+  recursive PDF inputs; JSON CLI results; and HTML comparison reports. See
+  `docs/batch-compare.md` and `docs/cli.md`.
+
+- All tools categories with name and description search, persisted favorites, and short tooltips.
 - Accessibility & Standards Tools (TASK W2-STANDARDS):
   - Accessibility checker: comprehensive inspection for tagged structure (`/MarkInfo /Marked`), document language (`/Lang`), title and window title display (`/ViewerPreferences /DisplayDocTitle`), figure alternate text (`/Alt`), reading order structure tree (`/StructTreeRoot`), table headers (`/TH`), form field tooltips (`/TU`), and scanned image-only pages, with interactive dialog reporting pass/warn/fail status and direct "Go to Page" navigation.
   - Accessibility fixes & basic structure auto-tagging: configure language and title, add/edit figure alternate text or mark as decorative (`/Artifact`), and auto-tag headings (`/H1`, `/H2`), paragraphs (`/P`), lists (`/L`), and figures from layout and font size metrics.

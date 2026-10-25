@@ -188,7 +188,7 @@ AnnotPlacementKind PlacementKindFromCommand(int cmdId) {
     switch (OrigCommandId(cmdId)) {
         case CmdCreateAnnotText:
             return AnnotPlacementKind::Text;
-case CmdCreateAnnotFreeText:
+        case CmdCreateAnnotFreeText:
         case CmdCreateAnnotTextBox:
         case CmdCreateAnnotCallout:
             return AnnotPlacementKind::FreeText;
@@ -198,7 +198,7 @@ case CmdCreateAnnotFreeText:
             return AnnotPlacementKind::Caret;
         case CmdCreateAnnotFileAttachment:
             return AnnotPlacementKind::FileAttachment;
-case CmdCreateAnnotLine:
+        case CmdCreateAnnotLine:
         case CmdCreateAnnotArrow:
         case CmdMeasureDistance:
             return AnnotPlacementKind::Line;
@@ -1320,7 +1320,8 @@ static void PaintLinePlacement(MainWindow* win, HDC hdc, DisplayModel* dm) {
         Point mid{(start.x + end.x) / 2, (start.y + end.y) / 2};
         gs.FillRectangle(&bgBrush, mid.x + 8, mid.y - 12, 80, 20);
         gs.DrawRectangle(&pen, mid.x + 8, mid.y - 12, 80, 20);
-        gs.DrawString(wlabel.s, -1, &font, Gdiplus::PointF((Gdiplus::REAL)(mid.x + 10), (Gdiplus::REAL)(mid.y - 10)), &textBrush);
+        gs.DrawString(wlabel.s, -1, &font, Gdiplus::PointF((Gdiplus::REAL)(mid.x + 10), (Gdiplus::REAL)(mid.y - 10)),
+                      &textBrush);
     }
 }
 
@@ -1369,7 +1370,8 @@ static void PaintPolyLinePlacement(MainWindow* win, HDC hdc, DisplayModel* dm) {
         Gdiplus::SolidBrush bgBrush(Gdiplus::Color(230, 255, 255, 255));
         gs.FillRectangle(&bgBrush, end.x + 8, end.y - 14, 90, 22);
         gs.DrawRectangle(&pen, end.x + 8, end.y - 14, 90, 22);
-        gs.DrawString(wlabel.s, -1, &font, Gdiplus::PointF((Gdiplus::REAL)(end.x + 10), (Gdiplus::REAL)(end.y - 12)), &textBrush);
+        gs.DrawString(wlabel.s, -1, &font, Gdiplus::PointF((Gdiplus::REAL)(end.x + 10), (Gdiplus::REAL)(end.y - 12)),
+                      &textBrush);
     }
 }
 

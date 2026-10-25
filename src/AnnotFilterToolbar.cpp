@@ -429,7 +429,8 @@ static void OnListDrawItem(AnnotFilterToolbar* f, VirtListBox::DrawItemEvent* ev
     char dateText[32]{};
     if (date && localtime_s(&tmDate, &date) == 0) strftime(dateText, sizeof(dateText), "%Y-%m-%d %H:%M", &tmDate);
     Str status = GetAnnotationState(annot);
-    TempStr meta = status.len > 0 ? fmt("%s  %s  [%s]", AnnotationReadableNameTemp(annot->type), Str(dateText), status) : fmt("%s  %s", AnnotationReadableNameTemp(annot->type), Str(dateText));
+    TempStr meta = status.len > 0 ? fmt("%s  %s  [%s]", AnnotationReadableNameTemp(annot->type), Str(dateText), status)
+                                  : fmt("%s  %s", AnnotationReadableNameTemp(annot->type), Str(dateText));
     gfx->DrawText(meta, line, gfxTextEllipsis, font, ThemeWindowTextDisabledColor());
     line.y += DpiScale(26);
     line.dy = std::max(0, r.Bottom() - line.y - pad);
