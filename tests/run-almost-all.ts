@@ -263,6 +263,7 @@ import { testit as issue6111 } from "./issue-6111.ts";
 import { testit as annotListPlacement } from "./annot-list-placement.ts";
 import { testit as exitEditPdfDeselects } from "./exit-edit-pdf-deselects.ts";
 import { testit as freeTextInPlaceEdit } from "./free-text-in-place-edit.ts";
+import { testit as existingTextEdit } from "./existing-text-edit.ts";
 import { testit as freeTextDraft } from "./free-text-draft.ts";
 import { testit as freeTextTransparent } from "./free-text-transparent.ts";
 import { testit as freeTextCustomStyle } from "./free-text-custom-style.ts";
@@ -481,6 +482,7 @@ export const tests: NamedTest[] = [
   ["issue-6137", issue6137],
   ["free-text-edit-matches-render", freeTextEditMatchesRender],
   ["free-text-in-place-edit", freeTextInPlaceEdit],
+  ["existing-text-edit", existingTextEdit],
   ["issue-6103", issue6103],
   ["issue-6062", issue6062],
   ["issue-6101", issue6101],

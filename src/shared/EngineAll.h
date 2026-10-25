@@ -181,6 +181,8 @@ struct PdfTextRun {
     bool italic = false;
     bool serif = false;
     bool mono = false;
+    char fontName[128]{};
+    bool supported = true;
     // whole paragraphs, their lines joined: new text is wrapped to bbox's width
     bool reflow = false;
 };
@@ -191,7 +193,8 @@ enum class TextRunScope {
 };
 bool EngineMupdfGetTextRun(EngineBase*, int pageNo, RectF area, TextRunScope, PdfTextRun* out);
 bool EngineMupdfCanEditText(Str text);
-bool EngineMupdfReplaceText(EngineBase*, int pageNo, const PdfTextRun& run, Str newText, Vec<Annotation*>& deletedOut);
+bool EngineMupdfReplaceText(EngineBase*, int pageNo, const PdfTextRun& run, Str newText, Vec<Annotation*>& deletedOut,
+                            Str* errorOut = nullptr);
 
 bool EngineMupdfSupportsAnnotations(EngineBase*);
 bool EngineMupdfIsPdf(EngineBase* engine);

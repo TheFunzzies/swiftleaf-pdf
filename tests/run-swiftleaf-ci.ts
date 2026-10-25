@@ -26,6 +26,7 @@ const smokeTests = [
   "sign-with-image",
   "tool-merge",
   "edit-safety",
+  "existing-text-edit",
   "edit-reliability",
   "annot-copy-paste",
   "annot-cut-paste",
