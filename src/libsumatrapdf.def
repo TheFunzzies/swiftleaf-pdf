@@ -2110,6 +2110,9 @@ EXPORTS
 	des
 
 ; Swiftleaf: Edit Text (EngineMupdfReplaceText)
+	pdf_clean_font_name
+	pdf_array_push_int
+	pdf_array_push_array
 	pdf_apply_redaction
 	fz_new_base14_font
 	pdf_add_simple_font

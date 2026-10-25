@@ -225,6 +225,8 @@ static const char* gIconCreateSignature = TABLER_SVG(
 // clang-format off
 static const RibbonItemDef gEditItems[] = {
     {gIconEditAnnotations, CmdEditText, TrN("Edit Text"), TrN("Select text on the page, then click here to change it")},
+    {gIconEditAnnotations, CmdPdfReplaceText, TrN("Find & Replace"), TrN("Replace text across the document in a saved copy")},
+    {gIconTypewriter, CmdPdfFontManager, TrN("Fonts"), TrN("List document fonts and replace the font on selected text lines")},
     {gIconTypewriter, CmdCreateAnnotFreeText, TrN("Add Text"), TrN("Add a text box (typewriter)")},
     {gIconImage, CmdInsertImage, TrN("Image"), TrN("Insert an image from a file")},
     {gIconClipboard, CmdCreateAnnotImageFromClipboard, TrN("Paste Image"), TrN("Insert the image on the clipboard")},

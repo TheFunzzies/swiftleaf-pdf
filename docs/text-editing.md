@@ -1,9 +1,11 @@
-# Editing existing text
+# Editing existing text and fonts
 
 Choose **Edit Text**, then click a paragraph or use an existing text selection.
 Enter commits; Shift+Enter inserts a paragraph break; Escape cancels. A failed
 commit keeps the draft open for correction or copying. Save and Save As use the
 atomic sibling-file replacement described in [recovery.md](recovery.md).
+The **Edit** tab and **All tools** also provide **Find and Replace Text** and
+**Font Manager** (`CmdPdfReplaceText` and `CmdPdfFontManager`).
 While a CJK input method is composing a character, Enter and Escape belong to
 the input method. Commit the completed draft with Enter after composition ends.
 
@@ -24,12 +26,43 @@ explicit Encoding and ToUnicode maps, including distinct mappings for characters
 that share a glyph. Font subsetting runs in a temporary PDF containing only the
 replacement; the result is imported as an isolated Form XObject. MuPDF can leave
 a font whole if its subsetter cannot handle that font program.
+Saved CID subsets remain editable even when the font program has no Unicode
+lookup table: spacing and glyph reuse use the PDF's decoded glyph IDs.
 
 The editor preserves font size, fill color and the first baseline. Paragraph
 replacement wraps within the original width, preferring spaces; CJK and long
 words can wrap between characters. Additional lines can extend below the old
 block and overlap following content. Replacement glyphs extending beyond the
 page are rejected before source removal. Inspect the result and undo if needed.
+
+## Font manager
+
+The font manager lists fonts in page resources, nested Form XObjects and
+annotation appearances, including embedded status, font type and encoding.
+Fonts without the `embedded` label are not embedded. Inherited page resources
+are included; unused resources can appear in the list.
+
+Select text on one page, open **Font Manager**, choose an installed family and
+click **Replace Selection Font**. This changes complete selected lines, keeping
+their size, color and initial baseline. The selected family must supply every
+glyph and allow embedding; an unavailable font or glyph rejects the operation.
+No Unicode fallback is substituted for an explicit family choice. The engine
+keeps the source's bold/italic request; the font picker's size is ignored.
+Save commits the change to disk; ordinary Undo/Redo applies before saving too.
+
+## Find and replace
+
+**Find and Replace Text** replaces non-overlapping, case-sensitive literal
+matches within paragraphs on every page. Soft line breaks are searched as spaces.
+Matches cannot cross paragraph or page boundaries; regex, OCR and form-field
+replacement are not provided. An empty replacement deletes matches.
+
+Choose a separate output file and click **Replace All in Copy**. The copy includes
+unsaved edits. All changes run on a private snapshot; a missing glyph, unsupported
+matching block, overlapping block or save failure leaves the open document and
+any existing output file intact. Vertical-only blocks currently stop the scan,
+even when they contain no match. No-match searches write nothing. Successful
+copies open for inspection. Large documents can pause the UI during this operation.
 
 ## Deliberate limits in W2
 
@@ -51,7 +84,6 @@ This is a partial implementation, not Acrobat editing parity:
   artwork are excluded from that redaction.
 - Existing-image/vector selection, replacement, move, resize, crop, rotation,
   flip, multi-selection, align and distribute are not implemented by this change.
-- A font manager and document-wide find/replace are not implemented.
 - Add Text, Add Image, watermarks, headers/footers and Bates numbering retain
   their existing paths; this change does not extend their Unicode behavior.
 
@@ -66,6 +98,10 @@ validation and unsupported shaping/control characters before document access.
 `tests/existing-text-edit.ts` checks failed-draft retention, IME key handling and
 saving/reopening CJK text through the editor. The unit suite also checks that
 overlapping links reject edits without removing source text.
+`TextReplaceToolsTest` covers repeated matches on multiple pages, Unicode output,
+empty replacement, explicit font changes, unsaved edits in the snapshot and
+failure preserving an existing output. The contextual-panel smoke opens both
+new dialogs and checks their command availability.
 
 Run the Debug build and `bun cmd/run-unit-tests.ts -dbg --no-build`. On a host
 where Device Guard blocks execution, dispatch `.github/workflows/build.yml` for

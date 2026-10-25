@@ -13822,6 +13822,12 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
         case CmdPdfRedactSearch:
             ShowPdfRedactSearchDialog(win);
             break;
+        case CmdPdfReplaceText:
+            ShowPdfReplaceTextDialog(win);
+            break;
+        case CmdPdfFontManager:
+            ShowPdfFontManager(win);
+            break;
         case CmdCropPages:
             ShowCropPagesDialog(win);
             break;

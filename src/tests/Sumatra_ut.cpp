@@ -689,35 +689,43 @@ static void AdvancedFormsTest() {
     file::Delete(flattened);
 }
 
-static TempStr TextEditFixture(Str pageExtra = {},
-                               Str content = StrL("BT /F1 12 Tf 72 700 Td (Original text) Tj ET\n")) {
-    const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+static TempStr TextEditFixture(Str pageExtra = {}, Str content = StrL("BT /F1 12 Tf 72 700 Td (Original text) Tj ET\n"),
+                               int pages = 1) {
+    const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>",
+                             "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> "
                              ">> /Contents 5 0 R >>",
-                             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>", ""};
+                             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                             "",
+                             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> "
+                             ">> /Contents 5 0 R >>"};
     str::Builder pdf;
     pdf.Append(StrL("%PDF-1.7\n"));
-    int offsets[5];
-    for (int i = 0; i < 5; i++) {
+    int offsets[6];
+    int count = pages == 2 ? 6 : 5;
+    for (int i = 0; i < count; i++) {
         offsets[i] = len(pdf);
         Str object = Str(objects[i]);
+        if (i == 1 && pages == 2) object = StrL("<< /Type /Pages /Count 2 /Kids [3 0 R 6 0 R] >>");
         if (i == 2) object = str::ReplaceTemp(object, StrL("/Contents"), fmt("%s /Contents", pageExtra));
         if (i == 4) object = fmt("<< /Length %d >>\nstream\n%sendstream", len(content), content);
         pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, object));
     }
     int xref = len(pdf);
-    pdf.Append(StrL("xref\n0 6\n0000000000 65535 f \n"));
-    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
-    pdf.Append(fmt("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+    pdf.Append(fmt("xref\n0 %d\n0000000000 65535 f \n", count + 1));
+    for (int i = 0; i < count; i++) pdf.Append(fmt("%010d 00000 n \n", offsets[i]));
+    pdf.Append(fmt("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", count + 1, xref));
     return ToStrTemp(pdf);
 }
 
 static void TextEditUnicodeTest() {
     TempStr pdf = TextEditFixture();
-    Str samples[] = {StrL("Caf\xc3\xa9 \xc5\x92uvre"), StrL("\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82"),
+    Str samples[] = {StrL("Caf\xc3\xa9 \xc5\x92uvre"),
+                     StrL("\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82"),
                      StrL("\xce\x95\xce\xbb\xce\xbb\xce\xb7\xce\xbd\xce\xb9\xce\xba\xce\xac"),
                      StrL("\xe4\xb8\xad\xe6\x96\x87 \xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e \xed\x95\x9c\xea\xb8\x80"),
-                     StrL("space\xc2\xa0space")};
+                     StrL("space\xc2\xa0space"),
+                     StrL("\xe4\xb8\xad\xe6\x96\x87")};
     for (Str sample : samples) {
         EngineBase* e = CreateEngineMupdfFromData(pdf, StrL("unicode-edit.pdf"), nullptr);
         utassert(e != nullptr);
@@ -754,6 +762,7 @@ static void TextEditUnicodeTest() {
         PdfTextRun reopened;
         utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 500, 50}, TextRunScope::Lines, &reopened));
         utassert(str::Eq(reopened.text, sample));
+        if (str::Eq(sample, StrL("\xe4\xb8\xad\xe6\x96\x87"))) utassert(reopened.supported);
         utassert(fabsf(reopened.fontSize - run.fontSize) < 0.01f && reopened.color == run.color);
         utassert(fabsf(reopened.origin.x - run.origin.x) < 0.01f && fabsf(reopened.origin.y - run.origin.y) < 0.01f);
         str::Free(reopened.text);
@@ -850,6 +859,69 @@ static void TextEditUnicodeTest() {
         str::Free(styledRun.text);
         SafeEngineRelease(&e);
     }
+}
+
+static void TextReplaceToolsTest() {
+    TempStr pdf = TextEditFixture({}, StrL("BT /F1 12 Tf 72 700 Td (Original text Original) Tj ET\n"), 2);
+    EngineBase* e = CreateEngineMupdfFromData(pdf, StrL("replace-all.pdf"), nullptr);
+    utassert(e && e->PageCount() == 2);
+    if (!e) return;
+    TempStr output = GetTempFilePathTemp(StrL("replace-all"));
+    Str error;
+    int count = -1;
+    utassert(EngineMupdfReplaceAllText(e, output, StrL("Original"), StrL("\xe4\xb8\xad\xe6\x96\x87"), &count, &error));
+    utassert(count == 4);
+    EngineBase* reopened = CreateEngineMupdfFromFile(output, FileType::PDF, 96);
+    utassert(reopened != nullptr);
+    if (reopened) {
+        for (int page = 1; page <= 2; page++) {
+            PdfTextRun result;
+            utassert(EngineMupdfGetTextRun(reopened, page, {0, 0, 612, 792}, TextRunScope::Paragraph, &result));
+            utassert(str::Eq(result.text, StrL("\xe4\xb8\xad\xe6\x96\x87 text \xe4\xb8\xad\xe6\x96\x87")));
+            str::Free(result.text);
+        }
+    }
+    SafeEngineRelease(&reopened);
+    Str saved = file::ReadFile(output);
+    utassert(!EngineMupdfReplaceAllText(e, output, StrL("missing"), {}, &count, &error));
+    utassert(count == 0 && len(error));
+    Str after = file::ReadFile(output);
+    utassert(str::Eq(saved, after));
+    str::Free(after);
+    utassert(!EngineMupdfReplaceAllText(e, output, StrL("Original"), StrL("\xd8\xb9"), &count, &error));
+    after = file::ReadFile(output);
+    utassert(str::Eq(saved, after));
+    str::Free(after);
+    str::Free(saved);
+    PdfTextRun run;
+    utassert(EngineMupdfGetTextRun(e, 1, {0, 0, 612, 792}, TextRunScope::Lines, &run));
+    utassert(str::Eq(run.text, StrL("Original text Original")));
+    str::BufSet(Str(run.replacementFont, sizeof(run.replacementFont)), StrL("Courier New"));
+    Vec<Annotation*> removed;
+    utassert(EngineMupdfReplaceText(e, 1, run, run.text, removed, &error));
+    utassert(EngineMupdfSaveUpdated(e, output, {}));
+    reopened = CreateEngineMupdfFromFile(output, FileType::PDF, 96);
+    PdfTextRun changedFont;
+    utassert(EngineMupdfGetTextRun(reopened, 1, {0, 0, 612, 792}, TextRunScope::Lines, &changedFont));
+    utassert(str::Eq(changedFont.text, run.text) && str::ContainsI(Str(changedFont.fontName), StrL("Courier")));
+    utassert(fabsf(changedFont.fontSize - run.fontSize) < 0.01f);
+    str::Free(changedFont.text);
+    str::Free(run.text);
+    SafeEngineRelease(&reopened);
+    // Replacement copies include unsaved edits and can delete every match.
+    bool replaced = EngineMupdfReplaceAllText(e, output, StrL("Original"), {}, &count, &error);
+    if (!replaced) printf("Replacement failed: %s\n", CStrTemp(error));
+    utassert(replaced);
+    utassert(count == 4);
+    reopened = CreateEngineMupdfFromFile(output, FileType::PDF, 96);
+    PdfTextRun deleted;
+    utassert(EngineMupdfGetTextRun(reopened, 1, {0, 0, 612, 792}, TextRunScope::Lines, &deleted));
+    utassert(str::Eq(str::ReplaceTemp(deleted.text, StrL(" "), StrL("")), StrL("text")) &&
+             str::ContainsI(Str(deleted.fontName), StrL("Courier")));
+    str::Free(deleted.text);
+    SafeEngineRelease(&reopened);
+    SafeEngineRelease(&e);
+    file::Delete(output);
 }
 
 static void FormAuthoringTest() {
@@ -1576,7 +1648,8 @@ static void PageStampsTest() {
     for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
     pdf.Append(fmt("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
 
-    TempStr basePdf = path::JoinTemp(path::GetDirTemp(GetTempFilePathTemp(StrL("base-stamps"))), StrL("base-stamps.pdf"));
+    TempStr basePdf =
+        path::JoinTemp(path::GetDirTemp(GetTempFilePathTemp(StrL("base-stamps"))), StrL("base-stamps.pdf"));
     utassert(file::WriteFile(basePdf, ToStrTemp(pdf)));
 
     {
@@ -2122,6 +2195,7 @@ int RunAppUnitTests(bool forAi) {
     printf("Panel layout, settings and animation tests passed\n");
     utassert(EngineMupdf_UnitTestPanelData());
     TextEditUnicodeTest();
+    TextReplaceToolsTest();
     FormAuthoringTest();
     AdvancedFormsTest();
     PageStampsTest();

@@ -11,6 +11,11 @@
 
 ### Added
 
+- Font Manager lists document fonts and changes the installed font family on
+  selected text lines. Find and Replace Text replaces literal matches across
+  pages in an atomic copy, including unsaved edits. Saved Unicode CID subsets
+  can be edited again. See `docs/text-editing.md` for supported styles and limits.
+
 - Batch processing and PDF comparison with ordered JSON actions, OCR,
   optimizer presets, sanitization, redaction, metadata and text exports;
   recursive PDF inputs; JSON CLI results; and HTML comparison reports. See

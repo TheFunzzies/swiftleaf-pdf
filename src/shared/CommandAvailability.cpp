@@ -213,6 +213,7 @@ static const i32 removeIfNoDiskAccessPerm[] = {
     CmdSaveAs,
     CmdPdfSanitize,
     CmdPdfRedactSearch,
+    CmdPdfReplaceText,
     CmdSaveSelectionAsImage,
     CmdRenameFile,
     CmdDeleteFile,
@@ -255,6 +256,8 @@ static const i32 removeIfAnnotsNotSupported[] = {
     CmdHideAnnotations,
     CmdToggleShowAnnotations,
     CmdToggleEditPDF,
+    CmdPdfReplaceText,
+    CmdPdfFontManager,
     // added past the CmdCreateAnnotFirst..CmdCreateAnnotLast range, so the
     // range check doesn't catch it
     CmdCreateAnnotImageFromClipboard,

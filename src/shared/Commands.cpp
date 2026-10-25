@@ -437,6 +437,8 @@ const CommandInfo gCommands[] = {
     {CmdClearSignature, "CmdClearSignature\0", StrL("Clear Signature")},
     {CmdBatchActions, "CmdBatchActions\0", StrL("Action Wizard...")},
     {CmdComparePdf, "CmdComparePdf\0", StrL("Compare PDFs...")},
+    {CmdPdfReplaceText, "CmdPdfReplaceText\0", StrL("Find and Replace Text...")},
+    {CmdPdfFontManager, "CmdPdfFontManager\0", StrL("Font Manager...")},
 };
 const int gCommandsCount = dimofi(gCommands);
 

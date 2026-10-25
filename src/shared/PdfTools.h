@@ -11,9 +11,16 @@ struct MainWindow;
 void ShowPdfBakeDialog(MainWindow* win);
 void ShowPdfSanitizeDialog(MainWindow* win);
 void ShowPdfRedactSearchDialog(MainWindow* win);
+void ShowPdfReplaceTextDialog(MainWindow* win);
+void ShowPdfFontManager(MainWindow* win);
 void ShowPdfExtractTextDialog(MainWindow* win);
 void ShowPdfCompressDialog(MainWindow* win);
-enum class PdfOptimizerPreset { Web, Print, Archive, MinSize };
+enum class PdfOptimizerPreset {
+    Web,
+    Print,
+    Archive,
+    MinSize
+};
 struct PdfOptimizationAudit {
     i64 beforeBytes = 0;
     i64 afterBytes = 0;

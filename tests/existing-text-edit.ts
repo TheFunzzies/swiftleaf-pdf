@@ -38,6 +38,7 @@ async function openEditor(frame: number, canvas: number, text: string): Promise<
   return await pollUntil(
     async () => findEditor(canvas, text),
     (hwnd) => hwnd !== 0,
+    { error: () => `Editor did not open with text ${JSON.stringify(text)}` },
   );
 }
 
@@ -79,6 +80,7 @@ export async function testit(): Promise<void> {
     await pollUntil(
       async () => findEditor(canvas, "ع"),
       (hwnd) => hwnd === 0,
+      { error: () => "Escape did not cancel the failed draft" },
     );
     const next = await openEditor(frame, canvas, "Original text");
     sendText(next, "中文");
@@ -93,6 +95,7 @@ export async function testit(): Promise<void> {
     await pollUntil(
       async () => findEditor(canvas, "中文"),
       (hwnd) => hwnd === 0,
+      { error: () => "Enter did not commit the CJK draft" },
     );
     sendCommandSync(frame, cmdId("CmdSaveAnnotations"));
     await client.request(ControlCommand.TestMarkupAnnots, []);
@@ -110,6 +113,7 @@ export async function testit(): Promise<void> {
     await pollUntil(
       async () => findEditor(canvas, "中文"),
       (hwnd) => hwnd === 0,
+      { error: () => "Escape did not cancel the reopened draft" },
     );
   } finally {
     reopened.client.close();
