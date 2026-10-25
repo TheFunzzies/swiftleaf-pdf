@@ -1429,6 +1429,8 @@
     <ClInclude Include="..\src\NavRail.h" />
     <ClInclude Include="..\src\Notifications.h" />
     <ClInclude Include="..\src\Ocr.h" />
+    <ClInclude Include="..\src\ScannerWia.h" />
+    <ClInclude Include="..\src\SignaturePanel.h" />
     <ClInclude Include="..\src\OverlayScrollbar.h" />
     <ClInclude Include="..\src\PageOrganize.h" />
     <ClInclude Include="..\src\PageThumbnails.h" />
@@ -1535,6 +1537,8 @@
     <ClInclude Include="..\src\shared\PdfTools.h" />
     <ClInclude Include="..\src\ExportFormats.h" />
     <ClInclude Include="..\src\PageTools2.h" />
+    <ClInclude Include="..\src\Accessibility.h" />
+    <ClInclude Include="..\src\Preflight.h" />
     <ClInclude Include="..\src\shared\PngOptimizer.h" />
     <ClInclude Include="..\src\shared\Print.h" />
     <ClInclude Include="..\src\shared\PrintWin11.h" />
@@ -1671,6 +1675,8 @@
     <ClCompile Include="..\src\NavRail.cpp" />
     <ClCompile Include="..\src\Notifications.cpp" />
     <ClCompile Include="..\src\Ocr.cpp" />
+    <ClCompile Include="..\src\ScannerWia.cpp" />
+    <ClCompile Include="..\src\SignaturePanel.cpp" />
     <ClCompile Include="..\src\OverlayScrollbar.cpp" />
     <ClCompile Include="..\src\PageGridDialog.cpp" />
     <ClCompile Include="..\src\PageOrganize.cpp" />
@@ -1679,6 +1685,8 @@
     <ClCompile Include="..\src\PdfTools.cpp" />
     <ClCompile Include="..\src\ExportFormats.cpp" />
     <ClCompile Include="..\src\PageTools2.cpp" />
+    <ClCompile Include="..\src\Accessibility.cpp" />
+    <ClCompile Include="..\src\Preflight.cpp" />
     <ClCompile Include="..\src\ReadAloud.cpp" />
     <ClCompile Include="..\src\ReadingAutoScroll.cpp" />
     <ClCompile Include="..\src\RefHover.cpp" />

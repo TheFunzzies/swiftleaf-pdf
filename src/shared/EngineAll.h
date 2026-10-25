@@ -1,7 +1,8 @@
+#pragma once
 /* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
    License: GPLv3 */
 
-enum class FileType : u8;
+#include "base/GuessFileType.h"
 struct Annotation;
 enum class AnnotationType;
 struct PasswordUI;
@@ -238,11 +239,54 @@ struct PdfSignArgs {
     RectF rect;               // where the new field goes; empty uses mupdf's default box
     int appearanceFlags = -1; // -1 = kPdfSignDefaultAppearance
     Str imagePath;            // optional PNG/JPEG drawn on the left of the appearance
+    bool isCertify = false;   // DocMDP certification
+    int mdpPerm = 2;          // 1: no changes, 2: forms & signatures, 3: annots & forms
+    Str tsaUrl;               // optional RFC 3161 TSA server URL
 };
+
+enum class SignatureStatus {
+    Valid,
+    ModifiedAfterSigning,
+    UnknownSigner,
+    Expired,
+    Revoked,
+    Unknown,
+};
+
+struct SignatureItemInfo {
+    Str fieldName;
+    int pageNo = 1;
+    Str signerName;
+    Str issuerName;
+    Str date;
+    Str reason;
+    Str location;
+    SignatureStatus status = SignatureStatus::Unknown;
+    Str statusDesc;
+    bool isCertified = false;
+    int mdpPerm = 0; // 1 = no changes, 2 = forms & signatures, 3 = annots & forms
+    Str certDer;     // DER bytes for CryptUIDlgViewContext
+};
+
+inline void FreeSignatures(Vec<SignatureItemInfo>& sigs) {
+    for (auto& s : sigs) {
+        str::Free(s.fieldName);
+        str::Free(s.signerName);
+        str::Free(s.issuerName);
+        str::Free(s.date);
+        str::Free(s.reason);
+        str::Free(s.location);
+        str::Free(s.statusDesc);
+        str::Free(s.certDer);
+    }
+    VecReset(sigs);
+}
 
 void EngineMupdfGetUnsignedSignatureFields(EngineBase*, StrVec& names, Vec<int>& pageNos);
 bool IsUnsignedSignatureWidget(Annotation*, TempStr* fieldNameOut);
 bool EngineMupdfSignDocument(EngineBase*, const PdfSignArgs&, Str* errOut);
+bool EngineMupdfGetSignaturesInfo(EngineBase*, Vec<SignatureItemInfo>& outSigs);
+bool EngineMupdfClearSignature(EngineBase*, Str fieldName);
 void ListWindowsSigningCertificates(StrVec& thumbprints, StrVec& labels);
 
 #if OS_WIN
