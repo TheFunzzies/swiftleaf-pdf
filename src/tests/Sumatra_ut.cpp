@@ -702,6 +702,12 @@ static void UnifiedUndoTest(Str source) {
     TempStr input = GetTempFilePathTemp(StrL("undo-input"));
     TempStr result = GetTempFilePathTemp(StrL("undo-result"));
     TempStr recovery = GetTempFilePathTemp(StrL("undo-recovery"));
+    auto checkCopy = [&](int pages) {
+        utassert(EngineMupdfSaveCopy(e, input));
+        auto* copy = CreateEngineMupdfFromFile(input, FileType::PDF, 96);
+        utassert(copy && copy->PageCount() == pages);
+        SafeEngineRelease(&copy);
+    };
     EngineMupdfSetUndoStorage(e, recovery, 1);
     FormFieldProperties props;
     props.kind = FormFieldKind::Text;
@@ -720,6 +726,7 @@ static void UnifiedUndoTest(Str source) {
     utassert(EngineMupdfImportEdit(e, result, "Insert blank page", removed));
     dispose();
     utassert(e->PageCount() == 2 && EngineMupdfCountFormFields(e) == 1);
+    checkCopy(2);
     utassert(str::Eq(EngineMupdfUndoLabel(e, false), StrL("Insert blank page")));
     utassert(SetWidgetTextValue(FirstUndoTestField(e), StrL("Second")));
     utassert(!EngineMupdfCanUndo(other));
@@ -738,6 +745,7 @@ static void UnifiedUndoTest(Str source) {
         dispose();
     }
     utassert(e->PageCount() == 2 && str::Eq(GetWidgetValue(FirstUndoTestField(e)), StrL("Second")));
+    checkCopy(2);
 
     utassert(EngineMupdfSaveCopy(e, input));
     PdfDocPropsParams metadata;
@@ -1578,7 +1586,8 @@ static void PageStampsTest() {
     for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
     pdf.Append(fmt("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
 
-    TempStr basePdf = path::JoinTemp(path::GetDirTemp(GetTempFilePathTemp(StrL("base-stamps"))), StrL("base-stamps.pdf"));
+    TempStr basePdf =
+        path::JoinTemp(path::GetDirTemp(GetTempFilePathTemp(StrL("base-stamps"))), StrL("base-stamps.pdf"));
     utassert(file::WriteFile(basePdf, ToStrTemp(pdf)));
 
     {

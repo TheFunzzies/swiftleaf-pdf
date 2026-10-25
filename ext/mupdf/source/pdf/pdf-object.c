@@ -946,6 +946,7 @@ discard_journal_entries(fz_context *ctx, pdf_journal_entry **journal_entry)
 static void
 write_fragment(fz_context *ctx, fz_output *out, pdf_journal_fragment *frag)
 {
+	fz_write_byte(ctx, out, 'A' + frag->newobj);
 	if (frag->newobj)
 	{
 		fz_write_printf(ctx, out, "%d 0 newobj\n", frag->obj_num);
@@ -976,15 +977,20 @@ load_journal_entry(fz_context *ctx, pdf_document *doc, pdf_journal_entry *entry)
 		while (1)
 		{
 			pdf_journal_fragment *frag;
+			int inactive_type;
 			fz_skip_space(ctx, stm);
 			if (fz_is_eof(ctx, stm))
 				break;
+			inactive_type = fz_read_byte(ctx, stm) - 'A';
+			if (inactive_type < 0 || inactive_type > 2)
+				fz_throw(ctx, FZ_ERROR_FORMAT, "invalid journal fragment type");
 			frag = fz_malloc_struct(ctx, pdf_journal_fragment);
 			frag->prev = loaded.tail;
 			if (loaded.tail) loaded.tail->next = frag;
 			else loaded.head = frag;
 			loaded.tail = frag;
 			frag->inactive = pdf_parse_journal_obj(ctx, doc, stm, &frag->obj_num, &frag->stream, &frag->newobj);
+			frag->newobj = inactive_type;
 			pdf_set_obj_parent(ctx, frag->inactive, frag->obj_num);
 		}
 	}
@@ -1553,8 +1559,8 @@ swap_fragments(fz_context *ctx, pdf_document *doc, pdf_journal_entry *entry)
 		obuf = xre->stm_buf;
 		xre->obj = frag->inactive;
 		type = xre->type;
-		xre->type = frag->newobj ? 0 : 'n';
-		frag->newobj = type == 0;
+		xre->type = frag->newobj == 2 ? 'f' : frag->newobj ? 0 : 'n';
+		frag->newobj = type == 'f' ? 2 : type == 0;
 		xre->stm_buf = frag->stream;
 		frag->inactive = old;
 		frag->stream = obuf;
