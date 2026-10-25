@@ -2,11 +2,11 @@
 
 ## Unreleased
 
-- Existing-text editing: Unicode Latin, Cyrillic, Greek and CJK with embedded CID
-  fonts, explicit ToUnicode maps, installed-family fallback and character-aware
-  paragraph wrapping. Unsupported glyphs and block styles are rejected before
-  source removal; failed edits keep the draft. See `docs/text-editing.md` for
-  remaining shaping, style, font-subsetting and object-editing limits.
+- Existing-text editing: Unicode Latin, Cyrillic, Greek and CJK with embedded,
+  subset CID fonts, explicit ToUnicode maps, installed-family fallback and
+  character-aware wrapping. Unsupported glyphs and block styles are rejected
+  before source removal; failed edits keep the draft. See `docs/text-editing.md`
+  for remaining shaping, style and object-editing limits.
 - Review & Measurement tools (TASK W-REVIEW):
   - Comments import and export in XFDF (ISO 19444-1) and FDF formats.
   - Comment summary generation to PDF, text outline, and CSV tabular formats.
@@ -18,6 +18,9 @@
   - Measurement persistence in PDF /Measure dictionary and CSV export.
   - Callout, Arrow, Text Box, Replace Text, Polygon, Polyline, Squiggly, and Caret annotation tools registered in Ribbon, Edit tab, All tools, and context menus.
   - Documentation in docs/review-tools.md and roundtrip unit tests in src/tests/Sumatra_ut.cpp.
+g
+
+## Unreleased
 
 ### Added
 

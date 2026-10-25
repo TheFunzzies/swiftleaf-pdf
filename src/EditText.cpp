@@ -232,10 +232,11 @@ static void OpenEditor(MainWindow* win, int pageNo, RectF area) {
     s->win = win;
     if (!s->run.supported) {
         DestroySession(s);
-        ShowWarningNotification(win->hwndCanvas,
-                                Tr("This block has mixed styles, rotation, transparency or unsupported text rendering. "
-                                   "It cannot be edited safely yet."),
-                                kNotif5SecsTimeOut);
+        ShowWarningNotification(
+            win->hwndCanvas,
+            Tr("This block has mixed styles, spacing, rotation, transparency or unsupported text rendering. "
+               "It cannot be edited safely yet."),
+            kNotif5SecsTimeOut);
         return;
     }
     s->tab = tab;

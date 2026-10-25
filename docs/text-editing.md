@@ -19,23 +19,27 @@ font loader, then a matching Base-14 substitute and MuPDF's Unicode fallback
 fonts. Subset prefixes are removed for installed-font lookup. Font substitution
 can change glyph shapes and widths. Fonts are embedded as CID Type0 fonts with
 explicit Encoding and ToUnicode maps, including distinct mappings for characters
-that share a glyph. New resources are isolated in a Form XObject.
+that share a glyph. Font subsetting runs in a temporary PDF containing only the
+replacement; the result is imported as an isolated Form XObject. MuPDF can leave
+a font whole if its subsetter cannot handle that font program.
 
 The editor preserves font size, fill color and the first baseline. Paragraph
 replacement wraps within the original width, preferring spaces; CJK and long
 words can wrap between characters. Additional lines can extend below the old
-block and overlap following content. Inspect the result and undo if needed.
+block and overlap following content. Replacement glyphs extending beyond the
+page are rejected before source removal. Inspect the result and undo if needed.
 
 ## Deliberate limits in W2
 
 This is a partial implementation, not Acrobat editing parity:
 
-- Fonts are embedded whole; automatic subsetting is not implemented.
 - Mixed fonts, sizes or colors within a selected block are rejected. The editor
   does not yet preserve multiple styled runs or offer rich-text controls.
 - Rotated, vertical, transparent, stroked, clipped and invisible source text is
-  unsupported. Character/word spacing, kerning and horizontal scaling are not
-  reconstructed; supported edits use the chosen font's advances.
+  unsupported. Blocks with character positioning differing from the source font's
+  advances by more than 0.25 point are rejected. This includes many kerned,
+  tracked, horizontally scaled or manually positioned blocks. Supported edits use
+  the chosen font's advances.
 - RTL, joining scripts, combining marks, variation selectors and multi-character
   emoji sequences are rejected. HarfBuzz shaping and bidi editing are not wired
   into this path. Use precomposed Latin characters where available.
@@ -53,8 +57,9 @@ This is a partial implementation, not Acrobat editing parity:
 
 `TextEditUnicodeTest` in `src/tests/Sumatra_ut.cpp` replaces source text, saves,
 reopens and checks exact extracted text for Latin, Cyrillic, Greek and CJK. It
-also checks embedded Type0 fonts and ToUnicode streams, and confirms unsupported
-text leaves the source unchanged. `tests/edit-safety.cpp` checks strict UTF-8
+also checks embedded subset Type0 fonts, ToUnicode streams, undo/redo and CJK
+reflow, and confirms unsupported text and off-page edits leave the source
+unchanged. `tests/edit-safety.cpp` checks strict UTF-8
 validation and unsupported shaping/control characters before document access.
 
 Run the Debug build and `bun cmd/run-unit-tests.ts -dbg --no-build`. On a host

@@ -9721,6 +9721,8 @@ bool EngineMupdfGetTextRun(EngineBase* engine, int pageNo, RectF area, TextRunSc
     if (!e || !e->pdfdoc || pageNo < 1 || pageNo > e->pageCount || !out) {
         return false;
     }
+    out->supported = true;
+    out->fontName[0] = 0;
     auto* ctx = e->Ctx();
     fz_rect want{area.x, area.y, area.x + area.dx, area.y + area.dy};
     fz_stext_page* stext = nullptr;
@@ -9800,6 +9802,14 @@ bool EngineMupdfGetTextRun(EngineBase* engine, int pageNo, RectF area, TextRunSc
                         (ch->flags & (FZ_STEXT_STROKED | FZ_STEXT_CLIPPED)) || !(ch->flags & FZ_STEXT_FILLED)) {
                         out->supported = false;
                     }
+                    if (ch->font && ch->next) {
+                        int gid = fz_encode_character(ctx, ch->font, ch->c);
+                        float advance = fz_advance_glyph(ctx, ch->font, gid, 0) * ch->size;
+                        if (gid <= 0 || fabsf(ch->next->origin.x - ch->origin.x - advance) > 0.25f ||
+                            fabsf(ch->next->origin.y - ch->origin.y) > 0.01f)
+                            out->supported = false;
+                    }
+                    if (ch->font && (ch->font->flags.fake_bold || ch->font->flags.fake_italic)) out->supported = false;
                     AppendUtf8(text, ch->c);
                 }
                 lastBaseline = first->origin.y;
@@ -9808,9 +9818,17 @@ bool EngineMupdfGetTextRun(EngineBase* engine, int pageNo, RectF area, TextRunSc
             }
         }
     };
-    walk(walk, stext->first_block);
+    bool collected = false;
+    fz_var(collected);
+    fz_try(ctx) {
+        walk(walk, stext->first_block);
+        collected = true;
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
     fz_drop_stext_page(ctx, stext);
-    if (nLines == 0) {
+    if (!collected || nLines == 0) {
         return false;
     }
     out->bbox = RectF{box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0};
@@ -9864,7 +9882,7 @@ bool EngineMupdfCanEditText(Str text) {
                       (c >= 0x1f300 && c <= 0x1faff) || (c >= 0x20000 && c <= 0x323af);
         if (!simple || (c >= 0x7f && c <= 0x9f) || c == 0xad || (c >= 0x200b && c <= 0x200f) ||
             (c >= 0x2028 && c <= 0x202e) || (c >= 0x2060 && c <= 0x206f) || (c >= 0x302a && c <= 0x302f) ||
-            c == 0x3099 || c == 0x309a)
+            c == 0x3099 || c == 0x309a || (c >= 0x483 && c <= 0x489) || (c >= 0x1f3fb && c <= 0x1f3ff))
             return false;
     }
     return true;
@@ -10050,7 +10068,8 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
     if (!run.supported || run.fontSize <= 0 || run.bbox.dx <= 0 || run.lineGap <= 0) {
         if (errorOut)
             *errorOut = StrL(
-                "This block has mixed styles, rotation, transparency or unsupported text rendering. Original text was "
+                "This block has mixed styles, spacing, rotation, transparency or unsupported text rendering. Original "
+                "text was "
                 "kept.");
         return false;
     }
@@ -10068,6 +10087,10 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
         pdf_annot* redact = nullptr;
         fz_font* font = nullptr;
         fz_stext_page* source = nullptr;
+        pdf_document* prepared = nullptr;
+        pdf_obj* preparedPage = nullptr;
+        pdf_obj* preparedForm = nullptr;
+        pdf_graft_map* graft = nullptr;
         pdf_obj* resources = nullptr;
         pdf_obj* form = nullptr;
         pdf_obj* pageRes = nullptr;
@@ -10083,6 +10106,10 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
         fz_var(redact);
         fz_var(font);
         fz_var(source);
+        fz_var(prepared);
+        fz_var(preparedPage);
+        fz_var(preparedForm);
+        fz_var(graft);
         fz_var(resources);
         fz_var(form);
         fz_var(pageRes);
@@ -10120,6 +10147,8 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
                     actual ? fz_advance_glyph(ctx, actual, fz_encode_character(ctx, actual, rune), 0) * run.fontSize
                            : EditAdvance(ctx, font, rune, &actual) * run.fontSize;
                 int gid = fz_encode_character(ctx, actual, rune);
+                if (actual->flags.fake_bold || actual->flags.fake_italic)
+                    fz_throw(ctx, FZ_ERROR_UNSUPPORTED, "This font needs synthetic styling. Original text was kept.");
                 if (advance > run.bbox.dx && run.reflow)
                     fz_throw(ctx, FZ_ERROR_ARGUMENT, "A character is wider than this block. Original text was kept.");
                 VecAppend(glyphs, EditGlyph{actual, rune, gid, advance});
@@ -10128,13 +10157,11 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
             if (len(glyphs) > 65534)
                 fz_throw(ctx, FZ_ERROR_ARGUMENT, "This block is too long to edit (maximum 65534 characters).");
 
-            // A nested journal operation makes failures after preflight reversible.
-            pdf_begin_operation(ctx, doc, "Replace text block");
-            started = true;
-            resources = pdf_new_dict(ctx, doc, 1);
+            prepared = pdf_create_document(ctx);
+            resources = pdf_new_dict(ctx, prepared, 1);
             pdf_obj* fontRes = pdf_dict_put_dict(ctx, resources, PDF_NAME(Font), len(fonts));
             for (int f = 0; f < len(fonts); f++) {
-                fontRef = pdf_add_cid_font(ctx, doc, fonts[f]);
+                fontRef = pdf_add_cid_font(ctx, prepared, fonts[f]);
                 fontDict = pdf_copy_dict(ctx, fontRef);
                 cmap.Reset();
                 unicode.Reset();
@@ -10163,9 +10190,10 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
                 Str footer = StrL("endcmap CMapName currentdict /CMap defineresource pop end end\n");
                 cmap.Append(footer);
                 unicode.Append(footer);
-                pdf_dict_put_drop(ctx, fontDict, PDF_NAME(Encoding), AddContentStream(ctx, doc, ToStrTemp(cmap)));
-                pdf_dict_put_drop(ctx, fontDict, PDF_NAME(ToUnicode), AddContentStream(ctx, doc, ToStrTemp(unicode)));
-                pdf_dict_puts_drop(ctx, fontRes, CStrTemp(fmt("F%d", f)), pdf_add_object(ctx, doc, fontDict));
+                pdf_dict_put_drop(ctx, fontDict, PDF_NAME(Encoding), AddContentStream(ctx, prepared, ToStrTemp(cmap)));
+                pdf_dict_put_drop(ctx, fontDict, PDF_NAME(ToUnicode),
+                                  AddContentStream(ctx, prepared, ToStrTemp(unicode)));
+                pdf_dict_puts_drop(ctx, fontRes, CStrTemp(fmt("F%d", f)), pdf_add_object(ctx, prepared, fontDict));
                 pdf_drop_obj(ctx, fontDict);
                 fontDict = nullptr;
                 pdf_drop_obj(ctx, fontRef);
@@ -10178,6 +10206,7 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
             UnpackColor(run.color, cr, cg, cb);
             content.Append(fmt("q BT %.6g %.6g %.6g rg\n", cr / 255.f, cg / 255.f, cb / 255.f));
             float x = 0, y = 0;
+            fz_rect pageBounds = fz_bound_page(ctx, pi->page);
             for (int g = 0; g < len(glyphs); g++) {
                 const EditGlyph& glyph = glyphs[g];
                 if (glyph.rune == '\n') {
@@ -10198,6 +10227,12 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
                     y += run.lineGap;
                 }
                 fz_matrix upright{1, 0, 0, -1, run.origin.x + x, run.origin.y + y};
+                fz_rect ink = fz_bound_glyph(ctx, glyph.font, glyph.gid,
+                                             fz_concat(fz_scale(run.fontSize, run.fontSize), upright));
+                if (!fz_is_empty_rect(ink) && (ink.x0 < pageBounds.x0 || ink.y0 < pageBounds.y0 ||
+                                               ink.x1 > pageBounds.x1 || ink.y1 > pageBounds.y1))
+                    fz_throw(ctx, FZ_ERROR_ARGUMENT,
+                             "The replacement would extend beyond the page. Original text was kept.");
                 fz_matrix tm = fz_concat(upright, fz_invert_matrix(ctm));
                 content.Append(fmt("/F%d %.6g Tf %.8g %.8g %.8g %.8g %.8g %.8g Tm <%04X> Tj\n",
                                    VecFind(fonts, glyph.font), run.fontSize, tm.a, tm.b, tm.c, tm.d, tm.e, tm.f,
@@ -10206,7 +10241,10 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
             }
             content.Append(StrL("ET Q\n"));
             buffer = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)ToStrTemp(content).s, len(content));
-            form = pdf_new_xobject(ctx, doc, media, fz_identity, resources, buffer);
+            preparedPage = pdf_add_page(ctx, prepared, media, 0, resources, buffer);
+            pdf_insert_page(ctx, prepared, -1, preparedPage);
+            pdf_subset_fonts(ctx, prepared, 0, nullptr);
+            preparedForm = pdf_new_xobject(ctx, prepared, media, fz_identity, resources, buffer);
             // Keep annotations intact: redaction deletes intersecting annotations.
             for (pdf_annot* a = pdf_first_annot(ctx, page); a; a = pdf_next_annot(ctx, a)) {
                 fz_rect bounds = pdf_bound_annot(ctx, a);
@@ -10214,6 +10252,12 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
                 if (RectsTouch(bounds, box))
                     fz_throw(ctx, FZ_ERROR_UNSUPPORTED, "An annotation overlaps this block. Original text was kept.");
             }
+            // Only the prepared replacement's fonts are subset. Existing fonts
+            // and shared resources are never changed by that operation.
+            pdf_begin_operation(ctx, doc, "Replace text block");
+            started = true;
+            graft = pdf_new_graft_map(ctx, doc);
+            form = pdf_graft_mapped_object(ctx, graft, preparedForm);
             float inset = std::min(run.bbox.dy * 0.2f, run.fontSize * 0.2f);
             fz_rect r{run.bbox.x, run.bbox.y + inset, run.bbox.x + run.bbox.dx, run.bbox.y + run.bbox.dy - inset};
             mutated = true;
@@ -10260,6 +10304,10 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
             pdf_drop_obj(ctx, contents);
             fz_drop_buffer(ctx, buffer);
             fz_drop_stext_page(ctx, source);
+            pdf_drop_obj(ctx, preparedPage);
+            pdf_drop_obj(ctx, preparedForm);
+            pdf_drop_graft_map(ctx, graft);
+            pdf_drop_document(ctx, prepared);
             fz_drop_font(ctx, font);
             pdf_drop_annot(ctx, redact);
         }

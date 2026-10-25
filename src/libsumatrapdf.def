@@ -2110,6 +2110,7 @@ EXPORTS
 	pdf_add_simple_font
 	pdf_add_cid_font
 	pdf_font_writing_supported
+	pdf_subset_fonts
 	pdf_add_stream
 	fz_append_printf
 	fz_append_string

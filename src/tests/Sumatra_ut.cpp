@@ -717,12 +717,23 @@ static void TextEditUnicodeTest() {
         Str error;
         utassert(!EngineMupdfReplaceText(e, 1, run, StrL("\xd8\xb9"), removed, &error));
         utassert(len(error) > 0 && len(removed) == 0);
+        utassert(!EngineMupdfReplaceText(e, 1, run, StrL("\xf0\xaf\xbf\xbf"), removed, &error));
+        utassert(len(error) > 0 && len(removed) == 0);
+        PdfTextRun tooLarge = run;
+        tooLarge.fontSize = 10000;
+        utassert(!EngineMupdfReplaceText(e, 1, tooLarge, StrL("Too large"), removed, &error));
         PdfTextRun untouched;
         utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 400, 30}, TextRunScope::Lines, &untouched));
         utassert(str::Eq(run.text, untouched.text));
         str::Free(untouched.text);
         utassert(EngineMupdfReplaceText(e, 1, run, sample, removed, &error));
         utassert(len(removed) == 0);
+        utassert(EngineMupdfUndo(e, removed));
+        PdfTextRun undone;
+        utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 400, 30}, TextRunScope::Lines, &undone));
+        utassert(str::Eq(undone.text, run.text));
+        str::Free(undone.text);
+        utassert(EngineMupdfRedo(e, removed));
         TempStr path = GetTempFilePathTemp(StrL("unicode-edit"));
         utassert(EngineMupdfSaveUpdated(e, path, {}));
         SafeEngineRelease(&e);
@@ -751,6 +762,8 @@ static void TextEditUnicodeTest() {
                 utassert(pdf_is_stream(ctx, pdf_dict_get(ctx, font, PDF_NAME(ToUnicode))));
                 pdf_obj* descendant = pdf_array_get(ctx, pdf_dict_get(ctx, font, PDF_NAME(DescendantFonts)), 0);
                 pdf_obj* descriptor = pdf_dict_get(ctx, descendant, PDF_NAME(FontDescriptor));
+                const char* subsetName = pdf_to_name(ctx, pdf_dict_get(ctx, descriptor, PDF_NAME(FontName)));
+                utassert(strlen(subsetName) > 7 && subsetName[6] == '+');
                 utassert(pdf_dict_get(ctx, descriptor, PDF_NAME(FontFile)) ||
                          pdf_dict_get(ctx, descriptor, PDF_NAME(FontFile2)) ||
                          pdf_dict_get(ctx, descriptor, PDF_NAME(FontFile3)));
@@ -766,6 +779,29 @@ static void TextEditUnicodeTest() {
         str::Free(run.text);
         file::Delete(path);
     }
+
+    EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("reflow-edit.pdf"), nullptr);
+    utassert(e != nullptr);
+    if (!e) return;
+    PdfTextRun run;
+    utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 400, 30}, TextRunScope::Paragraph, &run));
+    Str cjk = StrL(
+        "\xe4\xb8\xad\xe6\x96\x87\xe4\xb8\xad\xe6\x96\x87\xe4\xb8\xad\xe6\x96\x87"
+        "\xe4\xb8\xad\xe6\x96\x87\xe4\xb8\xad\xe6\x96\x87\xe4\xb8\xad\xe6\x96\x87");
+    Vec<Annotation*> removed;
+    utassert(EngineMupdfReplaceText(e, 1, run, cjk, removed));
+    TempStr path = GetTempFilePathTemp(StrL("reflow-edit"));
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    SafeEngineRelease(&e);
+    e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+    PdfTextRun reflowed;
+    utassert(EngineMupdfGetTextRun(e, 1, {0, 0, 612, 792}, TextRunScope::Lines, &reflowed));
+    utassert(str::Eq(str::ReplaceTemp(reflowed.text, StrL("\n"), StrL("")), cjk));
+    utassert(reflowed.bbox.dx <= run.bbox.dx + 1 && reflowed.bbox.dy > run.bbox.dy);
+    str::Free(reflowed.text);
+    str::Free(run.text);
+    SafeEngineRelease(&e);
+    file::Delete(path);
 }
 
 static void FormAuthoringTest() {
