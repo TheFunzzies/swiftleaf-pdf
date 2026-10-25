@@ -1,7 +1,14 @@
 # Changelog
 
 ## Unreleased
-`r`n- Grouped All tools into collapsible categories with name and description search, persisted favorites, and short tooltips.`r`n
+
+- Recommended section at top of the All tools panel for quick access to primary workflows.
+- Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
+- Command palette lists all commands with description and ribbon tab destination.
+- Small-window layout: at <=800px width the ribbon collapses with an overflow chevron menu.
+- Start page layout: prevent text clipping on narrow windows and 800x600/1024x768 virtual desktops.
+- First-run dismissible Quick tour card on the start page, persisted in settings (QuickTourDismissed).
+
 ### Added
 
 - All tools categories with name and description search, persisted favorites, and short tooltips.

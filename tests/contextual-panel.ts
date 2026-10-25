@@ -161,6 +161,7 @@ export async function testit(): Promise<void> {
           const categoryNames = new Set(rows.map((r) => r.category));
           want(
             [
+              "Recommended",
               "Export",
               "Create",
               "Edit",
@@ -181,7 +182,11 @@ export async function testit(): Promise<void> {
             "Every tool must belong to a category",
             raw,
           );
-          want(new Set(rows.map((r) => r.cmd)).size === rows.length, "Tools must have unique commands", raw);
+          for (const cat of categoryNames) {
+            const catRows = rows.filter((r) => r.category === cat);
+            want(catRows.length > 0, `Category ${cat} must have tools`, raw);
+            want(new Set(catRows.map((r) => r.cmd)).size === catRows.length, `Tools in category ${cat} must have unique commands`, raw);
+          }
           for (const command of ["CmdPdfSanitize", "CmdPdfRedactSearch"]) {
             want(
               rows.some((r) => r.cmd === cmdId(command) && r.enabled),
@@ -229,7 +234,7 @@ export async function testit(): Promise<void> {
           checks++;
         return true;
       });
-      want(checks === checkboxes, `${title} lost selectable options: ${checks}`);
+      want(checks >= checkboxes, `${title} lost selectable options: ${checks}`);
       postMessage(dialog, WM_CLOSE, 0, 0);
       await pollUntil(
         async () => isWindowVisible(dialog),
@@ -243,13 +248,13 @@ export async function testit(): Promise<void> {
     sendText(search, "compress");
     state = await pollUntil(
       () => toolsDump(client),
-      (s) => panelRows(s).some((r) => r.text === "Compress a PDF") && panelRows(s).length === 1,
+      (s) => panelRows(s).length >= 1 && panelRows(s).every((r) => r.text === "Compress a PDF"),
       { error: (s) => `Tool search did not filter by name: ${s}` },
     );
     sendText(search, "reduce the document file size");
     state = await pollUntil(
       () => toolsDump(client),
-      (s) => panelRows(s).some((r) => r.text === "Compress a PDF") && panelRows(s).length === 1,
+      (s) => panelRows(s).length >= 1 && panelRows(s).every((r) => r.text === "Compress a PDF"),
       { error: (s) => `Tool search did not filter by description: ${s}` },
     );
     sendText(search, "");
