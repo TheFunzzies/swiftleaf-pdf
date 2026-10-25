@@ -4,6 +4,7 @@
 `r`n- Grouped All tools into collapsible categories with name and description search, persisted favorites, and short tooltips.`r`n
 ### Added
 
+- All tools categories with name and description search, persisted favorites, and short tooltips.
 - Accessibility & Standards Tools (TASK W2-STANDARDS):
   - Accessibility checker: comprehensive inspection for tagged structure (`/MarkInfo /Marked`), document language (`/Lang`), title and window title display (`/ViewerPreferences /DisplayDocTitle`), figure alternate text (`/Alt`), reading order structure tree (`/StructTreeRoot`), table headers (`/TH`), form field tooltips (`/TU`), and scanned image-only pages, with interactive dialog reporting pass/warn/fail status and direct "Go to Page" navigation.
   - Accessibility fixes & basic structure auto-tagging: configure language and title, add/edit figure alternate text or mark as decorative (`/Artifact`), and auto-tag headings (`/H1`, `/H2`), paragraphs (`/P`), lists (`/L`), and figures from layout and font size metrics.

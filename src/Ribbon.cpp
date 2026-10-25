@@ -473,6 +473,23 @@ Str RibbonPageName(RibbonPage page) {
     return trans::GetTranslation(gPageNames[(int)page]);
 }
 
+TempStr RibbonCommandHelpTemp(int cmdId, Str* pageOut) {
+    if (pageOut) *pageOut = {};
+    for (int page = 0; page < RibbonPageCount(); page++) {
+        const RibbonItemDef* items = nullptr;
+        int count = 0;
+        RibbonPageItems((RibbonPage)page, &items, &count);
+        for (int i = 0; i < count; i++) {
+            const RibbonItemDef& item = items[i];
+            if (item.cmdId != cmdId || !item.icon) continue;
+            if (pageOut) *pageOut = RibbonPageName((RibbonPage)page);
+            Str help = len(item.tip) ? item.tip : item.label;
+            return trans::GetTranslation(help);
+        }
+    }
+    return {};
+}
+
 RibbonPage RibbonPageAtTab(int tabPos) {
     return gTabOrder[tabPos];
 }

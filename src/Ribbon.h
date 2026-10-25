@@ -54,6 +54,7 @@ struct RibbonItemDef {
 
 int RibbonPageCount();
 Str RibbonPageName(RibbonPage);
+TempStr RibbonCommandHelpTemp(int cmdId, Str* pageOut);
 RibbonPage RibbonPageAtTab(int tabPos);
 // buttons of the pages built purely from RibbonItemDef (Edit, Organize, ...)
 void RibbonPageItems(RibbonPage, const RibbonItemDef** items, int* count);

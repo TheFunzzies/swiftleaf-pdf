@@ -54,6 +54,7 @@
 #include "AnnotPlacement.h"
 #include "PageThumbnails.h"
 #include "CommandPalette.h"
+#include "Ribbon.h"
 
 struct MainWindow;
 struct WindowTab;
@@ -1160,15 +1161,28 @@ void CommandPaletteWnd::UpdateHelpRow() {
 
 // the doc comment of the selected setting, like the advanced settings dialog
 void CommandPaletteWnd::UpdateSettingHelp() {
-    if (!settingHelpBox || IsCollapsed(settingHelpBox)) {
+    if (!settingHelpBox) {
         return;
     }
     Str comment;
+    bool show = false;
     int idx = listBox->GetCurrentSelection();
     auto* m = (ListBoxModelCP*)listBox->model;
     if (idx >= 0 && idx < m->ItemsCount()) {
-        comment = m->Data(idx)->settingComment;
+        ItemDataCP* data = m->Data(idx);
+        comment = data->settingComment;
+        show = IsSettingRow(data) && len(comment) > 0;
+        if (data->cmdId > 0) {
+            Str page;
+            TempStr description = RibbonCommandHelpTemp(data->cmdId, &page);
+            if (len(description)) {
+                comment = fmt("%s — %s", page, description);
+                show = true;
+            }
+        }
     }
+    settingHelpBox->SetVisibility(show ? Visibility::Visible : Visibility::Collapse);
+    settingHelp->SetIsVisible(show);
     settingHelp->SetText(comment);
 }
 

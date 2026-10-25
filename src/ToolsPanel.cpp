@@ -126,6 +126,28 @@ static const ToolDef tools[] = {
      ToolCategoryOptimize},
     {gLucideLayers, TrN("Document layers"), TrN("Show and manage optional content layers."), CmdPdfManageLayers,
      ToolCategoryStandards},
+    {gLucideBadgeCheck, TrN("Accessibility checker"), TrN("Check tags, reading order, language, and alternative text."),
+     CmdAccessibilityChecker, ToolCategoryStandards},
+    {gLucideFilePen, TrN("Accessibility fixes"), TrN("Add document language, title, and basic structure tags."),
+     CmdAccessibilityFixes, ToolCategoryStandards},
+    {gLucideBadgeCheck, TrN("Convert to PDF/A"), TrN("Convert the document to a PDF/A archive format."), CmdPdfAConvert,
+     ToolCategoryStandards},
+    {gLucideBadgeCheck, TrN("Validate PDF/A"), TrN("Check the document against PDF/A requirements."), CmdPdfAValidate,
+     ToolCategoryStandards},
+    {gLucideInfo, TrN("Preflight"), TrN("Inspect fonts, colors, images, and page boxes."), CmdPreflight,
+     ToolCategoryStandards},
+    {gLucideBadgeCheck, TrN("Convert colors"), TrN("Convert document colors to grayscale or RGB."), CmdPdfConvertColors,
+     ToolCategoryStandards},
+    {gLucideScanText, TrN("Acquire from scanner"), TrN("Scan pages and create a PDF."), CmdScanAcquire,
+     ToolCategoryScan},
+    {gLucideScanText, TrN("Import camera image"), TrN("Import and straighten a camera photo."), CmdImportCameraImage,
+     ToolCategoryScan},
+    {gLucideScanText, TrN("Batch OCR"), TrN("Recognize text across multiple documents."), CmdBatchOcr,
+     ToolCategoryScan},
+    {gLucideBadgeCheck, TrN("Digital signatures"), TrN("Review document signatures and certificate status."),
+     CmdSignaturePanel, ToolCategorySign},
+    {gLucideBadgeCheck, TrN("Certify document"), TrN("Apply a document certification signature."), CmdCertifyDocument,
+     ToolCategorySign},
 };
 
 static const ToolDef stripTools[] = {
@@ -155,6 +177,7 @@ struct ToolsPanelVirt {
     bool categoryExpanded[ToolCategoryCount] = {};
     ScrollBox* scroll = nullptr;
     Edit* searchEdit = nullptr;
+    Padding* contentPadding = nullptr;
     int page = -1;
     bool rail = false;
     ILayout* header = nullptr;
@@ -599,7 +622,8 @@ void ToolsPanelShowPage(MainWindow* win) {
         SetupRow(win, b);
     }
     Insets insets = page == RibbonPage::Home && !panel->rail ? DpiScaledInsets(52, 8, 8, 8) : DpiScaledInsets(8, 8);
-    panel->scroll = new ScrollBox(new Padding(col, insets));
+    panel->contentPadding = new Padding(col, insets);
+    panel->scroll = new ScrollBox(panel->contentPadding);
     if (page == RibbonPage::Home) {
         if (panel->searchEdit) {
             ShowWindow(panel->searchEdit->hwnd, panel->rail ? SW_HIDE : SW_SHOW);
@@ -624,6 +648,10 @@ void ToolsPanelSetRail(MainWindow* win, bool rail) {
     auto* panel = win->toolsPanel;
     if (!panel || panel->rail == rail) return;
     panel->rail = rail;
+    if (panel->contentPadding) {
+        panel->contentPadding->insets =
+            panel->page == (int)RibbonPage::Home && !rail ? DpiScaledInsets(52, 8, 8, 8) : DpiScaledInsets(8, 8);
+    }
     auto vis = rail ? Visibility::Collapse : Visibility::Visible;
     panel->header->SetVisibility(vis);
     for (auto* heading : panel->headings) heading->SetVisibility(vis);
