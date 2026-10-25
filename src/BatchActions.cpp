@@ -25,19 +25,19 @@ struct BatchDefinition {
     Str outputFolder;
 };
 
-static bool ReadActionValue(json::Value* v, BatchDefinition& batch) {
+static void ReadActionValue(BatchDefinition* batch, json::Value* v) {
     StrNode* a = v->path;
-    if (!a) return true;
+    if (!a) return;
     Str rootKey = json::PathSegKey(a);
     if (!a->next) {
-        if (str::Eq(rootKey, StrL("suffix"))) batch.suffix = str::Dup(GetPermArena(), v->value);
-        if (str::Eq(rootKey, StrL("outputFolder"))) batch.outputFolder = str::Dup(GetPermArena(), v->value);
-        return true;
+        if (str::Eq(rootKey, StrL("suffix"))) batch->suffix = str::Dup(GetPermArena(), v->value);
+        if (str::Eq(rootKey, StrL("outputFolder"))) batch->outputFolder = str::Dup(GetPermArena(), v->value);
+        return;
     }
-    if (!str::Eq(rootKey, StrL("actions")) || !a->next || json::PathSegIndex(a->next) < 0) return true;
+    if (!str::Eq(rootKey, StrL("actions")) || !a->next || json::PathSegIndex(a->next) < 0) return;
     int idx = json::PathSegIndex(a->next);
-    if (idx >= len(batch.actions)) VecResize(batch.actions, idx + 1);
-    BatchAction& action = batch.actions[idx];
+    if (idx >= len(batch->actions)) VecResize(batch->actions, idx + 1);
+    BatchAction& action = batch->actions[idx];
     Str key = json::PathSegKey(a->next->next);
     Str value = str::Dup(GetPermArena(), v->value);
     if (str::Eq(key, StrL("/type")))
@@ -56,7 +56,6 @@ static bool ReadActionValue(json::Value* v, BatchDefinition& batch) {
         action.keywords = value;
     else if (str::Eq(key, StrL("/value")))
         action.value = (float)atof(CStrTemp(value));
-    return true;
 }
 
 static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action) {
@@ -109,14 +108,16 @@ static TempStr BatchOutputPath(Str input, Str suffix, Str folder) {
     return path::JoinTemp(path::GetDirTemp(input), name);
 }
 
-TempStr RunBatchActionsJson(Str definition, const StrVec& files) {
+TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
     BatchDefinition batch;
     if (!json::Parse(definition, MkFunc1(ReadActionValue, &batch))) {
         return str::DupTemp(StrL("{\"error\":\"invalid action JSON\",\"results\":[]}"));
     }
     str::Builder out;
-    out.Append(StrL("{\"total\":"));
-    out.AppendFmt("%d,\"results\":[", len(files));
+    bool allOk = true;
+    out.Append(StrL("{\"ok\":"));
+    out.Append(StrL("true,\"total\":"));
+    out.Append(fmt("%d,\"results\":[", len(files)));
     for (int i = 0; i < len(files); i++) {
         if (i) out.AppendChar(',');
         Str current = files[i];
@@ -144,6 +145,7 @@ TempStr RunBatchActionsJson(Str definition, const StrVec& files) {
             ok = false;
             error = StrL("no actions configured");
         }
+        allOk = allOk && ok;
         out.Append(StrL("{\"input\":\""));
         out.Append(json::EscapeStrTemp(files[i]));
         out.Append(StrL("\",\"ok\":"));
@@ -160,5 +162,9 @@ TempStr RunBatchActionsJson(Str definition, const StrVec& files) {
         out.AppendChar('}');
     }
     out.Append(StrL("]}"));
+    if (!allOk) {
+        Str json = ToStrTemp(out);
+        return str::ReplaceTemp(json, StrL("\"ok\":true"), StrL("\"ok\":false"));
+    }
     return ToStrTemp(out);
 }

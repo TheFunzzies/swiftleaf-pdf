@@ -437,7 +437,7 @@ bool DetectNumericCitationInPageText(WStr text, const Rect* coords, int textLen,
     // Column gutters and scattered watermark baselines split unrelated text.
     constexpr int kColGap = 16;
     constexpr int kSegCap = 512;
-    auto buildSegment = [&](int targetBL, int refLo, int refHi, int (&out)[kSegCap]) -> int {
+    auto buildSegment = [&](int targetBL, int refLo, int refHi, int(&out)[kSegCap]) -> int {
         int cnt = 0;
         for (int i = 0; i < textLen && cnt < kSegCap; i++) {
             if (abs((coords[i].y + coords[i].dy) - targetBL) <= blTol) {

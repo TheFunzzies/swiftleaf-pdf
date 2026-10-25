@@ -31,10 +31,12 @@ TempStr FormatPerimeter(float val, const MeasureScale& scale);
 TempStr FormatArea(float val, const MeasureScale& scale);
 
 // Creation
-Annotation* CreateMeasureAnnotation(EngineBase* engine, int pageNo, int cmdId, const Vec<PointF>& pts, const MeasureScale& scale);
+Annotation* CreateMeasureAnnotation(EngineBase* engine, int pageNo, int cmdId, const Vec<PointF>& pts,
+                                    const MeasureScale& scale);
 
 // Per-annotation PDF /Measure dictionary storage
-bool AttachMeasureDictToAnnotation(EngineBase* engine, Annotation* annot, const MeasureScale& scale, const char* measureType);
+bool AttachMeasureDictToAnnotation(EngineBase* engine, Annotation* annot, const MeasureScale& scale,
+                                   const char* measureType);
 
 // Content / Endpoint snapping (returns true if snapped)
 PointF SnapToPageContent(EngineBase* engine, int pageNo, PointF pt, float radiusPt, bool* outSnapped = nullptr);

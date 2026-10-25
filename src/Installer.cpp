@@ -879,7 +879,7 @@ static bool PrepareInstallDirByRenaming(Str installDir, bool silent, bool skipEx
 
 static void DeleteInstallCopyLeftovers(Str destDir) {
     static const Str kCopies[] = {
-        StrL("libsumatrapdf.dll.copy"), StrL("libmupdf.dll.copy"),   StrL("PdfFilter.dll.copy"),
+        StrL("libsumatrapdf.dll.copy"), StrL("libmupdf.dll.copy"),  StrL("PdfFilter.dll.copy"),
         StrL("PdfPreview.dll.copy"),    StrL("Swiftleaf.exe.copy"),
     };
     for (Str name : kCopies) {
@@ -904,8 +904,7 @@ static void DeleteInstallCopyLeftovers(Str destDir) {
 static void RestoreInstallCopyFiles(Str installDir) {
     logf("RestoreInstallCopyFiles('%s')\n", installDir);
     static const Str kFiles[] = {
-        Str(kExeName), StrL("libsumatrapdf.dll"), StrL("PdfFilter.dll"),
-        StrL("PdfPreview.dll"), StrL("libmupdf.dll"),
+        Str(kExeName), StrL("libsumatrapdf.dll"), StrL("PdfFilter.dll"), StrL("PdfPreview.dll"), StrL("libmupdf.dll"),
     };
     for (Str name : kFiles) {
         TempStr path = path::JoinTemp(installDir, name);

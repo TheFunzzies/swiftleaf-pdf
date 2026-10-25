@@ -64,8 +64,8 @@ constexpr float kStrokeBreak = -1.f;
 
 // handwriting fonts that ship with Windows or Office, best first
 static const char* gCursiveFonts[] = {
-    "Segoe Script", "Lucida Handwriting", "Brush Script MT", "Ink Free",
-    "Freestyle Script", "Edwardian Script ITC", "Segoe Print", "Gabriola",
+    "Segoe Script",     "Lucida Handwriting",   "Brush Script MT", "Ink Free",
+    "Freestyle Script", "Edwardian Script ITC", "Segoe Print",     "Gabriola",
 };
 
 static Color InkColor(int idx) {

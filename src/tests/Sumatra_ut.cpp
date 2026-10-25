@@ -1077,7 +1077,6 @@ static bool ToolsTestObjectText(fz_context* ctx, pdf_document* doc, const char* 
     return false;
 }
 
-
 static void ReviewToolsTest() {
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
     fz_register_document_handlers(ctx);
@@ -1141,7 +1140,8 @@ static void ReviewToolsTest() {
     VecAppend(linePts, p1);
     VecAppend(linePts, p2);
     AnnotCreateArgs measArgs{AnnotationType::Line};
-    measArgs.hasLineEnd = true; measArgs.lineEnd = p2;
+    measArgs.hasLineEnd = true;
+    measArgs.lineEnd = p2;
     measArgs.isMeasurement = true;
     measArgs.content = StrL("10 ft");
     Annotation* measAnnot = EngineMupdfCreateAnnotation(engine, 1, p1, &measArgs);
@@ -1517,7 +1517,6 @@ static void PageStampsTest() {
 
     file::Delete(basePdf);
 }
-
 
 static void PageTools2Test() {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",

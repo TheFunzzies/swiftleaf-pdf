@@ -165,7 +165,8 @@ static Str GetTranslationRaw(Str s) {
     n = n / 2;
     // the translation keys were made for the upstream app, which called itself
     // "SwiftLeaf": match a rebranded source string against its original key
-    Str legacy = str::Contains(s, StrL("SwiftLeaf")) ? Str(str::ReplaceTemp(s, StrL("SwiftLeaf"), StrL("SumatraPDF"))) : s;
+    Str legacy =
+        str::Contains(s, StrL("SwiftLeaf")) ? Str(str::ReplaceTemp(s, StrL("SwiftLeaf"), StrL("SumatraPDF"))) : s;
     int sLen = len(s);
     int legacyLen = len(legacy);
     for (int i = 0; i < n; i++) {

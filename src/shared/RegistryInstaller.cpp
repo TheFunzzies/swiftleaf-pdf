@@ -121,7 +121,8 @@ bool WriteUninstallerRegistryInfo(HKEY hkey, bool allUsers, Str installDir) {
     ok &= LoggedWriteRegStr(hkey, regPathUninst, StrL("UninstallString"), uninstallCmdLine);
     TempStr uninstallCmdLineSilent = str::JoinTemp(uninstallCmdLine, StrL(" -silent"));
     ok &= LoggedWriteRegStr(hkey, regPathUninst, StrL("QuietUninstallString"), uninstallCmdLineSilent);
-    ok &= LoggedWriteRegStr(hkey, regPathUninst, StrL("URLInfoAbout"), StrL("https://github.com/TheFunzzies/swiftleaf-pdf"));
+    ok &= LoggedWriteRegStr(hkey, regPathUninst, StrL("URLInfoAbout"),
+                            StrL("https://github.com/TheFunzzies/swiftleaf-pdf"));
     ok &= LoggedWriteRegStr(hkey, regPathUninst, StrL("URLUpdateInfo"),
                             StrL("https://github.com/TheFunzzies/swiftleaf-pdf"));
     if (!ok) {
