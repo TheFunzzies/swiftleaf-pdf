@@ -424,6 +424,12 @@ const commandsRaw = [
     "CmdPdfRemoveAnnotations", "Remove Annotations...",
     "CmdPdfRemoveLinks", "Remove Links...",
     "CmdPdfManageLayers", "Document Layers (OCG)...",
+    "CmdScanAcquire", "Acquire from Scanner...",
+    "CmdImportCameraImage", "Import Photo/Camera Image...",
+    "CmdBatchOcr", "Batch OCR...",
+    "CmdSignaturePanel", "Digital Signatures...",
+    "CmdCertifyDocument", "Certify Document...",
+    "CmdClearSignature", "Clear Signature",
 
 ];
 
@@ -451,6 +457,10 @@ export const commandAltDescs: [string, string][] = [
     ["CmdCreateAnnotCallout", "Add Callout"],
     ["CmdCreateAnnotArrow", "Add Arrow"],
     ["CmdCreateAnnotTextBox", "Add Text Box"],
+    ["CmdScanAcquire", "Scan Document..."],
+    ["CmdImportCameraImage", "Camera Image..."],
+    ["CmdSignaturePanel", "Signatures Panel"],
+    ["CmdCertifyDocument", "Certify PDF"],
 ];
 
 function getNames(): string[] {

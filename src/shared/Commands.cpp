@@ -423,6 +423,12 @@ const CommandInfo gCommands[] = {
     {CmdPdfRemoveAnnotations, "CmdPdfRemoveAnnotations\0", StrL("Remove Annotations...")},
     {CmdPdfRemoveLinks, "CmdPdfRemoveLinks\0", StrL("Remove Links...")},
     {CmdPdfManageLayers, "CmdPdfManageLayers\0", StrL("Document Layers (OCG)...")},
+    {CmdScanAcquire, "CmdScanAcquire\0", StrL("Acquire from Scanner...")},
+    {CmdImportCameraImage, "CmdImportCameraImage\0", StrL("Import Photo/Camera Image...")},
+    {CmdBatchOcr, "CmdBatchOcr\0", StrL("Batch OCR...")},
+    {CmdSignaturePanel, "CmdSignaturePanel\0", StrL("Digital Signatures...")},
+    {CmdCertifyDocument, "CmdCertifyDocument\0", StrL("Certify Document...")},
+    {CmdClearSignature, "CmdClearSignature\0", StrL("Clear Signature")},
 };
 const int gCommandsCount = dimofi(gCommands);
 
@@ -444,6 +450,10 @@ const CommandInfo gCommandAltDescs[] = {
     {CmdCreateAnnotCallout, "CmdCreateAnnotCallout\0", StrL("Add Callout")},
     {CmdCreateAnnotArrow, "CmdCreateAnnotArrow\0", StrL("Add Arrow")},
     {CmdCreateAnnotTextBox, "CmdCreateAnnotTextBox\0", StrL("Add Text Box")},
+    {CmdScanAcquire, "CmdScanAcquire\0", StrL("Scan Document...")},
+    {CmdImportCameraImage, "CmdImportCameraImage\0", StrL("Camera Image...")},
+    {CmdSignaturePanel, "CmdSignaturePanel\0", StrL("Signatures Panel")},
+    {CmdCertifyDocument, "CmdCertifyDocument\0", StrL("Certify PDF")},
 };
 const int gCommandAltDescsCount = dimofi(gCommandAltDescs);
 // clang-format on
