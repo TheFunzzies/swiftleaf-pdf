@@ -2009,6 +2009,7 @@ EXPORTS
 
 	pkcs7_windows_read_pfx
 	pkcs7_windows_read_store
+	pkcs7_windows_set_tsa_url
 	pdf_drop_signer
 	pdf_sign_signature
 	pdf_create_signature_widget

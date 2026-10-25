@@ -299,6 +299,15 @@ static const RibbonItemDef gOrganizeItems[] = {
     {gIconClipboard, CmdCreatePdfClipboard, TrN("From Clipboard"), TrN("Create PDF from a clipboard image")},
     {gIconExportImages, CmdConvertPdfToImages, TrN("To Images"), TrN("Save pages as images")},
     {gIconImage, CmdConvertImageToPdf, TrN("From Image"), TrN("Create a PDF from images")},
+    {gIconImage, CmdScanAcquire, TrN("From Scanner"), TrN("Acquire pages from scanner")},
+    {gIconImage, CmdImportCameraImage, TrN("From Camera"), TrN("Import photo or camera image with perspective crop")},
+    {gIconPageExtract, CmdBatchOcr, TrN("Batch OCR"), TrN("Run OCR on multiple PDF files")},
+    {gIconCertificate, CmdPdfAConvert, TrN("To PDF/A"), TrN("Convert to PDF/A-1b or PDF/A-2b archive format")},
+    {gIconTheme, CmdPdfConvertColors, TrN("Convert Colors"), TrN("Convert document colors to RGB or Grayscale")},
+    {nullptr, 0, TrN("Accessibility & Standards")},
+    {gIconCertificate, CmdAccessibilityChecker, TrN("Accessibility"), TrN("Accessibility checker and report")},
+    {gIconTypewriter, CmdAccessibilityFixes, TrN("Fix & Tag"), TrN("Accessibility fixes and auto-tag structure")},
+    {gIconInfo, CmdPreflight, TrN("Preflight"), TrN("Document preflight inspection and report")},
 };
 
 static const RibbonItemDef gFormsSignItems[] = {
@@ -315,6 +324,9 @@ static const RibbonItemDef gFormsSignItems[] = {
     {gIconCreateSignature, CmdCreateSignature, TrN("Create Signature"), TrN("Draw, type or upload your signature")},
     {gIconSignature, CmdSignWithImage, TrN("Place Signature"), TrN("Place your signature on the page")},
     {gIconCertificate, CmdSignDocument, TrN("Digital ID"), TrN("Sign the document with a certificate")},
+    {gIconCertificate, CmdCertifyDocument, TrN("Certify"), TrN("Certify document with DocMDP permissions")},
+    {gIconCertificate, CmdSignaturePanel, TrN("Signatures"), TrN("View digital signatures panel and validity status")},
+    {gIconUndo, CmdClearSignature, TrN("Clear Signature"), TrN("Clear digital signature from field")},
     {gIconAnnotStamp, CmdCreateAnnotStamp, TrN("Stamp")},
     {nullptr, 0, TrN("Save")},
     {gIconSave, CmdSaveAnnotations, TrN("Save"), TrN("Save changes to the PDF")},
@@ -362,6 +374,10 @@ static const RibbonItemDef gProtectItems[] = {
     {gIconInvert, CmdPdfInvertColorsDoc, TrN("Invert Colors"), TrN("Invert document page colors")},
     {gIconPageDelete, CmdPdfRemoveAnnotations, TrN("No Comments"), TrN("Remove all annotations")},
     {gIconLink, CmdPdfRemoveLinks, TrN("No Links"), TrN("Remove all links")},
+    {nullptr, 0, TrN("Standards & Compliance")},
+    {gIconCertificate, CmdPdfAValidate, TrN("Validate PDF/A"), TrN("Validate PDF/A compliance")},
+    {gIconInfo, CmdPreflight, TrN("Preflight"), TrN("Preflight inspection and standards report")},
+    {gIconCertificate, CmdAccessibilityChecker, TrN("Accessibility"), TrN("Accessibility checker and report")},
     {nullptr, 0, TrN("Save")},
     {gIconSave, CmdSaveAnnotations, TrN("Save"), TrN("Save changes to the PDF")},
 };

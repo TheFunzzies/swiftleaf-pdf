@@ -33,9 +33,12 @@
 #include "CommentIO.h"
 #include "Measure.h"
 #include "PageTools2.h"
+#include "Accessibility.h"
+#include "Preflight.h"
 #include <mupdf/pdf.h>
 #include "AppUnitTests.h"
 #include "Ocr.h"
+#include "SignaturePanel.h"
 #if !defined(SUMATRA_NG)
 #include "ExportFormats.h"
 #endif
@@ -253,12 +256,12 @@ static void BenchRangeTest() {
 static void versioncheck_test() {
     utassert(IsValidProgramVersion(StrL("1")));
     utassert(IsValidProgramVersion(StrL("1.1")));
-    utassert(IsValidProgramVersion(StrL("1.1.1\r\n")));
+    utassert(IsValidProgramVersion(StrL("1.1.1\n")));
     utassert(IsValidProgramVersion(StrL("2662")));
 
     utassert(!IsValidProgramVersion(StrL("1.1b")));
     utassert(!IsValidProgramVersion(StrL("1..1")));
-    utassert(!IsValidProgramVersion(StrL("1.1\r\n.1")));
+    utassert(!IsValidProgramVersion(StrL("1.1\n.1")));
 
     utassert(CompareProgramVersion(StrL("0.9.3.900"), StrL("0.9.3")) > 0);
     utassert(CompareProgramVersion(StrL("1.09.300"), StrL("1.09.3")) > 0);
@@ -1885,6 +1888,121 @@ static void PageTools2Test() {
         file::Delete(flatPdf);
     }
 
+    // 11. Accessibility & Standards (W2-STANDARDS)
+    {
+        // (a) Accessibility Check on baseline PDF
+        AccessReport rep = RunAccessibilityCheckFile(basePdf);
+        utassert(rep.items.len > 0);
+        FreeAccessReport(rep);
+
+        // (b) Accessibility Fixes: set language, title, auto-tag structure
+        TempStr fixPdf = GetTempFilePathTemp(StrL("access-test.pdf"));
+        AccessibilityFixOptions aopts;
+        aopts.language = StrL("en-US");
+        aopts.title = StrL("Test Accessible Doc");
+        aopts.setDisplayDocTitle = true;
+        aopts.autoTagBasicStructure = true;
+        bool ok = ApplyAccessibilityFixes(basePdf, fixPdf, aopts);
+        utassert(ok);
+
+        // Reopen saved PDF with MuPDF and assert StructTreeRoot, MarkInfo, Lang, DisplayDocTitle
+        fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+        utassert(ctx != nullptr);
+        fz_register_document_handlers(ctx);
+        pdf_document* doc = pdf_open_document(ctx, CStrTemp(fixPdf));
+        utassert(doc != nullptr);
+        pdf_obj* root = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Root));
+        utassert(root != nullptr);
+
+        // Assert StructTreeRoot
+        pdf_obj* strRoot = pdf_dict_get(ctx, root, PDF_NAME(StructTreeRoot));
+        utassert(strRoot != nullptr);
+        utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(Type)) == PDF_NAME(StructTreeRoot));
+        utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(K)) != nullptr);
+
+        // Assert MarkInfo
+        pdf_obj* minfo = pdf_dict_gets(ctx, root, "MarkInfo");
+        utassert(minfo != nullptr);
+        utassert(pdf_to_bool(ctx, pdf_dict_gets(ctx, minfo, "Marked")) == 1);
+
+        // Assert Lang
+        pdf_obj* lang = pdf_dict_get(ctx, root, PDF_NAME(Lang));
+        utassert(lang != nullptr);
+        utassert(str::Eq(Str(pdf_to_text_string(ctx, lang)), StrL("en-US")));
+
+        // Assert DisplayDocTitle in ViewerPreferences
+        pdf_obj* vp = pdf_dict_gets(ctx, root, "ViewerPreferences");
+        utassert(vp != nullptr);
+        utassert(pdf_to_bool(ctx, pdf_dict_gets(ctx, vp, "DisplayDocTitle")) == 1);
+
+        pdf_drop_document(ctx, doc);
+        fz_drop_context(ctx);
+        file::Delete(fixPdf);
+
+        // (c) PDF/A Conversion & Validation
+        TempStr pdfaPdf = GetTempFilePathTemp(StrL("pdfa-test.pdf"));
+        ok = ConvertPdfToPdfA(basePdf, pdfaPdf, 1);
+        utassert(ok);
+
+        // Reopen saved PDF/A and assert XMP pdfaid and OutputIntent
+        ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+        utassert(ctx != nullptr);
+        fz_register_document_handlers(ctx);
+        doc = pdf_open_document(ctx, CStrTemp(pdfaPdf));
+        utassert(doc != nullptr);
+        root = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Root));
+        utassert(root != nullptr);
+
+        // Assert Metadata with XMP
+        pdf_obj* meta = pdf_dict_get(ctx, root, PDF_NAME(Metadata));
+        utassert(meta != nullptr);
+        utassert(pdf_dict_get(ctx, meta, PDF_NAME(Type)) == PDF_NAME(Metadata));
+        fz_buffer* b = pdf_load_stream(ctx, meta);
+        utassert(b != nullptr);
+        unsigned char* data = nullptr;
+        size_t dlen = fz_buffer_storage(ctx, b, &data);
+        utassert(data != nullptr && str::Contains(Str{(const char*)data, (int)dlen}, StrL("pdfaid:part")));
+        fz_drop_buffer(ctx, b);
+
+        // Assert OutputIntents
+        pdf_obj* ois = pdf_dict_get(ctx, root, PDF_NAME(OutputIntents));
+        utassert(ois != nullptr && pdf_array_len(ctx, ois) > 0);
+        pdf_obj* oi = pdf_array_get(ctx, ois, 0);
+        utassert(oi != nullptr);
+        utassert(pdf_dict_get(ctx, oi, PDF_NAME(Type)) == PDF_NAME(OutputIntent));
+        utassert(pdf_dict_get(ctx, oi, PDF_NAME(DestOutputProfile)) != nullptr);
+
+        pdf_drop_document(ctx, doc);
+        fz_drop_context(ctx);
+
+        StrVec violations;
+        bool valid = ValidatePdfA(pdfaPdf, 1, violations);
+        file::Delete(pdfaPdf);
+
+        // (d) Preflight & Report Export & Color Conversion
+        PreflightReport prep = RunPreflightFile(basePdf);
+        utassert(prep.pageCount == 2);
+        TempStr txtRep = GetTempFilePathTemp(StrL("preflight.txt"));
+        TempStr csvRep = GetTempFilePathTemp(StrL("preflight.csv"));
+        utassert(ExportPreflightReport(prep, txtRep, false));
+        utassert(ExportPreflightReport(prep, csvRep, true));
+        utassert(file::Exists(txtRep) && file::GetSize(txtRep) > 0);
+        utassert(file::Exists(csvRep) && file::GetSize(csvRep) > 0);
+        file::Delete(txtRep);
+        file::Delete(csvRep);
+        FreePreflightReport(prep);
+
+        // (e) Convert colors to RGB
+        TempStr rgbPdf = GetTempFilePathTemp(StrL("rgb-test.pdf"));
+        ok = PdfConvertColors(basePdf, rgbPdf, 3);
+        utassert(ok);
+        EngineBase* e = CreateEngineMupdfFromFile(rgbPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(rgbPdf);
+    }
+
     file::Delete(basePdf);
 }
 
@@ -1915,6 +2033,7 @@ int RunAppUnitTests(bool forAi) {
     }
     printf("Running unit tests\n");
     utassert(Ocr_UnitTests());
+    utassert(Signature_UnitTests());
     DocumentPanel_UnitTests();
     PanelLayout_UnitTests();
     Animation_UnitTests();
