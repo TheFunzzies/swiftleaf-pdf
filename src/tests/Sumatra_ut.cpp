@@ -901,8 +901,9 @@ static void ObjectEditTest() {
         pdf_obj* xo = pdf_dict_get(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Resources)), PDF_NAME(XObject));
         pdf_obj* wrapper = pdf_dict_gets(ctx, xo, "Picture");
         utassert(pdf_name_eq(ctx, pdf_dict_get(ctx, wrapper, PDF_NAME(Subtype)), PDF_NAME(Form)));
-        pdf_obj* inner = pdf_dict_gets(
-            ctx, pdf_dict_get(ctx, pdf_dict_get(ctx, wrapper, PDF_NAME(Resources)), PDF_NAME(XObject)), "Object");
+        pdf_obj* inner =
+            pdf_dict_gets(ctx, pdf_dict_get(ctx, pdf_dict_get(ctx, wrapper, PDF_NAME(Resources)), PDF_NAME(XObject)),
+                          "SwiftLeafObject1");
         utassert(pdf_dict_get_int(ctx, inner, PDF_NAME(Width)) == 2);
         page = pdf_lookup_page_obj(ctx, doc, 1);
         xo = pdf_dict_get(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Resources)), PDF_NAME(XObject));

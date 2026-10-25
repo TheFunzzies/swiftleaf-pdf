@@ -10560,11 +10560,17 @@ bool EngineMupdfEditObjectCopy(EngineBase* engine, Str destination, int pageNo, 
             pdf_begin_operation(ctx, e->pdfdoc, "Edit page object");
             started = true;
             if (image) replacement = pdf_add_image(ctx, e->pdfdoc, image);
-            formResources = pdf_new_dict(ctx, e->pdfdoc, 1);
-            pdf_obj* xo = pdf_dict_put_dict(ctx, formResources, PDF_NAME(XObject), 1);
-            pdf_dict_puts(ctx, xo, "Object", replacement ? replacement : object);
-            TempStr content = fmt("q %.8g %.8g %.8g %.8g %.8g %.8g cm /Object Do Q\n", transform.a, transform.b,
-                                  transform.c, transform.d, transform.e, transform.f);
+            formResources = pdf_copy_dict(ctx, inherited);
+            pdf_dict_put_drop(ctx, formResources, PDF_NAME(XObject), pdf_copy_dict(ctx, objects));
+            pdf_obj* xo = pdf_dict_get(ctx, formResources, PDF_NAME(XObject));
+            TempStr sourceName;
+            for (int n = 1;; n++) {
+                sourceName = fmt("SwiftLeafObject%d", n);
+                if (!pdf_dict_gets(ctx, xo, CStrTemp(sourceName))) break;
+            }
+            pdf_dict_puts(ctx, xo, CStrTemp(sourceName), replacement ? replacement : object);
+            TempStr content = fmt("q %.8g %.8g %.8g %.8g %.8g %.8g cm /%s Do Q\n", transform.a, transform.b,
+                                  transform.c, transform.d, transform.e, transform.f, sourceName);
             buffer = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)content.s, len(content));
             form = pdf_new_xobject(ctx, e->pdfdoc, resultBounds, fz_identity, formResources, buffer);
             resources = pdf_copy_dict(ctx, inherited);
