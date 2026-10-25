@@ -946,6 +946,7 @@ static MenuDef menuDefContextReadAloud[] = {
 static MenuDef menuDefEdit[] = {
     {TrN("&Undo"), CmdUndo},
     {TrN("&Redo"), CmdRedo},
+    {{}, 0},
 };
 
 static MenuDef menuDefMenubar[] = {

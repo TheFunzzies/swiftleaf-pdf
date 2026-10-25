@@ -19968,7 +19968,7 @@ ContinueOpenWindow:
 
     if (!gPluginMode && CanAccessDisk()) {
         gRecoveryTimer = SetTimer(nullptr, 0, kRecoveryIntervalMs, RecoveryTimerProc);
-        if (!gForTesting && !flags.quickLook && !IsStressTesting()) {
+        if (!gForTesting && !flags.controlPipeName && !flags.quickLook && !IsStressTesting()) {
             uitask::Post(MkFunc0(OfferRecovery, win), "OfferRecovery");
         }
     }

@@ -5,8 +5,10 @@ import { ControlCommand, type ControlClient } from "./control.ts";
 import { SETTINGS_FILE_NAME, assemblePdf, cmdId, pollUntil, runStandalone, tmpPath } from "./util.ts";
 import {
   enumChildWindows,
+  enumWindows,
   getClassName,
   getClientRect,
+  getWindowPid,
   isWindowVisible,
   packCoords,
   sendMessage,
@@ -152,7 +154,16 @@ export async function testit(): Promise<void> {
     writeFileSync(join(stale, "document.pdf"), before);
     writeFileSync(join(stale, "document.pdf.path"), original);
     stage = "discard leftover";
-    app = await launch();
+    // Control-only launches may save settings, but must never offer modal recovery.
+    app = await launchControlled(["-appdata", appdata, original], { saveSettings: true });
+    await app.client.waitForRenderIdle();
+    let dialog = false;
+    enumWindows((hwnd) => {
+      if (getWindowPid(hwnd) === app.proc.pid && getClassName(hwnd) === "#32770" && isWindowVisible(hwnd))
+        dialog = true;
+      return true;
+    });
+    check(!dialog, "controlled startup must not show a recovery dialog");
     check((await recovery(app.client, 1)) === "1", "discard fixture must be discoverable");
     await recovery(app.client, 3);
     check(!existsSync(join(stale, "document.pdf")), "Discard must remove leftover recovery files");
