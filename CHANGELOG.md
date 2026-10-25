@@ -4,6 +4,26 @@
 
 ### Added
 
+- Accessibility & Standards Tools (TASK W2-STANDARDS):
+  - Accessibility checker: comprehensive inspection for tagged structure (`/MarkInfo /Marked`), document language (`/Lang`), title and window title display (`/ViewerPreferences /DisplayDocTitle`), figure alternate text (`/Alt`), reading order structure tree (`/StructTreeRoot`), table headers (`/TH`), form field tooltips (`/TU`), and scanned image-only pages, with interactive dialog reporting pass/warn/fail status and direct "Go to Page" navigation.
+  - Accessibility fixes & basic structure auto-tagging: configure language and title, add/edit figure alternate text or mark as decorative (`/Artifact`), and auto-tag headings (`/H1`, `/H2`), paragraphs (`/P`), lists (`/L`), and figures from layout and font size metrics.
+  - PDF/A conversion & validation: best-effort conversion to PDF/A-1b (flattens transparency) and PDF/A-2b (preserves transparency) with XMP `pdfaid` packet, OutputIntent with sRGB ICC profile, stripping forbidden features (JS, encryption, external references); built-in validator with honest best-effort disclaimer.
+  - Preflight & color conversion: document preflight reporting fonts (embedded/subset), color spaces, image dimensions & effective DPI, page boxes (Media, Crop, Bleed, Trim, Art), transparency, JS, encryption, and PDF version; text and CSV report export; convert document colors to Grayscale or RGB.
+  - Registered in Ribbon (Protect, Organize, Convert), All tools panel, and Command palette.
+  - Documentation in `docs/accessibility-standards.md` and roundtrip unit tests in `src/tests/Sumatra_ut.cpp`.
+
+- Review & Measurement tools (TASK W-REVIEW):
+  - Comments import and export in XFDF (ISO 19444-1) and FDF formats.
+  - Comment summary generation to PDF, text outline, and CSV tabular formats.
+  - Flatten comments baking annotations directly into page content streams.
+  - Comment review status workflow: Accepted, Rejected, Completed, Cancelled, Marked persisted in /State and /StateModel dictionaries per PDF specification.
+  - Threaded comment replies referencing parent annotations via /IRT.
+  - Measurement tools: page scale calibration, distance, perimeter, and area measurement with live on-screen labels.
+  - Vertex and endpoint snapping to existing annotations and page content.
+  - Measurement persistence in PDF /Measure dictionary and CSV export.
+  - Callout, Arrow, Text Box, Replace Text, Polygon, Polyline, Squiggly, and Caret annotation tools registered in Ribbon, Edit tab, All tools, and context menus.
+  - Documentation in docs/review-tools.md and roundtrip unit tests in src/tests/Sumatra_ut.cpp.
+
 - Scan & OCR and Digital Signatures (TASK W2-SCAN-SIGN):
   - Scanner acquisition via Windows Image Acquisition (WIA COM) with device selection, resolution presets (150/300/600 DPI), color modes (RGB, Grayscale, B&W), and source selection (flatbed, feeder, duplex) to multi-page PDF with immediate OCR prompt.
   - Camera and mobile photo import with 4-corner perspective crop, grayscale/contrast/threshold image enhancements, and auto-deskewing.

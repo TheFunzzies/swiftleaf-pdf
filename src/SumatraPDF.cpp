@@ -52,6 +52,8 @@
 #include "Measure.h"
 #include "ExportFormats.h"
 #include "PageTools2.h"
+#include "Accessibility.h"
+#include "Preflight.h"
 #include "PageOrganize.h"
 #include "EditText.h"
 #include "StatusBar.h"
@@ -13881,6 +13883,24 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             break;
         case CmdPdfManageLayers:
             ShowPdfManageLayersDialog(win);
+            break;
+        case CmdAccessibilityChecker:
+            ShowAccessibilityCheckerDialog(win);
+            break;
+        case CmdAccessibilityFixes:
+            ShowAccessibilityFixesDialog(win);
+            break;
+        case CmdPdfAConvert:
+            ShowPdfAConvertDialog(win);
+            break;
+        case CmdPdfAValidate:
+            ShowPdfAValidateDialog(win);
+            break;
+        case CmdPreflight:
+            ShowPreflightDialog(win);
+            break;
+        case CmdPdfConvertColors:
+            ShowPdfConvertColorsDialog(win);
             break;
 
         // Swiftleaf page organizing (PageOrganize.cpp)

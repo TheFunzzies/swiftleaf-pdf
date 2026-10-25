@@ -27,7 +27,6 @@
 #include "EngineBase.h"
 #include "base/GuessFileType.h"
 #include "EngineAll.h"
-#include "base/tests/UtAssert.h"
 #include "MainWindow.h"
 #include "WindowTab.h"
 #include "DisplayModel.h"
@@ -566,41 +565,63 @@ bool Signature_UnitTests() {
 
         Str err;
         bool okSign = EngineMupdfSignDocument(engine, signArgs, &err);
-        utassert(okSign);
         str::Free(err);
+        if (!okSign) {
+            SafeEngineRelease(&engine);
+            return false;
+        }
 
         bool okSave = EngineMupdfSaveUpdated(engine, signedPdfPath, {});
-        utassert(okSave);
         SafeEngineRelease(&engine);
+        if (!okSave) {
+            return false;
+        }
 
         // Re-open and verify signature
         engine = CreateEngineMupdfFromFile(signedPdfPath, FileType::PDF, 96);
-        utassert(engine != nullptr);
-        if (engine) {
-            Vec<SignatureItemInfo> sigs;
-            bool okInfo = EngineMupdfGetSignaturesInfo(engine, sigs);
-            utassert(okInfo);
-            utassert(sigs.len >= 1);
-            if (sigs.len >= 1) {
-                utassert(sigs[0].isCertified);
-                utassert(sigs[0].mdpPerm == 2);
-                utassert(str::Eq(sigs[0].reason, StrL("Unit Test Certification")));
-                utassert(str::Contains(sigs[0].signerName, StrL("Swiftleaf Test Signer")));
-                // Not tampered, not expired
-                utassert(sigs[0].status == SignatureStatus::Valid || sigs[0].status == SignatureStatus::UnknownSigner);
-            }
-
-            // Test Clear Signature
-            if (sigs.len >= 1) {
-                bool okClear = EngineMupdfClearSignature(engine, sigs[0].fieldName);
-                utassert(okClear);
-                Str clearedPdfPath = fmt("%s\\swiftleaf_test_cleared.pdf", ToUtf8Temp(WStr(tempDir)));
-                EngineMupdfSaveUpdated(engine, clearedPdfPath, {});
-                file::Delete(clearedPdfPath);
-            }
+        if (!engine) {
+            return false;
+        }
+        Vec<SignatureItemInfo> sigs;
+        bool okInfo = EngineMupdfGetSignaturesInfo(engine, sigs);
+        if (!okInfo || sigs.len < 1) {
             FreeSignatures(sigs);
             SafeEngineRelease(&engine);
+            return false;
         }
+        if (!sigs[0].isCertified || sigs[0].mdpPerm != 2) {
+            FreeSignatures(sigs);
+            SafeEngineRelease(&engine);
+            return false;
+        }
+        if (!str::Eq(sigs[0].reason, StrL("Unit Test Certification"))) {
+            FreeSignatures(sigs);
+            SafeEngineRelease(&engine);
+            return false;
+        }
+        if (!str::Contains(sigs[0].signerName, StrL("Swiftleaf Test Signer"))) {
+            FreeSignatures(sigs);
+            SafeEngineRelease(&engine);
+            return false;
+        }
+        if (sigs[0].status != SignatureStatus::Valid && sigs[0].status != SignatureStatus::UnknownSigner) {
+            FreeSignatures(sigs);
+            SafeEngineRelease(&engine);
+            return false;
+        }
+
+        // Test Clear Signature
+        bool okClear = EngineMupdfClearSignature(engine, sigs[0].fieldName);
+        if (!okClear) {
+            FreeSignatures(sigs);
+            SafeEngineRelease(&engine);
+            return false;
+        }
+        Str clearedPdfPath = fmt("%s\\swiftleaf_test_cleared.pdf", ToUtf8Temp(WStr(tempDir)));
+        EngineMupdfSaveUpdated(engine, clearedPdfPath, {});
+        file::Delete(clearedPdfPath);
+        FreeSignatures(sigs);
+        SafeEngineRelease(&engine);
 
         // Test Tampering Detection
         Str signedBytes = file::ReadFile(signedPdfPath);
@@ -617,15 +638,18 @@ bool Signature_UnitTests() {
             file::WriteFile(tamperedPdfPath, signedBytes);
             EngineBase* engTampered = CreateEngineMupdfFromFile(tamperedPdfPath, FileType::PDF, 96);
             if (engTampered) {
-                Vec<SignatureItemInfo> sigs;
-                EngineMupdfGetSignaturesInfo(engTampered, sigs);
-                if (sigs.len >= 1) {
-                    utassert(sigs[0].status == SignatureStatus::ModifiedAfterSigning);
-                }
-                FreeSignatures(sigs);
+                Vec<SignatureItemInfo> tamperedSigs;
+                EngineMupdfGetSignaturesInfo(engTampered, tamperedSigs);
+                bool detectedTamper = (tamperedSigs.len >= 1 && tamperedSigs[0].status == SignatureStatus::ModifiedAfterSigning);
+                FreeSignatures(tamperedSigs);
                 SafeEngineRelease(&engTampered);
+                file::Delete(tamperedPdfPath);
+                if (!detectedTamper) {
+                    return false;
+                }
+            } else {
+                file::Delete(tamperedPdfPath);
             }
-            file::Delete(tamperedPdfPath);
         }
     }
 
