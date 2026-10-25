@@ -431,8 +431,11 @@ enum {
     CmdClearSignature = 625,
     CmdBatchActions = 626,
     CmdComparePdf = 627,
+    CmdPdfReplaceText = 628,
+    CmdPdfFontManager = 629,
+    CmdPdfEditObject = 630,
 
-    CmdLast = 627,
+    CmdLast = 630,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

@@ -438,6 +438,9 @@ const commandsRaw = [
     "CmdClearSignature", "Clear Signature",
     "CmdBatchActions", "Action Wizard...",
     "CmdComparePdf", "Compare PDFs...",
+    "CmdPdfReplaceText", "Find and Replace Text...",
+    "CmdPdfFontManager", "Font Manager...",
+    "CmdPdfEditObject", "Edit Images and Objects...",
 ];
 
 // removed slots are dropped: nothing outside the generators should see them

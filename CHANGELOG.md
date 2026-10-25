@@ -11,12 +11,30 @@
 
 ### Added
 
+- Edit Images and Objects replaces page images and scales, rotates or flips
+  named images and grouped objects in a separate copy. Shared resources on
+  other pages remain unchanged; failed operations preserve existing output.
+
+- Font Manager lists document fonts and changes the installed font family on
+  selected text lines. Find and Replace Text replaces literal matches across
+  pages in an atomic copy, including unsaved edits. Saved Unicode CID subsets
+  can be edited again. See `docs/text-editing.md` for supported styles and limits.
+
 - Batch processing and PDF comparison with ordered JSON actions, OCR,
   optimizer presets, sanitization, redaction, metadata and text exports;
   recursive PDF inputs; JSON CLI results; and HTML comparison reports. See
   `docs/batch-compare.md` and `docs/cli.md`.
 
 - All tools categories with name and description search, persisted favorites, and short tooltips.
+- Existing-text editing: Unicode Latin, Cyrillic, Greek and CJK with embedded,
+  subset CID fonts, explicit ToUnicode maps, installed-family fallback and
+  character-aware wrapping. Unsupported glyphs and block styles are rejected
+  before source removal; failed edits keep the draft. See `docs/text-editing.md`
+  for remaining shaping, style and object-editing limits.
+- Existing-text editing keeps CJK IME candidate keys inside composition and
+  refuses edits overlapping links, annotations or form fields. Added editor
+  save/reopen and failed-draft smoke coverage.
+
 - Accessibility & Standards Tools (TASK W2-STANDARDS):
   - Accessibility checker: comprehensive inspection for tagged structure (`/MarkInfo /Marked`), document language (`/Lang`), title and window title display (`/ViewerPreferences /DisplayDocTitle`), figure alternate text (`/Alt`), reading order structure tree (`/StructTreeRoot`), table headers (`/TH`), form field tooltips (`/TU`), and scanned image-only pages, with interactive dialog reporting pass/warn/fail status and direct "Go to Page" navigation.
   - Accessibility fixes & basic structure auto-tagging: configure language and title, add/edit figure alternate text or mark as decorative (`/Artifact`), and auto-tag headings (`/H1`, `/H2`), paragraphs (`/P`), lists (`/L`), and figures from layout and font size metrics.

@@ -19,7 +19,7 @@ writeFileSync(
     slice(organize, "static int LastUndoStepFor", "// thumbnails can be dragged"),
 );
 const engine = readFileSync("src/shared/EngineMupdf.cpp", "utf8");
-writeFileSync(`${dest}/encoding-under-test.inc`, slice(engine, "// UTF-8 to a PDF string", "static float TextWidth"));
+writeFileSync(`${dest}/encoding-under-test.inc`, slice(engine, "// Validate Unicode scalars", "struct EditGlyph"));
 // Stop immediately before document access: reaching here means validation allowed mutation.
 const preflight = slice(engine, "bool EngineMupdfReplaceText(", "    auto* ctx = e->Ctx();");
 writeFileSync(

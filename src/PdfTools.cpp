@@ -17,6 +17,7 @@
 
 #include "Settings.h"
 #include "DocController.h"
+#include "DocProperties.h"
 #include "EngineBase.h"
 #include "base/GuessFileType.h"
 #include "EngineAll.h"
@@ -4161,6 +4162,203 @@ void ShowPdfRedactSearchDialog(MainWindow* win) {
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dialog = new PdfPrivacyDialog();
     if (!dialog->Create(win, tab, true)) delete dialog;
+}
+
+struct PdfObjectDialog : PdfToolDialog {
+    int pageNo = 1;
+    Edit* objectName = nullptr;
+    Edit* imagePath = nullptr;
+    Edit* scaleX = nullptr;
+    Edit* scaleY = nullptr;
+    Edit* rotation = nullptr;
+
+    bool Create(MainWindow* w, WindowTab* tab) {
+        if (!CreateToolDialog(w, tab, Tr("Edit Images and Objects"))) return false;
+        pageNo = tab->ctrl->CurrentPageNo();
+        AddPathRow();
+        AddDestRow(MakeUniqueFilePathTemp(srcPath), WStrL(L"PDF Files\0*.pdf\0All Files\0*.*\0"), WStrL(L"pdf"));
+        AddRow()->AddChild(NewVirtText({.s = fmt(Tr("Objects on page %d:").s, pageNo), .font = font}));
+        Edit::CreateArgs args;
+        args.parent = hwnd;
+        args.font = font;
+        args.isMultiLine = true;
+        args.withBorder = true;
+        args.idealSizeLines = 5;
+        args.text = EngineMupdfObjectList(tab->GetEngine(), pageNo);
+        auto* list = new Edit();
+        list->Create(args);
+        SendMessageW(list->hwnd, EM_SETREADONLY, TRUE, 0);
+        AddRow()->AddChild(list, 1);
+        objectName = AddLabeledEdit(Tr("Object name (from list):"), {});
+        imagePath = AddLabeledEdit(Tr("Replacement image file (optional):"), {});
+        scaleX = AddLabeledEdit(Tr("Width percent (negative flips):"), StrL("100"));
+        scaleY = AddLabeledEdit(Tr("Height percent (negative flips):"), StrL("100"));
+        rotation = AddLabeledEdit(Tr("Rotation degrees:"), StrL("0"));
+        AddRow()->AddChild(NewVirtText(
+            {.s = Tr("Changes every use of this object on this page. Other pages stay unchanged."), .font = font}));
+        AddButtonsRow(Tr("Save Edited Copy"));
+        FinishDialog(objectName, 740);
+        return true;
+    }
+
+    void DoIt(VirtMouseEvent*) override {
+        WindowTab* tab = win ? win->CurrentTab() : nullptr;
+        if (!tab || !path::IsSame(tab->filePath, srcPath)) return;
+        int x = 0, y = 0, angle = 0;
+        if (str::IsNull(str::Parse(scaleX->GetTextTemp(), "%d%$", &x)) ||
+            str::IsNull(str::Parse(scaleY->GetTextTemp(), "%d%$", &y)) ||
+            str::IsNull(str::Parse(rotation->GetTextTemp(), "%d%$", &angle))) {
+            MessageBoxWarning(hwnd, Tr("Enter whole numbers for scale and rotation."), Tr("Edit Images and Objects"));
+            return;
+        }
+        Str error;
+        Str destination = destEdit->GetTextTemp();
+        if (!EngineMupdfEditObjectCopy(tab->GetEngine(), destination, pageNo, objectName->GetTextTemp(),
+                                       imagePath->GetTextTemp(), x / 100.f, y / 100.f, (float)angle, &error)) {
+            MessageBoxWarning(hwnd, error, Tr("Edit Images and Objects"));
+            return;
+        }
+        MainWindow* w = win;
+        TempStr saved = str::DupTemp(destination);
+        Close();
+        LoadArgs args(saved, w);
+        StartLoadDocument(&args);
+    }
+};
+
+void ShowPdfObjectDialog(MainWindow* win) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    if (!tab || !IsPdfDoc(tab)) return;
+    auto* dialog = new PdfObjectDialog();
+    if (!dialog->Create(win, tab)) delete dialog;
+}
+
+struct PdfFontDialog : PdfToolDialog {
+    Edit* family = nullptr;
+
+    bool Create(MainWindow* w, WindowTab* tab) {
+        if (!CreateToolDialog(w, tab, Tr("Font Manager"))) return false;
+        AddPathRow();
+        Edit::CreateArgs args;
+        args.parent = hwnd;
+        args.font = font;
+        args.isMultiLine = true;
+        args.withBorder = true;
+        args.idealSizeLines = 10;
+        args.text = str::ReplaceTemp(tab->GetEngine()->GetPropertyTemp(DocProp::FontList), StrL("\n"), StrL("\r\n"));
+        auto* list = new Edit();
+        list->Create(args);
+        SendMessageW(list->hwnd, EM_SETREADONLY, TRUE, 0);
+        AddRow()->AddChild(list, 1);
+        AddRow()->AddChild(NewVirtText({.s = Tr("Fonts without an embedded label are not embedded."), .font = font}));
+        family = AddLabeledEdit(Tr("Installed font family:"), StrL("Arial"));
+        auto* choose = NewButton(Tr("Choose..."), false);
+        choose->onClick = MkMethod1<PdfFontDialog, VirtMouseEvent*, &PdfFontDialog::OnChoose>(this);
+        lastRow->AddChild(choose);
+        AddRow()->AddChild(NewVirtText(
+            {.s = Tr("Select text on one page. Replacement affects complete selected lines."), .font = font}));
+        AddButtonsRow(Tr("Replace Selection Font"));
+        FinishDialog(family, 700);
+        return true;
+    }
+
+    void OnChoose(VirtMouseEvent*) {
+        LOGFONTW lf{};
+        wstr::BufSet(WStr(lf.lfFaceName, LF_FACESIZE), ToWStrTemp(family->GetTextTemp()));
+        CHOOSEFONTW choice{};
+        choice.lStructSize = sizeof(choice);
+        choice.hwndOwner = hwnd;
+        choice.lpLogFont = &lf;
+        choice.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT;
+        if (ChooseFontW(&choice)) family->SetText(ToUtf8Temp(lf.lfFaceName));
+    }
+
+    void DoIt(VirtMouseEvent*) override {
+        WindowTab* tab = win ? win->CurrentTab() : nullptr;
+        if (!tab || !path::IsSame(tab->filePath, srcPath)) return;
+        auto* selection = tab->selectionOnPage;
+        if (!selection || !len(*selection)) {
+            MessageBoxWarning(hwnd, Tr("Select the text lines to change first."), Tr("Font Manager"));
+            return;
+        }
+        int pageNo = (*selection)[0].pageNo;
+        RectF area = (*selection)[0].rect;
+        for (const SelectionOnPage& part : *selection) {
+            if (part.pageNo != pageNo) {
+                MessageBoxWarning(hwnd, Tr("Select text on one page only."), Tr("Font Manager"));
+                return;
+            }
+            area = area.Union(part.rect);
+        }
+        PdfTextRun run;
+        Str name = family->GetTextTemp();
+        if (!len(name) || len(name) >= sizeof(run.replacementFont)) return;
+        if (!EngineMupdfGetTextRun(tab->GetEngine(), pageNo, area, TextRunScope::Lines, &run)) {
+            str::Free(run.text);
+            return;
+        }
+        str::BufSet(Str(run.replacementFont, sizeof(run.replacementFont)), name);
+        bool ok = ReplaceTextInTab(tab, pageNo, run, run.text);
+        str::Free(run.text);
+        if (ok) Close();
+    }
+};
+
+void ShowPdfFontManager(MainWindow* win) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    if (!tab || !IsPdfDoc(tab)) return;
+    auto* dialog = new PdfFontDialog();
+    if (!dialog->Create(win, tab)) delete dialog;
+}
+
+struct PdfReplaceDialog : PdfToolDialog {
+    Edit* find = nullptr;
+    Edit* replacement = nullptr;
+
+    bool Create(MainWindow* w, WindowTab* tab) {
+        if (!CreateToolDialog(w, tab, Tr("Find and Replace Text"))) return false;
+        AddPathRow();
+        Str stem = srcPath;
+        if (str::EndsWithI(stem, StrL(".pdf"))) stem.len -= 4;
+        AddDestRow(MakeUniqueFilePathTemp(fmt("%s_replaced.pdf", stem)), WStrL(L"PDF Files\0*.pdf\0All Files\0*.*\0"),
+                   WStrL(L"pdf"));
+        find = AddLabeledEdit(Tr("Find (case sensitive):"), {});
+        replacement = AddLabeledEdit(Tr("Replace with:"), {});
+        AddRow()->AddChild(NewVirtText(
+            {.s = Tr("Matches within paragraphs on all pages. Empty replacement deletes matches."), .font = font}));
+        AddRow()->AddChild(NewVirtText(
+            {.s = Tr("Unsupported blocks stop the operation. The original document is kept."), .font = font}));
+        AddButtonsRow(Tr("Replace All in Copy"));
+        FinishDialog(find, 740);
+        return true;
+    }
+
+    void DoIt(VirtMouseEvent*) override {
+        WindowTab* tab = win ? win->CurrentTab() : nullptr;
+        if (!tab || !path::IsSame(tab->filePath, srcPath)) return;
+        Str error;
+        int count = 0;
+        Str destination = destEdit->GetTextTemp();
+        if (!EngineMupdfReplaceAllText(tab->GetEngine(), destination, find->GetTextTemp(), replacement->GetTextTemp(),
+                                       &count, &error)) {
+            MessageBoxWarning(hwnd, len(error) ? error : Tr("Could not save the replacement copy."),
+                              Tr("Find and Replace Text"));
+            return;
+        }
+        MainWindow* w = win;
+        TempStr saved = str::DupTemp(destination);
+        Close();
+        LoadArgs args(saved, w);
+        StartLoadDocument(&args);
+        ShowTemporaryNotification(w->hwndCanvas, fmt(Tr("Replaced %d matches. Saved a separate copy.").s, count));
+    }
+};
+
+void ShowPdfReplaceTextDialog(MainWindow* win) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    if (!tab || !IsPdfDoc(tab)) return;
+    auto* dialog = new PdfReplaceDialog();
+    if (!dialog->Create(win, tab)) delete dialog;
 }
 
 struct ConversionJob {

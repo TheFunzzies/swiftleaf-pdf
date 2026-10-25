@@ -87,12 +87,15 @@ static Str liveContent = StrL("unsaved-annotations");
 static bool EngineMupdfSaveCopy(EngineBase*, Str p) {
     return !failSave && file::WriteFile(p, liveContent);
 }
-static bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& src, const Vec<PdfMergePage>&, Str out, u32* warnings = nullptr) {
+static bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& src, const Vec<PdfMergePage>&, Str out,
+                                 u32* warnings = nullptr) {
     if (warnings) *warnings = 0;
     if (failMerge || !file::Exists(src[0].path)) return false;
     return file::WriteFile(out, StrL("reorganized"));
 }
-static TempStr EngineMupdfMergeWarningTemp(u32) { return {}; }
+static TempStr EngineMupdfMergeWarningTemp(u32) {
+    return {};
+}
 static bool ReplaceCurrentDocumentFile(MainWindow* win, Str from, int) {
     replacements++;
     ToolbarUpdateStateForWindow(win, true); // document reload rebuilds the toolbar
@@ -210,25 +213,22 @@ static bool Preflight(Str text) {
     EngineMupdf engine;
     PdfTextRun run;
     Vec<Annotation*> deleted;
-    return TextPreflight(&engine, 1, run, text, deleted);
+    return TextPreflight(&engine, 1, run, text, deleted, nullptr);
 }
 static void TestText() {
     Check(Preflight(StrL("ASCII (text) \\ 123")), "ASCII remains editable");
     Check(Preflight(StrL("caf\xc3\xa9\nnext line")), "Latin text and line breaks remain editable");
     Check(Preflight(Str()), "empty replacement remains allowed");
-    Check(!Preflight(StrL("\xe4\xb8\xad\xe6\x96\x87")), "reject Chinese before page mutation");
-    Check(!Preflight(StrL("\xd0\x96")), "reject Cyrillic before page mutation");
-    Check(!Preflight(StrL("\xf0\x9f\x98\x80")), "reject emoji before page mutation");
+    Check(Preflight(StrL("\xe4\xb8\xad\xe6\x96\x87")), "accept Chinese for glyph preflight");
+    Check(Preflight(StrL("\xd0\x96")), "accept Cyrillic for glyph preflight");
+    Check(Preflight(StrL("\xf0\x9f\x98\x80")), "accept supplementary scalars for glyph preflight");
     Check(!Preflight(StrL("e\xcc\x81")), "reject unsupported combining marks before mutation");
     Check(!Preflight(StrL("\xc2\x81")), "reject nonprinting control characters");
     Check(!Preflight(StrL("\xff")), "reject invalid UTF-8");
-    str::Builder out;
-    AppendWinAnsiPdfString(out, StrL("\xc5\x92\xc5\xa1\xc5\xb8\xe2\x82\xac"));
-    Check(str::Eq(ToStrTemp(out), StrL("(\\214\\232\\237\\200)")),
-          "encode OE, s-caron, Y-diaeresis and euro without substitution");
-    out.Reset();
-    AppendWinAnsiPdfString(out, StrL("(a)\\"));
-    Check(str::Eq(ToStrTemp(out), StrL("(\\(a\\)\\\\)")), "escape PDF delimiters");
+    Check(!Preflight(StrL("\xc0\xaf")), "reject overlong UTF-8");
+    Check(!Preflight(StrL("\xed\xa0\x80")), "reject UTF-8 surrogate");
+    Check(!Preflight(StrL("\xe2\x80\xae")), "reject bidi control before mutation");
+    Check(!Preflight(StrL("\xd8\xb9")), "reject joining script before mutation");
 }
 int main() {
     TestUndo();

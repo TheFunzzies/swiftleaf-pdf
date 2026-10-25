@@ -59,17 +59,14 @@ enum ToolCategory {
     ToolCategoryCount,
 };
 
-static const Str toolCategoryNames[] = {
-    TrN("Recommended"),
-    TrN("Export"),           TrN("Create"),   TrN("Edit"), TrN("Organize"), TrN("Review"),   TrN("Forms"),
-    TrN("Protect & Redact"), TrN("Optimize"), TrN("Sign"), TrN("Scan/OCR"), TrN("Standards")};
+static const Str toolCategoryNames[] = {TrN("Recommended"), TrN("Export"), TrN("Create"),   TrN("Edit"),
+                                        TrN("Organize"),    TrN("Review"), TrN("Forms"),    TrN("Protect & Redact"),
+                                        TrN("Optimize"),    TrN("Sign"),   TrN("Scan/OCR"), TrN("Standards")};
 
 static const char* toolCategoryIcons[] = {
-    gLucideStar,
-    gLucideFileOutput, gLucideFilePlus,          gLucideFilePen,
-    gLucideLayoutGrid, gLucideMessageSquareText, gLucideTextCursorInput,
-    gLucideShield,     gLucideFileArchive,       gLucideSignature,
-    gLucideScanText,   gLucideBadgeCheck};
+    gLucideStar,        gLucideFileOutput,        gLucideFilePlus,        gLucideFilePen,
+    gLucideLayoutGrid,  gLucideMessageSquareText, gLucideTextCursorInput, gLucideShield,
+    gLucideFileArchive, gLucideSignature,         gLucideScanText,        gLucideBadgeCheck};
 
 static const ToolDef recommendedTools[] = {
     {gLucideFilePen, TrN("Edit a PDF"), TrN("Edit text and objects in the document."), CmdToggleEditPDF,
@@ -93,6 +90,12 @@ static const ToolDef tools[] = {
      ToolCategorySign},
     {gLucideFilePen, TrN("Edit a PDF"), TrN("Edit text and objects in the document."), CmdToggleEditPDF,
      ToolCategoryEdit},
+    {gLucideTextCursorInput, TrN("Find and replace"), TrN("Replace text across the document in a saved copy."),
+     CmdPdfReplaceText, ToolCategoryEdit},
+    {gLucideTextCursorInput, TrN("Font manager"),
+     TrN("List document fonts and replace the font on selected text lines."), CmdPdfFontManager, ToolCategoryEdit},
+    {gLucideFilePen, TrN("Edit images and objects"),
+     TrN("Replace images or transform grouped objects in a saved copy."), CmdPdfEditObject, ToolCategoryEdit},
     {gLucideFilePlus, TrN("Create a PDF"), TrN("Create a PDF from files or clipboard content."), CmdCreatePdfFiles,
      ToolCategoryCreate},
     {gLucideCombine, TrN("Combine files"), TrN("Join files into one PDF."), CmdMergePDF, ToolCategoryCreate},
@@ -340,9 +343,8 @@ static void OnSearchChanged(ToolsPanelVirt* panel) {
         bool matches = !searching || str::ContainsI(panel->rows[i]->label, query) ||
                        str::ContainsI(trans::GetTranslation(d->description), query);
         hasMatches[d->category] |= matches;
-        auto vis = matches && (searching || panel->categoryExpanded[d->category])
-                       ? Visibility::Visible
-                       : Visibility::Collapse;
+        auto vis =
+            matches && (searching || panel->categoryExpanded[d->category]) ? Visibility::Visible : Visibility::Collapse;
         panel->rows[i]->SetVisibility(vis);
         if (panel->rows[i]->parent) {
             panel->rows[i]->parent->SetVisibility(vis);
@@ -457,7 +459,7 @@ void ToolsPanelUpdate(MainWindow* win) {
 }
 
 static void OnRowFocus(MainWindow* win, VirtFocusEvent* ev) {
-    if (!ev->gotFocus) return;\
+    if (!ev->gotFocus) return;
     RibbonAccessFocus(win, ev);
     auto* panel = win->toolsPanel;
     auto* scroll = panel->scroll;

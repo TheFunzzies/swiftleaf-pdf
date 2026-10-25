@@ -185,9 +185,19 @@ export async function testit(): Promise<void> {
           for (const cat of categoryNames) {
             const catRows = rows.filter((r) => r.category === cat);
             want(catRows.length > 0, `Category ${cat} must have tools`, raw);
-            want(new Set(catRows.map((r) => r.cmd)).size === catRows.length, `Tools in category ${cat} must have unique commands`, raw);
+            want(
+              new Set(catRows.map((r) => r.cmd)).size === catRows.length,
+              `Tools in category ${cat} must have unique commands`,
+              raw,
+            );
           }
-          for (const command of ["CmdPdfSanitize", "CmdPdfRedactSearch"]) {
+          for (const command of [
+            "CmdPdfSanitize",
+            "CmdPdfRedactSearch",
+            "CmdPdfReplaceText",
+            "CmdPdfFontManager",
+            "CmdPdfEditObject",
+          ]) {
             want(
               rows.some((r) => r.cmd === cmdId(command) && r.enabled),
               `Missing enabled ${command}`,
@@ -204,6 +214,9 @@ export async function testit(): Promise<void> {
     for (const [command, title, checkboxes] of [
       ["CmdPdfSanitize", "Sanitize Document", 7],
       ["CmdPdfRedactSearch", "Redact All Search Matches", 1],
+      ["CmdPdfReplaceText", "Find and Replace Text", 0],
+      ["CmdPdfFontManager", "Font Manager", 0],
+      ["CmdPdfEditObject", "Edit Images and Objects", 0],
     ] as const) {
       await client.request(ControlCommand.TestInvokeCommand, [command]);
       const dialog = await pollUntil(
