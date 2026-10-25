@@ -8,12 +8,15 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-$msbuild = & $vswhere -products * -latest -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
+$msbuild = & $vswhere -products * -version "[17.0,18.0)" -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
+if (-not $msbuild) {
+    $msbuild = & $vswhere -products * -latest -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
+}
 if (-not $msbuild) { throw "MSBuild not found; install Visual Studio 2022 (Build Tools) with the C++ workload" }
 
 Push-Location $root
 try {
-    & $msbuild vs2022\SumatraPDF.sln "/t:$Target" "/p:Configuration=$Config;Platform=x64" /m /nologo /v:minimal "/clp:ErrorsOnly;WarningsOnly"
+    & $msbuild vs2022\SumatraPDF.sln "/t:$Target" "/p:Configuration=$Config" "/p:Platform=x64" /m /nologo /v:minimal "/clp:ErrorsOnly;WarningsOnly"
     if ($LASTEXITCODE -ne 0) { throw "build failed ($LASTEXITCODE)" }
     $outDir = if ($Config -eq "Release") { "out\rel64" } else { "out\dbg64" }
     Get-Item "$outDir\Swiftleaf.exe" | Select-Object FullName, Length, LastWriteTime

@@ -1000,6 +1000,7 @@ static const FieldInfo gSettingsFields[] = {
     {(size_t)-1, SettingType::Comment, 0},
     {offsetof(Settings, translateToLang), SettingType::String, (intptr_t)"", true},
     {offsetof(Settings, ocrLanguage), SettingType::String, (intptr_t)"", true},
+    {offsetof(Settings, tsaUrl), SettingType::String, (intptr_t)""},
     {offsetof(Settings, translateFromLang), SettingType::String, (intptr_t)"", true},
     {offsetof(Settings, translateEngine), SettingType::String, (intptr_t)"", true},
     {(size_t)-1, SettingType::Comment, 0},
@@ -1045,7 +1046,7 @@ static const FieldInfo gSettingsFields[] = {
 };
 const StructInfo gSettingsInfo = {
     sizeof(Settings),
-    170,
+    171,
     gSettingsFields,
     "\0\0DefaultDisplayMode\0DefaultZoom\0DisableJavaScript\0AllowExternalImages\0EnableTeXEnhancements\0EscToExit\0Ful"
     "lPathInTitle\0InverseSearchCmdLine\0LazyLoading\0MainWindowBackground\0NoHomeTab\0HomePageSortByFrequentlyRead\0Ho"
@@ -1064,10 +1065,11 @@ const StructInfo gSettingsInfo = {
     "DisableAntiAlias\0EngineeringDrawingEnhance\0DisableAutoLinks\0UseSysColors\0UseTabs\0SelectionToolbar\0SelectionT"
     "oolbarLayout\0TabsMru\0CtrlTabSimple\0ZoomLevels\0ZoomIncrement\0\0FixedPageUI\0\0EBookUI\0\0ComicBookUI\0\0ImageU"
     "I\0\0ChmUI\0\0MarkdownUI\0\0HtmlUI\0\0ClaudeCode\0\0GrokBuild\0\0CodexBuild\0\0AntiGravity\0\0AIChatSidebarDx\0\0T"
-    "ranslateToLang\0OcrLanguage\0TranslateFromLang\0TranslateEngine\0\0Annotations\0\0ExternalViewers\0\0ForwardSearch"
-    "\0\0PrinterDefaults\0\0Fullscreen\0\0SelectionHandlers\0\0TextSnippets\0\0Shortcuts\0\0Themes\0\0TabGroups\0\0Cust"
-    "omScreenDPI\0\0\0DefaultPasswords\0UiLanguage\0VersionToSkip\0WindowState\0WindowPos\0SearchUIWindowPos\0HelpWindo"
-    "wPos\0FileStates\0SessionData\0ReopenOnce\0TimeOfLastUpdateCheck\0OpenCountWeek\0PropWinPos\0CheckForUpdates\0\0",
+    "ranslateToLang\0OcrLanguage\0TsaUrl\0TranslateFromLang\0TranslateEngine\0\0Annotations\0\0ExternalViewers\0\0Forwa"
+    "rdSearch\0\0PrinterDefaults\0\0Fullscreen\0\0SelectionHandlers\0\0TextSnippets\0\0Shortcuts\0\0Themes\0\0TabGroups"
+    "\0\0CustomScreenDPI\0\0\0DefaultPasswords\0UiLanguage\0VersionToSkip\0WindowState\0WindowPos\0SearchUIWindowPos\0H"
+    "elpWindowPos\0FileStates\0SessionData\0ReopenOnce\0TimeOfLastUpdateCheck\0OpenCountWeek\0PropWinPos\0CheckForUpdat"
+    "es\0\0",
     "\0\0default layout of pages. valid values: automatic, single page, facing, book view, continuous, continuous "
     "facing, continuous book view, page aspect. page aspect (3.7+): first open of a PDF, XPS, DjVu or PostScript file "
     "uses page 1 — taller than wide is continuous + fit width, wider than tall is single page + fit page; a remembered "
@@ -1197,28 +1199,28 @@ const StructInfo gSettingsInfo = {
     "chat sidebar\0\0settings for the OpenAI Codex chat sidebar\0\0settings for the Antigravity chat sidebar\0\0width "
     "of the AI chat sidebar (0 = use default); shared by Claude Code, Grok Build, and OpenAI Codex "
     "(internal)\0\0remembered destination language for selection translation; empty uses OS UI language\0Windows OCR "
-    "language tag; empty uses profile languages\0remembered source language for selection translation; empty means "
-    "Auto\0remembered engine for Translate Selection: Google, DeepL, Grok Build, Claude Code, OpenAI Codex or "
-    "Antigravity\0\0default values for annotations in PDF documents\0\0list of additional external viewers for various "
-    "file types. See [docs for more information](https://github.com/TheFunzzies/swiftleaf-pdf)\0\0customization "
-    "options for how forward search results are shown (used from LaTeX editors)\0\0these override the default settings "
-    "in the Print dialog\0\0options for fullscreen mode\0\0list of handlers for selected text, shown in context menu "
-    "when text selection is active. See [docs for more "
-    "information](https://github.com/TheFunzzies/swiftleaf-pdf)\0\0predefined text inserted as a free text annotation "
-    "from the context menu or the command palette\0\0custom keyboard shortcuts\0\0color themes\0\0saved groups of "
-    "tabs\0\0actual resolution of the main screen in DPI, used to show documents at their physical size; if 0 or "
-    "negative, the resolution reported by Windows is used\0\0You're not expected to change those manually\0a "
-    "whitespace separated list of passwords to try when opening a password protected document (passwords containing "
-    "spaces must be quoted)\0[ISO code](langs.html) of the current UI language\0SwiftLeaf won't offer to update to "
-    "this version again\0default state of the window. 1 is normal, 2 is maximized, 3 is fullscreen, 4 is "
-    "minimized\0default position (x, y) and size (width, height) of the window\0position/size of the floating find "
-    "window (see SearchUIFloating)\0position/size of the in-app Help: Manual window\0history of opened files, most "
-    "recently used first. A closed file stays here until it drops off the list or the history is cleared\0windows and "
-    "tabs still open when SwiftLeaf was last closed; reopened at startup if RestoreSession is true\0data required for "
-    "reloading documents after an auto-update\0data required to determine when SwiftLeaf last checked for "
-    "updates\0value required to determine recency for the OpenCount value in FileStates\0position of the document "
-    "properties window\0if true, check once a day whether an update is available\0\0Settings below are not recognized "
-    "by the current version",
+    "language tag; empty uses profile languages\0RFC 3161 Timestamp Authority (TSA) server URL for digital signatures; "
+    "empty means no timestamp\0remembered source language for selection translation; empty means Auto\0remembered "
+    "engine for Translate Selection: Google, DeepL, Grok Build, Claude Code, OpenAI Codex or Antigravity\0\0default "
+    "values for annotations in PDF documents\0\0list of additional external viewers for various file types. See [docs "
+    "for more information](https://github.com/TheFunzzies/swiftleaf-pdf)\0\0customization options for how forward "
+    "search results are shown (used from LaTeX editors)\0\0these override the default settings in the Print "
+    "dialog\0\0options for fullscreen mode\0\0list of handlers for selected text, shown in context menu when text "
+    "selection is active. See [docs for more information](https://github.com/TheFunzzies/swiftleaf-pdf)\0\0predefined "
+    "text inserted as a free text annotation from the context menu or the command palette\0\0custom keyboard "
+    "shortcuts\0\0color themes\0\0saved groups of tabs\0\0actual resolution of the main screen in DPI, used to show "
+    "documents at their physical size; if 0 or negative, the resolution reported by Windows is used\0\0You're not "
+    "expected to change those manually\0a whitespace separated list of passwords to try when opening a password "
+    "protected document (passwords containing spaces must be quoted)\0[ISO code](langs.html) of the current UI "
+    "language\0SwiftLeaf won't offer to update to this version again\0default state of the window. 1 is normal, 2 is "
+    "maximized, 3 is fullscreen, 4 is minimized\0default position (x, y) and size (width, height) of the "
+    "window\0position/size of the floating find window (see SearchUIFloating)\0position/size of the in-app Help: "
+    "Manual window\0history of opened files, most recently used first. A closed file stays here until it drops off the "
+    "list or the history is cleared\0windows and tabs still open when SwiftLeaf was last closed; reopened at startup "
+    "if RestoreSession is true\0data required for reloading documents after an auto-update\0data required to determine "
+    "when SwiftLeaf last checked for updates\0value required to determine recency for the OpenCount value in "
+    "FileStates\0position of the document properties window\0if true, check once a day whether an update is "
+    "available\0\0Settings below are not recognized by the current version",
     false};
 static const FieldInfo gTheme_1_Fields[] = {
     {offsetof(Theme, name), SettingType::String, (intptr_t)""},

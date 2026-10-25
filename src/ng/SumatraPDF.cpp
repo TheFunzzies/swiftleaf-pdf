@@ -7865,6 +7865,13 @@ void ExecuteCmd(MainWindow* win, int cmdId) {
         case CmdPdfManageLayers:
             ShowPdfManageLayersDialog(win);
             break;
+        case CmdAccessibilityChecker:
+        case CmdAccessibilityFixes:
+        case CmdPdfAConvert:
+        case CmdPdfAValidate:
+        case CmdPreflight:
+        case CmdPdfConvertColors:
+            break;
 
         case CmdMoveFrameFocus:
             if (!AppShellIsFrameFocused(win)) {
