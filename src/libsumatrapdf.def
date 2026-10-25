@@ -647,6 +647,7 @@ EXPORTS
 	fz_advance_glyph
 
 	fz_encode_character
+	fz_encode_character_with_fallback
 
 	fz_getopt
 
@@ -2107,6 +2108,8 @@ EXPORTS
 	pdf_apply_redaction
 	fz_new_base14_font
 	pdf_add_simple_font
+	pdf_add_cid_font
+	pdf_font_writing_supported
 	pdf_add_stream
 	fz_append_printf
 	fz_append_string

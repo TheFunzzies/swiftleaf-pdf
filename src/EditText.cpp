@@ -75,22 +75,23 @@ static void CloseSession(bool commit) {
     if (changed && !EngineMupdfCanEditText(text)) {
         s->closing = false;
         ShowWarningNotification(s->win->hwndCanvas,
-                                Tr("This text contains characters Edit Text cannot write yet. Use Western European "
-                                   "text or press Esc to cancel."),
+                                Tr("This text needs unsupported shaping or contains invalid characters. "
+                                   "Your draft and original text have been kept. Press Esc to cancel."),
                                 kNotif5SecsTimeOut);
         return; // Keep the draft available for correction or copying.
     }
-    gSession = nullptr;
     MainWindow* win = s->win;
     WindowTab* tab = s->tab;
-    int pageNo = s->pageNo;
+    if (changed && IsMainWindowValidAndNotClosing(win) && win->CurrentTab() == tab &&
+        !ReplaceTextInTab(tab, s->pageNo, s->run, text)) {
+        s->closing = false;
+        return;
+    }
+    gSession = nullptr;
     PdfTextRun run = s->run;
     s->run.text = {};
     // the edit is gone before the page repaints under it
     DestroySession(s);
-    if (changed && IsMainWindowValidAndNotClosing(win) && win->CurrentTab() == tab) {
-        ReplaceTextInTab(tab, pageNo, run, text);
-    }
     str::Free(run.text);
     if (IsMainWindowValidAndNotClosing(win)) {
         HwndSetFocus(win->hwndCanvas);
@@ -131,6 +132,11 @@ static LRESULT CALLBACK EditTextWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM l
 
 static HFONT CreateRunFont(const PdfTextRun& run, int pxHeight) {
     const WCHAR* face = run.mono ? L"Courier New" : (run.serif ? L"Times New Roman" : L"Arial");
+    if (run.fontName[0]) {
+        const char* name = run.fontName;
+        if (strlen(name) > 7 && name[6] == '+') name += 7;
+        face = ToWStrTemp(Str(name)).s;
+    }
     return CreateFontW(-pxHeight, 0, 0, 0, run.bold ? FW_BOLD : FW_NORMAL, run.italic, FALSE, FALSE, DEFAULT_CHARSET,
                        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, face);
 }
@@ -224,6 +230,14 @@ static void OpenEditor(MainWindow* win, int pageNo, RectF area) {
         return;
     }
     s->win = win;
+    if (!s->run.supported) {
+        DestroySession(s);
+        ShowWarningNotification(win->hwndCanvas,
+                                Tr("This block has mixed styles, rotation, transparency or unsupported text rendering. "
+                                   "It cannot be edited safely yet."),
+                                kNotif5SecsTimeOut);
+        return;
+    }
     s->tab = tab;
     s->pageNo = pageNo;
     DeleteOldSelectionInfo(win, true);

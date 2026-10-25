@@ -12512,7 +12512,8 @@ bool ReplaceTextInTab(WindowTab* tab, int pageNo, const PdfTextRun& run, Str new
         gRenderCache->AbortRendering(dm);
     }
     Vec<Annotation*> deleted;
-    bool ok = EngineMupdfReplaceText(engine, pageNo, run, newText, deleted);
+    Str error;
+    bool ok = EngineMupdfReplaceText(engine, pageNo, run, newText, deleted, &error);
     for (Annotation* a : deleted) {
         DetachAnnotationFromUI(a);
         DeleteAnnotation(a);
@@ -12522,7 +12523,8 @@ bool ReplaceTextInTab(WindowTab* tab, int pageNo, const PdfTextRun& run, Str new
     ToolbarUpdateStateForWindow(win, true);
     MainWindowRerender(win);
     if (!ok) {
-        ShowWarningNotification(win->hwndCanvas, Tr("Couldn't change the text"), kNotif5SecsTimeOut);
+        ShowWarningNotification(win->hwndCanvas, len(error) ? error : Tr("Couldn't change the text"),
+                                kNotif5SecsTimeOut);
     }
     return ok;
 }

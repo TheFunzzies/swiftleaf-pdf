@@ -685,6 +685,89 @@ static void AdvancedFormsTest() {
     file::Delete(flattened);
 }
 
+static void TextEditUnicodeTest() {
+    const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+                             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> "
+                             ">> /Contents 5 0 R >>",
+                             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                             "<< /Length 45 >>\nstream\nBT /F1 12 Tf 72 700 Td (Original text) Tj ET\nendstream"};
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    int offsets[5];
+    for (int i = 0; i < 5; i++) {
+        offsets[i] = len(pdf);
+        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, Str(objects[i])));
+    }
+    int xref = len(pdf);
+    pdf.Append(StrL("xref\n0 6\n0000000000 65535 f \n"));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+    Str samples[] = {StrL("Caf\xc3\xa9 \xc5\x92uvre"), StrL("\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82"),
+                     StrL("\xce\x95\xce\xbb\xce\xbb\xce\xb7\xce\xbd\xce\xb9\xce\xba\xce\xac"),
+                     StrL("\xe4\xb8\xad\xe6\x96\x87 \xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e \xed\x95\x9c\xea\xb8\x80"),
+                     StrL("space\xc2\xa0space")};
+    for (Str sample : samples) {
+        EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("unicode-edit.pdf"), nullptr);
+        utassert(e != nullptr);
+        if (!e) continue;
+        PdfTextRun run;
+        utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 400, 30}, TextRunScope::Lines, &run));
+        utassert(run.supported);
+        Vec<Annotation*> removed;
+        Str error;
+        utassert(!EngineMupdfReplaceText(e, 1, run, StrL("\xd8\xb9"), removed, &error));
+        utassert(len(error) > 0 && len(removed) == 0);
+        PdfTextRun untouched;
+        utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 400, 30}, TextRunScope::Lines, &untouched));
+        utassert(str::Eq(run.text, untouched.text));
+        str::Free(untouched.text);
+        utassert(EngineMupdfReplaceText(e, 1, run, sample, removed, &error));
+        utassert(len(removed) == 0);
+        TempStr path = GetTempFilePathTemp(StrL("unicode-edit"));
+        utassert(EngineMupdfSaveUpdated(e, path, {}));
+        SafeEngineRelease(&e);
+        e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+        utassert(e != nullptr);
+        PdfTextRun reopened;
+        utassert(EngineMupdfGetTextRun(e, 1, {65, 75, 500, 50}, TextRunScope::Lines, &reopened));
+        utassert(str::Eq(reopened.text, sample));
+        str::Free(reopened.text);
+        SafeEngineRelease(&e);
+
+        fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+        pdf_document* doc = nullptr;
+        fz_var(doc);
+        fz_try(ctx) {
+            doc = pdf_open_document(ctx, CStrTemp(path));
+            pdf_obj* page = pdf_lookup_page_obj(ctx, doc, 0);
+            pdf_obj* form =
+                pdf_dict_gets(ctx, pdf_dict_get(ctx, pdf_dict_get(ctx, page, PDF_NAME(Resources)), PDF_NAME(XObject)),
+                              "SwiftLeafEdit1");
+            pdf_obj* fonts = pdf_dict_get(ctx, pdf_dict_get(ctx, form, PDF_NAME(Resources)), PDF_NAME(Font));
+            utassert(pdf_dict_len(ctx, fonts) > 0);
+            for (int i = 0; i < pdf_dict_len(ctx, fonts); i++) {
+                pdf_obj* font = pdf_dict_get_val(ctx, fonts, i);
+                utassert(pdf_name_eq(ctx, pdf_dict_get(ctx, font, PDF_NAME(Subtype)), PDF_NAME(Type0)));
+                utassert(pdf_is_stream(ctx, pdf_dict_get(ctx, font, PDF_NAME(ToUnicode))));
+                pdf_obj* descendant = pdf_array_get(ctx, pdf_dict_get(ctx, font, PDF_NAME(DescendantFonts)), 0);
+                pdf_obj* descriptor = pdf_dict_get(ctx, descendant, PDF_NAME(FontDescriptor));
+                utassert(pdf_dict_get(ctx, descriptor, PDF_NAME(FontFile)) ||
+                         pdf_dict_get(ctx, descriptor, PDF_NAME(FontFile2)) ||
+                         pdf_dict_get(ctx, descriptor, PDF_NAME(FontFile3)));
+            }
+        }
+        fz_always(ctx) {
+            pdf_drop_document(ctx, doc);
+        }
+        fz_catch(ctx) {
+            utassert(false);
+        }
+        fz_drop_context(ctx);
+        str::Free(run.text);
+        file::Delete(path);
+    }
+}
+
 static void FormAuthoringTest() {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Rotate 90 >>"};
@@ -1077,7 +1160,6 @@ static bool ToolsTestObjectText(fz_context* ctx, pdf_document* doc, const char* 
     return false;
 }
 
-
 static void ReviewToolsTest() {
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
     fz_register_document_handlers(ctx);
@@ -1141,7 +1223,8 @@ static void ReviewToolsTest() {
     VecAppend(linePts, p1);
     VecAppend(linePts, p2);
     AnnotCreateArgs measArgs{AnnotationType::Line};
-    measArgs.hasLineEnd = true; measArgs.lineEnd = p2;
+    measArgs.hasLineEnd = true;
+    measArgs.lineEnd = p2;
     measArgs.isMeasurement = true;
     measArgs.content = StrL("10 ft");
     Annotation* measAnnot = EngineMupdfCreateAnnotation(engine, 1, p1, &measArgs);
@@ -1518,7 +1601,6 @@ static void PageStampsTest() {
     file::Delete(basePdf);
 }
 
-
 static void PageTools2Test() {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
@@ -1811,6 +1893,7 @@ int RunAppUnitTests(bool forAi) {
     str::Free(savedPanels);
     printf("Panel layout, settings and animation tests passed\n");
     utassert(EngineMupdf_UnitTestPanelData());
+    TextEditUnicodeTest();
     FormAuthoringTest();
     AdvancedFormsTest();
     PageStampsTest();
