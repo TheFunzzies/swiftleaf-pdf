@@ -48,6 +48,7 @@ extern "C" {
 #include "FormAuthoring.h"
 #include "FilterHighlightDraw.h"
 #include "AnnotFilterToolbar.h"
+#include "CommentIO.h"
 #include "SvgIcons.h"
 #include "ImageReader.h"
 #include "CommandPalette.h"
@@ -88,6 +89,8 @@ enum class AnnotEditKind {
     LineEnd,
     AttachFile,
     SaveAttachment,
+    Status,
+    Reply,
     Delete,
 };
 
@@ -575,6 +578,21 @@ static void CollectItems(Annotation* annot, Vec<AnnotEditItem>& out) {
     }
     {
         // last, so a mis-aimed click lands on a harmless chip, not on delete
+        {
+            Str state = GetAnnotationState(annot);
+            AnnotEditItem it;
+            it.kind = AnnotEditKind::Status;
+            it.text = state.len > 0 ? state : StrL("Status");
+            it.tooltip = Tr("Review Status");
+            VecAppend(out, it);
+        }
+        {
+            AnnotEditItem it;
+            it.kind = AnnotEditKind::Reply;
+            it.text = StrL("Reply");
+            it.tooltip = Tr("Reply");
+            VecAppend(out, it);
+        }
         AnnotEditItem it;
         it.kind = AnnotEditKind::Delete;
         it.tooltip = Tr("Delete");
@@ -1135,6 +1153,8 @@ void AnnotEditChip::Paint(VirtPaintCtx& ctx) {
         case AnnotEditKind::Delete:
             PaintSvgChip(ctx.gfx, r, gIconTrash, textCol, BarBg());
             break;
+        case AnnotEditKind::Status:
+        case AnnotEditKind::Reply:
         case AnnotEditKind::Opacity:
         case AnnotEditKind::Border:
         case AnnotEditKind::FontName:

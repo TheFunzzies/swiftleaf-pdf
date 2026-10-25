@@ -443,6 +443,52 @@ const char* gIconAnnotFileAttachment =
   <path d="M15 7l-6.5 6.5a1.5 1.5 0 0 0 3 3l6.5 -6.5a3 3 0 0 0 -6 -6l-6.5 6.5a4.5 4.5 0 0 0 9 9l6.5 -6.5" />
 </svg>)";
 
+const char* gIconAnnotCallout =
+    R"(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="7" y="4" width="14" height="11" rx="1" />
+  <path d="M7 11l-4 8l8 -4" />
+</svg>)";
+
+const char* gIconAnnotArrow =
+    R"(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <line x1="5" y1="19" x2="19" y2="5" />
+  <polyline points="10 5 19 5 19 14" />
+</svg>)";
+
+const char* gIconMeasureDistance =
+    R"(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4 19l16 -14" />
+  <path d="M4 15l4 4" />
+  <path d="M16 5l4 4" />
+  <path d="M8 11l2 2" />
+  <path d="M12 7l2 2" />
+</svg>)";
+
+const char* gIconMeasurePerimeter =
+    R"(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="4" y="4" width="16" height="16" rx="1" stroke-dasharray="3 3" />
+  <path d="M4 12h16" />
+  <path d="M12 4v16" />
+</svg>)";
+
+const char* gIconMeasureArea =
+    R"(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="4" y="4" width="16" height="16" rx="2" />
+  <path d="M4 10l6 -6" />
+  <path d="M4 16l12 -12" />
+  <path d="M8 20l12 -12" />
+  <path d="M14 20l6 -6" />
+</svg>)";
+
+const char* gIconMeasureScale =
+    R"(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="9" />
+  <line x1="12" y1="3" x2="12" y2="7" />
+  <line x1="12" y1="17" x2="12" y2="21" />
+  <line x1="3" y1="12" x2="7" y2="12" />
+  <line x1="17" y1="12" x2="21" y2="12" />
+</svg>)";
+
 const char* gIconTrash =
     R"(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
   <line x1="4" y1="7" x2="20" y2="7" />

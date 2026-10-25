@@ -119,6 +119,11 @@ struct AnnotCreateArgs {
     RectF rect;
     const Vec<int>* inkStrokeCounts = nullptr;
     const Vec<PointF>* inkPoints = nullptr;
+    bool isCallout = false;
+    PointF calloutTarget;
+    int lineStartStyle = 0;
+    int lineEndStyle = 0;
+    bool isMeasurement = false;
 };
 
 int PageNo(Annotation*);

@@ -117,10 +117,19 @@
     <ClInclude Include="..\ext\darkmodelib\src\Version.h">
       <Filter>ext\darkmodelib\src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\Animation.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\Canvas.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\CommentIO.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\DarkMode.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\DocumentPanel.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\EditText.h">
@@ -129,16 +138,25 @@
     <ClInclude Include="..\src\FindWindow.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\FormAuthoring.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\ImageSaveCropResize.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\Installer.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\LucideIcons.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\MainWindow.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\Material.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\Measure.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\Menu.h">
@@ -150,13 +168,10 @@
     <ClInclude Include="..\src\NavRail.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\DocumentPanel.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\LucideIcons.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\Notifications.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\Ocr.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\OverlayScrollbar.h">
@@ -166,6 +181,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\PageThumbnails.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\PanelLayout.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\RegistryPreview.h">
@@ -208,6 +226,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\Toolbar.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ToolsPanel.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\base\Archive.h">
@@ -635,6 +656,9 @@
     <ClCompile Include="..\src\AdvancedSettingsDialog.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\Animation.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\AnnotEditToolbar.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -671,10 +695,16 @@
     <ClCompile Include="..\src\CommandPalette.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\CommentIO.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\CustomZoomDialog.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\DarkMode.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\DocumentPanel.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\DocumentProperties.cpp">
@@ -701,15 +731,12 @@
     <ClCompile Include="..\src\FindWindow.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\FormFields.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\FormAuthoring.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClInclude Include="..\src\FormAuthoring.h">
+    <ClCompile Include="..\src\FormFields.cpp">
       <Filter>src</Filter>
-    </ClInclude>
+    </ClCompile>
     <ClCompile Include="..\src\GetPasswordDialog.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -740,10 +767,16 @@
     <ClCompile Include="..\src\KeyboardHelp.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\LucideIcons.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\MainWindow.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\Material.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\Measure.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\Menu.cpp">
@@ -761,13 +794,10 @@
     <ClCompile Include="..\src\NavRail.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\DocumentPanel.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\LucideIcons.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\Notifications.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\Ocr.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\OverlayScrollbar.cpp">
@@ -780,6 +810,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\PageThumbnails.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\PanelLayout.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\PdfTools.cpp">
@@ -882,6 +915,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\Toolbar.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ToolsPanel.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\Uninstaller.cpp">

@@ -11940,7 +11940,7 @@ void MarkNotificationAsModified(EngineMupdf* e, Annotation* annot) {
 NO_INLINE void MarkNotificationAsModified(EngineMupdf* e, Annotation* annot, AnnotationChange change) {
     e->modifiedAnnotations = true;
     e->editGeneration++;
-    if (!e->pdfdoc) {
+    if (!e->pdfdoc || !annot) {
         return;
     }
     StartLoadingFileBytes(e);

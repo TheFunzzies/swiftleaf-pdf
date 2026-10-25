@@ -10,6 +10,7 @@ COPYING.BSD
 docs/upstream-readme.md
 # Historical identifier migration notes.
 docs/rename-notes.md
+docs/signpath-application.md
 CHANGELOG.md
 ext/**
 

@@ -38,6 +38,7 @@
 
 #include "FormAuthoring.h"
 #include "AnnotPlacement.h"
+#include "Measure.h"
 
 static Kind kNotifPointAnnotationPlacement = "notifTextAnnotationPlacement";
 static Kind kNotifLineAnnotationPlacement = "notifLineAnnotationPlacement";
@@ -187,7 +188,9 @@ AnnotPlacementKind PlacementKindFromCommand(int cmdId) {
     switch (OrigCommandId(cmdId)) {
         case CmdCreateAnnotText:
             return AnnotPlacementKind::Text;
-        case CmdCreateAnnotFreeText:
+case CmdCreateAnnotFreeText:
+        case CmdCreateAnnotTextBox:
+        case CmdCreateAnnotCallout:
             return AnnotPlacementKind::FreeText;
         case CmdCreateAnnotStamp:
             return AnnotPlacementKind::Stamp;
@@ -195,9 +198,14 @@ AnnotPlacementKind PlacementKindFromCommand(int cmdId) {
             return AnnotPlacementKind::Caret;
         case CmdCreateAnnotFileAttachment:
             return AnnotPlacementKind::FileAttachment;
-        case CmdCreateAnnotLine:
+case CmdCreateAnnotLine:
+        case CmdCreateAnnotArrow:
+        case CmdMeasureDistance:
             return AnnotPlacementKind::Line;
         case CmdCreateAnnotPolyLine:
+        case CmdMeasurePerimeter:
+        case CmdCreateAnnotPolygon:
+        case CmdMeasureArea:
             return AnnotPlacementKind::PolyLine;
         case CmdCreateAnnotSquare:
         case CmdCreateAnnotCircle:
@@ -387,6 +395,20 @@ static bool HasPreview(AnnotPlacementKind kind) {
 }
 
 static Str PlacementNotification(AnnotPlacementKind kind, bool circle, int cmdId) {
+    switch (OrigCommandId(cmdId)) {
+        case CmdMeasureDistance:
+            return Tr("Measure distance. Click endpoints. Esc to cancel.");
+        case CmdMeasurePerimeter:
+            return Tr("Measure perimeter. Click vertices. Double-click or Enter to finish. Esc to cancel.");
+        case CmdMeasureArea:
+            return Tr("Measure area. Click polygon vertices. Double-click or Enter to finish. Esc to cancel.");
+        case CmdCreateAnnotCallout:
+            return Tr("Place callout annotation. Drag or click to position text box. Esc to cancel.");
+        case CmdCreateAnnotArrow:
+            return Tr("Place arrow annotation. Click endpoints. Esc to cancel.");
+        case CmdCreateAnnotTextBox:
+            return Tr("Place text box annotation. Drag or click to position. Esc to cancel.");
+    }
     if (IsFormAuthoringCommand(OrigCommandId(cmdId))) {
         return Tr(
             "Draw a form field. Drag or click twice. **Esc** to cancel. Use Edit PDF to select, move and resize "
@@ -709,6 +731,12 @@ static bool HandleLineClick(MainWindow* win, Point pt, WPARAM key) {
         ScheduleRepaint(win, 0);
         return true;
     }
+    if (p.cmdId == CmdMeasureDistance) {
+        PointF ptPage = dm->CvtFromScreen(pt, pageNo);
+        bool snapped = false;
+        PointF snPt = SnapToPageContent(dm->GetEngine(), pageNo, ptPage, 8.0f, &snapped);
+        if (snapped) pt = dm->CvtToScreen(pageNo, snPt);
+    }
     p.end = bit::IsMaskSet(key, (WPARAM)MK_SHIFT) ? SnapLineEndpoint(dm->CvtToScreen(pageNo, p.start), pt) : pt;
     CommitPlacementCommand(win, pt);
     return true;
@@ -732,6 +760,12 @@ static bool HandlePolyLineClick(MainWindow* win, Point pt, WPARAM key) {
     }
     if (!started) {
         p.pageNo = pageNo;
+    }
+    if (p.cmdId == CmdMeasurePerimeter || p.cmdId == CmdMeasureArea) {
+        PointF ptPage = dm->CvtFromScreen(pt, pageNo);
+        bool snapped = false;
+        PointF snPt = SnapToPageContent(dm->GetEngine(), pageNo, ptPage, 8.0f, &snapped);
+        if (snapped) pt = dm->CvtToScreen(pageNo, snPt);
     }
     if (started && bit::IsMaskSet(key, (WPARAM)MK_SHIFT)) {
         pt = SnapLineEndpoint(dm->CvtToScreen(pageNo, p.points[len(p.points) - 1]), pt);
@@ -1273,6 +1307,21 @@ static void PaintLinePlacement(MainWindow* win, HDC hdc, DisplayModel* dm) {
     Gdiplus::SolidBrush fill(Gdiplus::Color(255, 255, 255, 255));
     gs.FillEllipse(&fill, start.x - markerHalf, start.y - markerHalf, markerSize, markerSize);
     gs.DrawEllipse(&pen, start.x - markerHalf, start.y - markerHalf, markerSize, markerSize);
+    if (p.cmdId == CmdMeasureDistance) {
+        MeasureScale scale = GetPageScale(dm->GetEngine(), pageNo);
+        PointF p1 = p.start;
+        PointF p2 = dm->CvtFromScreen(end, pageNo);
+        float dist = ComputeDistance(p1, p2, scale);
+        TempStr distLabel = FormatDistance(dist, scale);
+        WStr wlabel = ToWStrTemp(distLabel);
+        Gdiplus::Font font(L"Segoe UI", 12.f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+        Gdiplus::SolidBrush textBrush(Gdiplus::Color(255, 20, 20, 20));
+        Gdiplus::SolidBrush bgBrush(Gdiplus::Color(230, 255, 255, 255));
+        Point mid{(start.x + end.x) / 2, (start.y + end.y) / 2};
+        gs.FillRectangle(&bgBrush, mid.x + 8, mid.y - 12, 80, 20);
+        gs.DrawRectangle(&pen, mid.x + 8, mid.y - 12, 80, 20);
+        gs.DrawString(wlabel.s, -1, &font, Gdiplus::PointF((Gdiplus::REAL)(mid.x + 10), (Gdiplus::REAL)(mid.y - 10)), &textBrush);
+    }
 }
 
 static void PaintPolyLinePlacement(MainWindow* win, HDC hdc, DisplayModel* dm) {
@@ -1303,6 +1352,25 @@ static void PaintPolyLinePlacement(MainWindow* win, HDC hdc, DisplayModel* dm) {
     gs.DrawLine(&pen, previous.x, previous.y, end.x, end.y);
     gs.FillEllipse(&fill, previous.x - markerHalf, previous.y - markerHalf, markerSize, markerSize);
     gs.DrawEllipse(&pen, previous.x - markerHalf, previous.y - markerHalf, markerSize, markerSize);
+    if (p.cmdId == CmdMeasurePerimeter || p.cmdId == CmdMeasureArea) {
+        MeasureScale scale = GetPageScale(dm->GetEngine(), pageNo);
+        Vec<PointF> pts;
+        for (PointF pt : p.points) VecAppend(pts, pt);
+        VecAppend(pts, dm->CvtFromScreen(end, pageNo));
+        TempStr label{};
+        if (p.cmdId == CmdMeasureArea && len(pts) >= 3) {
+            label = FormatArea(ComputeArea(pts, scale), scale);
+        } else {
+            label = FormatPerimeter(ComputePerimeter(pts, scale), scale);
+        }
+        WStr wlabel = ToWStrTemp(label);
+        Gdiplus::Font font(L"Segoe UI", 12.f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+        Gdiplus::SolidBrush textBrush(Gdiplus::Color(255, 20, 20, 20));
+        Gdiplus::SolidBrush bgBrush(Gdiplus::Color(230, 255, 255, 255));
+        gs.FillRectangle(&bgBrush, end.x + 8, end.y - 14, 90, 22);
+        gs.DrawRectangle(&pen, end.x + 8, end.y - 14, 90, 22);
+        gs.DrawString(wlabel.s, -1, &font, Gdiplus::PointF((Gdiplus::REAL)(end.x + 10), (Gdiplus::REAL)(end.y - 12)), &textBrush);
+    }
 }
 
 static void PaintShapePlacement(MainWindow* win, HDC hdc, DisplayModel* dm) {
@@ -1456,9 +1524,18 @@ bool AnnotationPlacementFillCreate(MainWindow* win, AnnotationType type, Point& 
             pt = p.end;
             args.hasLineEnd = true;
             args.lineEnd = lineEndOnPage;
+            if (p.cmdId == CmdCreateAnnotArrow) {
+                args.lineEndStyle = 4; // PDF_ANNOT_LE_OPEN_ARROW
+            } else if (p.cmdId == CmdMeasureDistance) {
+                MeasureScale scale = GetPageScale(dm->GetEngine(), pageNo);
+                args.content = Str(FormatDistance(ComputeDistance(p.start, lineEndOnPage, scale), scale));
+                args.lineStartStyle = 5; // PDF_ANNOT_LE_CLOSED_ARROW
+                args.lineEndStyle = 5;
+                args.isMeasurement = true;
+            }
             return true;
         case AnnotPlacementKind::PolyLine:
-            if (type != AnnotationType::PolyLine || len(p.points) < 2) {
+            if ((type != AnnotationType::PolyLine && type != AnnotationType::Polygon) || len(p.points) < 2) {
                 return false;
             }
             pageNo = p.pageNo;
@@ -1468,6 +1545,15 @@ bool AnnotationPlacementFillCreate(MainWindow* win, AnnotationType type, Point& 
             ptOnPage = p.points[0];
             pt = dm->CvtToScreen(pageNo, VecLast(p.points));
             args.polyLinePoints = &p.points;
+            if (p.cmdId == CmdMeasurePerimeter || p.cmdId == CmdMeasureArea) {
+                MeasureScale scale = GetPageScale(dm->GetEngine(), pageNo);
+                if (p.cmdId == CmdMeasureArea) {
+                    args.content = Str(FormatArea(ComputeArea(p.points, scale), scale));
+                } else {
+                    args.content = Str(FormatPerimeter(ComputePerimeter(p.points, scale), scale));
+                }
+                args.isMeasurement = true;
+            }
             return true;
         case AnnotPlacementKind::Text:
             if (type != AnnotationType::Text) {
@@ -1477,6 +1563,13 @@ bool AnnotationPlacementFillCreate(MainWindow* win, AnnotationType type, Point& 
         case AnnotPlacementKind::FreeText:
             if (type != AnnotationType::FreeText) {
                 return false;
+            }
+            if (p.cmdId == CmdCreateAnnotCallout) {
+                args.isCallout = true;
+                args.borderWidth = 1;
+                args.calloutTarget = PointF{p.pos.x - 30.f, p.pos.y - 30.f};
+            } else if (p.cmdId == CmdCreateAnnotTextBox) {
+                args.borderWidth = 1;
             }
             break;
         case AnnotPlacementKind::Stamp:

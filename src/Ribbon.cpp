@@ -228,6 +228,14 @@ static const RibbonItemDef gEditItems[] = {
     {gIconImage, CmdInsertImage, TrN("Image"), TrN("Insert an image from a file")},
     {gIconClipboard, CmdCreateAnnotImageFromClipboard, TrN("Paste Image"), TrN("Insert the image on the clipboard")},
     {gIconLink, CmdCreateAnnotLink, TrN("Link"), TrN("Add a link")},
+    {nullptr, 0, TrN("Review & Measure")},
+    {gIconAnnotCallout, CmdCreateAnnotCallout, TrN("Callout"), TrN("Add a callout annotation")},
+    {gIconAnnotArrow, CmdCreateAnnotArrow, TrN("Arrow"), TrN("Add an arrow line annotation")},
+    {gIconMeasureDistance, CmdMeasureDistance, TrN("Distance"), TrN("Measure distance with page scale")},
+    {gIconMeasureArea, CmdMeasureArea, TrN("Area"), TrN("Measure area with page scale")},
+    {gIconMeasureScale, CmdMeasureSetScale, TrN("Page Scale"), TrN("Set page measurement scale")},
+    {gIconFindAnnotation, CmdCommentSummary, TrN("Summary"), TrN("Generate comment summary")},
+    {gIconApplyRedactions, CmdFlattenComments, TrN("Flatten"), TrN("Flatten comments into page content")},
     {nullptr, 0, TrN("Redaction")},
     {gIconAnnotRedact, CmdCreateAnnotRedact, TrN("Redact"), TrN("Mark an area for redaction")},
     {gIconApplyRedactions, CmdApplyRedactions, TrN("Apply"), TrN("Apply redactions (permanently removes the content)")},
@@ -535,6 +543,36 @@ Str RibbonLabelForCmd(int cmdId) {
             break;
         case CmdCreateAnnotFreeText:
             s = TrN("Typewriter");
+            break;
+        case CmdCreateAnnotCallout:
+            s = TrN("Callout");
+            break;
+        case CmdCreateAnnotArrow:
+            s = TrN("Arrow");
+            break;
+        case CmdCreateAnnotTextBox:
+            s = TrN("Text Box");
+            break;
+        case CmdCreateAnnotReplaceText:
+            s = TrN("Replace Text");
+            break;
+        case CmdMeasureDistance:
+            s = TrN("Distance");
+            break;
+        case CmdMeasurePerimeter:
+            s = TrN("Perimeter");
+            break;
+        case CmdMeasureArea:
+            s = TrN("Area");
+            break;
+        case CmdMeasureSetScale:
+            s = TrN("Scale");
+            break;
+        case CmdCommentSummary:
+            s = TrN("Summary");
+            break;
+        case CmdFlattenComments:
+            s = TrN("Flatten");
             break;
         case CmdCreateAnnotLine:
             s = TrN("Line");

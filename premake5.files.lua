@@ -297,6 +297,8 @@ function sumatrapdf_files()
     "AnnotEditToolbar.*",
     "AnnotFilterToolbar.*",
     "AnnotSearch.*",
+    "CommentIO.*",
+    "Measure.*",
     "PdfDate.*",
     "CanvasAboutUI.*",
     "CaptionGlyphs.*",
