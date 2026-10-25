@@ -53,6 +53,7 @@ relative to `ext/mupdf`, so `-p1` from inside that directory.
 | `0050-rearrange-pages-keep-old-parent-tree` | `pdf_rearrange_pages` keeps the old structure `/ParentTree` alive while it is still read; Merge PDF on a tagged PDF used freed memory |
 | `0052-atomic-pdf-save` | Windows PDF writers flush a sibling and atomically replace the destination, including command-line tools |
 | `0053-redact-alternate-text` | Redaction removes alternate text from marked-content properties and updates structure ActualText correctly |
+| `0054-unified-edit-journal` | Bound undo memory by spilling journal entries; retain branch identities and journal retired tool objects |
 
 That is the whole list: `ext/mupdf` is byte-for-byte `1.28.5` plus these
 patches, and nothing else.

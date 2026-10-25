@@ -23,8 +23,9 @@ directory (the directory containing its settings, including portable/custom
 `-appdata` directories). Each running instance owns a locked session directory.
 A second instance skips that directory while its owner is alive.
 
-Snapshots include committed annotations, text edits and form edits, including
-field authoring. A document unchanged since its last snapshot is not rewritten.
+Snapshots include committed annotations, text/image edits, form edits, page
+operations and document properties/bookmarks. A document unchanged since its
+last snapshot is not rewritten.
 Open annotation gestures are deferred until their operation ends. Uncommitted
 in-place text and form input is not included. Pending digital signatures are
 not completed by autosave. A crash before the first successful snapshot can
@@ -43,37 +44,43 @@ document's snapshot. Recovery copies retain the original PDF's encryption;
 passwords are not stored. The `.path` sidecar holds the original file name.
 Recovery files are working copies, not sanitized exports or historical backups.
 
-Serialization runs on the UI thread under the engine's page/render/document
-locks: form calculations and appearance updates use its UI-owned base context.
-Moving these operations to a worker would risk concurrent form JavaScript and
-annotation lifetime bugs. A large dirty PDF can therefore pause the UI during
-its snapshot. Idle/clean documents incur no PDF serialization.
+The first edit starts a background read of the original PDF. Every interval,
+the UI thread tries the engine's page/render/document locks and freezes only
+changed PDF objects and the trailer. Busy engines and open gestures wait for
+the next interval. Immutable stream buffers remain retained until completion.
+A worker with its own MuPDF context reconstructs and serializes that frozen
+state, then atomically publishes it. Later edits cannot change the snapshot.
+Closing or saving cancels publication; the job retains the engine until cleanup.
+No full-document serialization or disk write runs in the timer callback.
 
 ## Undo coverage
 
-- Annotation and form edits use the existing MuPDF undo/redo journal.
-- Rotate, delete, reorder (including thumbnail drag), insert blank page, and
-  insert pages from another file already use **Undo Page Change**, backed by
-  separate snapshots. These operations save immediately to disk, so no unsaved
-  page-operation state needs periodic recovery.
-- The two histories are not unified. Page operations reload the engine and reset
-  annotation/form undo. Undo Page Change restores the whole earlier PDF and can
-  replace annotations made after that page operation. Page redo is unavailable.
+- Each document has one MuPDF journal for annotations, forms, text/images,
+  page changes and document properties/bookmarks. Ctrl+Z and Ctrl+Y traverse
+  that history; Edit menu and ribbon show the next operation's label.
+- Rotate, delete, reorder (including thumbnail drag), insert, replace, crop,
+  N-up and other page transformations, watermark, header/footer and Bates
+  tools import their complete result into the live document as one step.
+  Unsaved edits are included as tool input. The original PDF changes only
+  when saved. Page undo and redo rebuild layout, outlines and annotation caches.
+- Nested operations coalesce a gesture into one entry. Each document has a
+  32 MiB inactive-object budget; older journal entries spill into the locked
+  recovery session as `history-*.undo`. Disk errors preserve in-memory history.
+  Spill files are deleted on document disposal or stale-session cleanup.
 - Export, split, bake, compress, encryption and other tools producing another PDF
   do not form undo steps in the source document. Undo history does not survive a
   restart or recovery restore. Ordinary view rotation does not edit the PDF.
-
-Unifying these histories requires changing page operations to edit the live
-engine and rebuilding page caches, annotation identities and controller layout
-across journal traversal. This change deliberately keeps that larger refactor
-out of the save/recovery path.
 
 ## Verification
 
 `FileUtilTest` covers abandoned staging, locked-destination failure/retry and new
 file publication. `FormAuthoringTest` covers field recovery, unchanged-snapshot
 skipping, undo/redo after snapshots, failed saves preserving recovery, and repeated
-saves of one live engine after a copy. `tests/edit-reliability.ts` covers actual
+saves of one live engine after a copy. Its unified-history tests interleave
+field creation/value edits, page insertion and properties, traverse undo/redo,
+branch after undo and force disk spill. Recovery tests freeze before a later
+edit, inject a mid-write fault, reopen the previous snapshot, retry and cancel.
+`tests/edit-reliability.ts` covers actual
 annotation edits, process termination, another active instance, restore into a
 separate PDF, save cleanup and discard. It is registered in the regular and
 SwiftLeaf CI smoke suites. Run:
