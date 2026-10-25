@@ -1,0 +1,3 @@
+from pathlib import Path
+p=Path('src/shared/CommandAvailability.cpp'); s=p.read_text(); s=s.replace('    CmdOpenFile,','    CmdCreatePdfFiles,\n    CmdCreatePdfClipboard,\n    CmdOpenFile,',1); s=s.replace('cmdId == CmdPdfShowInfo ||','cmdId == CmdExportPdf || cmdId == CmdPdfShowInfo ||',1); p.write_text(s)
+p=Path('src/tests/Sumatra_ut.cpp'); s=p.read_text().replace('#include "Ocr.h"','#include "Ocr.h"\n#if !defined(SUMATRA_NG)\n#include "ExportFormats.h"\n#endif'); s=s.replace('    PageStampsTest();','    PageStampsTest();\n#if !defined(SUMATRA_NG)\n    ExportFormatsUnitTests();\n#endif'); p.write_text(s)
