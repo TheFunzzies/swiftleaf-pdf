@@ -64,6 +64,24 @@ any existing output file intact. Vertical-only blocks currently stop the scan,
 even when they contain no match. No-match searches write nothing. Successful
 copies open for inspection. Large documents can pause the UI during this operation.
 
+## Images and grouped objects
+
+Choose **Edit Images and Objects** from **All tools**, or **Objects** in the
+**Edit** tab. The list shows named images and grouped objects on the current
+page. Enter a listed name without its parenthesized type. Optionally enter a
+replacement image file, set width/height percentages and rotation, then choose
+**Save Edited Copy**. Negative percentages flip an axis; rotation and scaling
+use the object's center. Image replacement retains the original placement.
+
+Every use of that named object on the current page changes. Other pages and the
+open document remain unchanged, even when pages share resources. Unsaved edits
+are included in the copy. Failure preserves an existing destination file.
+Objects can grow outside the page and be clipped; inspect the saved copy.
+The list includes unused resources. Inline images, stencil images, individual
+paths and objects nested inside a group cannot be selected separately. Cropping,
+drag handles, translation, multi-selection, alignment and distribution are not
+provided. This dialog adds no animation and uses the existing Windows dialog UI.
+
 ## Deliberate limits in W2
 
 This is a partial implementation, not Acrobat editing parity:
@@ -82,8 +100,6 @@ This is a partial implementation, not Acrobat editing parity:
   redaction from removing interactive content. Text removal still uses geometric text-only redaction;
   original content-stream operators are not edited in place. Images and vector
   artwork are excluded from that redaction.
-- Existing-image/vector selection, replacement, move, resize, crop, rotation,
-  flip, multi-selection, align and distribute are not implemented by this change.
 - Add Text, Add Image, watermarks, headers/footers and Bates numbering retain
   their existing paths; this change does not extend their Unicode behavior.
 
@@ -101,9 +117,11 @@ overlapping links reject edits without removing source text.
 `TextReplaceToolsTest` covers repeated matches on multiple pages, Unicode output,
 empty replacement, explicit font changes, unsaved edits in the snapshot and
 failure preserving an existing output. The contextual-panel smoke opens both
-new dialogs and checks their command availability.
+new dialogs and checks their command availability. `ObjectEditTest` verifies
+image replacement, grouped-object transforms, shared resource isolation and
+failure preserving an existing output file.
 
 Run the Debug build and `bun cmd/run-unit-tests.ts -dbg --no-build`. On a host
 where Device Guard blocks execution, dispatch `.github/workflows/build.yml` for
 the branch; its unit and existing Add Text/Add Image/edit-toolbar smoke suites
-exercise the built application. No existing-image replacement test is claimed.
+exercise the built application.

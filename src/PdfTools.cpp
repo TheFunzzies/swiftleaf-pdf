@@ -4164,6 +4164,75 @@ void ShowPdfRedactSearchDialog(MainWindow* win) {
     if (!dialog->Create(win, tab, true)) delete dialog;
 }
 
+struct PdfObjectDialog : PdfToolDialog {
+    int pageNo = 1;
+    Edit* objectName = nullptr;
+    Edit* imagePath = nullptr;
+    Edit* scaleX = nullptr;
+    Edit* scaleY = nullptr;
+    Edit* rotation = nullptr;
+
+    bool Create(MainWindow* w, WindowTab* tab) {
+        if (!CreateToolDialog(w, tab, Tr("Edit Images and Objects"))) return false;
+        pageNo = tab->ctrl->CurrentPageNo();
+        AddPathRow();
+        AddDestRow(MakeUniqueFilePathTemp(srcPath), WStrL(L"PDF Files\0*.pdf\0All Files\0*.*\0"), WStrL(L"pdf"));
+        AddRow()->AddChild(NewVirtText({.s = fmt(Tr("Objects on page %d:").s, pageNo), .font = font}));
+        Edit::CreateArgs args;
+        args.parent = hwnd;
+        args.font = font;
+        args.isMultiLine = true;
+        args.withBorder = true;
+        args.idealSizeLines = 5;
+        args.text = EngineMupdfObjectList(tab->GetEngine(), pageNo);
+        auto* list = new Edit();
+        list->Create(args);
+        SendMessageW(list->hwnd, EM_SETREADONLY, TRUE, 0);
+        AddRow()->AddChild(list, 1);
+        objectName = AddLabeledEdit(Tr("Object name (from list):"), {});
+        imagePath = AddLabeledEdit(Tr("Replacement image file (optional):"), {});
+        scaleX = AddLabeledEdit(Tr("Width percent (negative flips):"), StrL("100"));
+        scaleY = AddLabeledEdit(Tr("Height percent (negative flips):"), StrL("100"));
+        rotation = AddLabeledEdit(Tr("Rotation degrees:"), StrL("0"));
+        AddRow()->AddChild(NewVirtText(
+            {.s = Tr("Changes every use of this object on this page. Other pages stay unchanged."), .font = font}));
+        AddButtonsRow(Tr("Save Edited Copy"));
+        FinishDialog(objectName, 740);
+        return true;
+    }
+
+    void DoIt(VirtMouseEvent*) override {
+        WindowTab* tab = win ? win->CurrentTab() : nullptr;
+        if (!tab || !path::IsSame(tab->filePath, srcPath)) return;
+        int x = 0, y = 0, angle = 0;
+        if (str::IsNull(str::Parse(scaleX->GetTextTemp(), "%d%$", &x)) ||
+            str::IsNull(str::Parse(scaleY->GetTextTemp(), "%d%$", &y)) ||
+            str::IsNull(str::Parse(rotation->GetTextTemp(), "%d%$", &angle))) {
+            MessageBoxWarning(hwnd, Tr("Enter whole numbers for scale and rotation."), Tr("Edit Images and Objects"));
+            return;
+        }
+        Str error;
+        Str destination = destEdit->GetTextTemp();
+        if (!EngineMupdfEditObjectCopy(tab->GetEngine(), destination, pageNo, objectName->GetTextTemp(),
+                                       imagePath->GetTextTemp(), x / 100.f, y / 100.f, (float)angle, &error)) {
+            MessageBoxWarning(hwnd, error, Tr("Edit Images and Objects"));
+            return;
+        }
+        MainWindow* w = win;
+        TempStr saved = str::DupTemp(destination);
+        Close();
+        LoadArgs args(saved, w);
+        StartLoadDocument(&args);
+    }
+};
+
+void ShowPdfObjectDialog(MainWindow* win) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    if (!tab || !IsPdfDoc(tab)) return;
+    auto* dialog = new PdfObjectDialog();
+    if (!dialog->Create(win, tab)) delete dialog;
+}
+
 struct PdfFontDialog : PdfToolDialog {
     Edit* family = nullptr;
 

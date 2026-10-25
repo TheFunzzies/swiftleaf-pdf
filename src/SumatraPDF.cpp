@@ -13828,6 +13828,9 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
         case CmdPdfFontManager:
             ShowPdfFontManager(win);
             break;
+        case CmdPdfEditObject:
+            ShowPdfObjectDialog(win);
+            break;
         case CmdCropPages:
             ShowCropPagesDialog(win);
             break;

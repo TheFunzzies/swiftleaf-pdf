@@ -439,6 +439,7 @@ const CommandInfo gCommands[] = {
     {CmdComparePdf, "CmdComparePdf\0", StrL("Compare PDFs...")},
     {CmdPdfReplaceText, "CmdPdfReplaceText\0", StrL("Find and Replace Text...")},
     {CmdPdfFontManager, "CmdPdfFontManager\0", StrL("Font Manager...")},
+    {CmdPdfEditObject, "CmdPdfEditObject\0", StrL("Edit Images and Objects...")},
 };
 const int gCommandsCount = dimofi(gCommands);
 

@@ -197,6 +197,9 @@ bool EngineMupdfCanEditText(Str text);
 bool EngineMupdfReplaceText(EngineBase*, int pageNo, const PdfTextRun& run, Str newText, Vec<Annotation*>& deletedOut,
                             Str* errorOut = nullptr);
 bool EngineMupdfReplaceAllText(EngineBase*, Str destination, Str find, Str replacement, int* countOut, Str* errorOut);
+TempStr EngineMupdfObjectList(EngineBase*, int pageNo);
+bool EngineMupdfEditObjectCopy(EngineBase*, Str destination, int pageNo, Str name, Str imagePath, float scaleX,
+                               float scaleY, float rotation, Str* errorOut);
 
 bool EngineMupdfSupportsAnnotations(EngineBase*);
 bool EngineMupdfIsPdf(EngineBase* engine);

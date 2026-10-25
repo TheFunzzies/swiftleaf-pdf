@@ -94,6 +94,8 @@ static const ToolDef tools[] = {
      CmdPdfReplaceText, ToolCategoryEdit},
     {gLucideTextCursorInput, TrN("Font manager"),
      TrN("List document fonts and replace the font on selected text lines."), CmdPdfFontManager, ToolCategoryEdit},
+    {gLucideFilePen, TrN("Edit images and objects"),
+     TrN("Replace images or transform grouped objects in a saved copy."), CmdPdfEditObject, ToolCategoryEdit},
     {gLucideFilePlus, TrN("Create a PDF"), TrN("Create a PDF from files or clipboard content."), CmdCreatePdfFiles,
      ToolCategoryCreate},
     {gLucideCombine, TrN("Combine files"), TrN("Join files into one PDF."), CmdMergePDF, ToolCategoryCreate},

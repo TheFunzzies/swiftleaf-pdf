@@ -10458,6 +10458,153 @@ bool EngineMupdfReplaceText(EngineBase* engine, int pageNo, const PdfTextRun& ru
     return ok;
 }
 
+TempStr EngineMupdfObjectList(EngineBase* engine, int pageNo) {
+    auto* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc || pageNo < 1 || pageNo > e->pageCount) return {};
+    auto* ctx = e->Ctx();
+    ScopedRecursiveMutex lock(&e->docLock);
+    str::Builder names;
+    fz_try(ctx) {
+        pdf_obj* page = pdf_lookup_page_obj(ctx, e->pdfdoc, pageNo - 1);
+        pdf_obj* objects =
+            pdf_dict_get(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Resources)), PDF_NAME(XObject));
+        for (int i = 0; i < pdf_dict_len(ctx, objects); i++) {
+            pdf_obj* object = pdf_dict_get_val(ctx, objects, i);
+            pdf_obj* type = pdf_dict_get(ctx, object, PDF_NAME(Subtype));
+            if (!pdf_name_eq(ctx, type, PDF_NAME(Image)) && !pdf_name_eq(ctx, type, PDF_NAME(Form))) continue;
+            names.Append(fmt("%s (%s)\r\n", Str(pdf_to_name(ctx, pdf_dict_get_key(ctx, objects, i))),
+                             Str(pdf_to_name(ctx, type))));
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    return ToStrTemp(names);
+}
+
+// Work on a snapshot; replacing a page resource never changes another page's resources.
+bool EngineMupdfEditObjectCopy(EngineBase* engine, Str destination, int pageNo, Str name, Str imagePath, float scaleX,
+                               float scaleY, float rotation, Str* errorOut) {
+    if (errorOut) *errorOut = {};
+    auto* original = AsEngineMupdf(engine);
+    if (!original || !original->pdfdoc || pageNo < 1 || pageNo > original->pageCount || !len(name) ||
+        !len(destination) || path::IsSame(destination, engine->FilePath()) || !isfinite(scaleX) || !isfinite(scaleY) ||
+        !isfinite(rotation) || fabsf(scaleX) < 0.01f || fabsf(scaleY) < 0.01f || fabsf(scaleX) > 100 ||
+        fabsf(scaleY) > 100) {
+        if (errorOut) *errorOut = StrL("Choose an object, a separate output file and nonzero scales from -100 to 100.");
+        return false;
+    }
+    TempStr snapshot = GetTempFilePathTemp(StrL("object-edit"));
+    if (!len(snapshot) || !EngineMupdfSaveCopy(engine, snapshot)) {
+        file::Delete(snapshot);
+        if (errorOut) *errorOut = StrL("Could not snapshot the document.");
+        return false;
+    }
+    u8 key[32]{};
+    bool encrypted = false;
+    {
+        ScopedRecursiveMutex lock(&original->docLock);
+        u8* cryptKey = pdf_crypt_key(original->Ctx(), original->pdfdoc->crypt);
+        if (cryptKey) {
+            memcpy(key, cryptKey, sizeof(key));
+            encrypted = true;
+        }
+    }
+    PasswordCloner password(key);
+    EngineBase* copy = CreateEngineMupdfFromFile(snapshot, FileType::PDF, 96, encrypted ? &password : nullptr);
+    auto* e = AsEngineMupdf(copy);
+    bool ok = false;
+    if (e) {
+        auto* ctx = e->Ctx();
+        ScopedRecursiveMutex lock(&e->docLock);
+        pdf_obj* resources = nullptr;
+        pdf_obj* formResources = nullptr;
+        pdf_obj* form = nullptr;
+        pdf_obj* replacement = nullptr;
+        fz_image* image = nullptr;
+        fz_buffer* buffer = nullptr;
+        bool started = false;
+        fz_var(resources);
+        fz_var(formResources);
+        fz_var(form);
+        fz_var(replacement);
+        fz_var(image);
+        fz_var(buffer);
+        fz_var(started);
+        fz_var(ok);
+        fz_try(ctx) {
+            pdf_obj* page = pdf_lookup_page_obj(ctx, e->pdfdoc, pageNo - 1);
+            pdf_obj* inherited = pdf_dict_get_inheritable(ctx, page, PDF_NAME(Resources));
+            pdf_obj* objects = pdf_dict_get(ctx, inherited, PDF_NAME(XObject));
+            pdf_obj* object = pdf_dict_gets(ctx, objects, CStrTemp(name));
+            pdf_obj* type = pdf_dict_get(ctx, object, PDF_NAME(Subtype));
+            bool isImage = pdf_name_eq(ctx, type, PDF_NAME(Image));
+            if (!isImage && !pdf_name_eq(ctx, type, PDF_NAME(Form)))
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "Choose a listed image or grouped object.");
+            if (len(imagePath) && !isImage)
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "Only images can be replaced with an image file.");
+            if (isImage && pdf_dict_get_bool(ctx, object, PDF_NAME(ImageMask)))
+                fz_throw(ctx, FZ_ERROR_UNSUPPORTED, "Stencil images cannot be edited safely.");
+            fz_rect bounds = isImage
+                                 ? fz_unit_rect
+                                 : fz_transform_rect(pdf_dict_get_rect(ctx, object, PDF_NAME(BBox)),
+                                                     pdf_to_matrix(ctx, pdf_dict_get(ctx, object, PDF_NAME(Matrix))));
+            if (fz_is_empty_rect(bounds) || fz_is_infinite_rect(bounds))
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "This object has invalid bounds.");
+            // Scale, rotate and flip around the object's center, retaining its page placement.
+            float cx = (bounds.x0 + bounds.x1) / 2, cy = (bounds.y0 + bounds.y1) / 2;
+            fz_matrix transform = fz_concat(fz_translate(-cx, -cy), fz_scale(scaleX, scaleY));
+            transform = fz_concat(fz_concat(transform, fz_rotate(rotation)), fz_translate(cx, cy));
+            fz_rect resultBounds = fz_transform_rect(bounds, transform);
+            if (len(imagePath)) image = fz_new_image_from_file(ctx, CStrTemp(imagePath));
+            pdf_begin_operation(ctx, e->pdfdoc, "Edit page object");
+            started = true;
+            if (image) replacement = pdf_add_image(ctx, e->pdfdoc, image);
+            formResources = pdf_new_dict(ctx, e->pdfdoc, 1);
+            pdf_obj* xo = pdf_dict_put_dict(ctx, formResources, PDF_NAME(XObject), 1);
+            pdf_dict_puts(ctx, xo, "Object", replacement ? replacement : object);
+            TempStr content = fmt("q %.8g %.8g %.8g %.8g %.8g %.8g cm /Object Do Q\n", transform.a, transform.b,
+                                  transform.c, transform.d, transform.e, transform.f);
+            buffer = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)content.s, len(content));
+            form = pdf_new_xobject(ctx, e->pdfdoc, resultBounds, fz_identity, formResources, buffer);
+            resources = pdf_copy_dict(ctx, inherited);
+            pdf_dict_put_drop(ctx, resources, PDF_NAME(XObject), pdf_copy_dict(ctx, objects));
+            pdf_dict_puts(ctx, pdf_dict_get(ctx, resources, PDF_NAME(XObject)), CStrTemp(name), form);
+            pdf_dict_put(ctx, page, PDF_NAME(Resources), resources);
+            pdf_end_operation(ctx, e->pdfdoc);
+            started = false;
+            e->modifiedAnnotations = true;
+            e->editGeneration++;
+            ok = true;
+        }
+        fz_always(ctx) {
+            pdf_drop_obj(ctx, resources);
+            pdf_drop_obj(ctx, formResources);
+            pdf_drop_obj(ctx, form);
+            pdf_drop_obj(ctx, replacement);
+            fz_drop_image(ctx, image);
+            fz_drop_buffer(ctx, buffer);
+        }
+        fz_catch(ctx) {
+            if (errorOut) *errorOut = str::DupTemp(Str(fz_caught_message(ctx)));
+            fz_report_error(ctx);
+            if (started) {
+                fz_try(ctx) {
+                    pdf_abandon_operation(ctx, e->pdfdoc);
+                }
+                fz_catch(ctx) {
+                    fz_report_error(ctx);
+                }
+            }
+        }
+    }
+    if (ok) ok = EngineMupdfSaveUpdated(copy, destination, {});
+    if (!ok && errorOut && !len(*errorOut)) *errorOut = StrL("Could not save the edited copy.");
+    SafeEngineRelease(&copy);
+    file::Delete(snapshot);
+    return ok;
+}
+
 static bool CollectEditBlocks(EngineMupdf* e, int pageNo, Vec<RectF>& boxes) {
     auto* ctx = e->Ctx();
     ScopedRecursiveMutex pagesScope(&e->pagesLock);

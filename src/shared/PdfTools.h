@@ -12,6 +12,7 @@ void ShowPdfBakeDialog(MainWindow* win);
 void ShowPdfSanitizeDialog(MainWindow* win);
 void ShowPdfRedactSearchDialog(MainWindow* win);
 void ShowPdfReplaceTextDialog(MainWindow* win);
+void ShowPdfObjectDialog(MainWindow* win);
 void ShowPdfFontManager(MainWindow* win);
 void ShowPdfExtractTextDialog(MainWindow* win);
 void ShowPdfCompressDialog(MainWindow* win);

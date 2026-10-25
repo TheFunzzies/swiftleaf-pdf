@@ -191,7 +191,13 @@ export async function testit(): Promise<void> {
               raw,
             );
           }
-          for (const command of ["CmdPdfSanitize", "CmdPdfRedactSearch", "CmdPdfReplaceText", "CmdPdfFontManager"]) {
+          for (const command of [
+            "CmdPdfSanitize",
+            "CmdPdfRedactSearch",
+            "CmdPdfReplaceText",
+            "CmdPdfFontManager",
+            "CmdPdfEditObject",
+          ]) {
             want(
               rows.some((r) => r.cmd === cmdId(command) && r.enabled),
               `Missing enabled ${command}`,
@@ -210,6 +216,7 @@ export async function testit(): Promise<void> {
       ["CmdPdfRedactSearch", "Redact All Search Matches", 1],
       ["CmdPdfReplaceText", "Find and Replace Text", 0],
       ["CmdPdfFontManager", "Font Manager", 0],
+      ["CmdPdfEditObject", "Edit Images and Objects", 0],
     ] as const) {
       await client.request(ControlCommand.TestInvokeCommand, [command]);
       const dialog = await pollUntil(

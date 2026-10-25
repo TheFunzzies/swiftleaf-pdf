@@ -861,6 +861,75 @@ static void TextEditUnicodeTest() {
     }
 }
 
+static void ObjectEditTest() {
+    const char* objects[] = {
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] /Resources << /XObject << /Picture 6 0 R /Group 7 0 R >> >> >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R >>",
+        "<< /Length 37 >>\nstream\nq 100 0 0 100 72 72 cm /Picture Do Q\nendstream",
+        "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 "
+        "/Filter /ASCIIHexDecode /Length 7 >>\nstream\nff0000>\nendstream",
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 20 10] /Length 19 >>\nstream\n0 0 20 10 re 0 g f\nendstream"};
+    str::Builder data;
+    data.Append(StrL("%PDF-1.7\n"));
+    int offsets[dimof(objects)];
+    for (int i = 0; i < dimofi(objects); i++) {
+        offsets[i] = len(data);
+        data.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, Str(objects[i])));
+    }
+    int xref = len(data);
+    data.Append(StrL("xref\n0 8\n0000000000 65535 f \n"));
+    for (int offset : offsets) data.Append(fmt("%010d 00000 n \n", offset));
+    data.Append(fmt("trailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+    EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(data), StrL("objects.pdf"), nullptr);
+    utassert(e != nullptr);
+    if (!e) return;
+    utassert(str::ContainsI(EngineMupdfObjectList(e, 1), StrL("Picture (Image)")));
+    utassert(str::ContainsI(EngineMupdfObjectList(e, 1), StrL("Group (Form)")));
+    TempStr output = GetTempFilePathTemp(StrL("object-copy"));
+    TempStr image = GetTempFilePathTemp(StrL("object-image"));
+    utassert(file::WriteFile(image, StrL("P3\n2 1\n255\n0 0 255 0 255 0\n")));
+    Str error;
+    utassert(EngineMupdfEditObjectCopy(e, output, 1, StrL("Picture"), image, -1, 0.5f, 90, &error));
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    pdf_document* doc = nullptr;
+    fz_var(doc);
+    fz_try(ctx) {
+        doc = pdf_open_document(ctx, CStrTemp(output));
+        pdf_obj* page = pdf_lookup_page_obj(ctx, doc, 0);
+        pdf_obj* xo = pdf_dict_get(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Resources)), PDF_NAME(XObject));
+        pdf_obj* wrapper = pdf_dict_gets(ctx, xo, "Picture");
+        utassert(pdf_name_eq(ctx, pdf_dict_get(ctx, wrapper, PDF_NAME(Subtype)), PDF_NAME(Form)));
+        pdf_obj* inner = pdf_dict_gets(
+            ctx, pdf_dict_get(ctx, pdf_dict_get(ctx, wrapper, PDF_NAME(Resources)), PDF_NAME(XObject)), "Object");
+        utassert(pdf_dict_get_int(ctx, inner, PDF_NAME(Width)) == 2);
+        page = pdf_lookup_page_obj(ctx, doc, 1);
+        xo = pdf_dict_get(ctx, pdf_dict_get_inheritable(ctx, page, PDF_NAME(Resources)), PDF_NAME(XObject));
+        utassert(pdf_dict_get_int(ctx, pdf_dict_gets(ctx, xo, "Picture"), PDF_NAME(Width)) == 1);
+    }
+    fz_always(ctx) {
+        pdf_drop_document(ctx, doc);
+    }
+    fz_catch(ctx) {
+        utassert(false);
+    }
+    fz_drop_context(ctx);
+    Str saved = file::ReadFile(output);
+    utassert(!EngineMupdfEditObjectCopy(e, output, 1, StrL("missing"), {}, 1, 1, 0, &error));
+    utassert(!EngineMupdfEditObjectCopy(e, output, 1, StrL("Group"), image, 1, 1, 0, &error));
+    utassert(!EngineMupdfEditObjectCopy(e, output, 1, StrL("Picture"), {}, 0, 1, 0, &error));
+    Str after = file::ReadFile(output);
+    utassert(str::Eq(saved, after));
+    str::Free(saved);
+    str::Free(after);
+    utassert(EngineMupdfEditObjectCopy(e, output, 1, StrL("Group"), {}, 2, -1, 90, &error));
+    utassert(str::ContainsI(EngineMupdfObjectList(e, 1), StrL("Picture (Image)")));
+    SafeEngineRelease(&e);
+    file::Delete(output);
+    file::Delete(image);
+}
+
 static void TextReplaceToolsTest() {
     TempStr pdf = TextEditFixture({}, StrL("BT /F1 12 Tf 72 700 Td (Original text Original) Tj ET\n"), 2);
     EngineBase* e = CreateEngineMupdfFromData(pdf, StrL("replace-all.pdf"), nullptr);
@@ -2196,6 +2265,7 @@ int RunAppUnitTests(bool forAi) {
     utassert(EngineMupdf_UnitTestPanelData());
     TextEditUnicodeTest();
     TextReplaceToolsTest();
+    ObjectEditTest();
     FormAuthoringTest();
     AdvancedFormsTest();
     PageStampsTest();

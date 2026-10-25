@@ -11,6 +11,10 @@
 
 ### Added
 
+- Edit Images and Objects replaces page images and scales, rotates or flips
+  named images and grouped objects in a separate copy. Shared resources on
+  other pages remain unchanged; failed operations preserve existing output.
+
 - Font Manager lists document fonts and changes the installed font family on
   selected text lines. Find and Replace Text replaces literal matches across
   pages in an atomic copy, including unsaved edits. Saved Unicode CID subsets
