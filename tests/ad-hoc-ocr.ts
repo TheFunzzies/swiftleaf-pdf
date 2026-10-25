@@ -15,6 +15,7 @@ import {
   getWindowPid,
   getWindowText,
   getWindowRect,
+  WM_COMMAND,
   WM_KEYDOWN,
   VK_RETURN,
   postMessage,
@@ -109,12 +110,30 @@ export async function testit(): Promise<void> {
       await pressEnter(dlg);
       const save = await waitFor(() => topWindow(proc.pid, "Save As"), Boolean, "PDF save dialog");
       const dest = join(dir, "Searchable.pdf");
-      await pressEnter(save);
+      const filename = await waitFor(
+        () => {
+          let field = 0;
+          enumChildWindows(save, (h) => {
+            if (getClassName(h) === "Edit") field = h;
+            return true;
+          });
+          return field;
+        },
+        Boolean,
+        "Save As filename edit",
+        15_000,
+      );
+      if (filename) {
+        await pressEnter(filename);
+      } else {
+        await pressEnter(save);
+      }
+      postMessage(save, WM_COMMAND, 1, 0); // IDOK fallback
       await waitFor(
         () => topWindow(proc.pid, "Save As"),
         (h) => h === 0,
         "Save As submit",
-        5_000,
+        20_000,
       );
       let saved = "";
       try {

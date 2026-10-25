@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 env:
   SIGN_CERT_PFX_BASE64: ${{ secrets.SIGN_CERT_PFX_BASE64 }}
@@ -55,15 +56,28 @@ jobs:
       - name: Check signing secrets
         id: signing
         shell: pwsh
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_ACCOUNT: ${{ vars.AZURE_TRUSTED_SIGNING_ACCOUNT || secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_PROFILE: ${{ vars.AZURE_TRUSTED_SIGNING_PROFILE || secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
         run: |
           if ($env:SIGN_CERT_PFX_BASE64 -and $env:SIGN_CERT_PASSWORD) {
+            "pfx_enabled=true" >> $env:GITHUB_OUTPUT
             "enabled=true" >> $env:GITHUB_OUTPUT
           } else {
+            "pfx_enabled=false" >> $env:GITHUB_OUTPUT
             "enabled=false" >> $env:GITHUB_OUTPUT
           }
+          if ($env:AZURE_CLIENT_ID -and $env:AZURE_TENANT_ID -and $env:AZURE_CLIENT_SECRET -and $env:AZURE_ACCOUNT -and $env:AZURE_PROFILE) {
+            "azure_enabled=true" >> $env:GITHUB_OUTPUT
+          } else {
+            "azure_enabled=false" >> $env:GITHUB_OUTPUT
+          }
 
-      - name: Sign release executables
-        if: steps.signing.outputs.enabled == 'true'
+      - name: Sign release executables (PFX)
+        if: steps.signing.outputs.pfx_enabled == 'true'
         shell: pwsh
         run: |
           $certPath = Join-Path $env:RUNNER_TEMP 'swiftleaf-signing.pfx'
@@ -74,6 +88,22 @@ jobs:
             if ($LASTEXITCODE) { throw "Signing $file failed" }
           }
           Remove-Item -LiteralPath $certPath -Force
+
+      - name: Sign release executables (Azure Trusted Signing)
+        if: steps.signing.outputs.azure_enabled == 'true' && steps.signing.outputs.pfx_enabled != 'true'
+        uses: azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_TRUSTED_SIGNING_ENDPOINT || secrets.AZURE_TRUSTED_SIGNING_ENDPOINT || 'https://eus.codesigning.azure.net/' }}
+          trusted-signing-account-name: ${{ vars.AZURE_TRUSTED_SIGNING_ACCOUNT || secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_TRUSTED_SIGNING_PROFILE || secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\dist
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
 
       - name: Upload build
         uses: actions/upload-artifact@v4
