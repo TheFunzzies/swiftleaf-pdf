@@ -10576,6 +10576,7 @@ void EngineMupdfEndOperation(EngineBase* engine) {
         fz_report_error(ctx);
         e->journalNesting--;
     }
+    if (e->modifiedAnnotations) StartLoadingFileBytes(e);
 }
 
 bool EngineMupdfCanUndo(EngineBase* engine) {

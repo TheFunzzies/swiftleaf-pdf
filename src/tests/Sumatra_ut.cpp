@@ -10,6 +10,7 @@
 #include "base/File.h"
 #include "base/GuessFileType.h"
 #include "base/Pixmap.h"
+#include "base/Timer.h"
 
 #include "gui/UIModels.h"
 #include "gui/Layout.h"
@@ -695,6 +696,53 @@ static Annotation* FirstUndoTestField(EngineBase* e) {
     return len(widgets) ? widgets[0] : nullptr;
 }
 
+static void WriteFrozenTest(PdfRecoveryJob* job) {
+    WritePdfRecovery(job);
+}
+
+static void LargeRecoveryTest(Str source) {
+    TempStr input = GetTempFilePathTemp(StrL("recovery-input"));
+    TempStr large = GetTempFilePathTemp(StrL("recovery-500"));
+    TempStr snapshot = GetTempFilePathTemp(StrL("recovery-frozen"));
+    file::Delete(snapshot);
+    utassert(file::WriteFile(input, source));
+    utassert(PdfInsertBlankPages(input, large, 1, 499));
+    auto* e = CreateEngineMupdfFromFile(large, FileType::PDF, 96);
+    utassert(e && e->PageCount() == 500);
+    FormFieldProperties props;
+    props.kind = FormFieldKind::Text;
+    props.name = StrL("Concurrent");
+    props.defaultValue = StrL("Frozen");
+    Str error;
+    utassert(CreateFormField(e, 1, {40, 40, 160, 50}, props, error));
+    auto started = TimeGet();
+    auto* job = EngineMupdfFreezeRecovery(e, snapshot);
+    printf("500-page recovery freeze: %.2f ms\n", TimeSinceInMs(started));
+    utassert(job != nullptr && !file::Exists(snapshot));
+    auto thread = StartThread(MkFunc0(WriteFrozenTest, job), StrL("Recovery test"));
+    utassert(thread != nullptr);
+    for (int i = 0; i < 20; i++) {
+        utassert(SetWidgetTextValue(FirstUndoTestField(e), fmt("Later %d", i)));
+    }
+    utassert(JoinThread(&thread, INFINITE));
+    DropPdfRecovery(job);
+    auto* restored = CreateEngineMupdfFromFile(snapshot, FileType::PDF, 96);
+    utassert(restored && restored->PageCount() == 500);
+    utassert(str::Eq(GetWidgetValue(FirstUndoTestField(restored)), StrL("Frozen")));
+    SafeEngineRelease(&restored);
+    job = EngineMupdfFreezeRecovery(e, snapshot);
+    utassert(job != nullptr);
+    thread = StartThread(MkFunc0(WriteFrozenTest, job), StrL("Cancel recovery test"));
+    utassert(thread != nullptr);
+    EngineMupdfClearRecovery(e);
+    SafeEngineRelease(&e);
+    utassert(JoinThread(&thread, INFINITE));
+    DropPdfRecovery(job);
+    utassert(!file::Exists(snapshot));
+    file::Delete(input);
+    file::Delete(large);
+}
+
 static void UnifiedUndoTest(Str source) {
     auto* e = CreateEngineMupdfFromData(source, StrL("unified-undo.pdf"), nullptr);
     utassert(e != nullptr);
@@ -876,6 +924,7 @@ static void FormAuthoringTest() {
     for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
     pdf.Append(fmt("trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
     UnifiedUndoTest(ToStrTemp(pdf));
+    LargeRecoveryTest(ToStrTemp(pdf));
     EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("form-authoring.pdf"), nullptr);
     utassert(e != nullptr);
     Str error;
