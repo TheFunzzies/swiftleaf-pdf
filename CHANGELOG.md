@@ -72,12 +72,6 @@
 
 ### Added
 
-- Existing-text editing: Unicode Latin, Cyrillic, Greek and CJK with embedded,
-  subset CID fonts, explicit ToUnicode maps, installed-family fallback and
-  character-aware wrapping. Unsupported glyphs and block styles are rejected
-  before source removal; failed edits keep the draft. See `docs/text-editing.md`
-  for remaining shaping, style and object-editing limits.
-
 - Sanitize Document with selectable metadata, hidden text/layers, JavaScript,
   attachments, comments, form data and thumbnail removal. Search & Redact removes
   all literal or regex matches from saved page content. Both save atomic copies
@@ -144,12 +138,6 @@
 ## 0.4.0 - 2026-10-23
 
 ### Added
-
-- Existing-text editing: Unicode Latin, Cyrillic, Greek and CJK with embedded,
-  subset CID fonts, explicit ToUnicode maps, installed-family fallback and
-  character-aware wrapping. Unsupported glyphs and block styles are rejected
-  before source removal; failed edits keep the draft. See `docs/text-editing.md`
-  for remaining shaping, style and object-editing limits.
 
 - PDFCraft-style interface: an "All tools" sidebar, a mode tab bar with a
   command search box, a comments panel grouped by page with replies, an icon
