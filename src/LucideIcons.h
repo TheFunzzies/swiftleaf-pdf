@@ -19,6 +19,7 @@ extern const char* gLucideTextCursorInput;
 extern const char* gLucideStamp;
 extern const char* gLucideBadgeCheck;
 extern const char* gLucideCheck;
+extern const char* gLucideStar;
 extern const char* gLucideX;
 extern const char* gLucidePanelLeft;
 extern const char* gLucideSearch;

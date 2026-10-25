@@ -25,6 +25,7 @@ import {
   packCoords,
   postMessage,
   sendMessage,
+  sendText,
   setProcessDpiAware,
   VK_ESCAPE,
   VK_RETURN,
@@ -159,11 +160,27 @@ export async function testit(): Promise<void> {
         if (!mode) {
           const categoryNames = new Set(rows.map((r) => r.category));
           want(
-            ["Export", "Create", "Edit", "Organize", "Review", "Forms", "Protect & Redact", "Optimize", "Sign", "Scan/OCR", "Standards"].every((c) => categoryNames.has(c)),
+            [
+              "Export",
+              "Create",
+              "Edit",
+              "Organize",
+              "Review",
+              "Forms",
+              "Protect & Redact",
+              "Optimize",
+              "Sign",
+              "Scan/OCR",
+              "Standards",
+            ].every((c) => categoryNames.has(c)),
             "All tools must expose every category in its data table",
             raw,
           );
-          want(rows.every((r) => r.category.length > 0), "Every tool must belong to a category", raw);
+          want(
+            rows.every((r) => r.category.length > 0),
+            "Every tool must belong to a category",
+            raw,
+          );
           want(new Set(rows.map((r) => r.cmd)).size === rows.length, "Tools must have unique commands", raw);
           for (const command of ["CmdPdfSanitize", "CmdPdfRedactSearch"]) {
             want(
@@ -219,6 +236,58 @@ export async function testit(): Promise<void> {
         (visible) => !visible,
       );
     }
+
+    await selectToolTab(client, frame, 0);
+    let state = await toolsDump(client);
+    const search = findChildByClass(panel, "Edit");
+    sendText(search, "compress");
+    state = await pollUntil(
+      () => toolsDump(client),
+      (s) => panelRows(s).some((r) => r.text === "Compress a PDF") && panelRows(s).length === 1,
+      { error: (s) => `Tool search did not filter by name: ${s}` },
+    );
+    sendText(search, "reduce the document file size");
+    state = await pollUntil(
+      () => toolsDump(client),
+      (s) => panelRows(s).some((r) => r.text === "Compress a PDF") && panelRows(s).length === 1,
+      { error: (s) => `Tool search did not filter by description: ${s}` },
+    );
+    sendText(search, "");
+    state = await pollUntil(
+      () => toolsDump(client),
+      (s) => panelRows(s).length > 1,
+      { error: (s) => `Clearing tool search did not restore rows: ${s}` },
+    );
+    let favorite = /panel-favorite cmd=(\d+) active=0 rect=(-?\d+),(-?\d+),(-?\d+),(-?\d+)/.exec(state);
+    want(favorite !== null, "Tool favorite button should be exposed", state);
+    await clickAt(panel, (+favorite![2]! + +favorite![4]!) / 2, (+favorite![3]! + +favorite![5]!) / 2);
+    state = await pollUntil(
+      () => toolsDump(client),
+      (s) => /panel-favorite cmd=\d+ active=1/.test(s),
+      { error: (s) => `Favoriting a tool did not update its state: ${s}` },
+    );
+    favorite = /panel-favorite cmd=(\d+) active=1 rect=(-?\d+),(-?\d+),(-?\d+),(-?\d+)/.exec(state);
+    await clickAt(panel, (+favorite![2]! + +favorite![4]!) / 2, (+favorite![3]! + +favorite![5]!) / 2);
+    state = await pollUntil(
+      () => toolsDump(client),
+      (s) => /panel-favorite cmd=\d+ active=0/.test(s),
+      { error: (s) => `Unfavoriting a tool did not update its state: ${s}` },
+    );
+    let category = /panel-category=Export expanded=1 rect=(-?\d+),(-?\d+),(-?\d+),(-?\d+)/.exec(state);
+    want(category !== null, "Export category header should be exposed", state);
+    await clickAt(panel, (+category![1]! + +category![3]!) / 2, (+category![2]! + +category![4]!) / 2);
+    state = await pollUntil(
+      () => toolsDump(client),
+      (s) => /panel-category=Export expanded=0/.test(s),
+      { error: (s) => `Category did not collapse: ${s}` },
+    );
+    category = /panel-category=Export expanded=0 rect=(-?\d+),(-?\d+),(-?\d+),(-?\d+)/.exec(state);
+    await clickAt(panel, (+category![1]! + +category![3]!) / 2, (+category![2]! + +category![4]!) / 2);
+    await pollUntil(
+      () => toolsDump(client),
+      (s) => /panel-category=Export expanded=1/.test(s),
+      { error: (s) => `Category did not expand` },
+    );
 
     // Read tab: assert a row triggers its command (CmdFacingView)
     await selectToolTab(client, frame, 1);

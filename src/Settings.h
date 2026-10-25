@@ -818,6 +818,8 @@ struct Settings {
     // what the sidebar's bottom panel shows: favorites (the default),
     // bookmarks or thumbnails
     Str sidebarBottomView;
+    // comma-separated command IDs favorited in the All tools panel
+    Str toolsPanelFavorites;
     // if true, a PDF without an outline gets a table of contents built
     // from numbered headings in its text (Generate Table Of Contents
     // command does it on demand)

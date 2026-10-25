@@ -56,47 +56,76 @@ enum ToolCategory {
     ToolCategoryStandards,
     ToolCategoryCount,
 };
-static const Str toolCategoryNames[] = {TrN("Export"),      TrN("Create"), TrN("Edit"),
-                                        TrN("Organize"),    TrN("Review"), TrN("Forms"),
-                                        TrN("Protect & Redact"), TrN("Optimize"), TrN("Sign"),
-                                        TrN("Scan/OCR"),    TrN("Standards")};
-static const char* toolCategoryIcons[] = {gLucideFileOutput, gLucideFilePlus, gLucideFilePen, gLucideLayoutGrid,
-                                          gLucideMessageSquareText, gLucideTextCursorInput, gLucideShield,
-                                          gLucideFileArchive, gLucideSignature, gLucideScanText, gLucideBadgeCheck};
+static const Str toolCategoryNames[] = {
+    TrN("Export"),           TrN("Create"),   TrN("Edit"), TrN("Organize"), TrN("Review"),   TrN("Forms"),
+    TrN("Protect & Redact"), TrN("Optimize"), TrN("Sign"), TrN("Scan/OCR"), TrN("Standards")};
+static const char* toolCategoryIcons[] = {gLucideFileOutput, gLucideFilePlus,          gLucideFilePen,
+                                          gLucideLayoutGrid, gLucideMessageSquareText, gLucideTextCursorInput,
+                                          gLucideShield,     gLucideFileArchive,       gLucideSignature,
+                                          gLucideScanText,   gLucideBadgeCheck};
 static const ToolDef tools[] = {
-    {gLucideFileOutput, TrN("Export a PDF"), TrN("Save a copy of the open document."), CmdExportPdf, ToolCategoryExport},
-    {gLucideFileOutput, TrN("To images"), TrN("Export pages as image files."), CmdConvertPdfToImages, ToolCategoryExport},
-    {gLucidePenTool, TrN("Fill & Sign"), TrN("Fill a form or add a drawn signature."), CmdSignWithImage, ToolCategorySign},
-    {gLucideFilePen, TrN("Edit a PDF"), TrN("Edit text and objects in the document."), CmdToggleEditPDF, ToolCategoryEdit},
-    {gLucideFilePlus, TrN("Create a PDF"), TrN("Create a PDF from files or clipboard content."), CmdCreatePdfFiles, ToolCategoryCreate},
+    {gLucideFileOutput, TrN("Export a PDF"), TrN("Save a copy of the open document."), CmdExportPdf,
+     ToolCategoryExport},
+    {gLucideFileOutput, TrN("To images"), TrN("Export pages as image files."), CmdConvertPdfToImages,
+     ToolCategoryExport},
+    {gLucidePenTool, TrN("Fill & Sign"), TrN("Fill a form or add a drawn signature."), CmdSignWithImage,
+     ToolCategorySign},
+    {gLucideFilePen, TrN("Edit a PDF"), TrN("Edit text and objects in the document."), CmdToggleEditPDF,
+     ToolCategoryEdit},
+    {gLucideFilePlus, TrN("Create a PDF"), TrN("Create a PDF from files or clipboard content."), CmdCreatePdfFiles,
+     ToolCategoryCreate},
     {gLucideCombine, TrN("Combine files"), TrN("Join files into one PDF."), CmdMergePDF, ToolCategoryCreate},
-    {gLucideLayoutGrid, TrN("Organize pages"), TrN("Reorder, rotate, or remove pages."), CmdToggleThumbnails, ToolCategoryOrganize},
-    {gLucideMessageSquareText, TrN("Add comments"), TrN("Add notes and markups to pages."), CmdFindAnnotation, ToolCategoryReview},
+    {gLucideLayoutGrid, TrN("Organize pages"), TrN("Reorder, rotate, or remove pages."), CmdToggleThumbnails,
+     ToolCategoryOrganize},
+    {gLucideMessageSquareText, TrN("Add comments"), TrN("Add notes and markups to pages."), CmdFindAnnotation,
+     ToolCategoryReview},
     {gLucideScanText, TrN("Scan & OCR"), TrN("Recognize text in scanned pages."), CmdScanOcr, ToolCategoryScan},
     {gLucideShield, TrN("Protect a PDF"), TrN("Set a password and permissions."), CmdPdfEncrypt, ToolCategoryProtect},
-    {gLucideRectangleHorizontal, TrN("Redact a PDF"), TrN("Permanently remove sensitive content."), CmdCreateAnnotRedact, ToolCategoryProtect},
-    {gLucideFileArchive, TrN("Compress a PDF"), TrN("Reduce the document file size."), CmdPdfCompress, ToolCategoryOptimize},
-    {gLucideTextCursorInput, TrN("Prepare a form"), TrN("Add fillable form fields."), CmdPrepareForm, ToolCategoryForms},
-    {gLucideTextCursorInput, TrN("Detect fields"), TrN("Find likely form fields on the page."), CmdDetectFormFields, ToolCategoryForms},
-    {gLucideStamp, TrN("Add a stamp"), TrN("Place a stamp annotation on a page."), CmdCreateAnnotStamp, ToolCategoryReview},
-    {gLucideBadgeCheck, TrN("Use a certificate"), TrN("Sign the document with a certificate."), CmdSignDocument, ToolCategorySign},
-    {gLucideStamp, TrN("Add watermark"), TrN("Place text or an image behind page content."), CmdAddWatermark, ToolCategoryEdit},
-    {gLucideType, TrN("Add header/footer"), TrN("Add text to page headers or footers."), CmdAddHeaderFooter, ToolCategoryEdit},
-    {gLucideTextCursorInput, TrN("Bates numbering"), TrN("Add sequential Bates numbers."), CmdBatesNumbering, ToolCategoryStandards},
-    {gLucideShield, TrN("Sanitize document"), TrN("Remove hidden data and document metadata."), CmdPdfSanitize, ToolCategoryProtect},
-    {gLucideRectangleHorizontal, TrN("Redact all matches"), TrN("Find and redact matching text."), CmdPdfRedactSearch, ToolCategoryProtect},
+    {gLucideRectangleHorizontal, TrN("Redact a PDF"), TrN("Permanently remove sensitive content."),
+     CmdCreateAnnotRedact, ToolCategoryProtect},
+    {gLucideFileArchive, TrN("Compress a PDF"), TrN("Reduce the document file size."), CmdPdfCompress,
+     ToolCategoryOptimize},
+    {gLucideTextCursorInput, TrN("Prepare a form"), TrN("Add fillable form fields."), CmdPrepareForm,
+     ToolCategoryForms},
+    {gLucideTextCursorInput, TrN("Detect fields"), TrN("Find likely form fields on the page."), CmdDetectFormFields,
+     ToolCategoryForms},
+    {gLucideStamp, TrN("Add a stamp"), TrN("Place a stamp annotation on a page."), CmdCreateAnnotStamp,
+     ToolCategoryReview},
+    {gLucideBadgeCheck, TrN("Use a certificate"), TrN("Sign the document with a certificate."), CmdSignDocument,
+     ToolCategorySign},
+    {gLucideStamp, TrN("Add watermark"), TrN("Place text or an image behind page content."), CmdAddWatermark,
+     ToolCategoryEdit},
+    {gLucideType, TrN("Add header/footer"), TrN("Add text to page headers or footers."), CmdAddHeaderFooter,
+     ToolCategoryEdit},
+    {gLucideTextCursorInput, TrN("Bates numbering"), TrN("Add sequential Bates numbers."), CmdBatesNumbering,
+     ToolCategoryStandards},
+    {gLucideShield, TrN("Sanitize document"), TrN("Remove hidden data and document metadata."), CmdPdfSanitize,
+     ToolCategoryProtect},
+    {gLucideRectangleHorizontal, TrN("Redact all matches"), TrN("Find and redact matching text."), CmdPdfRedactSearch,
+     ToolCategoryProtect},
     {gLucideRuler, TrN("Measure"), TrN("Measure distances on the page."), CmdMeasureDistance, ToolCategoryReview},
-    {gLucideMessageSquareText, TrN("Review & comments"), TrN("Review, summarize, and export comments."), CmdCommentSummary, ToolCategoryReview},
-    {gLucideLayoutGrid, TrN("Crop pages"), TrN("Set page crop boxes and remove margins."), CmdCropPages, ToolCategoryOrganize},
-    {gLucideLayoutGrid, TrN("N-up pages"), TrN("Arrange multiple pages on each sheet."), CmdPdfNUp, ToolCategoryOrganize},
-    {gLucideStamp, TrN("Page background"), TrN("Set a page color or image background."), CmdPdfPageBackground, ToolCategoryEdit},
-    {gLucideFilePlus, TrN("Duplicate pages"), TrN("Copy selected pages in the document."), CmdDuplicatePages, ToolCategoryOrganize},
-    {gLucideFilePen, TrN("Document properties"), TrN("Edit title, author, and other metadata."), CmdEditDocumentProperties, ToolCategoryStandards},
-    {gLucidePaperclip, TrN("Attachments"), TrN("View and manage embedded files."), CmdManageAttachments, ToolCategoryOrganize},
-    {gLucideBookmark, TrN("Edit bookmarks"), TrN("Create and organize document bookmarks."), CmdEditBookmarks, ToolCategoryOrganize},
-    {gLucideType, TrN("Page numbering"), TrN("Change page labels and numbering."), CmdEditPageLabels, ToolCategoryOrganize},
-    {gLucideShield, TrN("Repair PDF"), TrN("Repair damaged PDF structure when possible."), CmdPdfRepair, ToolCategoryOptimize},
-    {gLucideLayers, TrN("Document layers"), TrN("Show and manage optional content layers."), CmdPdfManageLayers, ToolCategoryStandards},
+    {gLucideMessageSquareText, TrN("Review & comments"), TrN("Review, summarize, and export comments."),
+     CmdCommentSummary, ToolCategoryReview},
+    {gLucideLayoutGrid, TrN("Crop pages"), TrN("Set page crop boxes and remove margins."), CmdCropPages,
+     ToolCategoryOrganize},
+    {gLucideLayoutGrid, TrN("N-up pages"), TrN("Arrange multiple pages on each sheet."), CmdPdfNUp,
+     ToolCategoryOrganize},
+    {gLucideStamp, TrN("Page background"), TrN("Set a page color or image background."), CmdPdfPageBackground,
+     ToolCategoryEdit},
+    {gLucideFilePlus, TrN("Duplicate pages"), TrN("Copy selected pages in the document."), CmdDuplicatePages,
+     ToolCategoryOrganize},
+    {gLucideFilePen, TrN("Document properties"), TrN("Edit title, author, and other metadata."),
+     CmdEditDocumentProperties, ToolCategoryStandards},
+    {gLucidePaperclip, TrN("Attachments"), TrN("View and manage embedded files."), CmdManageAttachments,
+     ToolCategoryOrganize},
+    {gLucideBookmark, TrN("Edit bookmarks"), TrN("Create and organize document bookmarks."), CmdEditBookmarks,
+     ToolCategoryOrganize},
+    {gLucideType, TrN("Page numbering"), TrN("Change page labels and numbering."), CmdEditPageLabels,
+     ToolCategoryOrganize},
+    {gLucideShield, TrN("Repair PDF"), TrN("Repair damaged PDF structure when possible."), CmdPdfRepair,
+     ToolCategoryOptimize},
+    {gLucideLayers, TrN("Document layers"), TrN("Show and manage optional content layers."), CmdPdfManageLayers,
+     ToolCategoryStandards},
 };
 
 static const ToolDef stripTools[] = {
@@ -118,12 +147,14 @@ struct ToolsPanelVirt {
         FreePixmap(fadeRows);
     }
     Vec<RibbonButton*> rows;
+    Vec<RibbonButton*> favoriteButtons;
     Vec<const ToolDef*> rowDefs;
     Vec<VirtCtrl*> sources;
     Vec<VirtText*> headings;
     Vec<RibbonButton*> categoryHeaders;
     bool categoryExpanded[ToolCategoryCount] = {};
     ScrollBox* scroll = nullptr;
+    Edit* searchEdit = nullptr;
     int page = -1;
     bool rail = false;
     ILayout* header = nullptr;
@@ -168,6 +199,79 @@ static void OnTool(MainWindow* win, VirtMouseEvent* ev) {
     ev->didHandle = true;
 }
 
+static bool IsToolFavorite(int cmd) {
+    Str saved = gSettings->toolsPanelFavorites;
+    int i = 0;
+    while (i < len(saved)) {
+        while (i < len(saved) && saved[i] == ',') i++;
+        int value = 0;
+        bool hasDigit = false;
+        while (i < len(saved) && saved[i] >= '0' && saved[i] <= '9') {
+            value = value * 10 + saved[i++] - '0';
+            hasDigit = true;
+        }
+        if (hasDigit && value == cmd) return true;
+        while (i < len(saved) && saved[i] != ',') i++;
+    }
+    return false;
+}
+
+static void OnFavorite(MainWindow* win, VirtMouseEvent* ev) {
+    int cmd = ev->target->id;
+    bool remove = IsToolFavorite(cmd);
+    Str saved = gSettings->toolsPanelFavorites;
+    str::Builder next;
+    int i = 0;
+    while (i < len(saved)) {
+        while (i < len(saved) && saved[i] == ',') i++;
+        int start = i;
+        int value = 0;
+        bool hasDigit = false;
+        while (i < len(saved) && saved[i] >= '0' && saved[i] <= '9') {
+            value = value * 10 + saved[i++] - '0';
+            hasDigit = true;
+        }
+        if (hasDigit && value != cmd) {
+            if (len(next)) next.AppendChar(',');
+            next.Append(Str(saved.s + start, i - start));
+        }
+        while (i < len(saved) && saved[i] != ',') i++;
+    }
+    if (!remove) {
+        if (len(next)) next.AppendChar(',');
+        next.Append(fmt("%d", cmd));
+    }
+    str::ReplaceWithCopy(&gSettings->toolsPanelFavorites, ToStrTemp(next));
+    ScheduleSaveSettings();
+    auto* panel = win->toolsPanel;
+    for (auto* button : panel->favoriteButtons) {
+        if (button->id != cmd) continue;
+        button->isSelected = !remove;
+        button->SetTooltip(Tr(remove ? "Add to favorites" : "Remove from favorites"));
+        button->Invalidate();
+    }
+    ev->didHandle = true;
+}
+
+static void OnSearchChanged(ToolsPanelVirt* panel) {
+    if (!panel || panel->page != (int)RibbonPage::Home) return;
+    Str query = panel->searchEdit->GetTextTemp();
+    bool searching = !str::IsEmptyOrWhiteSpace(query);
+    bool hasMatches[ToolCategoryCount] = {};
+    for (int i = 0; i < len(panel->rows); i++) {
+        const ToolDef* d = panel->rowDefs[i];
+        bool matches = !searching || str::ContainsI(panel->rows[i]->label, query) ||
+                       str::ContainsI(trans::GetTranslation(d->description), query);
+        hasMatches[d->category] |= matches;
+        panel->rows[i]->SetVisibility(matches && (searching || panel->categoryExpanded[d->category])
+                                          ? Visibility::Visible
+                                          : Visibility::Collapse);
+    }
+    for (int i = 0; i < len(panel->categoryHeaders); i++)
+        panel->categoryHeaders[i]->SetVisibility(hasMatches[i] ? Visibility::Visible : Visibility::Collapse);
+    panel->host->Relayout();
+}
+
 static void OnCategory(MainWindow* win, VirtMouseEvent* ev) {
     auto* panel = win->toolsPanel;
     int category = -100 - ev->target->id;
@@ -175,7 +279,8 @@ static void OnCategory(MainWindow* win, VirtMouseEvent* ev) {
     panel->categoryExpanded[category] = !panel->categoryExpanded[category];
     for (int i = 0; i < len(panel->rows); i++) {
         if (panel->rowDefs[i]->category == category)
-            panel->rows[i]->SetVisibility(panel->categoryExpanded[category] ? Visibility::Visible : Visibility::Collapse);
+            panel->rows[i]->SetVisibility(panel->categoryExpanded[category] ? Visibility::Visible
+                                                                            : Visibility::Collapse);
     }
     ev->target->SetLabel(fmt("%s  %s", trans::GetTranslation(toolCategoryNames[category]),
                              panel->categoryExpanded[category] ? "−" : "+"));
@@ -194,13 +299,24 @@ void ToolsPanelAfterThemeChange(MainWindow* win) {
     if (!panel) return;
     panel->host->bgColor = RibbonPanelBgColor();
     panel->title->SetColor(kColText, ThemeWindowTextColor());
+    if (panel->searchEdit) panel->searchEdit->SetColors(ThemeWindowTextColor(), RibbonPanelBgColor());
     if (panel->more) {
         panel->more->textColor = ThemeWindowTextColor();
         panel->more->pixmap =
             RibbonIconPixmap(Str(gLucideLayoutGrid), DpiScale(20), ThemeWindowTextColor(), RibbonPanelBgColor());
     }
     for (auto* heading : panel->headings) heading->SetColor(kColText, M3().onSurfaceVariant);
-    for (auto* heading : panel->categoryHeaders) heading->textColor = ThemeWindowTextColor();
+    for (int i = 0; i < len(panel->categoryHeaders); i++) {
+        auto* heading = panel->categoryHeaders[i];
+        heading->textColor = ThemeWindowTextColor();
+        heading->pixmap =
+            RibbonIconPixmap(Str(toolCategoryIcons[i]), DpiScale(18), ThemeWindowTextColor(), RibbonPanelBgColor());
+    }
+    for (auto* b : panel->favoriteButtons) {
+        b->textColor = ThemeWindowTextColor();
+        b->pixmap = RibbonIconPixmap(Str(gLucideStar), DpiScale(18), ThemeWindowTextColor(), RibbonPanelBgColor());
+        b->SetTooltip(Tr(IsToolFavorite(b->id) ? "Remove from favorites" : "Add to favorites"));
+    }
     for (int i = 0; i < len(panel->rows); i++) {
         auto* b = panel->rows[i];
         b->textColor = ThemeWindowTextColor();
@@ -381,6 +497,7 @@ void ToolsPanelShowPage(MainWindow* win) {
     CapturePage(panel);
     panel->page = win->ribbonPage;
     VecReset(panel->rows);
+    VecReset(panel->favoriteButtons);
     VecReset(panel->rowDefs);
     VecReset(panel->sources);
     VecReset(panel->headings);
@@ -426,10 +543,25 @@ void ToolsPanelShowPage(MainWindow* win) {
                 b->id = d.cmd;
                 b->SetTooltip(trans::GetTranslation(d.description));
                 b->onClick = MkFunc1(OnTool, win);
+                auto* favorite = new RibbonButton();
+                favorite->id = d.cmd;
+                favorite->compact = true;
+                favorite->isSelected = IsToolFavorite(d.cmd);
+                favorite->pixmap =
+                    RibbonIconPixmap(Str(gLucideStar), DpiScale(18), ThemeWindowTextColor(), RibbonPanelBgColor());
+                favorite->SetTooltip(Tr(favorite->isSelected ? "Remove from favorites" : "Add to favorites"));
+                favorite->onClick = MkFunc1(OnFavorite, win);
+                SetupRow(win, favorite);
+                VecAppend(panel->favoriteButtons, favorite);
+                auto* row = new HBox();
+                row->alignCross = CrossAxisAlign::Stretch;
+                row->gap = DpiScale(2);
+                row->AddChild(b, 1);
+                row->AddChild(favorite);
                 VecAppend(panel->rows, b);
                 VecAppend(panel->rowDefs, &d);
                 VecAppend(panel->sources, (VirtCtrl*)nullptr);
-                col->AddChild(b);
+                col->AddChild(row);
             }
         }
         panel->more = new RibbonButton();
@@ -466,7 +598,18 @@ void ToolsPanelShowPage(MainWindow* win) {
         b->isRtl = IsUIRtl();
         SetupRow(win, b);
     }
-    panel->scroll = new ScrollBox(new Padding(col, DpiScaledInsets(8, 8)));
+    Insets insets = page == RibbonPage::Home && !panel->rail ? DpiScaledInsets(52, 8, 8, 8) : DpiScaledInsets(8, 8);
+    panel->scroll = new ScrollBox(new Padding(col, insets));
+    if (page == RibbonPage::Home) {
+        if (panel->searchEdit) {
+            ShowWindow(panel->searchEdit->hwnd, panel->rail ? SW_HIDE : SW_SHOW);
+            SetWindowPos(panel->searchEdit->hwnd, nullptr, DpiScale(8), DpiScale(6),
+                         std::max(DpiScale(80), ToolsPanelDx() - DpiScale(16)), DpiScale(34),
+                         SWP_NOACTIVATE | SWP_NOZORDER);
+        }
+    } else if (panel->searchEdit) {
+        ShowWindow(panel->searchEdit->hwnd, SW_HIDE);
+    }
     panel->scroll->lineDy = RibbonButtonDy(GetAppFont());
     panel->host->SetLayout(panel->scroll);
     bool rail = panel->rail;
@@ -485,6 +628,8 @@ void ToolsPanelSetRail(MainWindow* win, bool rail) {
     panel->header->SetVisibility(vis);
     for (auto* heading : panel->headings) heading->SetVisibility(vis);
     for (auto* heading : panel->categoryHeaders) heading->SetVisibility(vis);
+    if (panel->searchEdit && panel->page == (int)RibbonPage::Home)
+        ShowWindow(panel->searchEdit->hwnd, rail ? SW_HIDE : SW_SHOW);
     if (panel->more) panel->more->compact = rail;
     for (auto* row : panel->rows) {
         row->compact = rail;
@@ -500,6 +645,11 @@ static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
     if (!root) return;
     if (ev->msg == WM_SETFOCUS && !root->focused) {
         FocusPanelRow(panel);
+    } else if (ev->msg == WM_SIZE && panel->searchEdit && panel->page == (int)RibbonPage::Home) {
+        RECT r{};
+        GetClientRect(panel->host->native, &r);
+        SetWindowPos(panel->searchEdit->hwnd, nullptr, DpiScale(8), DpiScale(6),
+                     std::max(DpiScale(80), r.right - DpiScale(16)), DpiScale(34), SWP_NOACTIVATE | SWP_NOZORDER);
     } else if (ev->msg == WM_KEYDOWN && ev->wp == VK_TAB) {
         Vec<TabStop> stops;
         CollectTabStops(panel->scroll->child, stops);
@@ -545,6 +695,16 @@ void CreateToolsPanel(MainWindow* win) {
     panel->host->onPaint = MkFunc1(PaintPageFade, panel);
     panel->pageFade.onTick = ClearPageFade;
     panel->pageFade.context = panel;
+    panel->searchEdit = new Edit();
+    Edit::CreateArgs searchArgs;
+    searchArgs.parent = panel->host->native;
+    searchArgs.font = GetAppFont();
+    searchArgs.withBorder = true;
+    searchArgs.cueText = Tr("Search tools by name or description");
+    searchArgs.isRtl = IsUIRtl();
+    panel->searchEdit->Create(searchArgs);
+    panel->searchEdit->onTextChanged = MkFunc1(OnSearchChanged, panel);
+    ShowWindow(panel->searchEdit->hwnd, SW_HIDE);
     ToolsPanelShowPage(win);
     args.parent = win->hwndCanvas;
     args.className = WStrL(L"SWIFTLEAF_ANNOTATION_STRIP");
@@ -573,6 +733,7 @@ void CreateToolsPanel(MainWindow* win) {
 void DestroyToolsPanel(MainWindow* win) {
     if (!win->toolsPanel) return;
     delete win->toolsPanel->strip;
+    delete win->toolsPanel->searchEdit;
     delete win->toolsPanel->host;
     delete win->toolsPanel;
     win->toolsPanel = nullptr;
@@ -681,9 +842,19 @@ TempStr ToolsPanelStateTemp(MainWindow* win) {
         Str category;
         if (panel->page == (int)RibbonPage::Home && i < len(panel->rowDefs))
             category = trans::GetTranslation(toolCategoryNames[panel->rowDefs[i]->category]);
-        out.Append(fmt("panel-row=%d cmd=%d enabled=%d checked=%d rect=%d,%d,%d,%d text=%s tip=%s category=%s\n", i, b->id,
-                       b->IsEnabled() ? 1 : 0, b->isSelected ? 1 : 0, r.x, r.y, r.Right(), r.Bottom(), b->label,
+        out.Append(fmt("panel-row=%d cmd=%d enabled=%d checked=%d rect=%d,%d,%d,%d text=%s tip=%s category=%s\n", i,
+                       b->id, b->IsEnabled() ? 1 : 0, b->isSelected ? 1 : 0, r.x, r.y, r.Right(), r.Bottom(), b->label,
                        b->tooltip, category));
+    }
+    for (int i = 0; i < len(panel->categoryHeaders); i++) {
+        Rect r = panel->categoryHeaders[i]->BoundsInWindow();
+        out.Append(fmt("panel-category=%s expanded=%d rect=%d,%d,%d,%d\n", trans::GetTranslation(toolCategoryNames[i]),
+                       panel->categoryExpanded[i] ? 1 : 0, r.x, r.y, r.Right(), r.Bottom()));
+    }
+    for (auto* b : panel->favoriteButtons) {
+        Rect r = b->BoundsInWindow();
+        out.Append(fmt("panel-favorite cmd=%d active=%d rect=%d,%d,%d,%d\n", b->id, b->isSelected ? 1 : 0, r.x, r.y,
+                       r.Right(), r.Bottom()));
     }
     return ToStrTemp(out);
 }

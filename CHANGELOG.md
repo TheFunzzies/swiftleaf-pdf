@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Grouped All tools into named categories with short descriptions and a category-aware test dump.
+- Grouped All tools into collapsible categories with name and description search, persisted favorites, and short tooltips.
 
 ### Added
 
