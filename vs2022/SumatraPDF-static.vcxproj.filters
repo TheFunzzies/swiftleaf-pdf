@@ -462,6 +462,9 @@
     <ClInclude Include="..\src\shared\PdfSync.h">
       <Filter>src\shared</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\PageTools2.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\shared\PdfTools.h">
       <Filter>src\shared</Filter>
     </ClInclude>
@@ -780,6 +783,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\PageThumbnails.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\PageTools2.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\PdfTools.cpp">

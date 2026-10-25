@@ -577,12 +577,13 @@ CommandVisibility GetCommandVisibility(int cmdId, const AppCommandCtx& ctx, Comm
     }
 
     if (!ctx.isPdf) {
-        if (cmdId == CmdExportPdf || cmdId == CmdPdfShowInfo || cmdId == CmdPdfBake || cmdId == CmdPdfCompress ||
-            cmdId == CmdPdfDecompress || cmdId == CmdPdfEncrypt || cmdId == CmdPdfDecrypt ||
-            cmdId == CmdPdfDeletePages || cmdId == CmdPdfExtractPages || cmdId == CmdTogglePageBoxes ||
-            cmdId == CmdConvertPdfToImages || cmdId == CmdToggleEditPDF || cmdId == CmdMergePDF ||
-            cmdId == CmdAddWatermark || cmdId == CmdAddHeaderFooter || cmdId == CmdBatesNumbering ||
-            cmdId == CmdPdfSanitize || cmdId == CmdPdfRedactSearch) {
+        if (cmdId == CmdExportPdf || cmdId == CmdPdfShowInfo || cmdId == CmdPdfBake || cmdId == CmdPdfCompress || cmdId == CmdPdfDecompress ||
+            cmdId == CmdPdfEncrypt || cmdId == CmdPdfDecrypt || cmdId == CmdPdfDeletePages ||
+            cmdId == CmdPdfExtractPages || cmdId == CmdTogglePageBoxes || cmdId == CmdConvertPdfToImages ||
+            cmdId == CmdToggleEditPDF || cmdId == CmdMergePDF || cmdId == CmdAddWatermark ||
+            cmdId == CmdAddHeaderFooter || cmdId == CmdBatesNumbering || cmdId == CmdPdfSanitize ||
+            cmdId == CmdPdfRedactSearch ||
+            (cmdId >= CmdCropPages && cmdId <= CmdPdfManageLayers)) {
             return CommandVisibility::Hide;
         }
         // Swiftleaf page organizing

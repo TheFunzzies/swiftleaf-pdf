@@ -2170,3 +2170,10 @@ EXPORTS
 	pdf_set_annot_appearance
 	fz_utflen
 	pdf_reset_form
+	fz_append_buffer
+	fz_bound_display_list
+	fz_detect_skew
+	pdf_page_label
+	pdf_set_page_labels
+	pdf_recolor_page
+	pdf_remove_output_intents
