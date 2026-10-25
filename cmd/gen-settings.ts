@@ -1588,6 +1588,7 @@ const globalPrefs: Field[] = [
     "if true, a PDF without an outline gets a table of contents built from numbered headings in its text (Generate Table Of Contents command does it on demand)",
   ).ver("3.7"),
   field("ShowStartPage", Bool, true, "if true, show a list of frequently read documents when no document is loaded"),
+  field("QuickTourDismissed", Bool, false, "if true, the start page quick tour was dismissed").ver("3.7"),
   field(
     "SidebarDx",
     Int,
@@ -2175,6 +2176,7 @@ const globalPrefsLayout = [
   "ShowAnnotationAuthorInTooltip",
   "ShowTocPageNumbers",
   "ShowStartPage",
+  "QuickTourDismissed",
   "ScrollbarInSinglePage",
   "SmoothScroll",
   "PaddingAfterLastPage",
