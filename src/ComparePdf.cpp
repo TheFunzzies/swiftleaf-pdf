@@ -28,6 +28,30 @@ static void AppendHtml(str::Builder& out, Str s) {
     }
 }
 
+static void AppendBase64(str::Builder& out, Str data) {
+    static constexpr char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    for (int i = 0; i < len(data); i += 3) {
+        unsigned value = (u8)data.s[i] << 16;
+        if (i + 1 < len(data)) value |= (u8)data.s[i + 1] << 8;
+        if (i + 2 < len(data)) value |= (u8)data.s[i + 2];
+        out.AppendChar(chars[(value >> 18) & 63]);
+        out.AppendChar(chars[(value >> 12) & 63]);
+        out.AppendChar(i + 1 < len(data) ? chars[(value >> 6) & 63] : '=');
+        out.AppendChar(i + 2 < len(data) ? chars[value & 63] : '=');
+    }
+}
+
+static TempStr PixmapPngUri(fz_context* ctx, fz_pixmap* pixmap) {
+    fz_buffer* buffer = fz_new_buffer_from_pixmap_as_png(ctx, pixmap, fz_default_color_params);
+    unsigned char* data = nullptr;
+    size_t size = fz_buffer_storage(ctx, buffer, &data);
+    str::Builder uri;
+    uri.Append(StrL("data:image/png;base64,"));
+    AppendBase64(uri, Str((char*)data, (int)size));
+    fz_drop_buffer(ctx, buffer);
+    return ToStrTemp(uri);
+}
+
 static TempStr PageText(fz_context* ctx, fz_document* doc, int pageNo) {
     fz_buffer* buf = nullptr;
     fz_stext_page* text = nullptr;
@@ -113,7 +137,8 @@ static int AppendWordDiff(str::Builder& out, Str left, Str right) {
     return changes;
 }
 
-static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int pageNo, double* ratioOut) {
+static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int pageNo, double* ratioOut, Str* leftPngOut,
+                        Str* rightPngOut) {
     fz_page* pa = nullptr;
     fz_page* pb = nullptr;
     fz_pixmap* xa = nullptr;
@@ -124,6 +149,8 @@ static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int pag
         pb = fz_load_page(ctx, b, pageNo);
         xa = fz_new_pixmap_from_page(ctx, pa, fz_scale(0.25f, 0.25f), fz_device_rgb(ctx), 0);
         xb = fz_new_pixmap_from_page(ctx, pb, fz_scale(0.25f, 0.25f), fz_device_rgb(ctx), 0);
+        *leftPngOut = PixmapPngUri(ctx, xa);
+        *rightPngOut = PixmapPngUri(ctx, xb);
         int aw = xa->w, ah = xa->h, bw = xb->w, bh = xb->h;
         int w = std::max(aw, bw), h = std::max(ah, bh), changed = 0;
         const unsigned char* as = fz_pixmap_samples(ctx, xa);
@@ -180,6 +207,8 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     html.Append(
         StrL("<style>body{font:15px "
              "system-ui;margin:2rem;color:#222}pre{white-space:pre-wrap}del{background:#ffd8d8}ins{background:#d8ffe0}."
+             ".images{display:flex;gap:1rem;align-items:flex-start}.images figure{margin:0}.images "
+             "img{max-width:48vw;border:1px solid #ccc}."
              "page{border-top:1px solid #ccc;padding:1rem 0}</style>"));
     html.Append(StrL("<h1>PDF comparison</h1><p>"));
     AppendHtml(html, leftPath);
@@ -197,14 +226,19 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
         int wc = AppendWordDiff(diff, a, b);
         wordChanges += wc;
         double pixelRatio = 0;
-        PixelChange(ctx, left, right, i, &pixelRatio);
+        TempStr leftPng, rightPng;
+        PixelChange(ctx, left, right, i, &pixelRatio, &leftPng, &rightPng);
         pixelChanges += pixelRatio;
         html.Append(
             fmt("<section class=\"page\" id=\"page-%d\"><h2>Page %d</h2><p>%d vs %d words; %d changed words; "
                 "%.2f%% changed pixels</p><h3>Word diff</h3><pre>",
                 i + 1, i + 1, aw, bw, wc, pixelRatio * 100.0));
         html.Append(ToStrTemp(diff));
-        html.Append(StrL("</pre></section>"));
+        html.Append(StrL("</pre><div class=\"images\"><figure><figcaption>Left</figcaption><img src=\""));
+        html.Append(leftPng);
+        html.Append(StrL("\"></figure><figure><figcaption>Right</figcaption><img src=\""));
+        html.Append(rightPng);
+        html.Append(StrL("\"></figure></div></section>"));
     }
     if (leftPages != rightPages) wordChanges += abs(leftPages - rightPages);
     html.Append(StrL("<h2>Summary</h2><ul>"));

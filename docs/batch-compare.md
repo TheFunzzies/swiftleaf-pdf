@@ -10,7 +10,8 @@ Optimizer presets are `web`, `print`, `archive`, and `min-size`; `compress` is
 an alias for the optimizer. Presets use the existing PDF compressor and expose
 before/after byte counts through the optimizer API.
 
-PDF comparison produces an HTML report with page navigation, extracted text,
-word counts, and a rendered-pixel change ratio for each shared page. Pages that
-exist in only one input are reflected in the report summary. The report is
-written as HTML; the CLI returns its machine-readable summary as JSON.
+PDF comparison produces an HTML report with page navigation, a word-level text
+diff, side-by-side page images, and a rendered-pixel change ratio for each
+shared page. Pages that exist in only one input are reflected in the report
+summary. The report is written as HTML; the CLI returns its machine-readable
+summary as JSON.

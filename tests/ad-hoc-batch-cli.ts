@@ -32,7 +32,9 @@ export async function testit(): Promise<void> {
   const compare = run(["-compare", input, output, "-report", report]);
   check(compare.code === 0, `compare exit ${compare.code}: ${compare.stderr}`);
   check(JSON.parse(compare.stdout).ok, "compare JSON did not report success");
-  check(readFileSync(report, "utf8").includes("PDF comparison"), "HTML report was not written");
+  const html = readFileSync(report, "utf8");
+  check(html.includes("PDF comparison"), "HTML report was not written");
+  check(html.includes("<ins>") && html.includes("data:image/png;base64,"), "report omitted text or visual differences");
 }
 
 if (import.meta.main) {
