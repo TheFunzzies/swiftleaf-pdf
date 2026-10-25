@@ -1640,6 +1640,7 @@
     <ClCompile Include="..\src\FindWindow.cpp" />
     <ClCompile Include="..\src\FormFields.cpp" />
     <ClCompile Include="..\src\FormAuthoring.cpp" />
+    <ClCompile Include="..\src\FormOperations.cpp" />
     <ClInclude Include="..\src\FormAuthoring.h" />
     <ClCompile Include="..\src\GetPasswordDialog.cpp" />
     <ClCompile Include="..\src\GlobalHotkeys.cpp" />
@@ -2116,6 +2117,7 @@
     <ClCompile Include="..\src\shared\Accelerators.cpp" />
     <ClCompile Include="..\src\shared\AnnotSearch.cpp" />
     <ClCompile Include="..\src\shared\Annotation.cpp" />
+    <ClCompile Include="..\src\shared\AdvancedForms.cpp" />
     <ClCompile Include="..\src\shared\AppSettings.cpp" />
     <ClCompile Include="..\src\shared\AppTools.cpp" />
     <ClCompile Include="..\src\shared\AvifReader.cpp" />

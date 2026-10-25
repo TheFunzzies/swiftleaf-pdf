@@ -723,6 +723,12 @@ bool GetFormFieldProperties(Annotation* annot, FormFieldProperties& props) {
             case PDF_WIDGET_TYPE_COMBOBOX:
                 props.kind = FormFieldKind::Combo;
                 break;
+            case PDF_WIDGET_TYPE_LISTBOX:
+                props.kind = FormFieldKind::ListBox;
+                break;
+            case PDF_WIDGET_TYPE_BUTTON:
+                props.kind = FormFieldKind::PushButton;
+                break;
             case PDF_WIDGET_TYPE_SIGNATURE:
                 if (pdf_widget_is_signed(ctx, a)) fz_throw(ctx, FZ_ERROR_ARGUMENT, "signed field");
                 props.kind = FormFieldKind::Signature;
@@ -733,6 +739,23 @@ bool GetFormFieldProperties(Annotation* annot, FormFieldProperties& props) {
         pdf_obj* field = WidgetField(ctx, a);
         // Editing a nested field name needs a hierarchy editor.
         if (pdf_dict_get(ctx, field, PDF_NAME(Parent))) fz_throw(ctx, FZ_ERROR_ARGUMENT, "nested field");
+        if (pdf_dict_gets(ctx, field, "SwiftLeafImage")) props.kind = FormFieldKind::Image;
+        props.format = MupdfCStrDupTemp(pdf_to_text_string(ctx, pdf_dict_gets(ctx, field, "SwiftLeafFormat")));
+        if (props.kind == FormFieldKind::Text && str::StartsWith(props.format, StrL("date:")))
+            props.kind = FormFieldKind::Date;
+        props.tooltip = MupdfCStrDupTemp(pdf_dict_get_text_string(ctx, field, PDF_NAME(TU)));
+        props.maxLength = pdf_dict_get_int(ctx, field, PDF_NAME(MaxLen));
+        props.multiline = (pdf_field_flags(ctx, field) & PDF_TX_FIELD_IS_MULTILINE) != 0;
+        props.comb = (pdf_field_flags(ctx, field) & PDF_TX_FIELD_IS_COMB) != 0;
+        props.borderWidth = pdf_annot_border_width(ctx, a);
+        pdf_obj* action = pdf_dict_get(ctx, field, PDF_NAME(A));
+        Str actionType = Str(pdf_dict_get_name(ctx, action, PDF_NAME(S)));
+        props.action = str::Eq(actionType, StrL("ResetForm"))    ? StrL("reset")
+                       : str::Eq(actionType, StrL("SubmitForm")) ? StrL("submit")
+                       : str::Eq(actionType, StrL("URI"))        ? StrL("link")
+                                                                 : Str{};
+        props.target = MupdfCStrDupTemp(
+            pdf_dict_get_text_string(ctx, action, str::Eq(props.action, StrL("link")) ? PDF_NAME(URI) : PDF_NAME(F)));
         props.name = MupdfCStrDupTemp(pdf_dict_get_text_string(ctx, field, PDF_NAME(T)));
         pdf_obj* def = pdf_dict_get(ctx, field, PDF_NAME(DV));
         props.defaultValue =
@@ -744,6 +767,16 @@ bool GetFormFieldProperties(Annotation* annot, FormFieldProperties& props) {
         int n = 0;
         float color[4]{};
         pdf_annot_default_appearance(ctx, a, &font, &props.fontSize, &n, color);
+        props.font = MupdfCStrDupTemp(font);
+        for (int i = 0; i < 3; i++) props.textColor[i] = n == 1 ? color[0] : n == 3 ? color[i] : 0;
+        pdf_obj* mk = pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(MK));
+        for (int i = 0; i < 3; i++) {
+            pdf_obj* bc = pdf_dict_get(ctx, mk, PDF_NAME(BC));
+            pdf_obj* bg = pdf_dict_get(ctx, mk, PDF_NAME(BG));
+            props.borderColor[i] = pdf_to_real(ctx, pdf_array_get(ctx, bc, pdf_array_len(ctx, bc) == 1 ? 0 : i));
+            props.backgroundColor[i] =
+                bg ? pdf_to_real(ctx, pdf_array_get(ctx, bg, pdf_array_len(ctx, bg) == 1 ? 0 : i)) : 1;
+        }
         pdf_obj* kids = pdf_dict_get(ctx, field, PDF_NAME(Kids));
         int count =
             props.kind == FormFieldKind::Radio ? pdf_array_len(ctx, kids) : pdf_choice_field_option_count(ctx, field);
@@ -772,6 +805,33 @@ static bool ValidateFieldProps(const FormFieldProperties& p, StrVec& options, St
         error = Tr("Font size must be between 0 (automatic) and 300.");
         return false;
     }
+    if (p.maxLength < 0 || p.maxLength > 1000000 || !isfinite(p.borderWidth) || p.borderWidth < 0 ||
+        p.borderWidth > 20 || (p.comb && (p.maxLength == 0 || p.multiline))) {
+        error = Tr("Check maximum length, comb, multiline and border width.");
+        return false;
+    }
+    if (!str::Eq(p.font, StrL("Helv")) && !str::Eq(p.font, StrL("Cour")) && !str::Eq(p.font, StrL("TiRo"))) {
+        error = Tr("Font must be Helv, Cour or TiRo.");
+        return false;
+    }
+    for (int i = 0; i < 3; i++) {
+        if (!isfinite(p.textColor[i]) || p.textColor[i] < 0 || p.textColor[i] > 1 || !isfinite(p.borderColor[i]) ||
+            p.borderColor[i] < 0 || p.borderColor[i] > 1 || !isfinite(p.backgroundColor[i]) ||
+            p.backgroundColor[i] < 0 || p.backgroundColor[i] > 1) {
+            error = Tr("Colors must contain three numbers between 0 and 1.");
+            return false;
+        }
+    }
+    if (p.kind == FormFieldKind::PushButton && !str::Eq(p.action, StrL("reset")) &&
+        !str::Eq(p.action, StrL("submit")) && !str::Eq(p.action, StrL("link"))) {
+        error = Tr("Button action must be reset, submit or link.");
+        return false;
+    }
+    if (p.kind == FormFieldKind::PushButton && !str::Eq(p.action, StrL("reset")) &&
+        !str::StartsWith(p.target, StrL("https://")) && !str::StartsWith(p.target, StrL("http://"))) {
+        error = Tr("Enter an HTTP or HTTPS URL.");
+        return false;
+    }
     if (p.kind == FormFieldKind::Signature && len(p.defaultValue)) {
         error = Tr("An unsigned signature field cannot have a default value.");
         return false;
@@ -781,7 +841,8 @@ static bool ValidateFieldProps(const FormFieldProperties& p, StrVec& options, St
         error = Tr("Use Yes or Off as the checkbox default.");
         return false;
     }
-    if (p.kind != FormFieldKind::Combo && p.kind != FormFieldKind::Radio) return true;
+    if (p.kind != FormFieldKind::Combo && p.kind != FormFieldKind::ListBox && p.kind != FormFieldKind::Radio)
+        return true;
     StrVec lines;
     Split(&lines, p.options, StrL("\n"), true);
     for (Str line : lines) {
@@ -812,6 +873,32 @@ static void WriteFieldProps(fz_context* ctx, pdf_document* doc, pdf_obj* field, 
     int flags = pdf_field_flags(ctx, field) & ~(PDF_FIELD_IS_READ_ONLY | PDF_FIELD_IS_REQUIRED);
     flags |= p.readOnly ? PDF_FIELD_IS_READ_ONLY : 0;
     flags |= p.required ? PDF_FIELD_IS_REQUIRED : 0;
+    bool text = p.kind == FormFieldKind::Text || p.kind == FormFieldKind::Date;
+    if (text) {
+        flags &= ~(PDF_TX_FIELD_IS_MULTILINE | PDF_TX_FIELD_IS_COMB);
+        flags |= p.multiline ? PDF_TX_FIELD_IS_MULTILINE : 0;
+        flags |= p.comb ? PDF_TX_FIELD_IS_COMB : 0;
+        if (p.maxLength)
+            pdf_dict_put_int(ctx, field, PDF_NAME(MaxLen), p.maxLength);
+        else
+            pdf_dict_del(ctx, field, PDF_NAME(MaxLen));
+    }
+    pdf_dict_put_text_string(ctx, field, PDF_NAME(TU), CStrTemp(p.tooltip));
+    pdf_dict_puts_drop(ctx, field, "SwiftLeafFormat", pdf_new_text_string(ctx, CStrTemp(p.format)));
+    if (p.kind == FormFieldKind::PushButton || p.kind == FormFieldKind::Image) {
+        if (p.kind == FormFieldKind::Image)
+            pdf_dict_puts(ctx, field, "SwiftLeafImage", PDF_TRUE);
+        else {
+            pdf_obj* action = pdf_dict_put_dict(ctx, field, PDF_NAME(A), 3);
+            pdf_dict_put_name(ctx, action, PDF_NAME(S),
+                              str::Eq(p.action, StrL("reset"))    ? "ResetForm"
+                              : str::Eq(p.action, StrL("submit")) ? "SubmitForm"
+                                                                  : "URI");
+            if (!str::Eq(p.action, StrL("reset")))
+                pdf_dict_put_text_string(ctx, action, str::Eq(p.action, StrL("link")) ? PDF_NAME(URI) : PDF_NAME(F),
+                                         CStrTemp(p.target));
+        }
+    }
     pdf_dict_put_int(ctx, field, PDF_NAME(Ff), flags);
     Str value = p.defaultValue;
     bool button = p.kind == FormFieldKind::Checkbox || p.kind == FormFieldKind::Radio;
@@ -820,7 +907,7 @@ static void WriteFieldProps(fz_context* ctx, pdf_document* doc, pdf_obj* field, 
         pdf_dict_del(ctx, field, PDF_NAME(DV));
         return;
     }
-    if (p.kind == FormFieldKind::Combo) {
+    if (p.kind == FormFieldKind::Combo || p.kind == FormFieldKind::ListBox) {
         pdf_obj* opt = pdf_dict_put_array(ctx, field, PDF_NAME(Opt), len(options));
         for (Str s : options) pdf_array_push_text_string(ctx, opt, CStrTemp(s));
         pdf_dict_del(ctx, field, PDF_NAME(I));
@@ -836,10 +923,56 @@ static void WriteFieldProps(fz_context* ctx, pdf_document* doc, pdf_obj* field, 
 }
 
 static void StyleFieldWidget(fz_context* ctx, pdf_annot* a, const FormFieldProperties& p) {
-    static const float black[] = {0};
-    pdf_set_annot_default_appearance(ctx, a, "Helv", p.fontSize, 1, black);
-    pdf_dirty_annot(ctx, a);
-    pdf_update_annot(ctx, a);
+    pdf_set_annot_default_appearance(ctx, a, CStrTemp(p.font), p.fontSize, 3, p.textColor);
+    pdf_set_annot_border_width(ctx, a, p.borderWidth);
+    pdf_obj* obj = pdf_annot_obj(ctx, a);
+    pdf_obj* mk = pdf_dict_get(ctx, obj, PDF_NAME(MK));
+    if (!mk) mk = pdf_dict_put_dict(ctx, obj, PDF_NAME(MK), 3);
+    pdf_obj* bc = pdf_dict_put_array(ctx, mk, PDF_NAME(BC), 3);
+    pdf_obj* bg = pdf_dict_put_array(ctx, mk, PDF_NAME(BG), 3);
+    for (int i = 0; i < 3; i++) {
+        pdf_array_push_real(ctx, bc, p.borderColor[i]);
+        pdf_array_push_real(ctx, bg, p.backgroundColor[i]);
+    }
+    if (p.kind == FormFieldKind::PushButton) pdf_dict_put_text_string(ctx, mk, PDF_NAME(CA), CStrTemp(p.defaultValue));
+    if (p.kind != FormFieldKind::Image || !pdf_dict_get(ctx, obj, PDF_NAME(AP))) {
+        pdf_dirty_annot(ctx, a);
+        pdf_update_annot(ctx, a);
+    }
+    if (p.kind == FormFieldKind::Image && len(p.target)) {
+        fz_image* image = nullptr;
+        pdf_obj* resources = nullptr;
+        fz_buffer* contents = nullptr;
+        fz_var(image);
+        fz_var(resources);
+        fz_var(contents);
+        fz_try(ctx) {
+            image = fz_new_image_from_file(ctx, CStrTemp(p.target));
+            pdf_document* doc = pdf_annot_page(ctx, a)->doc;
+            resources = pdf_new_dict(ctx, doc, 1);
+            pdf_obj* images = pdf_dict_put_dict(ctx, resources, PDF_NAME(XObject), 1);
+            pdf_dict_puts_drop(ctx, images, "Image", pdf_add_image(ctx, doc, image));
+            fz_rect rect = pdf_annot_rect(ctx, a);
+            float w = rect.x1 - rect.x0, h = rect.y1 - rect.y0;
+            float scale = fz_min(w / image->w, h / image->h);
+            Str stream = fmt("q %g 0 0 %g %g %g cm /Image Do Q", image->w * scale, image->h * scale,
+                             (w - image->w * scale) / 2, (h - image->h * scale) / 2);
+            contents = fz_new_buffer_from_copied_data(ctx, (const u8*)stream.s, len(stream));
+            pdf_set_annot_appearance(ctx, a, "N", nullptr, fz_identity, fz_make_rect(0, 0, w, h), resources, contents);
+            pdf_obj* imageMk = pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(MK));
+            pdf_obj* ap = pdf_dict_get(ctx, pdf_annot_obj(ctx, a), PDF_NAME(AP));
+            pdf_dict_put(ctx, imageMk, PDF_NAME(I), pdf_dict_get(ctx, ap, PDF_NAME(N)));
+            pdf_dict_puts_drop(ctx, imageMk, "TP", pdf_new_int(ctx, 1));
+        }
+        fz_always(ctx) {
+            fz_drop_image(ctx, image);
+            pdf_drop_obj(ctx, resources);
+            fz_drop_buffer(ctx, contents);
+        }
+        fz_catch(ctx) {
+            fz_rethrow(ctx);
+        }
+    }
 }
 
 bool SetFormFieldProperties(Annotation* annot, const FormFieldProperties& p, Str& error) {
@@ -918,12 +1051,15 @@ Annotation* CreateFormField(EngineBase* engine, int pageNo, RectF rect, const Fo
             if (!dr) dr = pdf_dict_put_dict(ctx, acro, PDF_NAME(DR), 1);
             pdf_obj* fonts = pdf_dict_get(ctx, dr, PDF_NAME(Font));
             if (!fonts) fonts = pdf_dict_put_dict(ctx, dr, PDF_NAME(Font), 1);
-            if (!pdf_dict_gets(ctx, fonts, "Helv")) {
+            if (!pdf_dict_gets(ctx, fonts, CStrTemp(p.font))) {
                 pdf_obj* font = pdf_add_new_dict(ctx, e->pdfdoc, 3);
-                pdf_dict_put_drop(ctx, fonts, PDF_NAME(Helv), font);
+                pdf_dict_puts_drop(ctx, fonts, CStrTemp(p.font), font);
                 pdf_dict_put(ctx, font, PDF_NAME(Type), PDF_NAME(Font));
                 pdf_dict_put(ctx, font, PDF_NAME(Subtype), PDF_NAME(Type1));
-                pdf_dict_put_name(ctx, font, PDF_NAME(BaseFont), "Helvetica");
+                pdf_dict_put_name(ctx, font, PDF_NAME(BaseFont),
+                                  str::Eq(p.font, StrL("Cour"))   ? "Courier"
+                                  : str::Eq(p.font, StrL("TiRo")) ? "Times-Roman"
+                                                                  : "Helvetica");
             }
             pdf_page* page = pdf_page_from_fz_page(ctx, pi->page);
             pdf_obj* field = nullptr;
@@ -950,13 +1086,16 @@ Annotation* CreateFormField(EngineBase* engine, int pageNo, RectF rect, const Fo
                 } else {
                     field = obj;
                     pdf_array_push(ctx, fields, field);
-                    pdf_obj* ft = p.kind == FormFieldKind::Text        ? PDF_NAME(Tx)
-                                  : p.kind == FormFieldKind::Combo     ? PDF_NAME(Ch)
+                    pdf_obj* ft = (p.kind == FormFieldKind::Text || p.kind == FormFieldKind::Date)       ? PDF_NAME(Tx)
+                                  : (p.kind == FormFieldKind::Combo || p.kind == FormFieldKind::ListBox) ? PDF_NAME(Ch)
                                   : p.kind == FormFieldKind::Signature ? PDF_NAME(Sig)
                                                                        : PDF_NAME(Btn);
                     pdf_dict_put(ctx, obj, PDF_NAME(FT), ft);
                     pdf_dict_put_int(ctx, obj, PDF_NAME(Ff),
-                                     p.kind == FormFieldKind::Combo ? PDF_CH_FIELD_IS_COMBO : 0);
+                                     p.kind == FormFieldKind::Combo ? PDF_CH_FIELD_IS_COMBO
+                                     : (p.kind == FormFieldKind::PushButton || p.kind == FormFieldKind::Image)
+                                         ? PDF_BTN_FIELD_IS_PUSHBUTTON
+                                         : 0);
                 }
                 pdf_set_annot_rect(ctx, a, ToFzRect(r));
                 pdf_set_annot_border_width(ctx, a, 1);

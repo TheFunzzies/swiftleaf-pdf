@@ -28,6 +28,7 @@
 #include "SvgIcons.h"
 #include "EngineAll.h"
 #include "Annotation.h"
+#include "AdvancedForms.h"
 #include "shared/PdfTools.h"
 #include <mupdf/pdf.h>
 #include "AppUnitTests.h"
@@ -567,6 +568,115 @@ static void ParseTip_UnitTests() {
         utassert(str::Eq(tip->links.next->next->cmd, StrL("CmdNavigateFilesInFolder")));
         delete tip;
     }
+}
+
+static void AdvancedFormsTest() {
+    Str content = StrL("BT /F1 12 Tf 40 720 Td (Name: __________) Tj ET\n40 650 m 220 650 l S\n40 600 16 16 re S\n");
+    Str objects[] = {StrL("<< /Type /Catalog /Pages 2 0 R >>"), StrL("<< /Type /Pages /Count 1 /Kids [3 0 R] >>"),
+                     StrL("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> "
+                          "/Contents 5 0 R >>"),
+                     StrL("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+                     fmt("<< /Length %d >>\nstream\n%sendstream", len(content), content)};
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    int offsets[5];
+    for (int i = 0; i < 5; i++) {
+        offsets[i] = len(pdf);
+        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, objects[i]));
+    }
+    int xref = len(pdf);
+    pdf.Append(StrL("xref\n0 6\n0000000000 65535 f \n"));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+    EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("advanced-forms.pdf"), nullptr);
+    utassert(e != nullptr);
+    Str error;
+    Vec<FormCandidate> candidates;
+    utassert(DetectFormFields(e, candidates, error));
+    utassert(len(candidates) >= 3 && EngineMupdfCountFormFields(e) == 0);
+    FormFieldProperties p;
+    Annotation* fields[9]{};
+    for (int i = 0; i < 9; i++) {
+        p = {};
+        p.kind = (FormFieldKind)i;
+        p.name = fmt("Field%d", i);
+        p.tooltip = StrL("Helpful tooltip");
+        p.font = StrL("Cour");
+        p.fontSize = 11;
+        p.textColor[2] = 0.7f;
+        p.borderColor[0] = 0.5f;
+        p.backgroundColor[0] = 0.9f;
+        p.borderWidth = 2;
+        p.options = StrL("First\nSecond");
+        p.action = StrL("reset");
+        if (p.kind == FormFieldKind::Text) {
+            p.maxLength = 32;
+            p.comb = true;
+            p.defaultValue = StrL("Original");
+        }
+        if (p.kind == FormFieldKind::Date) {
+            p.format = StrL("date:yyyy-mm-dd");
+            p.defaultValue = StrL("2026-10-24");
+        }
+        if (p.kind == FormFieldKind::ListBox) p.defaultValue = StrL("Second");
+        fields[i] = CreateFormField(e, 1, {300.f - i * 20, 250.f + i * 30, 150.f, 24.f}, p, error);
+        utassert(fields[i] != nullptr);
+    }
+    utassert(EngineMupdfCountFormFields(e) == 9);
+    utassert(GetWidgetType(fields[5]) == PDF_WIDGET_TYPE_LISTBOX);
+    utassert(GetWidgetType(fields[6]) == PDF_WIDGET_TYPE_BUTTON);
+    utassert(GetWidgetType(fields[7]) == PDF_WIDGET_TYPE_BUTTON);
+    utassert(SetWidgetTextValue(fields[0], StrL("Ada, \"L\"\n\xc3\xa9")));
+    utassert(SetWidgetChoiceValue(fields[5], StrL("First")));
+    utassert(ToggleFormButton(fields[1]));
+    for (int i = 0; i < 4; i++) {
+        Str data = ExportFormData(e, (FormDataFormat)i, error);
+        utassert(len(data) > 0);
+        utassert(ClearFormData(e, error));
+        utassert(!len(GetWidgetValue(fields[0])));
+        utassert(ImportFormData(e, (FormDataFormat)i, data, error));
+        utassert(str::Eq(GetWidgetValue(fields[0]), StrL("Ada, \"L\"\n\xc3\xa9")));
+        utassert(str::Eq(GetWidgetValue(fields[1]), StrL("Yes")));
+        utassert(str::Eq(GetWidgetValue(fields[5]), StrL("First")));
+    }
+    utassert(!ImportFormData(e, FormDataFormat::Json, StrL("{\"Field0\":\"Changed\",\"Unknown\":\"value\"}"), error));
+    utassert(str::Eq(GetWidgetValue(fields[0]), StrL("Ada, \"L\"\n\xc3\xa9")));
+    utassert(!ImportFormData(e, FormDataFormat::Csv, StrL("name,value\nField0,one,extra\n"), error));
+    utassert(!ImportFormData(e, FormDataFormat::Json, StrL("{\"Field5\":\"Unknown option\"}"), error));
+    utassert(!SetFormTabOrder(e, FormTabOrder::Manual, StrL("Field0"), error));
+    utassert(SetFormTabOrder(e, FormTabOrder::Column, {}, error));
+    Vec<Annotation*> widgets;
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    utassert(GetFormFieldProperties(widgets[0], p) && str::Eq(p.name, StrL("Field8")));
+    utassert(SetFormTabOrder(e, FormTabOrder::Row, {}, error));
+    utassert(!SetFormTabOrder(e, FormTabOrder::Structure, {}, error));
+    utassert(SetFormTabOrder(e, FormTabOrder::Manual,
+                             StrL("Field8\nField7\nField6\nField5\nField4\nField3\nField2\nField1\nField0"), error));
+    TempStr path = GetTempFilePathTemp(StrL("advanced-forms"));
+    TempStr flattened = GetTempFilePathTemp(StrL("flattened-form"));
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    utassert(SaveFlattenedForm(e, flattened, error));
+    utassert(EngineMupdfCountFormFields(e) == 9);
+    SafeEngineRelease(&e);
+    e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+    utassert(e && EngineMupdfCountFormFields(e) == 9);
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    utassert(GetFormFieldProperties(widgets[0], p) && p.kind == FormFieldKind::Date);
+    utassert(str::Eq(p.format, StrL("date:yyyy-mm-dd")));
+    utassert(GetFormFieldProperties(widgets[1], p) && p.kind == FormFieldKind::Image);
+    utassert(GetFormFieldProperties(widgets[2], p) && p.kind == FormFieldKind::PushButton &&
+             str::Eq(p.action, StrL("reset")));
+    utassert(GetFormFieldProperties(widgets[3], p) && p.kind == FormFieldKind::ListBox);
+    utassert(GetFormFieldProperties(widgets[9], p));
+    utassert(str::Eq(p.tooltip, StrL("Helpful tooltip")) && str::Eq(p.font, StrL("Cour")));
+    utassert(p.comb && p.maxLength == 32 && p.borderWidth == 2);
+    utassert(fabsf(p.textColor[2] - 0.7f) < 0.001f && fabsf(p.backgroundColor[0] - 0.9f) < 0.001f);
+    SafeEngineRelease(&e);
+    e = CreateEngineMupdfFromFile(flattened, FileType::PDF, 96);
+    utassert(e && EngineMupdfCountFormFields(e) == 0);
+    SafeEngineRelease(&e);
+    file::Delete(path);
+    file::Delete(flattened);
 }
 
 static void FormAuthoringTest() {
@@ -1310,6 +1420,7 @@ int RunAppUnitTests(bool forAi) {
     printf("Panel layout, settings and animation tests passed\n");
     utassert(EngineMupdf_UnitTestPanelData());
     FormAuthoringTest();
+    AdvancedFormsTest();
     PageStampsTest();
     PdfDocumentToolsTest();
 

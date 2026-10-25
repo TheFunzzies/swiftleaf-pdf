@@ -63,7 +63,7 @@ export async function testit(): Promise<void> {
   const source = tmpPath("form-authoring-source.pdf");
   const saved = tmpPath("form-authoring-saved.pdf");
   writeFileSync(source, makeOnePagePdf());
-  const names = ["Text", "Checkbox", "Radio", "Combo", "Signature"];
+  const names = ["Text", "Checkbox", "Radio", "Combo", "Signature", "ListBox", "PushButton", "Image", "Date"];
   await withControlledApp(
     EXE,
     async (client, proc) => {
@@ -80,7 +80,7 @@ export async function testit(): Promise<void> {
         if (!page) throw new Error(layout.raw);
         const [px, py, pw, ph] = page.slice(1).map(Number) as [number, number, number, number];
         const x = Math.round(px + pw * 0.3);
-        const y = Math.round(py + ph * (0.25 + i * 0.12));
+        const y = Math.round(py + ph * (0.15 + i * 0.075));
         sendMessage(canvas, WM_LBUTTONDOWN, MK_LBUTTON, packCoords(x, y));
         sendMessage(canvas, WM_MOUSEMOVE, MK_LBUTTON, packCoords(x + pw * 0.4, y + ph * 0.08));
         postMessage(canvas, WM_LBUTTONUP, 0, packCoords(x + pw * 0.4, y + ph * 0.08));
@@ -149,7 +149,7 @@ export async function testit(): Promise<void> {
       await client.waitForRenderIdle();
       const raw = await dump(client);
       if (
-        !raw.includes("formFields=5 widgets=6") ||
+        !raw.includes("formFields=9 widgets=10") ||
         !raw.includes("name=Smoke0 value=Edited default=Edited required=0 readonly=0 size=17")
       ) {
         throw new Error(raw);
@@ -167,7 +167,7 @@ export async function testit(): Promise<void> {
       sendMessage(canvas, WM_LBUTTONDOWN, MK_LBUTTON, packCoords(checkbox[0]! + 4, checkbox[1]! + 4));
       sendMessage(canvas, WM_LBUTTONUP, 0, packCoords(checkbox[0]! + 4, checkbox[1]! + 4));
       sendMessage(frame, WM_COMMAND, cmdId("CmdDeleteAnnotation"), 0);
-      if (!(await dump(client)).includes("formFields=4 widgets=5")) throw new Error("Widget was not deleted");
+      if (!(await dump(client)).includes("formFields=8 widgets=9")) throw new Error("Widget was not deleted");
     },
     [saved],
   );

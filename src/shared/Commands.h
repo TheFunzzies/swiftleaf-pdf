@@ -359,8 +359,18 @@ enum {
     CmdBatesNumbering = 553,
     CmdPdfSanitize = 554,
     CmdPdfRedactSearch = 555,
+    CmdCreateFormListBox = 556,
+    CmdCreateFormPushButton = 557,
+    CmdCreateFormImage = 558,
+    CmdCreateFormDate = 559,
+    CmdDetectFormFields = 560,
+    CmdFormTabOrder = 561,
+    CmdImportFormData = 562,
+    CmdExportFormData = 563,
+    CmdClearForm = 564,
+    CmdFlattenForm = 565,
 
-    CmdLast = 555,
+    CmdLast = 565,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

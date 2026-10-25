@@ -365,6 +365,16 @@ const CommandInfo gCommands[] = {
     {CmdBatesNumbering, "CmdBatesNumbering\0", StrL("Bates Numbering...")},
     {CmdPdfSanitize, "CmdPdfSanitize\0", StrL("Sanitize Document...")},
     {CmdPdfRedactSearch, "CmdPdfRedactSearch\0", StrL("Redact All Search Matches...")},
+    {CmdCreateFormListBox, "CmdCreateFormListBox\0", StrL("Create List Box Field")},
+    {CmdCreateFormPushButton, "CmdCreateFormPushButton\0", StrL("Create Push Button Field")},
+    {CmdCreateFormImage, "CmdCreateFormImage\0", StrL("Create Image Field")},
+    {CmdCreateFormDate, "CmdCreateFormDate\0", StrL("Create Date Field")},
+    {CmdDetectFormFields, "CmdDetectFormFields\0", StrL("Detect Fields...")},
+    {CmdFormTabOrder, "CmdFormTabOrder\0", StrL("Edit Form Tab Order...")},
+    {CmdImportFormData, "CmdImportFormData\0", StrL("Import Form Data...")},
+    {CmdExportFormData, "CmdExportFormData\0", StrL("Export Form Data...")},
+    {CmdClearForm, "CmdClearForm\0", StrL("Clear Form...")},
+    {CmdFlattenForm, "CmdFlattenForm\0", StrL("Flatten Form...")},
 };
 const int gCommandsCount = dimofi(gCommands);
 
