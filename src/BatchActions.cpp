@@ -3,9 +3,11 @@
 #include "base/Base.h"
 #include "base/File.h"
 #include "base/JsonParser.h"
+#include "shared/AppTools.h"
 #include "Ocr.h"
 #include "shared/PdfTools.h"
 #include "shared/EngineAll.h"
+#include <mupdf/pdf.h>
 #include "PageTools2.h"
 #include "ExportFormats.h"
 #include "BatchActions.h"
@@ -26,6 +28,42 @@ struct BatchDefinition {
     Str suffix = StrL("_batch");
     Str outputFolder;
 };
+
+static bool BatchNameValid(Str name) {
+    if (len(name) == 0 || len(name) > 64) return false;
+    for (int i = 0; i < len(name); i++) {
+        char c = name.s[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_'))
+            return false;
+    }
+    return true;
+}
+
+static TempStr BatchNamedPath(Str name) {
+    if (!BatchNameValid(name)) return {};
+    TempStr dir = path::JoinTemp(GetAppDataDirTemp(), StrL("batch-actions"));
+    if (!file::CreateAll(dir, nullptr)) return {};
+    return path::JoinTemp(dir, fmt("%s.json", name));
+}
+
+static void BatchIgnoreJsonValue(json::Value*) {}
+
+bool SaveBatchActionsJson(Str name, Str definition) {
+    if (!BatchNameValid(name) || !json::Parse(definition, MkFunc1(BatchIgnoreJsonValue))) return false;
+    TempStr path = BatchNamedPath(name);
+    if (!path) return false;
+    file::AtomicFile output(path);
+    return len(output.tempPath) > 0 && file::WriteFile(output.tempPath, definition) && output.Commit();
+}
+
+TempStr LoadBatchActionsJsonTemp(Str name) {
+    TempStr path = BatchNamedPath(name);
+    if (!path) return {};
+    Str data = file::ReadFile(path);
+    TempStr result = str::DupTemp(data);
+    str::Free(data);
+    return result;
+}
 
 static void ReadActionValue(BatchDefinition* batch, json::Value* v) {
     StrNode* a = v->path;
@@ -60,14 +98,14 @@ static void ReadActionValue(BatchDefinition* batch, json::Value* v) {
         action.value = (float)atof(CStrTemp(value));
 }
 
-static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action) {
+static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action, PdfOptimizationAudit* auditOut) {
     if (str::Eq(action.type, StrL("ocr"))) return BatchOcrPdf(src, dst);
     if (str::Eq(action.type, StrL("compress")) || str::Eq(action.type, StrL("optimize"))) {
         PdfOptimizerPreset preset = PdfOptimizerPreset::Web;
         if (str::EqI(action.text, StrL("print"))) preset = PdfOptimizerPreset::Print;
         if (str::EqI(action.text, StrL("archive"))) preset = PdfOptimizerPreset::Archive;
         if (str::EqI(action.text, StrL("min-size"))) preset = PdfOptimizerPreset::MinSize;
-        return PdfOptimizeFile(src, dst, preset);
+        return PdfOptimizeFile(src, dst, preset, auditOut);
     }
     if (str::Eq(action.type, StrL("watermark"))) {
         PdfWatermarkParams p{};
@@ -92,6 +130,29 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action) {
         p.pagesSpec = action.pages;
         p.marginLeft = p.marginBottom = p.marginRight = p.marginTop = action.value;
         return PdfApplyPageBoxes(src, dst, p);
+    }
+    if (str::Eq(action.type, StrL("rotate"))) {
+        fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_UNLIMITED);
+        if (!ctx) return false;
+        fz_register_document_handlers(ctx);
+        fz_document* doc = nullptr;
+        int nPages = 0;
+        fz_try(ctx) {
+            doc = fz_open_document(ctx, CStrTemp(src));
+            nPages = fz_count_pages(ctx, doc);
+        }
+        fz_catch(ctx) {
+            fz_report_error(ctx);
+        }
+        fz_drop_document(ctx, doc);
+        fz_drop_context(ctx);
+        if (nPages <= 0) return false;
+        Vec<PdfMergeSource> sources;
+        VecAppend(sources, PdfMergeSource{src, {}});
+        Vec<PdfMergePage> pages;
+        int degrees = (int)action.value;
+        for (int i = 1; i <= nPages; i++) VecAppend(pages, PdfMergePage{0, i, degrees});
+        return EngineMupdfMergePdfs(sources, pages, dst);
     }
     if (str::Eq(action.type, StrL("flatten-layers"))) return PdfFlattenLayers(src, dst);
     if (str::Eq(action.type, StrL("sanitize"))) {
@@ -150,7 +211,7 @@ static TempStr BatchOutputPath(Str input, Str suffix, Str folder, Str outputExt 
     return path::JoinTemp(path::GetDirTemp(input), name);
 }
 
-TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
+TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files, BatchProgress* progress) {
     BatchDefinition batch;
     if (!json::Parse(definition, MkFunc1(ReadActionValue, &batch))) {
         return str::DupTemp(StrL("{\"error\":\"invalid action JSON\",\"results\":[]}"));
@@ -160,6 +221,11 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
     }
     str::Builder out;
     bool allOk = true;
+    if (progress) {
+        InterlockedExchange(&progress->completedFiles, 0);
+        InterlockedExchange(&progress->totalFiles, len(files));
+        InterlockedExchange(&progress->totalActions, 0);
+    }
     out.Append(StrL("{\"ok\":"));
     out.Append(StrL("true,\"total\":"));
     out.Append(fmt("%d,\"results\":[", len(files)));
@@ -168,7 +234,18 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
         Str current = files[i];
         bool ok = true;
         Str error;
+        PdfOptimizationAudit audit{};
+        if (progress) {
+            InterlockedExchange(&progress->currentFile, i + 1);
+            InterlockedExchange(&progress->totalActions, len(batch.actions));
+        }
         for (int j = 0; j < len(batch.actions); j++) {
+            if (progress && InterlockedCompareExchange(&progress->cancelled, 0, 0)) {
+                ok = false;
+                error = StrL("cancelled");
+                break;
+            }
+            if (progress) InterlockedExchange(&progress->currentAction, j + 1);
             const BatchAction& action = batch.actions[j];
             bool last = j == len(batch.actions) - 1;
             Str outputExt = last ? BatchExportExt(action.type) : Str();
@@ -181,7 +258,7 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
             }
             TempStr staged =
                 last ? BatchOutputPath(files[i], fmt("%s_partial", batch.suffix), batch.outputFolder, outputExt) : dest;
-            ok = ApplyBatchAction(current, staged, action);
+            ok = ApplyBatchAction(current, staged, action, &audit);
             if (ok && last) ok = file::RenameReplace(dest, staged);
             if (!ok) {
                 error = action.type;
@@ -197,6 +274,7 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
             error = StrL("no actions configured");
         }
         allOk = allOk && ok;
+        if (progress) InterlockedExchange(&progress->completedFiles, i + 1);
         out.Append(StrL("{\"input\":\""));
         out.Append(json::EscapeStrTemp(files[i]));
         out.Append(StrL("\",\"ok\":"));
@@ -205,6 +283,9 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
             out.Append(StrL(",\"output\":\""));
             out.Append(json::EscapeStrTemp(current));
             out.AppendChar('"');
+            if (audit.beforeBytes > 0) {
+                out.Append(fmt(",\"beforeBytes\":%lld,\"afterBytes\":%lld", audit.beforeBytes, audit.afterBytes));
+            }
         } else {
             out.Append(StrL(",\"error\":\"action failed: "));
             out.Append(json::EscapeStrTemp(error));

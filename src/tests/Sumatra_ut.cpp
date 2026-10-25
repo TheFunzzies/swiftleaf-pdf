@@ -1431,6 +1431,18 @@ static void PageStampsTest() {
         SafeEngineRelease(&e);
         file::Delete(output);
     }
+    {
+        Vec<Str> inputs;
+        VecAppend(inputs, basePdf);
+        Str result =
+            RunBatchActionsJson(StrL("{\"suffix\":\"_rot\",\"actions\":[{\"type\":\"rotate\",\"value\":90}]}"), inputs);
+        TempStr output = path::JoinTemp(path::GetDirTemp(basePdf), StrL("base-stamps_rot.pdf"));
+        utassert(str::Contains(result, StrL("\"ok\":true")));
+        EngineBase* e = CreateEngineMupdfFromFile(output, FileType::PDF, 96);
+        utassert(e != nullptr && e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(output);
+    }
 
     // 1. Watermark test (apply to page 1 only)
     {
