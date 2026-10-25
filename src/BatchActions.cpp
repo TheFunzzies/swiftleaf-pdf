@@ -3,7 +3,9 @@
 #include "base/Base.h"
 #include "base/File.h"
 #include "base/JsonParser.h"
+#include "Ocr.h"
 #include "shared/PdfTools.h"
+#include "shared/EngineAll.h"
 #include "PageTools2.h"
 #include "ExportFormats.h"
 #include "BatchActions.h"
@@ -59,6 +61,14 @@ static void ReadActionValue(BatchDefinition* batch, json::Value* v) {
 }
 
 static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action) {
+    if (str::Eq(action.type, StrL("ocr"))) return BatchOcrPdf(src, dst);
+    if (str::Eq(action.type, StrL("compress")) || str::Eq(action.type, StrL("optimize"))) {
+        PdfOptimizerPreset preset = PdfOptimizerPreset::Web;
+        if (str::EqI(action.text, StrL("print"))) preset = PdfOptimizerPreset::Print;
+        if (str::EqI(action.text, StrL("archive"))) preset = PdfOptimizerPreset::Archive;
+        if (str::EqI(action.text, StrL("min-size"))) preset = PdfOptimizerPreset::MinSize;
+        return PdfOptimizeFile(src, dst, preset);
+    }
     if (str::Eq(action.type, StrL("watermark"))) {
         PdfWatermarkParams p{};
         p.text = action.text;
@@ -84,6 +94,20 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action) {
         return PdfApplyPageBoxes(src, dst, p);
     }
     if (str::Eq(action.type, StrL("flatten-layers"))) return PdfFlattenLayers(src, dst);
+    if (str::Eq(action.type, StrL("sanitize"))) {
+        PdfSanitizeOptions opts{};
+        Str error;
+        bool ok = EngineMupdfSanitizePdf({src, {}}, dst, opts, &error);
+        str::Free(error);
+        return ok;
+    }
+    if (str::Eq(action.type, StrL("redact-matches"))) {
+        int count = 0;
+        Str error;
+        bool ok = EngineMupdfRedactMatches({src, {}}, dst, action.text, PdfSearchMode::Text, &count, &error);
+        str::Free(error);
+        return ok;
+    }
     if (str::Eq(action.type, StrL("properties"))) {
         PdfDocPropsParams p{};
         p.title = action.title;
@@ -95,6 +119,15 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action) {
     if (str::Eq(action.type, StrL("export-text"))) {
         ConversionProgress progress{};
         return ExportPdf(src, dst, ExportFormat::Text, action.pages, progress);
+    }
+    if (str::Eq(action.type, StrL("export-html")) || str::Eq(action.type, StrL("export-markdown")) ||
+        str::Eq(action.type, StrL("export-json")) || str::Eq(action.type, StrL("export-svg"))) {
+        ExportFormat format = ExportFormat::Html;
+        if (str::Eq(action.type, StrL("export-markdown"))) format = ExportFormat::Markdown;
+        if (str::Eq(action.type, StrL("export-json"))) format = ExportFormat::Json;
+        if (str::Eq(action.type, StrL("export-svg"))) format = ExportFormat::Svg;
+        ConversionProgress progress{};
+        return ExportPdf(src, dst, format, action.pages, progress);
     }
     return false;
 }
@@ -136,6 +169,7 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files) {
             ok = ApplyBatchAction(current, dest, action);
             if (!ok) {
                 error = action.type;
+                if (j > 0 && !str::Eq(current, files[i])) file::Delete(current);
                 break;
             }
             if (j > 0 && !str::Eq(current, files[i])) file::Delete(current);
