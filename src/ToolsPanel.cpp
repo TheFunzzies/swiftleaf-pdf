@@ -151,12 +151,13 @@ static const ToolDef tools[] = {
 };
 
 static const ToolDef stripTools[] = {
-    {gLucideMousePointer, TrN("Select"), CmdToolSelect},
-    {gLucideHand, TrN("Hand"), CmdToolHand},
-    {gLucideStickyNote, TrN("Add a note"), CmdCreateAnnotText},
-    {gLucideHighlighter, TrN("Highlight"), CmdAnnotationHighlightBrush},
-    {gLucidePencil, TrN("Draw"), CmdCreateAnnotInk},
-    {gLucideType, TrN("Add text"), CmdCreateAnnotFreeText},
+    {gLucideMousePointer, TrN("Select"), TrN("Select text and objects."), CmdToolSelect, ToolCategoryEdit},
+    {gLucideHand, TrN("Hand"), TrN("Pan around the page."), CmdToolHand, ToolCategoryEdit},
+    {gLucideStickyNote, TrN("Add a note"), TrN("Add a note annotation."), CmdCreateAnnotText, ToolCategoryReview},
+    {gLucideHighlighter, TrN("Highlight"), TrN("Highlight text on the page."), CmdAnnotationHighlightBrush,
+     ToolCategoryReview},
+    {gLucidePencil, TrN("Draw"), TrN("Draw freehand on the page."), CmdCreateAnnotInk, ToolCategoryReview},
+    {gLucideType, TrN("Add text"), TrN("Add text to the page."), CmdCreateAnnotFreeText, ToolCategoryEdit},
 };
 
 struct ToolsPanelVirt {
