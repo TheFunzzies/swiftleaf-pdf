@@ -366,6 +366,9 @@ const commandsRaw = [
     "CmdBatesNumbering", "Bates Numbering...",
     "CmdPdfSanitize", "Sanitize Document...",
     "CmdPdfRedactSearch", "Redact All Search Matches...",
+    "CmdExportPdf", "Export a PDF...",
+    "CmdCreatePdfFiles", "Create PDF from Files...",
+    "CmdCreatePdfClipboard", "Create PDF from Clipboard Image...",
 ];
 
 // removed slots are dropped: nothing outside the generators should see them

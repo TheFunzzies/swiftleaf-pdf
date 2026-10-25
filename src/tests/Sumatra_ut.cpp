@@ -32,6 +32,9 @@
 #include <mupdf/pdf.h>
 #include "AppUnitTests.h"
 #include "Ocr.h"
+#if !defined(SUMATRA_NG)
+#include "ExportFormats.h"
+#endif
 
 // must be last to over-write assert()
 #include "base/tests/UtAssert.h"
@@ -1311,6 +1314,9 @@ int RunAppUnitTests(bool forAi) {
     utassert(EngineMupdf_UnitTestPanelData());
     FormAuthoringTest();
     PageStampsTest();
+#if !defined(SUMATRA_NG)
+    ExportFormatsUnitTests();
+#endif
     PdfDocumentToolsTest();
 
     ArchiveTest();

@@ -48,6 +48,7 @@
 #include "FormFields.h"
 #include "FormAuthoring.h"
 #include "PdfTools.h"
+#include "ExportFormats.h"
 #include "PageOrganize.h"
 #include "EditText.h"
 #include "StatusBar.h"
@@ -13691,6 +13692,15 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             ShowOcrDialog(win);
             break;
 
+        case CmdExportPdf:
+            ShowExportPdfDialog(win);
+            break;
+        case CmdCreatePdfFiles:
+            ShowCreatePdfFilesDialog(win);
+            break;
+        case CmdCreatePdfClipboard:
+            ShowCreatePdfFilesDialog(win, true);
+            break;
         case CmdConvertPdfToImages:
             ShowConvertPdfToImagesDialog(win);
             break;
