@@ -227,15 +227,15 @@ static bool IsToolFavorite(int cmd) {
     Str saved = gSettings->toolsPanelFavorites;
     int i = 0;
     while (i < len(saved)) {
-        while (i < len(saved) && saved[i] == ',') i++;
+        while (i < len(saved) && saved.s[i] == ',') i++;
         int value = 0;
         bool hasDigit = false;
-        while (i < len(saved) && saved[i] >= '0' && saved[i] <= '9') {
-            value = value * 10 + saved[i++] - '0';
+        while (i < len(saved) && saved.s[i] >= '0' && saved.s[i] <= '9') {
+            value = value * 10 + saved.s[i++] - '0';
             hasDigit = true;
         }
         if (hasDigit && value == cmd) return true;
-        while (i < len(saved) && saved[i] != ',') i++;
+        while (i < len(saved) && saved.s[i] != ',') i++;
     }
     return false;
 }
@@ -247,19 +247,19 @@ static void OnFavorite(MainWindow* win, VirtMouseEvent* ev) {
     str::Builder next;
     int i = 0;
     while (i < len(saved)) {
-        while (i < len(saved) && saved[i] == ',') i++;
+        while (i < len(saved) && saved.s[i] == ',') i++;
         int start = i;
         int value = 0;
         bool hasDigit = false;
-        while (i < len(saved) && saved[i] >= '0' && saved[i] <= '9') {
-            value = value * 10 + saved[i++] - '0';
+        while (i < len(saved) && saved.s[i] >= '0' && saved.s[i] <= '9') {
+            value = value * 10 + saved.s[i++] - '0';
             hasDigit = true;
         }
         if (hasDigit && value != cmd) {
             if (len(next)) next.AppendChar(',');
             next.Append(Str(saved.s + start, i - start));
         }
-        while (i < len(saved) && saved[i] != ',') i++;
+        while (i < len(saved) && saved.s[i] != ',') i++;
     }
     if (!remove) {
         if (len(next)) next.AppendChar(',');
@@ -306,8 +306,9 @@ static void OnCategory(MainWindow* win, VirtMouseEvent* ev) {
             panel->rows[i]->SetVisibility(panel->categoryExpanded[category] ? Visibility::Visible
                                                                             : Visibility::Collapse);
     }
-    ev->target->SetLabel(fmt("%s  %s", trans::GetTranslation(toolCategoryNames[category]),
-                             panel->categoryExpanded[category] ? "−" : "+"));
+    AsRibbonButton(ev->target)
+        ->SetLabel(fmt("%s  %s", trans::GetTranslation(toolCategoryNames[category]),
+                       StrL(panel->categoryExpanded[category] ? "−" : "+")));
     panel->host->Relayout();
     ev->didHandle = true;
 }
@@ -677,8 +678,10 @@ static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
     } else if (ev->msg == WM_SIZE && panel->searchEdit && panel->page == (int)RibbonPage::Home) {
         RECT r{};
         GetClientRect(panel->host->native, &r);
-        SetWindowPos(panel->searchEdit->hwnd, nullptr, DpiScale(8), DpiScale(6),
-                     std::max(DpiScale(80), r.right - DpiScale(16)), DpiScale(34), SWP_NOACTIVATE | SWP_NOZORDER);
+        int searchWidth = r.right - DpiScale(16);
+        if (searchWidth < DpiScale(80)) searchWidth = DpiScale(80);
+        SetWindowPos(panel->searchEdit->hwnd, nullptr, DpiScale(8), DpiScale(6), searchWidth, DpiScale(34),
+                     SWP_NOACTIVATE | SWP_NOZORDER);
     } else if (ev->msg == WM_KEYDOWN && ev->wp == VK_TAB) {
         Vec<TabStop> stops;
         CollectTabStops(panel->scroll->child, stops);
@@ -732,7 +735,7 @@ void CreateToolsPanel(MainWindow* win) {
     searchArgs.cueText = Tr("Search tools by name or description");
     searchArgs.isRtl = IsUIRtl();
     panel->searchEdit->Create(searchArgs);
-    panel->searchEdit->onTextChanged = MkFunc1(OnSearchChanged, panel);
+    panel->searchEdit->onTextChanged = MkFunc0(OnSearchChanged, panel);
     ShowWindow(panel->searchEdit->hwnd, SW_HIDE);
     ToolsPanelShowPage(win);
     args.parent = win->hwndCanvas;
