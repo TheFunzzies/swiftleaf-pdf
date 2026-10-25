@@ -340,6 +340,15 @@ void Edit::WndProc(ControlBase::WndProcEvent* ev) {
     WPARAM wp = ev->wparam;
     LPARAM lp = ev->lparam;
     switch (msg) {
+        case WM_SETTEXT: {
+            LRESULT res = WndProcDefault(hwnd, msg, wp, lp);
+            ev->result = res;
+            ev->didHandle = true;
+            if (onTextChanged.IsValid()) {
+                onTextChanged.Call();
+            }
+            return;
+        }
         case WM_SIZE: {
             LRESULT res = WndProcDefault(hwnd, msg, wp, lp);
             ApplyTextPadding();

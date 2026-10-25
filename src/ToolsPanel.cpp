@@ -741,7 +741,14 @@ void ToolsPanelSetRail(MainWindow* win, bool rail) {
 static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
     if (RibbonAccessMessage(ev)) return;
     auto* panel = win->toolsPanel;
-    auto* root = panel->host->vroot;
+    if (panel && ev->msg == WM_COMMAND && panel->searchEdit && (HWND)ev->lp == panel->searchEdit->hwnd) {
+        if (HIWORD(ev->wp) == EN_CHANGE) {
+            OnSearchChanged(panel);
+            ev->didHandle = true;
+            return;
+        }
+    }
+    auto* root = panel ? panel->host->vroot : nullptr;
     if (!root) return;
     if (ev->msg == WM_SETFOCUS && !root->focused) {
         FocusPanelRow(panel);
