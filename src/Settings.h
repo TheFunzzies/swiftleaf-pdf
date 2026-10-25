@@ -1225,6 +1225,8 @@ struct Settings {
     // if true, show a list of frequently read documents when no document
     // is loaded
     bool showStartPage;
+    // if true, the start page quick tour was dismissed
+    bool quickTourDismissed;
     // if true, show a scrollbar in single page mode as well
     bool scrollbarInSinglePage;
     // if true, smooth mouse-wheel and arrow-key scrolling (exponential
