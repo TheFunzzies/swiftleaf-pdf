@@ -370,3 +370,5 @@ TempStr GetSumatraDataDirTemp();
 TempStr GetSumatraBuildSpecificDirTemp();
 
 TempStr RecoveryTestResultTemp(int action, Str destination, int* exitCodeOut);
+bool ApplyPdfEdit(MainWindow*, Str result, const char* label, int goToPage = 0);
+void UpdatePdfUndoStorage(EngineBase*);

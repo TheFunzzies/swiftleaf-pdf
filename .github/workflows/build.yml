@@ -155,7 +155,7 @@ jobs:
 
       - name: Check known-failure matchers
         run: |
-          bun test tests/ci-known-failures.test.ts 2>&1 | Tee-Object known-failures-tests.log
+          bun test tests/ci-known-failures.test.ts tests/menu-defs.test.ts 2>&1 | Tee-Object known-failures-tests.log
           exit $LASTEXITCODE
 
       - name: Cache test builds

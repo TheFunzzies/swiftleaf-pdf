@@ -2945,6 +2945,33 @@ pdf_update_local_object(fz_context *ctx, pdf_document *doc, int num, pdf_obj *ne
 	pdf_set_obj_parent(ctx, newobj, num);
 }
 
+void pdf_journal_delete_object(fz_context *ctx, pdf_document *doc, int num)
+{
+	pdf_obj *obj = NULL;
+	pdf_obj *loaded = NULL;
+	fz_buffer *stream = NULL;
+	fz_var(obj);
+	fz_var(loaded);
+	fz_var(stream);
+	fz_try(ctx)
+	{
+		loaded = pdf_load_object(ctx, doc, num);
+		obj = pdf_deep_copy_obj(ctx, loaded);
+		if (pdf_obj_num_is_stream(ctx, doc, num))
+			stream = pdf_load_raw_stream_number(ctx, doc, num);
+		pdf_add_journal_fragment(ctx, doc, num, obj, stream, 0);
+	}
+	fz_always(ctx)
+		pdf_drop_obj(ctx, loaded);
+	fz_catch(ctx)
+	{
+		pdf_drop_obj(ctx, obj);
+		fz_drop_buffer(ctx, stream);
+		fz_rethrow(ctx);
+	}
+	pdf_delete_object(ctx, doc, num);
+}
+
 void
 pdf_update_object(fz_context *ctx, pdf_document *doc, int num, pdf_obj *newobj)
 {

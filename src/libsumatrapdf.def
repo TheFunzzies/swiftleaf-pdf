@@ -5,6 +5,21 @@
 LIBRARY libsumatrapdf
 
 EXPORTS
+    pdf_journal_delete_object
+    pdf_set_journal_storage
+    pdf_journal_memory
+    pdf_journal_position
+    fz_new_output_with_path
+    fz_seek_output
+    fz_tell_output
+    fz_flush_output
+    fz_write_data
+    pdf_to_int64
+    pdf_undoredo_step
+    pdf_add_object_drop
+    pdf_set_trailer
+    pdf_xref_is_incremental
+    pdf_ensure_solid_xref
 
 	fz_windows_1252_from_unicode
 

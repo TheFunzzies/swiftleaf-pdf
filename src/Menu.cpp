@@ -943,11 +943,18 @@ static MenuDef menuDefContextReadAloud[] = {
 //] ACCESSKEY_GROUP Context Menu (Read Aloud)
 
 //[ ACCESSKEY_GROUP Menubar
+static MenuDef menuDefEdit[] = {
+    {TrN("&Undo"), CmdUndo},
+    {TrN("&Redo"), CmdRedo},
+    {{}, 0},
+};
+
 static MenuDef menuDefMenubar[] = {
     {
         TrN("&File"),
         (UINT_PTR)menuDefFile,
     },
+    {TrN("&Edit"), (UINT_PTR)menuDefEdit},
     {
         TrN("&View"),
         (UINT_PTR)menuDefView,
@@ -2245,6 +2252,14 @@ static void MenuUpdateStateForWindow(MainWindow* win) {
 
     DisplayModel* dm = tab ? tab->AsFixed() : nullptr;
     EngineBase* engine = dm ? dm->GetEngine() : nullptr;
+    for (int command : {CmdUndo, CmdRedo}) {
+        bool redo = command == CmdRedo;
+        TempStr label = EngineMupdfUndoLabel(engine, redo);
+        Str action = redo ? Tr("Redo") : Tr("Undo");
+        TempStr text = len(label) ? fmt("%s %s", action, label) : TempStr(action);
+        MenuSetText(win->menu, command, AppendAccelKeyToMenuStringTemp(text, command));
+        MenuSetEnabled(win->menu, command, redo ? EngineMupdfCanRedo(engine) : EngineMupdfCanUndo(engine));
+    }
     if (engine) {
         MenuSetEnabled(win->menu, CmdFindFirst, !engine->isImageCollection);
     }

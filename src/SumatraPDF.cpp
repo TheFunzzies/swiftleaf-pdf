@@ -5895,6 +5895,7 @@ static Str gRecoverySession;
 static HANDLE gRecoveryLock = INVALID_HANDLE_VALUE;
 static UINT_PTR gRecoveryTimer = 0;
 static bool gRecoveryBusy = false;
+static int gRecoveryJobs = 0;
 
 static bool CreateRecoverySession() {
     if (len(gRecoverySession) > 0) {
@@ -5924,6 +5925,25 @@ static bool CreateRecoverySession() {
     return true;
 }
 
+static void FinishRecovery(PdfRecoveryJob* job) {
+    DropPdfRecovery(job);
+    gRecoveryJobs--;
+    AtomicIntDec(&gDangerousThreadCount);
+}
+
+static void RecoveryWriteThread(PdfRecoveryJob* job) {
+    WritePdfRecovery(job);
+    uitask::Post(MkFunc0(FinishRecovery, job), "FinishRecovery");
+}
+
+void UpdatePdfUndoStorage(EngineBase* engine) {
+    constexpr size_t kUndoMemoryBudget = 32 * 1024 * 1024;
+    if (!engine || !CanAccessDisk() || gPluginMode || !EngineHasUnsavedAnnotations(engine) || !CreateRecoverySession())
+        return;
+    TempStr prefix = path::JoinTemp(gRecoverySession, fmt("history-%p", engine));
+    EngineMupdfSetUndoStorage(engine, prefix, kUndoMemoryBudget);
+}
+
 static void CALLBACK RecoveryTimerProc(HWND, UINT, UINT_PTR, DWORD) {
     if (!CanAccessDisk() || gPluginMode || IsStressTesting() || gRecoveryBusy) {
         return;
@@ -5949,18 +5969,14 @@ static void CALLBACK RecoveryTimerProc(HWND, UINT, UINT_PTR, DWORD) {
                 return;
             }
             TempStr snapshot = path::JoinTemp(gRecoverySession, fmt("document-%p.pdf", engine));
-            TempStr info = str::JoinTemp(snapshot, StrL(".path"));
-            if (!file::Exists(info)) {
-                file::AtomicFile output(info);
-                if (len(output.tempPath) == 0 || !file::WriteFile(output.tempPath, tab->filePath) || !output.Commit()) {
-                    continue;
-                }
-            }
-            if (!EngineMupdfAutoSave(engine, snapshot)) {
-                if (!file::Exists(snapshot)) {
-                    file::Delete(info);
-                }
-                logf("Recovery: snapshot failed for '%s'\n", tab->filePath);
+            if (auto* job = EngineMupdfFreezeRecovery(engine, snapshot)) {
+                gRecoveryJobs++;
+                AtomicIntInc(&gDangerousThreadCount);
+                ThreadHandle thread = StartThread(MkFunc0(RecoveryWriteThread, job), StrL("Recovery"));
+                if (thread)
+                    SafeCloseThreadHandle(&thread);
+                else
+                    FinishRecovery(job);
             }
         }
     }
@@ -6041,6 +6057,11 @@ static int ScanRecovery(HWND hwnd, RecoveryChoice choice, Str destination = {}) 
         StrVec snapshots;
         DirIter files{session};
         for (DirIterEntry* entry : files) {
+            if (str::StartsWith(entry->name, StrL("history-")) &&
+                str::EqI(path::GetExtTemp(entry->name), StrL(".undo"))) {
+                file::Delete(entry->filePath);
+                continue;
+            }
             if (str::EqI(path::GetExtTemp(entry->name), StrL(".pdf")) &&
                 !(entry->fd->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
                 snapshots.Append(entry->filePath);
@@ -6092,6 +6113,9 @@ TempStr RecoveryTestResultTemp(int action, Str destination, int* exitCodeOut) {
     if (action == 0) {
         RecoveryTimerProc(nullptr, 0, 0, 0);
         return str::DupTemp(gRecoverySession);
+    }
+    if (action == 4) {
+        return fmt("%d", gRecoveryJobs);
     }
     if (action < 1 || action > 3) {
         *exitCodeOut = 1;
@@ -12416,6 +12440,35 @@ void EndPdfEditOperation(MainWindow* win) {
 
 // Step the document's edit history. MuPDF restores the objects; every wrapper,
 // selection and cached rendering that pointed at the old state has to go.
+bool ApplyPdfEdit(MainWindow* win, Str result, const char* label, int goToPage) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    DisplayModel* dm = tab ? tab->AsFixed() : nullptr;
+    if (!dm || !EngineMupdfIsPdf(dm->GetEngine())) return false;
+    CancelAnnotationPlacement(win);
+    CancelDrag(win);
+    SetSelectedAnnotation(tab, nullptr);
+    AbortFinding(win, true);
+    ClearTocBox(win);
+    tab->currToc = nullptr;
+    if (gRenderCache) gRenderCache->AbortRendering(dm);
+    Vec<Annotation*> removed;
+    bool ok = EngineMupdfImportEdit(dm->GetEngine(), result, label, removed);
+    for (auto* a : removed) {
+        DetachAnnotationFromUI(a);
+        DeleteAnnotation(a);
+    }
+    tab->formFieldCount = -1;
+    DeleteOldSelectionInfo(win, true);
+    dm->SyncWithEngineLayout();
+    if (goToPage > 0) dm->GoToPage(std::min(goToPage, dm->PageCount()), false);
+    RefreshAnnotationLists(tab);
+    NotifyAnnotationsChanged(tab);
+    LoadTocTree(win);
+    ToolbarUpdateStateForWindow(win, true);
+    MainWindowRerender(win, true);
+    return ok;
+}
+
 static void UndoRedoInTab(WindowTab* tab, bool redo) {
     if (!tab) {
         return;
@@ -12438,6 +12491,9 @@ static void UndoRedoInTab(WindowTab* tab, bool redo) {
     CancelAnnotationPlacement(win);
     CancelDrag(win);
     SetSelectedAnnotation(tab, nullptr);
+    AbortFinding(win, true);
+    ClearTocBox(win);
+    tab->currToc = nullptr;
     if (gRenderCache) {
         gRenderCache->AbortRendering(dm);
     }
@@ -12450,9 +12506,12 @@ static void UndoRedoInTab(WindowTab* tab, bool redo) {
     }
     // the wrapper deletes above mark the document modified; the journal knows better
     EngineMupdfRefreshModifiedState(engine);
+    tab->formFieldCount = -1;
+    dm->SyncWithEngineLayout();
     DeleteOldSelectionInfo(win, true);
     RefreshAnnotationLists(tab);
     NotifyAnnotationsChanged(tab);
+    LoadTocTree(win);
     ToolbarUpdateStateForWindow(win, true);
     MainWindowRerender(win, true);
     if (!ok) {
@@ -13948,7 +14007,7 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             ShowPdfSplitDialog(win);
             break;
         case CmdUndoPageChange:
-            OrganizeUndo(win);
+            UndoRedoInTab(tab, false);
             break;
         case CmdEditText:
             StartEditText(win);
@@ -19920,7 +19979,7 @@ ContinueOpenWindow:
 
     if (!gPluginMode && CanAccessDisk()) {
         gRecoveryTimer = SetTimer(nullptr, 0, kRecoveryIntervalMs, RecoveryTimerProc);
-        if (!gForTesting && !flags.quickLook && !IsStressTesting()) {
+        if (!gForTesting && len(flags.controlPipeName) == 0 && !flags.quickLook && !IsStressTesting()) {
             uitask::Post(MkFunc0(OfferRecovery, win), "OfferRecovery");
         }
     }

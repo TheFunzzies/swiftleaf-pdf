@@ -52,12 +52,15 @@ struct MainWindow {
     bool IsDocLoaded() { return true; }
     WindowTab* CurrentTab() { return &tab; }
 };
+struct PdfToolEdit {
+    MainWindow* win;
+    Str originalPath, inputPath, outputPath;
+    PdfToolEdit(MainWindow*, Str);
+    ~PdfToolEdit();
+    bool IsReady();
+    bool Apply(const char*);
+};
 static bool gPluginMode = false;
-bool OrganizeCanUndo(MainWindow*);
-static bool toolbarCanUndo = false;
-static void ToolbarUpdateStateForWindow(MainWindow* win, bool) {
-    toolbarCanUndo = OrganizeCanUndo(win);
-}
 static bool CanAccessDisk() {
     return true;
 }
@@ -96,12 +99,14 @@ static bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& src, const Vec<PdfMe
 static TempStr EngineMupdfMergeWarningTemp(u32) {
     return {};
 }
-static bool ReplaceCurrentDocumentFile(MainWindow* win, Str from, int) {
+static bool ApplyPdfEdit(MainWindow* win, Str from, const char*, int = 0) {
     replacements++;
-    ToolbarUpdateStateForWindow(win, true); // document reload rebuilds the toolbar
     if (failReplace) return false;
-    return MoveFileExW(ToWStrTemp(from).s, ToWStrTemp(win->tab.filePath).s,
-                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED) != 0;
+    win->tab.engine.dirty = true;
+    return file::Exists(from);
+}
+static bool ReplaceCurrentDocumentFile(MainWindow* win, Str from, int page) {
+    return ApplyPdfEdit(win, from, nullptr, page);
 }
 static BOOL TestCopyFileW(LPCWSTR from, LPCWSTR to, BOOL exclusive) {
     return !failCopy && CopyFileW(from, to, exclusive);
@@ -118,12 +123,6 @@ static void Check(bool ok, const char* name) {
     if (!ok) failures++;
 }
 static void ResetUndo() {
-    for (auto& step : gUndoSteps) {
-        file::Delete(step.backupPath);
-        str::Free(step.filePath);
-        str::Free(step.backupPath);
-    }
-    VecReset(gUndoSteps);
     failSave = failMerge = failReplace = failCopy = false;
     replacements = 0;
 }
@@ -136,7 +135,7 @@ static bool ContentsEqual(Str p, Str expected) {
 static bool Apply(MainWindow& w) {
     Vec<PdfMergePage> pages;
     VecAppend(pages, PdfMergePage{0, 1, 90});
-    return ApplyPageList(&w, pages, nullptr, 1, {});
+    return ApplyPageList(&w, pages, nullptr, 1, StrL("Rotate pages"), {});
 }
 static void TestUndo() {
     TempStr root = GetTempFilePathTemp(StrL("safety"));
@@ -154,55 +153,37 @@ static void TestUndo() {
         exit(2);
     }
     Check(Apply(a) && Apply(b), "two documents can be reorganized");
-    Check(toolbarCanUndo, "Undo button enables after page change");
-    OrganizeUndo(&a); // remove an earlier entry, leaving B's backup alive
-    Check(Apply(a), "new change after removing an earlier undo entry");
-    Check(!path::IsSame(gUndoSteps[0].backupPath, gUndoSteps[1].backupPath), "undo snapshots have unique paths");
-    OrganizeUndo(&b);
-    Check(ContentsEqual(b.tab.filePath, StrL("original-B")), "same basename across documents restores correct bytes");
+    Check(ContentsEqual(a.tab.filePath, StrL("original-A")) && ContentsEqual(b.tab.filePath, StrL("original-B")),
+          "page changes leave originals intact");
     ResetUndo();
 
-    file::WriteFile(a.tab.filePath, StrL("on-disk"));
     a.tab.engine.dirty = true;
     Check(Apply(a), "page change includes unsaved annotations");
-    OrganizeUndo(&a);
-    Check(ContentsEqual(a.tab.filePath, liveContent), "undo preserves unsaved annotations");
-    Check(!toolbarCanUndo, "Undo button disables after last undo");
+    Check(ContentsEqual(a.tab.filePath, StrL("original-A")), "unsaved page edits do not write original");
+    {
+        PdfToolEdit first(&a, a.tab.filePath), second(&a, a.tab.filePath);
+        Check(first.IsReady() && second.IsReady(), "tool snapshots are available");
+        Check(!path::IsSame(first.inputPath, second.inputPath) && !path::IsSame(first.outputPath, second.outputPath),
+              "tool snapshots have unique paths");
+        Check(ContentsEqual(first.inputPath, liveContent), "tools receive unsaved edits");
+    }
     ResetUndo();
     a.tab.engine.dirty = false;
-    Check(Apply(a), "prepare failed restore");
-    failReplace = true;
-    OrganizeUndo(&a);
-    Check(OrganizeCanUndo(&a), "failed restore keeps undo available");
-    failReplace = false;
-    OrganizeUndo(&a);
-    Check(ContentsEqual(a.tab.filePath, liveContent), "retry restores the saved bytes");
-    ResetUndo();
-
     failCopy = true;
-    Check(!Apply(a), "backup failure aborts page change");
-    Check(replacements == 0 && len(gUndoSteps) == 0, "backup failure never replaces document");
+    Check(!Apply(a) && replacements == 0, "backup failure never imports a page change");
     ResetUndo();
     a.tab.engine.dirty = true;
     failSave = true;
     Check(!Apply(a) && replacements == 0, "unsaved snapshot failure aborts page change");
     ResetUndo();
-    a.tab.engine.dirty = false;
     failMerge = true;
-    Check(!Apply(a) && replacements == 0 && len(gUndoSteps) == 0, "merge failure leaves document and undo alone");
+    Check(!Apply(a) && replacements == 0, "merge failure never imports a page change");
     ResetUndo();
     failReplace = true;
-    Check(!Apply(a) && len(gUndoSteps) == 0, "replace failure creates no undo entry");
+    Check(!Apply(a), "failed import reports failure");
+    Check(ContentsEqual(a.tab.filePath, StrL("original-A")), "failed import preserves original bytes");
     ResetUndo();
-    file::WriteFile(a.tab.filePath, StrL("disk-before-failed-change"));
-    a.tab.engine.dirty = true;
-    failReplace = true;
-    Check(!Apply(a) && OrganizeCanUndo(&a), "failed replacement retains unsaved snapshot for recovery");
-    a.tab.engine.dirty = false; // the app reopens the on-disk document after a failed move
-    failReplace = false;
-    OrganizeUndo(&a);
-    Check(ContentsEqual(a.tab.filePath, liveContent), "recover unsaved annotations after failed replacement");
-    ResetUndo();
+    Check(Apply(a), "retry imports the page change");
     file::Delete(a.tab.filePath);
     file::Delete(b.tab.filePath);
     RemoveDirectoryW(ToWStrTemp(aDir).s);

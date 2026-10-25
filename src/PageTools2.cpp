@@ -17,6 +17,7 @@
 
 #include "Settings.h"
 #include "DocController.h"
+#include "DocProperties.h"
 #include "EngineBase.h"
 #include "base/GuessFileType.h"
 #include "EngineAll.h"
@@ -39,6 +40,7 @@
 #include <mupdf/fitz/deskew.h>
 #include <mupdf/pdf/recolor.h>
 
+#include "PageOrganize.h"
 #include "PageTools2.h"
 
 extern const pdf_write_options gPdfDefaultWriteOptions;
@@ -412,7 +414,9 @@ struct CropPagesDialog : PageToolDialog {
 };
 
 void CropPagesDialog::DoIt(VirtMouseEvent*) {
-    TempStr destPath = destEdit->GetTextTemp();
+    PdfToolEdit edit(win, srcPath);
+    if (!edit.IsReady()) return;
+    Str destPath = edit.outputPath;
     if (len(destPath) == 0) return;
 
     PdfPageBoxesParams params;
@@ -430,13 +434,9 @@ void CropPagesDialog::DoIt(VirtMouseEvent*) {
     params.marginRight = r;
     params.marginTop = t;
 
-    bool ok = PdfApplyPageBoxes(srcPath, destPath, params);
+    bool ok = PdfApplyPageBoxes(edit.inputPath, destPath, params);
     if (ok) {
-        MainWindow* w = win;
-        TempStr path = str::DupTemp(destPath);
-        Close();
-        LoadArgs args(path, w);
-        StartLoadDocument(&args);
+        if (edit.Apply("Crop pages")) Close();
     } else {
         MessageBoxWarning(hwnd, StrL("Failed to crop pages."), Tr("Crop Pages"));
     }
@@ -447,7 +447,6 @@ bool CropPagesDialog::Create(MainWindow* w, WindowTab* tab) {
         return false;
     }
     AddPathRow();
-    AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
 
     pagesEdit = AddLabeledEdit(Tr("Pages:"), StrL("all"));
 
@@ -2496,14 +2495,16 @@ struct GenericActionDialog : PageToolDialog {
 };
 
 void GenericActionDialog::DoIt(VirtMouseEvent*) {
-    TempStr destPath = destEdit->GetTextTemp();
-    if (len(destPath) == 0) return;
-    if (runner && runner(srcPath, destPath)) {
-        MainWindow* w = win;
-        TempStr path = str::DupTemp(destPath);
+    if (!runner) {
         Close();
-        LoadArgs args(path, w);
-        StartLoadDocument(&args);
+        return;
+    }
+    PdfToolEdit edit(win, srcPath);
+    if (!edit.IsReady()) return;
+    Str destPath = edit.outputPath;
+    if (len(destPath) == 0) return;
+    if (runner && runner(edit.inputPath, destPath)) {
+        if (edit.Apply(CStrTemp(actionName))) Close();
     } else {
         MessageBoxWarning(hwnd, fmt("Failed to execute %s", actionName), actionName);
     }
@@ -2514,9 +2515,9 @@ bool GenericActionDialog::Create(MainWindow* w, WindowTab* tab, Str title, Str a
     runner = fn;
     if (!CreateToolDialog(w, tab, title)) return false;
     AddPathRow();
-    AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+
     AddButtonsRow(action);
-    FinishDialog(destEdit);
+    FinishDialog(nullptr);
     return true;
 }
 
@@ -2606,20 +2607,18 @@ struct DuplicatePagesDialog : PageToolDialog {
         pageNo = currPage;
         if (!CreateToolDialog(w, tab, Tr("Duplicate Pages"))) return false;
         AddPathRow();
-        AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+
         AddButtonsRow(Tr("Duplicate"));
-        FinishDialog(destEdit);
+        FinishDialog(nullptr);
         return true;
     }
     void DoIt(VirtMouseEvent*) override {
-        TempStr destPath = destEdit->GetTextTemp();
+        PdfToolEdit edit(win, srcPath);
+        if (!edit.IsReady()) return;
+        Str destPath = edit.outputPath;
         if (len(destPath) == 0) return;
-        if (PdfDuplicatePages(srcPath, destPath, fmt("%d", pageNo))) {
-            MainWindow* w = win;
-            TempStr path = str::DupTemp(destPath);
-            Close();
-            LoadArgs args(path, w);
-            StartLoadDocument(&args);
+        if (PdfDuplicatePages(edit.inputPath, destPath, fmt("%d", pageNo))) {
+            if (edit.Apply("Duplicate pages")) Close();
         } else {
             MessageBoxWarning(hwnd, StrL("Failed to duplicate pages"), Tr("Duplicate Pages"));
         }
@@ -2651,20 +2650,18 @@ struct InsertBlankPagesDialog : PageToolDialog {
         pageNo = currPage;
         if (!CreateToolDialog(w, tab, Tr("Insert Blank Page"))) return false;
         AddPathRow();
-        AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
+
         AddButtonsRow(Tr("Insert Blank Page"));
-        FinishDialog(destEdit);
+        FinishDialog(nullptr);
         return true;
     }
     void DoIt(VirtMouseEvent*) override {
-        TempStr destPath = destEdit->GetTextTemp();
+        PdfToolEdit edit(win, srcPath);
+        if (!edit.IsReady()) return;
+        Str destPath = edit.outputPath;
         if (len(destPath) == 0) return;
-        if (PdfInsertBlankPages(srcPath, destPath, pageNo, 1)) {
-            MainWindow* w = win;
-            TempStr path = str::DupTemp(destPath);
-            Close();
-            LoadArgs args(path, w);
-            StartLoadDocument(&args);
+        if (PdfInsertBlankPages(edit.inputPath, destPath, pageNo, 1)) {
+            if (edit.Apply("Insert blank pages")) Close();
         } else {
             MessageBoxWarning(hwnd, StrL("Failed to insert blank page"), Tr("Insert Blank Page"));
         }
@@ -2715,7 +2712,9 @@ struct DocPropsDialog : PageToolDialog {
 };
 
 void DocPropsDialog::DoIt(VirtMouseEvent*) {
-    TempStr destPath = destEdit->GetTextTemp();
+    PdfToolEdit edit(win, srcPath);
+    if (!edit.IsReady()) return;
+    Str destPath = edit.outputPath;
     if (len(destPath) == 0) return;
 
     PdfDocPropsParams params;
@@ -2724,12 +2723,8 @@ void DocPropsDialog::DoIt(VirtMouseEvent*) {
     params.subject = subjectEdit->GetTextTemp();
     params.keywords = keywordsEdit->GetTextTemp();
 
-    if (PdfSetDocProps(srcPath, destPath, params)) {
-        MainWindow* w = win;
-        TempStr path = str::DupTemp(destPath);
-        Close();
-        LoadArgs args(path, w);
-        StartLoadDocument(&args);
+    if (PdfSetDocProps(edit.inputPath, destPath, params)) {
+        if (edit.Apply("Edit properties")) Close();
     } else {
         MessageBoxWarning(hwnd, StrL("Failed to save document properties."), Tr("Properties"));
     }
@@ -2738,10 +2733,13 @@ void DocPropsDialog::DoIt(VirtMouseEvent*) {
 bool DocPropsDialog::Create(MainWindow* w, WindowTab* tab) {
     if (!CreateToolDialog(w, tab, Tr("Edit Document Properties"))) return false;
     AddPathRow();
-    AddDestRow(MakeUniqueFilePathTemp(srcPath), L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
 
     PdfDocPropsParams curProps;
-    PdfGetDocProps(srcPath, curProps);
+    auto* engine = tab->GetEngine();
+    curProps.title = str::Dup(engine->GetPropertyTemp(DocProp::Title));
+    curProps.author = str::Dup(engine->GetPropertyTemp(DocProp::Author));
+    curProps.subject = str::Dup(engine->GetPropertyTemp(DocProp::Subject));
+    curProps.keywords = str::Dup(engine->GetPropertyTemp(DocProp::Keywords));
 
     titleEdit = AddLabeledEdit(Tr("Title:"), curProps.title);
     authorEdit = AddLabeledEdit(Tr("Author:"), curProps.author);
@@ -2772,7 +2770,7 @@ void ShowManageAttachmentsDialog(MainWindow* win) {
     WindowTab* tab = win->CurrentTab();
     if (!tab || !IsPdfDoc(tab)) return;
     auto* dlg = new GenericActionDialog();
-    if (!dlg->Create(win, tab, Tr("Manage Attachments"), Tr("Close"), [](Str, Str) { return true; })) delete dlg;
+    if (!dlg->Create(win, tab, Tr("Manage Attachments"), Tr("Close"), nullptr)) delete dlg;
 }
 
 void ShowEditBookmarksDialog(MainWindow* win) {

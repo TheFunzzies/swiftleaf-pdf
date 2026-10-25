@@ -29,14 +29,34 @@
 #include "Toolbar.h"
 #include "PageOrganize.h"
 
-// one step Undo Page Change can take back: the file as it was before the change
-struct OrganizeUndoStep {
-    Str filePath;   // owned, the document
-    Str backupPath; // owned, its previous content
-    int pageNo = 0;
-};
+PdfToolEdit::PdfToolEdit(MainWindow* w, Str original) : win(w) {
+    WindowTab* tab = w ? w->CurrentTab() : nullptr;
+    if (!tab || !path::IsSame(tab->filePath, original)) return;
+    originalPath = str::Dup(original);
+    inputPath = str::Dup(GetTempFilePathTemp(StrL("tool-input")));
+    outputPath = str::Dup(GetTempFilePathTemp(StrL("tool-result")));
+    if (!len(inputPath) || !EngineMupdfSaveCopy(tab->GetEngine(), inputPath)) {
+        file::Delete(inputPath);
+        str::FreePtr(&inputPath);
+    }
+}
 
-static Vec<OrganizeUndoStep> gUndoSteps;
+PdfToolEdit::~PdfToolEdit() {
+    file::Delete(inputPath);
+    file::Delete(outputPath);
+    str::Free(inputPath);
+    str::Free(outputPath);
+    str::Free(originalPath);
+}
+
+bool PdfToolEdit::IsReady() {
+    return len(inputPath) && len(outputPath);
+}
+
+bool PdfToolEdit::Apply(const char* label) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    return IsReady() && tab && path::IsSame(tab->filePath, originalPath) && ApplyPdfEdit(win, outputPath, label);
+}
 
 // the tab whose PDF can be reorganized: a PDF that is a file on disk
 static WindowTab* OrganizableTab(MainWindow* win) {
@@ -55,9 +75,9 @@ static void ShowOrganizeError(MainWindow* win, Str msg) {
 }
 
 // Write the document's pages as listed in `pages` (extra PDFs are sources 1..),
-// replace the file with the result and reopen it on goToPage.
+// import the result as one journal step and show goToPage.
 static bool ApplyPageList(MainWindow* win, const Vec<PdfMergePage>& pages, const Vec<PdfMergeSource>* extra,
-                          int goToPage, Str doneMsg) {
+                          int goToPage, Str label, Str doneMsg) {
     WindowTab* tab = OrganizableTab(win);
     if (!tab || len(pages) == 0) {
         return false;
@@ -97,24 +117,13 @@ static bool ApplyPageList(MainWindow* win, const Vec<PdfMergePage>& pages, const
         return false;
     }
 
-    int fromPage = win->ctrl ? win->ctrl->CurrentPageNo() : 1;
-
-    if (!ReplaceCurrentDocumentFile(win, outPath, goToPage)) {
-        file::Delete(outPath);
-        if (hadUnsaved) {
-            // Replacement closes the live engine even when the file move fails.
-            // Keep its unsaved content recoverable from Undo Page Change.
-            VecAppend(gUndoSteps, OrganizeUndoStep{str::Dup(path), str::Dup(backup), fromPage});
-            ToolbarUpdateStateForWindow(win, true);
-            ShowOrganizeError(win, Tr("Couldn't write the PDF. Use Undo Page Change to recover your unsaved edits."));
-            return false;
-        }
-        file::Delete(backup);
-        ShowOrganizeError(win, Tr("Couldn't write the PDF. Is it read-only or open in another program?"));
+    bool applied = ApplyPdfEdit(win, outPath, CStrTemp(label), goToPage);
+    file::Delete(outPath);
+    file::Delete(backup);
+    if (!applied) {
+        ShowOrganizeError(win, Tr("Couldn't change the pages of this PDF"));
         return false;
     }
-    VecAppend(gUndoSteps, OrganizeUndoStep{str::Dup(path), str::Dup(backup), fromPage});
-    ToolbarUpdateStateForWindow(win, true);
     if (warnings && IsMainWindowValidAndNotClosing(win)) {
         ShowOrganizeError(win, EngineMupdfMergeWarningTemp(warnings));
     } else if (len(doneMsg) > 0 && IsMainWindowValidAndNotClosing(win)) {
@@ -144,7 +153,7 @@ void OrganizeRotatePage(MainWindow* win, int degrees) {
     Vec<PdfMergePage> pages;
     AllPages(n, pages);
     pages[cur - 1].rotate = degrees;
-    ApplyPageList(win, pages, nullptr, cur, Tr("Page rotated"));
+    ApplyPageList(win, pages, nullptr, cur, StrL("Rotate pages"), Tr("Page rotated"));
 }
 
 void OrganizeInsertBlankPage(MainWindow* win) {
@@ -160,7 +169,7 @@ void OrganizeInsertBlankPage(MainWindow* win) {
             VecAppend(pages, PdfMergePage{kPdfMergeBlankPage, cur, 0});
         }
     }
-    ApplyPageList(win, pages, nullptr, cur + 1, Tr("Blank page inserted"));
+    ApplyPageList(win, pages, nullptr, cur + 1, StrL("Insert blank page"), Tr("Blank page inserted"));
 }
 
 static TempStr PickPdfFileTemp(MainWindow* win) {
@@ -213,7 +222,7 @@ void OrganizeInsertPagesFromFile(MainWindow* win) {
     }
     Vec<PdfMergeSource> extra;
     VecAppend(extra, PdfMergeSource{other, pwd});
-    ApplyPageList(win, pages, &extra, cur + 1, fmt(Tr("Inserted %d pages").s, nOther));
+    ApplyPageList(win, pages, &extra, cur + 1, StrL("Insert pages"), fmt(Tr("Inserted %d pages").s, nOther));
 }
 
 void OrganizeMovePage(MainWindow* win, int delta) {
@@ -229,7 +238,7 @@ void OrganizeMovePage(MainWindow* win, int delta) {
     Vec<PdfMergePage> pages;
     AllPages(n, pages);
     std::swap(pages[cur - 1], pages[to - 1]);
-    ApplyPageList(win, pages, nullptr, to, {});
+    ApplyPageList(win, pages, nullptr, to, StrL("Reorder pages"), {});
 }
 
 // page `from` goes before page `before` (n + 1 for the end), both 1-based;
@@ -253,7 +262,7 @@ void OrganizeMovePageTo(MainWindow* win, int from, int before) {
         }
     }
     int to = before > from ? before - 1 : before;
-    ApplyPageList(win, pages, nullptr, to, {});
+    ApplyPageList(win, pages, nullptr, to, StrL("Reorder pages"), {});
 }
 
 void OrganizeDeleteCurrentPage(MainWindow* win) {
@@ -271,7 +280,8 @@ void OrganizeDeleteCurrentPage(MainWindow* win) {
             VecAppend(pages, PdfMergePage{0, i, 0});
         }
     }
-    ApplyPageList(win, pages, nullptr, std::min(cur, n - 1), Tr("Page deleted. Undo Page Change brings it back."));
+    ApplyPageList(win, pages, nullptr, std::min(cur, n - 1), StrL("Delete pages"),
+                  Tr("Page deleted. Undo brings it back."));
 }
 
 int OrganizeSplitPdf(MainWindow* win, Str destBase, int pagesPerFile) {
@@ -307,42 +317,13 @@ int OrganizeSplitPdf(MainWindow* win, Str destBase, int pagesPerFile) {
     return nFiles;
 }
 
-static int LastUndoStepFor(Str filePath) {
-    for (int i = len(gUndoSteps) - 1; i >= 0; i--) {
-        if (path::IsSame(gUndoSteps[i].filePath, filePath)) {
-            return i;
-        }
-    }
-    return -1;
-}
-
 bool OrganizeCanUndo(MainWindow* win) {
     WindowTab* tab = OrganizableTab(win);
-    return tab && LastUndoStepFor(tab->filePath) >= 0;
+    return tab && EngineMupdfCanUndo(tab->GetEngine());
 }
 
 void OrganizeUndo(MainWindow* win) {
-    WindowTab* tab = OrganizableTab(win);
-    if (!tab) {
-        return;
-    }
-    int idx = LastUndoStepFor(tab->filePath);
-    if (idx < 0) {
-        ShowTemporaryNotification(win->hwndCanvas, Tr("No page changes to undo"));
-        return;
-    }
-    OrganizeUndoStep step = gUndoSteps[idx];
-    if (!ReplaceCurrentDocumentFile(win, step.backupPath, step.pageNo)) {
-        ShowOrganizeError(win, Tr("Couldn't undo the page change"));
-        return;
-    }
-    VecRemoveAt(gUndoSteps, idx);
-    ToolbarUpdateStateForWindow(win, true);
-    if (IsMainWindowValidAndNotClosing(win)) {
-        ShowTemporaryNotification(win->hwndCanvas, Tr("Page change undone"));
-    }
-    str::Free(step.filePath);
-    str::Free(step.backupPath);
+    SendMessageW(win->hwndFrame, WM_COMMAND, CmdUndo, 0);
 }
 
 // thumbnails can be dragged to reorder the pages of a PDF file on disk
