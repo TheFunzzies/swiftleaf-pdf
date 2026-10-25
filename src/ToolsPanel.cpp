@@ -336,9 +336,13 @@ static void OnSearchChanged(ToolsPanelVirt* panel) {
         bool matches = !searching || str::ContainsI(panel->rows[i]->label, query) ||
                        str::ContainsI(trans::GetTranslation(d->description), query);
         hasMatches[d->category] |= matches;
-        panel->rows[i]->SetVisibility(matches && (searching || panel->categoryExpanded[d->category])
-                                          ? Visibility::Visible
-                                          : Visibility::Collapse);
+        auto vis = matches && (searching || panel->categoryExpanded[d->category])
+                       ? Visibility::Visible
+                       : Visibility::Collapse;
+        panel->rows[i]->SetVisibility(vis);
+        if (panel->rows[i]->parent) {
+            panel->rows[i]->parent->SetVisibility(vis);
+        }
     }
     for (int i = 0; i < len(panel->categoryHeaders); i++)
         panel->categoryHeaders[i]->SetVisibility(hasMatches[i] ? Visibility::Visible : Visibility::Collapse);
@@ -351,9 +355,13 @@ static void OnCategory(MainWindow* win, VirtMouseEvent* ev) {
     if (category < 0 || category >= ToolCategoryCount) return;
     panel->categoryExpanded[category] = !panel->categoryExpanded[category];
     for (int i = 0; i < len(panel->rows); i++) {
-        if (panel->rowDefs[i]->category == category)
-            panel->rows[i]->SetVisibility(panel->categoryExpanded[category] ? Visibility::Visible
-                                                                            : Visibility::Collapse);
+        if (panel->rowDefs[i]->category == category) {
+            auto vis = panel->categoryExpanded[category] ? Visibility::Visible : Visibility::Collapse;
+            panel->rows[i]->SetVisibility(vis);
+            if (panel->rows[i]->parent) {
+                panel->rows[i]->parent->SetVisibility(vis);
+            }
+        }
     }
     AsRibbonButton(ev->target)
         ->SetLabel(fmt("%s  %s", trans::GetTranslation(toolCategoryNames[category]),
@@ -932,6 +940,7 @@ TempStr ToolsPanelStateTemp(MainWindow* win) {
     }
     for (int i = 0; i < len(panel->rows); i++) {
         auto* b = panel->rows[i];
+        if (b->GetVisibility() != Visibility::Visible) continue;
         Rect r = b->BoundsInWindow();
         Str category;
         if (panel->page == (int)RibbonPage::Home && i < len(panel->rowDefs))
@@ -941,11 +950,13 @@ TempStr ToolsPanelStateTemp(MainWindow* win) {
                        b->tooltip, category));
     }
     for (int i = 0; i < len(panel->categoryHeaders); i++) {
+        if (panel->categoryHeaders[i]->GetVisibility() != Visibility::Visible) continue;
         Rect r = panel->categoryHeaders[i]->BoundsInWindow();
         out.Append(fmt("panel-category=%s expanded=%d rect=%d,%d,%d,%d\n", trans::GetTranslation(toolCategoryNames[i]),
                        panel->categoryExpanded[i] ? 1 : 0, r.x, r.y, r.Right(), r.Bottom()));
     }
     for (auto* b : panel->favoriteButtons) {
+        if (b->GetVisibility() != Visibility::Visible) continue;
         Rect r = b->BoundsInWindow();
         out.Append(fmt("panel-favorite cmd=%d active=%d rect=%d,%d,%d,%d\n", b->id, b->isSelected ? 1 : 0, r.x, r.y,
                        r.Right(), r.Bottom()));
