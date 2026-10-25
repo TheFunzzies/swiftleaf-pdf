@@ -2153,3 +2153,10 @@ EXPORTS
 	pdf_array_push_dict
 	fz_string_from_buffer
 	fz_new_buffer_from_stext_page
+	fz_append_buffer
+	fz_bound_display_list
+	fz_detect_skew
+	pdf_page_label
+	pdf_set_page_labels
+	pdf_recolor_page
+	pdf_remove_output_intents

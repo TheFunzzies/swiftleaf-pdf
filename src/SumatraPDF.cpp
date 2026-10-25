@@ -48,6 +48,7 @@
 #include "FormFields.h"
 #include "FormAuthoring.h"
 #include "PdfTools.h"
+#include "PageTools2.h"
 #include "PageOrganize.h"
 #include "EditText.h"
 #include "StatusBar.h"
@@ -13727,6 +13728,78 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             break;
         case CmdPdfRedactSearch:
             ShowPdfRedactSearchDialog(win);
+            break;
+        case CmdCropPages:
+            ShowCropPagesDialog(win);
+            break;
+        case CmdPdfNUp:
+            ShowPdfNUpDialog(win);
+            break;
+        case CmdPdfBooklet:
+            ShowPdfBookletDialog(win);
+            break;
+        case CmdPdfPosterize:
+            ShowPdfPosterizeDialog(win);
+            break;
+        case CmdPdfDividePages:
+            ShowPdfDividePagesDialog(win);
+            break;
+        case CmdPdfCombineLongPage:
+            ShowPdfCombineLongPageDialog(win);
+            break;
+        case CmdPdfPageBackground:
+            ShowPdfPageBackgroundDialog(win);
+            break;
+        case CmdDuplicatePages:
+            ShowDuplicatePagesDialog(win);
+            break;
+        case CmdReversePageOrder:
+            ShowReversePageOrderDialog(win);
+            break;
+        case CmdInsertBlankPages:
+            ShowInsertBlankPagesDialog(win);
+            break;
+        case CmdRemoveBlankPages:
+            ShowRemoveBlankPagesDialog(win);
+            break;
+        case CmdDeskewPages:
+            ShowDeskewPagesDialog(win);
+            break;
+        case CmdEditDocumentProperties:
+            ShowEditDocumentPropertiesDialog(win);
+            break;
+        case CmdManageAttachments:
+            ShowManageAttachmentsDialog(win);
+            break;
+        case CmdEditBookmarks:
+            ShowEditBookmarksDialog(win);
+            break;
+        case CmdEditPageLabels:
+            ShowEditPageLabelsDialog(win);
+            break;
+        case CmdPdfLinearize:
+            ShowPdfLinearizeDialog(win);
+            break;
+        case CmdPdfRepair:
+            ShowPdfRepairDialog(win);
+            break;
+        case CmdPdfRasterize:
+            ShowPdfRasterizeDialog(win);
+            break;
+        case CmdPdfGrayscale:
+            ShowPdfGrayscaleDialog(win);
+            break;
+        case CmdPdfInvertColorsDoc:
+            ShowPdfInvertColorsDialog(win);
+            break;
+        case CmdPdfRemoveAnnotations:
+            ShowPdfRemoveAnnotationsDialog(win);
+            break;
+        case CmdPdfRemoveLinks:
+            ShowPdfRemoveLinksDialog(win);
+            break;
+        case CmdPdfManageLayers:
+            ShowPdfManageLayersDialog(win);
             break;
 
         // Swiftleaf page organizing (PageOrganize.cpp)

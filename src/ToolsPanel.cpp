@@ -60,6 +60,16 @@ static const ToolDef tools[] = {
     {gLucideTextCursorInput, TrN("Bates numbering"), CmdBatesNumbering},
     {gLucideShield, TrN("Sanitize document"), CmdPdfSanitize},
     {gLucideRectangleHorizontal, TrN("Redact all matches"), CmdPdfRedactSearch},
+    {gLucideLayoutGrid, TrN("Crop pages"), CmdCropPages},
+    {gLucideLayoutGrid, TrN("N-up pages"), CmdPdfNUp},
+    {gLucideStamp, TrN("Page background"), CmdPdfPageBackground},
+    {gLucideFilePlus, TrN("Duplicate pages"), CmdDuplicatePages},
+    {gLucideFilePen, TrN("Document properties"), CmdEditDocumentProperties},
+    {gLucidePaperclip, TrN("Attachments"), CmdManageAttachments},
+    {gLucideBookmark, TrN("Edit bookmarks"), CmdEditBookmarks},
+    {gLucideType, TrN("Page numbering"), CmdEditPageLabels},
+    {gLucideShield, TrN("Repair PDF"), CmdPdfRepair},
+    {gLucideLayers, TrN("Document layers"), CmdPdfManageLayers},
 };
 
 static const ToolDef stripTools[] = {

@@ -155,7 +155,7 @@ export async function testit(): Promise<void> {
           raw,
         );
         if (!mode) {
-          want(rows.length === 19, "All tools must retain its 19 rows", raw);
+          want(rows.length === 29, "All tools must retain its 29 rows", raw);
           for (const command of ["CmdPdfSanitize", "CmdPdfRedactSearch"]) {
             want(
               rows.some((r) => r.cmd === cmdId(command) && r.enabled),

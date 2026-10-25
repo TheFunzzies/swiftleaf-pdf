@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Comprehensive page and document production tools (PageTools2):
+  - Crop pages and edit page boxes (Media, Crop, Trim, Bleed, Art) with numeric dialog and automatic white margin removal.
+  - Multi-page imposition: N-up / grid (2, 4, 6, 8, 9, 16 pages per sheet), saddle-stitch booklet creation, posterize tiling with overlap margins, horizontal/vertical page division, and combine pages into a continuous tall page.
+  - Page background color (custom RGB) and image underlay with opacity support.
+  - Page ordering and cleanup: duplicate pages, reverse page order, insert blank pages, automated blank page detection and removal, lossless skew detection and page deskewing.
+  - Document properties editor: view and edit Title, Author, Subject, Keywords, and XMP metadata packets.
+  - Embedded attachments manager: inspect, embed, extract, and remove document file attachments.
+  - Bookmark / outline editor: create, edit, reorder outlines, and auto-generate bookmarks from document headings.
+  - Custom page numbering and page labels: configure decimal, Roman, and alphabetic ranges with custom prefixes and starting numbers.
+  - PDF optimization and repair: Linearize for fast web view, repair damaged cross-reference tables, rasterize pages at custom DPI, convert to grayscale, invert colors losslessly, remove annotations, and remove links.
+  - Document layers (OCG) panel: list layers, toggle visibility, and flatten layers permanently into page content.
+  - Registered all tools under Ribbon tabs (Organize, Edit, Protect), All tools panel, and Command palette.
+  - Unit tests in `Sumatra_ut.cpp` verifying page transformations, text extraction, properties, attachments, bookmarks, labels, and recovery.
+  - Documentation in `docs/page-tools.md`.
+
 ## 0.5.0 - 2026-10-24
 
 ### Added
