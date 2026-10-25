@@ -1014,6 +1014,10 @@ static MenuDef menuDefCreateAnnotFromSelection[] = {
         CmdCreateAnnotRedact,
     },
     {
+        TrN("Replace &Text"),
+        CmdCreateAnnotReplaceText,
+    },
+    {
         {},
         0,
     },
@@ -1066,14 +1070,34 @@ static MenuDef menuDefCreateAnnotUnderCursor[] = {
         TrN("Circle"),
         CmdCreateAnnotCircle,
     },
-    //{
-    //    TrN("Polygon"),
-    //    CmdCreateAnnotPolygon,
-    //},
-    //{
-    //    TrN("Polyline"),
-    //    CmdCreateAnnotPolyLine,
-    //},
+    {
+        TrN("Polygon"),
+        CmdCreateAnnotPolygon,
+    },
+    {
+        TrN("Polyline"),
+        CmdCreateAnnotPolyLine,
+    },
+    {
+        TrN("Callout"),
+        CmdCreateAnnotCallout,
+    },
+    {
+        TrN("Arrow"),
+        CmdCreateAnnotArrow,
+    },
+    {
+        TrN("Text Box"),
+        CmdCreateAnnotTextBox,
+    },
+    {
+        TrN("Measure Distance"),
+        CmdMeasureDistance,
+    },
+    {
+        TrN("Measure Area"),
+        CmdMeasureArea,
+    },
     //{ TrN("Ink"), CmdCreateAnnotInk, },
     //{ TrN("File Attachment"), CmdCreateAnnotFileAttachment, },
     {
@@ -1114,6 +1138,54 @@ static MenuDef menuDefContextAnnotations[] = {
     {
         TrN("Delete Annotation"),
         CmdDeleteAnnotation,
+    },
+    {
+        StrL(kMenuSeparator),
+        kMenuSeparatorID,
+    },
+    {
+        TrN("Reply to Comment"),
+        CmdCommentReply,
+    },
+    {
+        TrN("Status: Accepted"),
+        CmdCommentStatusAccepted,
+    },
+    {
+        TrN("Status: Rejected"),
+        CmdCommentStatusRejected,
+    },
+    {
+        TrN("Status: Completed"),
+        CmdCommentStatusCompleted,
+    },
+    {
+        TrN("Status: Cancelled"),
+        CmdCommentStatusCancelled,
+    },
+    {
+        TrN("Status: Marked"),
+        CmdCommentStatusMarked,
+    },
+    {
+        StrL(kMenuSeparator),
+        kMenuSeparatorID,
+    },
+    {
+        TrN("Flatten Comments"),
+        CmdFlattenComments,
+    },
+    {
+        TrN("Export Comments (XFDF)"),
+        CmdExportCommentsXfdf,
+    },
+    {
+        TrN("Import Comments (XFDF)"),
+        CmdImportCommentsXfdf,
+    },
+    {
+        TrN("Comment Summary"),
+        CmdCommentSummary,
     },
     {
         StrL(kMenuSeparator),

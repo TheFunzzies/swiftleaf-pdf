@@ -39,3 +39,4 @@ extern const char* gLucidePenLine;
 extern const char* gLucideStickyNote;
 extern const char* gLucideUnderline;
 extern const char* gLucideSignature;
+extern const char* gLucideRuler;

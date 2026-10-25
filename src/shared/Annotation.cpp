@@ -2118,6 +2118,9 @@ static Str GetUserTemp() {
 }
 
 static TempStr GetAnnotationTextIconTemp() {
+    if (!gSettings || str::IsEmptyOrWhiteSpace(gSettings->annotations.textIconType)) {
+        return StrL("Note");
+    }
     TempStr s = str::DupTemp(gSettings->annotations.textIconType);
     // this way user can use "new paragraph" and we'll match "NewParagraph"
     str::RemoveCharsInPlace(s, StrL(" "));
@@ -2272,7 +2275,7 @@ Annotation* EngineMupdfCreateAnnotation(EngineBase* engine, int pageNo, PointF p
 
             pdf_set_annot_modification_date(ctx, annot, time(nullptr));
             if (pdf_annot_has_author(ctx, annot)) {
-                Str defAuthor = gSettings->annotations.defaultAuthor;
+                Str defAuthor = gSettings ? gSettings->annotations.defaultAuthor : StrL("");
                 // if "(none)" we don't set it
                 if (!str::Eq(defAuthor, StrL("(none)"))) {
                     Str author = GetUserTemp();
@@ -2490,6 +2493,37 @@ Annotation* EngineMupdfCreateAnnotation(EngineBase* engine, int pageNo, PointF p
                 // PdfColor 0 is "no fill"; 3 components would fill it black
                 int nInteriorCol = (interiorCol.pdfCol == 0) ? 0 : 3;
                 pdf_set_annot_interior_color(ctx, annot, nInteriorCol, interiorColor);
+            }
+            if (args->lineStartStyle > 0) {
+                pdf_set_annot_line_start_style(ctx, annot, (pdf_line_ending)args->lineStartStyle);
+            }
+            if (args->lineEndStyle > 0) {
+                pdf_set_annot_line_end_style(ctx, annot, (pdf_line_ending)args->lineEndStyle);
+            }
+            if (args->isCallout) {
+                pdf_obj* obj = pdf_annot_obj(ctx, annot);
+                pdf_dict_puts_drop(ctx, obj, "IT", pdf_new_name(ctx, "FreeTextCallout"));
+                pdf_obj* clArr = pdf_new_array(ctx, epdf->pdfdoc, 4);
+                pdf_array_push_real(ctx, clArr, args->calloutTarget.x);
+                pdf_array_push_real(ctx, clArr, args->calloutTarget.y);
+                pdf_array_push_real(ctx, clArr, pos.x);
+                pdf_array_push_real(ctx, clArr, pos.y);
+                pdf_dict_puts_drop(ctx, obj, "CL", clArr);
+            }
+            if (args->isMeasurement) {
+                pdf_obj* obj = pdf_annot_obj(ctx, annot);
+                if (typ == AnnotationType::Line) {
+                    pdf_dict_puts_drop(ctx, obj, "IT", pdf_new_name(ctx, "LineDimension"));
+                } else if (typ == AnnotationType::PolyLine) {
+                    pdf_dict_puts_drop(ctx, obj, "IT", pdf_new_name(ctx, "PolyLineDimension"));
+                } else if (typ == AnnotationType::Polygon) {
+                    pdf_dict_puts_drop(ctx, obj, "IT", pdf_new_name(ctx, "PolygonDimension"));
+                }
+                pdf_obj* m = pdf_new_dict(ctx, epdf->pdfdoc, 4);
+                pdf_dict_puts_drop(ctx, m, "Type", pdf_new_name(ctx, "Measure"));
+                pdf_dict_puts_drop(ctx, m, "Subtype", pdf_new_name(ctx, "RL"));
+                pdf_dict_put_text_string(ctx, m, PDF_NAME(R), "1 in = 1 in");
+                pdf_dict_puts_drop(ctx, obj, "Measure", m);
             }
             pdf_update_annot(ctx, annot);
         }
@@ -2939,6 +2973,13 @@ AnnotationType CmdIdToAnnotationType(int cmdId) {
         case CmdCreateAnnotText:           return AnnotationType::Text;
         case CmdCreateAnnotLink:           return AnnotationType::Link;
         case CmdCreateAnnotFreeText:       return AnnotationType::FreeText;
+        case CmdCreateAnnotTextBox:        return AnnotationType::FreeText;
+        case CmdCreateAnnotCallout:        return AnnotationType::FreeText;
+        case CmdCreateAnnotArrow:          return AnnotationType::Line;
+        case CmdMeasureDistance:           return AnnotationType::Line;
+        case CmdMeasurePerimeter:          return AnnotationType::PolyLine;
+        case CmdMeasureArea:               return AnnotationType::Polygon;
+        case CmdCreateAnnotReplaceText:    return AnnotationType::StrikeOut;
         case CmdCreateAnnotLine:           return AnnotationType::Line;
         case CmdCreateAnnotSquare:         return AnnotationType::Square;
         case CmdCreateAnnotCircle:         return AnnotationType::Circle;

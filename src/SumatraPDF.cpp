@@ -48,6 +48,8 @@
 #include "FormFields.h"
 #include "FormAuthoring.h"
 #include "PdfTools.h"
+#include "CommentIO.h"
+#include "Measure.h"
 #include "ExportFormats.h"
 #include "PageTools2.h"
 #include "PageOrganize.h"
@@ -13112,6 +13114,49 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             break;
         }
 
+        case CmdExportCommentsXfdf:
+            OnExportXfdf(win);
+            break;
+        case CmdImportCommentsXfdf:
+            OnImportXfdf(win);
+            break;
+        case CmdExportCommentsFdf:
+            OnExportFdf(win);
+            break;
+        case CmdImportCommentsFdf:
+            OnImportFdf(win);
+            break;
+        case CmdCommentSummary:
+            OnCommentSummary(win);
+            break;
+        case CmdFlattenComments:
+            OnFlattenComments(win);
+            break;
+        case CmdCommentReply:
+            OnReplyToComment(win, tab ? tab->selectedAnnotation : nullptr);
+            break;
+        case CmdCommentStatusAccepted:
+            OnSetCommentStatus(win, tab ? tab->selectedAnnotation : nullptr, kStateAccepted);
+            break;
+        case CmdCommentStatusRejected:
+            OnSetCommentStatus(win, tab ? tab->selectedAnnotation : nullptr, kStateRejected);
+            break;
+        case CmdCommentStatusCompleted:
+            OnSetCommentStatus(win, tab ? tab->selectedAnnotation : nullptr, kStateCompleted);
+            break;
+        case CmdCommentStatusCancelled:
+            OnSetCommentStatus(win, tab ? tab->selectedAnnotation : nullptr, kStateCancelled);
+            break;
+        case CmdCommentStatusMarked:
+            OnSetCommentStatus(win, tab ? tab->selectedAnnotation : nullptr, kStateMarked);
+            break;
+        case CmdMeasureSetScale:
+            OnCalibrateScale(win);
+            break;
+        case CmdExportMeasurementsCsv:
+            OnExportMeasurementsCsv(win);
+            break;
+
         case CmdToggleReadAloud: {
             if (!tab) {
                 break;
@@ -14479,6 +14524,20 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
         case CmdCreateAnnotPolygon:
             [[fallthrough]];
         case CmdCreateAnnotPolyLine:
+            [[fallthrough]];
+        case CmdCreateAnnotCallout:
+            [[fallthrough]];
+        case CmdCreateAnnotArrow:
+            [[fallthrough]];
+        case CmdCreateAnnotTextBox:
+            [[fallthrough]];
+        case CmdCreateAnnotReplaceText:
+            [[fallthrough]];
+        case CmdMeasureDistance:
+            [[fallthrough]];
+        case CmdMeasurePerimeter:
+            [[fallthrough]];
+        case CmdMeasureArea:
             [[fallthrough]];
         case CmdCreateAnnotInk:
             [[fallthrough]];

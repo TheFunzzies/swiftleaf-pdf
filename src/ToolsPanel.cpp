@@ -62,6 +62,8 @@ static const ToolDef tools[] = {
     {gLucideTextCursorInput, TrN("Bates numbering"), CmdBatesNumbering},
     {gLucideShield, TrN("Sanitize document"), CmdPdfSanitize},
     {gLucideRectangleHorizontal, TrN("Redact all matches"), CmdPdfRedactSearch},
+    {gLucideRuler, TrN("Measure"), CmdMeasureDistance},
+    {gLucideMessageSquareText, TrN("Review & comments"), CmdCommentSummary},
     {gLucideLayoutGrid, TrN("Crop pages"), CmdCropPages},
     {gLucideLayoutGrid, TrN("N-up pages"), CmdPdfNUp},
     {gLucideStamp, TrN("Page background"), CmdPdfPageBackground},

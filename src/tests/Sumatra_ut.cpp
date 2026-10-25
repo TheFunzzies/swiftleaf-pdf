@@ -30,6 +30,8 @@
 #include "Annotation.h"
 #include "AdvancedForms.h"
 #include "shared/PdfTools.h"
+#include "CommentIO.h"
+#include "Measure.h"
 #include "PageTools2.h"
 #include <mupdf/pdf.h>
 #include "AppUnitTests.h"
@@ -1075,6 +1077,140 @@ static bool ToolsTestObjectText(fz_context* ctx, pdf_document* doc, const char* 
     return false;
 }
 
+
+static void ReviewToolsTest() {
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    fz_register_document_handlers(ctx);
+    TempStr pdfPath = GetTempFilePathTemp(StrL("review-test.pdf"));
+    TempStr xfdfPath = GetTempFilePathTemp(StrL("review-test.xfdf"));
+    TempStr fdfPath = GetTempFilePathTemp(StrL("review-test.fdf"));
+    TempStr txtPath = GetTempFilePathTemp(StrL("review-test.txt"));
+    TempStr csvPath = GetTempFilePathTemp(StrL("review-test.csv"));
+    TempStr measCsvPath = GetTempFilePathTemp(StrL("measure-test.csv"));
+    TempStr sumPdfPath = GetTempFilePathTemp(StrL("review-summary.pdf"));
+    TempStr importPdfPath = GetTempFilePathTemp(StrL("review-import.pdf"));
+
+    ToolsTestFixture(ctx, CStrTemp(pdfPath));
+    ToolsTestFixture(ctx, CStrTemp(importPdfPath));
+
+    EngineBase* engine = CreateEngineMupdfFromFile(pdfPath, FileType::PDF, 96);
+    utassert(engine != nullptr);
+
+    // 1. Create annotations
+    AnnotCreateArgs textArgs{AnnotationType::Text};
+    textArgs.content = StrL("This is a review comment");
+    Annotation* textAnnot = EngineMupdfCreateAnnotation(engine, 1, PointF{100.f, 200.f}, &textArgs);
+    utassert(textAnnot != nullptr);
+
+    // 2. Status & review state persistence
+    utassert(SetAnnotationState(textAnnot, StrL("Accepted"), StrL("Review")));
+    utassert(str::Eq(GetAnnotationState(textAnnot), StrL("Accepted")));
+    utassert(str::Eq(GetAnnotationStateModel(textAnnot), StrL("Review")));
+
+    // 3. Reply creation
+    Annotation* replyAnnot = CreateAnnotationReply(textAnnot, StrL("Reply: looks good"), StrL("Alice"));
+    utassert(replyAnnot != nullptr);
+
+    Vec<Annotation*> replies;
+    GetAnnotationReplies(textAnnot, replies);
+    utassert(len(replies) == 1);
+
+    // 4. Measurements
+    MeasureScale scale;
+    scale.pointsPerUnit = 7.2f; // 1 in = 10 ft
+    str::BufSet(Str(scale.unit, sizeof(scale.unit)), StrL("ft"));
+    str::BufSet(Str(scale.label, sizeof(scale.label)), StrL("1 in = 10 ft"));
+    SetPageScale(engine, 1, scale);
+
+    PointF p1{100.f, 100.f};
+    PointF p2{100.f, 172.f};
+    float dist = ComputeDistance(p1, p2, scale);
+    utassert(fabsf(dist - 10.0f) < 0.1f);
+
+    Vec<PointF> polyPts;
+    VecAppend(polyPts, PointF{100.f, 100.f});
+    VecAppend(polyPts, PointF{172.f, 100.f});
+    VecAppend(polyPts, PointF{172.f, 172.f});
+    VecAppend(polyPts, PointF{100.f, 172.f});
+    float perim = ComputePerimeter(polyPts, scale);
+    utassert(perim > 0.0f);
+    float area = ComputeArea(polyPts, scale);
+    utassert(fabsf(area - 100.0f) < 1.0f);
+
+    Vec<PointF> linePts;
+    VecAppend(linePts, p1);
+    VecAppend(linePts, p2);
+    AnnotCreateArgs measArgs{AnnotationType::Line};
+    measArgs.hasLineEnd = true; measArgs.lineEnd = p2;
+    measArgs.isMeasurement = true;
+    measArgs.content = StrL("10 ft");
+    Annotation* measAnnot = EngineMupdfCreateAnnotation(engine, 1, p1, &measArgs);
+    utassert(measAnnot != nullptr);
+    AttachMeasureDictToAnnotation(engine, measAnnot, scale, "Distance");
+
+    // 5. Snapping
+    PointF snapTarget{};
+    bool snapped = SnapToPageContent(engine, 1, PointF{102.f, 102.f}, snapTarget, 8.0f);
+    utassert(snapped);
+    utassert(fabsf(snapTarget.x - 100.f) < 0.01f && fabsf(snapTarget.y - 100.f) < 0.01f);
+
+    // 6. CSV Export of measurements
+    Str err;
+    utassert(ExportMeasurementsToCsv(engine, CStrTemp(measCsvPath), err));
+    utassert(file::Exists(measCsvPath));
+    Str csvData = file::ReadFile(measCsvPath);
+    utassert(str::Contains(csvData, StrL("Measurement")));
+    str::Free(csvData);
+
+    // 7. XFDF Export & Import
+    utassert(ExportAnnotationsToXfdf(engine, CStrTemp(xfdfPath), err));
+    utassert(file::Exists(xfdfPath));
+    Str xfdfData = file::ReadFile(xfdfPath);
+    utassert(str::Contains(xfdfData, StrL("<xfdf")));
+    utassert(str::Contains(xfdfData, StrL("Accepted")));
+    str::Free(xfdfData);
+
+    EngineBase* importEngine = CreateEngineMupdfFromFile(importPdfPath, FileType::PDF, 96);
+    utassert(importEngine != nullptr);
+    utassert(ImportAnnotationsFromXfdf(importEngine, CStrTemp(xfdfPath), err));
+    Vec<Annotation*> importedAnnots;
+    EngineMupdfGetAnnotations(importEngine, importedAnnots);
+    utassert(len(importedAnnots) > 0);
+    SafeEngineRelease(&importEngine);
+
+    // 8. FDF Export & Import
+    utassert(ExportAnnotationsToFdf(engine, CStrTemp(fdfPath), err));
+    utassert(file::Exists(fdfPath));
+    Str fdfData = file::ReadFile(fdfPath);
+    utassert(str::Contains(fdfData, StrL("%FDF-1.2")));
+    str::Free(fdfData);
+
+    importEngine = CreateEngineMupdfFromFile(importPdfPath, FileType::PDF, 96);
+    utassert(importEngine != nullptr);
+    utassert(ImportAnnotationsFromFdf(importEngine, CStrTemp(fdfPath), err));
+    SafeEngineRelease(&importEngine);
+
+    // 9. Comment Summaries (TXT, CSV, PDF)
+    utassert(ExportCommentSummary(engine, CStrTemp(txtPath), "txt", err));
+    utassert(file::Exists(txtPath));
+
+    utassert(ExportCommentSummary(engine, CStrTemp(csvPath), "csv", err));
+    utassert(file::Exists(csvPath));
+
+    utassert(ExportCommentSummary(engine, CStrTemp(sumPdfPath), "pdf", err));
+    utassert(file::Exists(sumPdfPath));
+
+    // 10. Flatten comments
+    utassert(FlattenAnnotations(engine, err));
+    Vec<Annotation*> afterFlatten;
+    EngineMupdfGetAnnotations(engine, afterFlatten);
+    utassert(len(afterFlatten) == 0);
+
+    SafeEngineRelease(&engine);
+    fz_drop_context(ctx);
+    printf("ReviewToolsTest passed\n");
+}
+
 static void PdfDocumentToolsTest() {
     TempStr sourcePath = GetTempFilePathTemp(StrL("tools-source"));
     TempStr mergedPath = GetTempFilePathTemp(StrL("tools-merged"));
@@ -1683,6 +1819,7 @@ int RunAppUnitTests(bool forAi) {
 #endif
     PageTools2Test();
     PdfDocumentToolsTest();
+    ReviewToolsTest();
 
     ArchiveTest();
     AppendStoreTest();

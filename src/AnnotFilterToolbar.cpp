@@ -39,6 +39,7 @@
 #include "DarkMode.h"
 
 #include "AnnotFilterToolbar.h"
+#include "CommentIO.h"
 
 constexpr const WCHAR* kAnnotFilterListClassName = L"SumatraAnnotFilterList";
 constexpr const WCHAR* kAnnotFilterFloatClassName = L"SUMATRA_ANNOT_FILTER_WND";
@@ -427,8 +428,9 @@ static void OnListDrawItem(AnnotFilterToolbar* f, VirtListBox::DrawItemEvent* ev
     struct tm tmDate{};
     char dateText[32]{};
     if (date && localtime_s(&tmDate, &date) == 0) strftime(dateText, sizeof(dateText), "%Y-%m-%d %H:%M", &tmDate);
-    gfx->DrawText(fmt("%s  %s", AnnotationReadableNameTemp(annot->type), Str(dateText)), line, gfxTextEllipsis, font,
-                  ThemeWindowTextDisabledColor());
+    Str status = GetAnnotationState(annot);
+    TempStr meta = status.len > 0 ? fmt("%s  %s  [%s]", AnnotationReadableNameTemp(annot->type), Str(dateText), status) : fmt("%s  %s", AnnotationReadableNameTemp(annot->type), Str(dateText));
+    gfx->DrawText(meta, line, gfxTextEllipsis, font, ThemeWindowTextDisabledColor());
     line.y += DpiScale(26);
     line.dy = std::max(0, r.Bottom() - line.y - pad);
     gfx->DrawText(Contents(annot), line, gfxTextWrap, font, fg);

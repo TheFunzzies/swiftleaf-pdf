@@ -29,6 +29,7 @@
 #include "WindowTab.h"
 
 #include "AnnotTextPopup.h"
+#include "CommentIO.h"
 
 // A floating card with the annotation's whole text, opened by clicking the
 // annotation. The text sits in a read-only multi-line edit, which wraps,
@@ -281,7 +282,9 @@ static TempStr PopupAuthorTemp(Annotation* annot) {
 // the header's ideal width fits author and date without eliding
 static AnnotPopupHeader* MakePopupHeader(AnnotTextPopup* popup, Annotation* annot) {
     auto* h = new AnnotPopupHeader();
-    h->author = str::Dup(PopupAuthorTemp(annot));
+    Str state = GetAnnotationState(annot);
+    TempStr authorWithState = state.len > 0 ? fmt("%s [%s]", PopupAuthorTemp(annot), state) : PopupAuthorTemp(annot);
+    h->author = str::Dup(authorWithState);
     h->date = str::Dup(FormatPdfDateLocalTimeTemp(ModificationDate(annot)));
     h->authorFont = GetBoldPlatformFont(popup->font);
     h->dateFont = popup->font;

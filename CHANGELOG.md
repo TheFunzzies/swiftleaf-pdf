@@ -1,4 +1,15 @@
-# Changelog
+# Changelo- Review & Measurement tools (TASK W-REVIEW):
+  - Comments import and export in XFDF (ISO 19444-1) and FDF formats.
+  - Comment summary generation to PDF, text outline, and CSV tabular formats.
+  - Flatten comments baking annotations directly into page content streams.
+  - Comment review status workflow: Accepted, Rejected, Completed, Cancelled, Marked persisted in /State and /StateModel dictionaries per PDF specification.
+  - Threaded comment replies referencing parent annotations via /IRT.
+  - Measurement tools: page scale calibration, distance, perimeter, and area measurement with live on-screen labels.
+  - Vertex and endpoint snapping to existing annotations and page content.
+  - Measurement persistence in PDF /Measure dictionary and CSV export.
+  - Callout, Arrow, Text Box, Replace Text, Polygon, Polyline, Squiggly, and Caret annotation tools registered in Ribbon, Edit tab, All tools, and context menus.
+  - Documentation in docs/review-tools.md and roundtrip unit tests in src/tests/Sumatra_ut.cpp.
+g
 
 ## Unreleased
 
