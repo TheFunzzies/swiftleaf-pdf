@@ -42,6 +42,7 @@ struct ToolDef {
 };
 static const ToolDef tools[] = {
     {gLucideFileOutput, TrN("Export a PDF"), CmdExportPdf},
+    {gLucideFileOutput, TrN("To images"), CmdConvertPdfToImages},
     {gLucidePenTool, TrN("Fill & Sign"), CmdSignWithImage},
     {gLucideFilePen, TrN("Edit a PDF"), CmdToggleEditPDF},
     {gLucideFilePlus, TrN("Create a PDF"), CmdCreatePdfFiles},
