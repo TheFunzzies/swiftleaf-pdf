@@ -949,6 +949,9 @@ struct Settings {
     // remembered engine for Translate Selection: Google, DeepL, Grok
     // Build, Claude Code, OpenAI Codex or Antigravity
     Str translateEngine;
+    // RFC 3161 Timestamp Authority (TSA) server URL for digital
+    // signatures; empty means no timestamp
+    Str tsaUrl;
     // ISO code of the current UI language
     Str uiLanguage;
     // SwiftLeaf won't offer to update to this version again

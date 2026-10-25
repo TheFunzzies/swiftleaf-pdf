@@ -1913,6 +1913,7 @@ const globalPrefs: Field[] = [
     .internal()
     .ver("3.7"),
   field("OcrLanguage", Str, "", "Windows OCR language tag; empty uses profile languages").internal(),
+  field("TsaUrl", Str, "", "RFC 3161 Timestamp Authority (TSA) server URL for digital signatures; empty means no timestamp").ver("3.7"),
   field("TranslateFromLang", Str, "", "remembered source language for selection translation; empty means Auto")
     .internal()
     .ver("3.7"),
@@ -2079,6 +2080,7 @@ const globalPrefsLayout = [
   "TranslateToLang",
   "TranslateFromLang",
   "TranslateEngine",
+  "TsaUrl",
   "UiLanguage",
   "VersionToSkip",
   "ChmUI",
