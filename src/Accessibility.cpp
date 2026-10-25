@@ -441,6 +441,8 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
     fz_var(doc);
     fz_var(ok);
 
+    Vec<TextLineSample> samples;
+
     fz_try(ctx) {
         doc = pdf_open_document(ctx, CStrTemp(srcPath));
         if (pdf_needs_password(ctx, doc)) fz_throw(ctx, FZ_ERROR_GENERIC, "encrypted");
@@ -483,17 +485,18 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
             pdf_dict_puts(ctx, markInfo, "Marked", PDF_TRUE);
 
             pdf_obj* structTree = pdf_new_dict(ctx, doc, 4);
+            pdf_obj* structTreeRef = pdf_add_object(ctx, doc, structTree);
             pdf_dict_put(ctx, structTree, PDF_NAME(Type), PDF_NAME(StructTreeRoot));
 
             pdf_obj* docElem = pdf_new_dict(ctx, doc, 6);
+            pdf_obj* docElemRef = pdf_add_object(ctx, doc, docElem);
             pdf_dict_put(ctx, docElem, PDF_NAME(Type), PDF_NAME(StructElem));
-            pdf_dict_puts(ctx, docElem, "S", pdf_new_name(ctx, "Document"));
-            pdf_dict_put(ctx, docElem, PDF_NAME(P), structTree);
+            pdf_dict_puts_drop(ctx, docElem, "S", pdf_new_name(ctx, "Document"));
+            pdf_dict_put(ctx, docElem, PDF_NAME(P), structTreeRef);
 
             pdf_obj* kidsArray = pdf_new_array(ctx, doc, 32);
 
             int numPages = pdf_count_pages(ctx, doc);
-            Vec<TextLineSample> samples;
 
             for (int p = 0; p < numPages; p++) {
                 pdf_page* page = pdf_load_page(ctx, doc, p);
@@ -535,43 +538,60 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
 
             for (const auto& s : samples) {
                 pdf_obj* elem = pdf_new_dict(ctx, doc, 6);
+                pdf_obj* elemRef = pdf_add_object(ctx, doc, elem);
                 pdf_dict_put(ctx, elem, PDF_NAME(Type), PDF_NAME(StructElem));
-                pdf_dict_put(ctx, elem, PDF_NAME(P), docElem);
+                pdf_dict_put(ctx, elem, PDF_NAME(P), docElemRef);
                 if (s.pageObj) pdf_dict_puts(ctx, elem, "Pg", s.pageObj);
 
                 if (s.size >= 1.35f * baseSize) {
-                    pdf_dict_puts(ctx, elem, "S", pdf_new_name(ctx, "H1"));
+                    pdf_dict_puts_drop(ctx, elem, "S", pdf_new_name(ctx, "H1"));
                 } else if (s.size >= 1.15f * baseSize) {
-                    pdf_dict_puts(ctx, elem, "S", pdf_new_name(ctx, "H2"));
+                    pdf_dict_puts_drop(ctx, elem, "S", pdf_new_name(ctx, "H2"));
                 } else if (s.isBullet) {
-                    pdf_dict_puts(ctx, elem, "S", pdf_new_name(ctx, "LI"));
+                    pdf_dict_puts_drop(ctx, elem, "S", pdf_new_name(ctx, "LI"));
                 } else {
-                    pdf_dict_puts(ctx, elem, "S", pdf_new_name(ctx, "P"));
+                    pdf_dict_puts_drop(ctx, elem, "S", pdf_new_name(ctx, "P"));
                 }
-                pdf_array_push(ctx, kidsArray, elem);
+                pdf_array_push_drop(ctx, kidsArray, elemRef);
+                pdf_drop_obj(ctx, elem);
             }
 
             // Figure tags
             for (const auto& fig : options.figures) {
                 pdf_obj* figElem = pdf_new_dict(ctx, doc, 6);
+                pdf_obj* figElemRef = pdf_add_object(ctx, doc, figElem);
                 pdf_dict_put(ctx, figElem, PDF_NAME(Type), PDF_NAME(StructElem));
-                pdf_dict_put(ctx, figElem, PDF_NAME(P), docElem);
+                pdf_dict_put(ctx, figElem, PDF_NAME(P), docElemRef);
                 pdf_obj* pageObj = pdf_lookup_page_obj(ctx, doc, fig.pageNo - 1);
                 if (pageObj) pdf_dict_puts(ctx, figElem, "Pg", pageObj);
                 if (fig.isDecorative) {
-                    pdf_dict_puts(ctx, figElem, "S", pdf_new_name(ctx, "Artifact"));
+                    pdf_dict_puts_drop(ctx, figElem, "S", pdf_new_name(ctx, "Artifact"));
                 } else {
-                    pdf_dict_puts(ctx, figElem, "S", pdf_new_name(ctx, "Figure"));
+                    pdf_dict_puts_drop(ctx, figElem, "S", pdf_new_name(ctx, "Figure"));
                     if (len(fig.altText) > 0) {
                         pdf_dict_put_text_string(ctx, figElem, PDF_NAME(Alt), CStrTemp(fig.altText));
                     }
                 }
-                pdf_array_push(ctx, kidsArray, figElem);
+                pdf_array_push_drop(ctx, kidsArray, figElemRef);
+                pdf_drop_obj(ctx, figElem);
             }
 
-            pdf_dict_put(ctx, docElem, PDF_NAME(K), kidsArray);
-            pdf_dict_put(ctx, structTree, PDF_NAME(K), docElem);
-            pdf_dict_put(ctx, root, PDF_NAME(StructTreeRoot), structTree);
+            if (pdf_array_len(ctx, kidsArray) == 0) {
+                pdf_obj* pElem = pdf_new_dict(ctx, doc, 4);
+                pdf_obj* pRef = pdf_add_object(ctx, doc, pElem);
+                pdf_dict_put(ctx, pElem, PDF_NAME(Type), PDF_NAME(StructElem));
+                pdf_dict_put(ctx, pElem, PDF_NAME(P), docElemRef);
+                pdf_dict_puts_drop(ctx, pElem, "S", pdf_new_name(ctx, "P"));
+                pdf_array_push_drop(ctx, kidsArray, pRef);
+                pdf_drop_obj(ctx, pElem);
+            }
+
+            pdf_dict_put_drop(ctx, docElem, PDF_NAME(K), kidsArray);
+            pdf_dict_put_drop(ctx, structTree, PDF_NAME(K), docElemRef);
+            pdf_dict_put_drop(ctx, root, PDF_NAME(StructTreeRoot), structTreeRef);
+
+            pdf_drop_obj(ctx, docElem);
+            pdf_drop_obj(ctx, structTree);
         }
 
         pdf_write_options opts = gPdfDefaultWriteOptions;
@@ -582,6 +602,7 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
     }
     fz_always(ctx) {
         if (doc) pdf_drop_document(ctx, doc);
+        VecReset(samples);
     }
     fz_catch(ctx) {
         ok = false;
