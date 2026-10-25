@@ -23,8 +23,9 @@
 #include "FormAuthoring.h"
 #include "SumatraLog.h"
 
-static const Str fieldKinds[] = {TrN("Text field"), TrN("Checkbox"), TrN("Radio group"), TrN("Dropdown"),
-                                 TrN("Unsigned signature")};
+static const Str fieldKinds[] = {TrN("Text field"),  TrN("Checkbox"),           TrN("Radio group"),
+                                 TrN("Dropdown"),    TrN("Unsigned signature"), TrN("List box"),
+                                 TrN("Push button"), TrN("Image field"),        TrN("Date field")};
 
 struct FieldDialog {
     MainWindow* win;
@@ -36,16 +37,21 @@ struct FieldDialog {
 };
 
 bool IsFormAuthoringCommand(int cmdId) {
-    return cmdId >= CmdPrepareForm && cmdId <= CmdCreateFormSignature;
+    return (cmdId >= CmdPrepareForm && cmdId <= CmdCreateFormSignature) ||
+           (cmdId >= CmdCreateFormListBox && cmdId <= CmdCreateFormDate);
 }
 
 static void UpdateFieldDialog(HWND dlg, FieldDialog* data) {
     int kind = (int)SendDlgItemMessageW(dlg, IDC_FIELD_TYPE, CB_GETCURSEL, 0, 0);
-    bool choice = kind == (int)FormFieldKind::Combo || kind == (int)FormFieldKind::Radio;
+    bool choice =
+        kind == (int)FormFieldKind::Combo || kind == (int)FormFieldKind::ListBox || kind == (int)FormFieldKind::Radio;
     EnableWindow(GetDlgItem(dlg, IDC_FIELD_OPTIONS), choice);
     EnableWindow(GetDlgItem(dlg, IDC_FIELD_DEFAULT), kind != (int)FormFieldKind::Signature);
     EnableWindow(GetDlgItem(dlg, IDC_FIELD_SIZE),
-                 kind == (int)FormFieldKind::Text || kind == (int)FormFieldKind::Combo);
+                 kind == (int)FormFieldKind::Text || kind == (int)FormFieldKind::Date ||
+                     kind == (int)FormFieldKind::ListBox || kind == (int)FormFieldKind::Combo);
+    if (kind == (int)FormFieldKind::Date && !len(HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_FORMAT))))
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_FORMAT), StrL("date:yyyy-mm-dd"));
     if (!data->widget && choice && !len(HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_OPTIONS)))) {
         HwndSetText(GetDlgItem(dlg, IDC_FIELD_OPTIONS), StrL("Option1\r\nOption2"));
     }
@@ -93,6 +99,23 @@ static INT_PTR CALLBACK FieldDialogProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp
         HwndSetText(GetDlgItem(dlg, IDC_FIELD_OPTIONS), data->props.options);
         CheckDlgButton(dlg, IDC_FIELD_REQUIRED, data->props.required ? BST_CHECKED : BST_UNCHECKED);
         CheckDlgButton(dlg, IDC_FIELD_READONLY, data->props.readOnly ? BST_CHECKED : BST_UNCHECKED);
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_TOOLTIP), data->props.tooltip);
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_FONT), data->props.font);
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_FORMAT), data->props.format);
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_ACTION), len(data->props.action) ? data->props.action : StrL("reset"));
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_TARGET), data->props.target);
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_MAXLEN), fmt("%d", data->props.maxLength));
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_BORDER), fmt("%g", data->props.borderWidth));
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_TEXTCOLOR),
+                    fmt("%g %g %g", data->props.textColor[0], data->props.textColor[1], data->props.textColor[2]));
+        HwndSetText(
+            GetDlgItem(dlg, IDC_FIELD_BORDERCOLOR),
+            fmt("%g %g %g", data->props.borderColor[0], data->props.borderColor[1], data->props.borderColor[2]));
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_BGCOLOR),
+                    fmt("%g %g %g", data->props.backgroundColor[0], data->props.backgroundColor[1],
+                        data->props.backgroundColor[2]));
+        CheckDlgButton(dlg, IDC_FIELD_MULTILINE, data->props.multiline ? BST_CHECKED : BST_UNCHECKED);
+        CheckDlgButton(dlg, IDC_FIELD_COMB, data->props.comb ? BST_CHECKED : BST_UNCHECKED);
         UpdateFieldDialog(dlg, data);
         return TRUE;
     }
@@ -114,11 +137,31 @@ static INT_PTR CALLBACK FieldDialogProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp
     props.options = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_OPTIONS));
     props.required = IsDlgButtonChecked(dlg, IDC_FIELD_REQUIRED) == BST_CHECKED;
     props.readOnly = IsDlgButtonChecked(dlg, IDC_FIELD_READONLY) == BST_CHECKED;
+    props.tooltip = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_TOOLTIP));
+    props.font = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_FONT));
+    props.format = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_FORMAT));
+    props.action = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_ACTION));
+    props.target = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_TARGET));
+    props.multiline = IsDlgButtonChecked(dlg, IDC_FIELD_MULTILINE) == BST_CHECKED;
+    props.comb = IsDlgButtonChecked(dlg, IDC_FIELD_COMB) == BST_CHECKED;
     Str size = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_SIZE));
     char* end = nullptr;
     props.fontSize = strtof(CStrTemp(size), &end);
     Str error;
     if (!end || *end || !len(size)) error = Tr("Enter a numeric font size.");
+    char extra;
+    if (sscanf_s(CStrTemp(HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_MAXLEN))), "%d %c", &props.maxLength, &extra, 1u) !=
+            1 ||
+        sscanf_s(CStrTemp(HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_BORDER))), "%f %c", &props.borderWidth, &extra,
+                 1u) != 1)
+        error = Tr("Enter numeric maximum length and border width.");
+    const int colors[] = {IDC_FIELD_TEXTCOLOR, IDC_FIELD_BORDERCOLOR, IDC_FIELD_BGCOLOR};
+    float* values[] = {props.textColor, props.borderColor, props.backgroundColor};
+    for (int i = 0; i < 3; i++) {
+        if (sscanf_s(CStrTemp(HwndGetTextTemp(GetDlgItem(dlg, colors[i]))), "%f %f %f %c", &values[i][0], &values[i][1],
+                     &values[i][2], &extra, 1u) != 3)
+            error = Tr("Colors need three numbers between 0 and 1, separated by spaces.");
+    }
     if (props.kind == FormFieldKind::Signature) props.defaultValue = {};
     if (!len(error)) {
         if (data->widget) {
@@ -146,6 +189,8 @@ Annotation* PlaceFormField(MainWindow* win, int cmdId, int pageNo, RectF rect) {
     data.pageNo = pageNo;
     data.rect = rect;
     data.props.kind = cmdId == CmdPrepareForm ? FormFieldKind::Text : (FormFieldKind)(cmdId - CmdCreateFormText);
+    if (cmdId >= CmdCreateFormListBox && cmdId <= CmdCreateFormDate)
+        data.props.kind = (FormFieldKind)((int)FormFieldKind::ListBox + cmdId - CmdCreateFormListBox);
     data.props.name = fmt("Field%d", EngineMupdfCountFormFields(win->AsFixed()->GetEngine()) + 1);
     CommitFormFieldEdit(true);
     INT_PTR result = DialogBoxParamW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDD_FORM_FIELD), win->hwndFrame,

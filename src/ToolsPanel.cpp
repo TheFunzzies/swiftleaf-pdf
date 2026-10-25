@@ -41,10 +41,11 @@ struct ToolDef {
     Str unavailableTip;
 };
 static const ToolDef tools[] = {
-    {gLucideFileOutput, TrN("Export a PDF"), CmdConvertPdfToImages},
+    {gLucideFileOutput, TrN("Export a PDF"), CmdExportPdf},
+    {gLucideFileOutput, TrN("To images"), CmdConvertPdfToImages},
     {gLucidePenTool, TrN("Fill & Sign"), CmdSignWithImage},
     {gLucideFilePen, TrN("Edit a PDF"), CmdToggleEditPDF},
-    {gLucideFilePlus, TrN("Create a PDF"), CmdConvertToPDF},
+    {gLucideFilePlus, TrN("Create a PDF"), CmdCreatePdfFiles},
     {gLucideCombine, TrN("Combine files"), CmdMergePDF},
     {gLucideLayoutGrid, TrN("Organize pages"), CmdToggleThumbnails},
     {gLucideMessageSquareText, TrN("Add comments"), CmdFindAnnotation},
@@ -53,6 +54,7 @@ static const ToolDef tools[] = {
     {gLucideRectangleHorizontal, TrN("Redact a PDF"), CmdCreateAnnotRedact},
     {gLucideFileArchive, TrN("Compress a PDF"), CmdPdfCompress},
     {gLucideTextCursorInput, TrN("Prepare a form"), CmdPrepareForm},
+    {gLucideTextCursorInput, TrN("Detect fields"), CmdDetectFormFields},
     {gLucideStamp, TrN("Add a stamp"), CmdCreateAnnotStamp},
     {gLucideBadgeCheck, TrN("Use a certificate"), CmdSignDocument},
     {gLucideStamp, TrN("Add watermark"), CmdAddWatermark},
@@ -62,6 +64,16 @@ static const ToolDef tools[] = {
     {gLucideRectangleHorizontal, TrN("Redact all matches"), CmdPdfRedactSearch},
     {gLucideRuler, TrN("Measure"), CmdMeasureDistance},
     {gLucideMessageSquareText, TrN("Review & comments"), CmdCommentSummary},
+    {gLucideLayoutGrid, TrN("Crop pages"), CmdCropPages},
+    {gLucideLayoutGrid, TrN("N-up pages"), CmdPdfNUp},
+    {gLucideStamp, TrN("Page background"), CmdPdfPageBackground},
+    {gLucideFilePlus, TrN("Duplicate pages"), CmdDuplicatePages},
+    {gLucideFilePen, TrN("Document properties"), CmdEditDocumentProperties},
+    {gLucidePaperclip, TrN("Attachments"), CmdManageAttachments},
+    {gLucideBookmark, TrN("Edit bookmarks"), CmdEditBookmarks},
+    {gLucideType, TrN("Page numbering"), CmdEditPageLabels},
+    {gLucideShield, TrN("Repair PDF"), CmdPdfRepair},
+    {gLucideLayers, TrN("Document layers"), CmdPdfManageLayers},
 };
 
 static const ToolDef stripTools[] = {

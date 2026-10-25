@@ -23,6 +23,7 @@
 #include "Commands.h"
 #include "Toolbar.h"
 #include "SumatraDialogs.h"
+#include "FormAuthoring.h"
 #include "FormFields.h"
 
 // One field is edited at a time: either a text edit box or a choice list box
@@ -346,6 +347,7 @@ bool StartFormFieldEdit(MainWindow* win, Annotation* widget) {
     if (!win || !AnnotationIsLive(widget)) {
         return false;
     }
+    if (StartFormAction(win, widget)) return true;
     int wt = GetWidgetType(widget);
     bool isText = (wt == PDF_WIDGET_TYPE_TEXT);
     bool isChoice = (wt == PDF_WIDGET_TYPE_COMBOBOX) || (wt == PDF_WIDGET_TYPE_LISTBOX);

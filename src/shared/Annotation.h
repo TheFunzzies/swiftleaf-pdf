@@ -222,7 +222,11 @@ enum class FormFieldKind {
     Checkbox,
     Radio,
     Combo,
-    Signature
+    Signature,
+    ListBox,
+    PushButton,
+    Image,
+    Date
 };
 
 struct FormFieldProperties {
@@ -230,7 +234,19 @@ struct FormFieldProperties {
     Str name;
     Str defaultValue;
     Str options;
+    Str tooltip;
+    Str font = StrL("Helv");
+    Str format;
+    Str action;
+    Str target;
     float fontSize = 12;
+    float textColor[3] = {0, 0, 0};
+    float borderColor[3] = {0, 0, 0};
+    float backgroundColor[3] = {1, 1, 1};
+    float borderWidth = 1;
+    int maxLength = 0;
+    bool multiline = false;
+    bool comb = false;
     bool required = false;
     bool readOnly = false;
 };

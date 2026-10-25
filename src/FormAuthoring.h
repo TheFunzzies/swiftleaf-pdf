@@ -7,3 +7,6 @@ struct Annotation;
 bool IsFormAuthoringCommand(int cmdId);
 Annotation* PlaceFormField(MainWindow*, int cmdId, int pageNo, RectF);
 void EditFormFieldProperties(MainWindow*, Annotation*);
+
+void RunFormOperation(MainWindow*, int cmdId);
+bool StartFormAction(MainWindow*, Annotation*);

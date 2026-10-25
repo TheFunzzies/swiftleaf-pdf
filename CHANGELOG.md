@@ -1,10 +1,4 @@
-# Changelog
-
-## Unreleased
-
-### Added
-
-- Review & Measurement tools (TASK W-REVIEW):
+# Changelo- Review & Measurement tools (TASK W-REVIEW):
   - Comments import and export in XFDF (ISO 19444-1) and FDF formats.
   - Comment summary generation to PDF, text outline, and CSV tabular formats.
   - Flatten comments baking annotations directly into page content streams.
@@ -15,6 +9,34 @@
   - Measurement persistence in PDF /Measure dictionary and CSV export.
   - Callout, Arrow, Text Box, Replace Text, Polygon, Polyline, Squiggly, and Caret annotation tools registered in Ribbon, Edit tab, All tools, and context menus.
   - Documentation in docs/review-tools.md and roundtrip unit tests in src/tests/Sumatra_ut.cpp.
+g
+
+## Unreleased
+
+### Added
+
+- Export PDF pages to DOCX, PPTX, XLSX, HTML, RTF, Markdown, spaced text, JSON and per-page SVG ZIP with page ranges and a limitations note.
+- Create or combine PDFs from Office files, text, RTF, HTML, Markdown, images and clipboard images. Office uses Microsoft Office automation or LibreOffice when available.
+- Advanced AcroForm tools: field detection with candidate preview, list boxes,
+  reset/link/submit-action buttons, image and date fields, expanded field
+  properties, tab-order editing, FDF/XFDF/CSV/JSON data exchange, Clear Form
+  and flatten-to-copy. Submit actions are for other readers; calculations,
+  validation ranges and input masks require JavaScript and are not authored.
+  See `docs/form-authoring.md` for compatibility limits.
+- Comprehensive page and document production tools (PageTools2):
+  - Crop pages and edit page boxes (Media, Crop, Trim, Bleed, Art) with numeric dialog and automatic white margin removal.
+  - Multi-page imposition: N-up / grid (2, 4, 6, 8, 9, 16 pages per sheet), saddle-stitch booklet creation, posterize tiling with overlap margins, horizontal/vertical page division, and combine pages into a continuous tall page.
+  - Page background color (custom RGB) and image underlay with opacity support.
+  - Page ordering and cleanup: duplicate pages, reverse page order, insert blank pages, automated blank page detection and removal, lossless skew detection and page deskewing.
+  - Document properties editor: view and edit Title, Author, Subject, Keywords, and XMP metadata packets.
+  - Embedded attachments manager: inspect, embed, extract, and remove document file attachments.
+  - Bookmark / outline editor: create, edit, reorder outlines, and auto-generate bookmarks from document headings.
+  - Custom page numbering and page labels: configure decimal, Roman, and alphabetic ranges with custom prefixes and starting numbers.
+  - PDF optimization and repair: Linearize for fast web view, repair damaged cross-reference tables, rasterize pages at custom DPI, convert to grayscale, invert colors losslessly, remove annotations, and remove links.
+  - Document layers (OCG) panel: list layers, toggle visibility, and flatten layers permanently into page content.
+  - Registered all tools under Ribbon tabs (Organize, Edit, Protect), All tools panel, and Command palette.
+  - Unit tests in `Sumatra_ut.cpp` verifying page transformations, text extraction, properties, attachments, bookmarks, labels, and recovery.
+  - Documentation in `docs/page-tools.md`.
 
 ## 0.5.0 - 2026-10-24
 

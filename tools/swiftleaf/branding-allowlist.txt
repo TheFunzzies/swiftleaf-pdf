@@ -8,6 +8,8 @@ AUTHORS
 COPYING
 COPYING.BSD
 docs/upstream-readme.md
+docs/signpath-application.md
+docs/comparison-pdfcraft.md
 # Historical identifier migration notes.
 docs/rename-notes.md
 docs/signpath-application.md

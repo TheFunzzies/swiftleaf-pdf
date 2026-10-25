@@ -28,12 +28,17 @@
 #include "SvgIcons.h"
 #include "EngineAll.h"
 #include "Annotation.h"
+#include "AdvancedForms.h"
 #include "shared/PdfTools.h"
 #include "CommentIO.h"
 #include "Measure.h"
+#include "PageTools2.h"
 #include <mupdf/pdf.h>
 #include "AppUnitTests.h"
 #include "Ocr.h"
+#if !defined(SUMATRA_NG)
+#include "ExportFormats.h"
+#endif
 
 // must be last to over-write assert()
 #include "base/tests/UtAssert.h"
@@ -569,6 +574,115 @@ static void ParseTip_UnitTests() {
         utassert(str::Eq(tip->links.next->next->cmd, StrL("CmdNavigateFilesInFolder")));
         delete tip;
     }
+}
+
+static void AdvancedFormsTest() {
+    Str content = StrL("BT /F1 12 Tf 40 720 Td (Name: __________) Tj ET\n40 650 m 220 650 l S\n40 600 16 16 re S\n");
+    Str objects[] = {StrL("<< /Type /Catalog /Pages 2 0 R >>"), StrL("<< /Type /Pages /Count 1 /Kids [3 0 R] >>"),
+                     StrL("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> "
+                          "/Contents 5 0 R >>"),
+                     StrL("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+                     fmt("<< /Length %d >>\nstream\n%sendstream", len(content), content)};
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    int offsets[5];
+    for (int i = 0; i < 5; i++) {
+        offsets[i] = len(pdf);
+        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, objects[i]));
+    }
+    int xref = len(pdf);
+    pdf.Append(StrL("xref\n0 6\n0000000000 65535 f \n"));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+    EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("advanced-forms.pdf"), nullptr);
+    utassert(e != nullptr);
+    Str error;
+    Vec<FormCandidate> candidates;
+    utassert(DetectFormFields(e, candidates, error));
+    utassert(len(candidates) >= 3 && EngineMupdfCountFormFields(e) == 0);
+    FormFieldProperties p;
+    Annotation* fields[9]{};
+    for (int i = 0; i < 9; i++) {
+        p = {};
+        p.kind = (FormFieldKind)i;
+        p.name = fmt("Field%d", i);
+        p.tooltip = StrL("Helpful tooltip");
+        p.font = StrL("Cour");
+        p.fontSize = 11;
+        p.textColor[2] = 0.7f;
+        p.borderColor[0] = 0.5f;
+        p.backgroundColor[0] = 0.9f;
+        p.borderWidth = 2;
+        p.options = StrL("First\nSecond");
+        p.action = StrL("reset");
+        if (p.kind == FormFieldKind::Text) {
+            p.maxLength = 32;
+            p.comb = true;
+            p.defaultValue = StrL("Original");
+        }
+        if (p.kind == FormFieldKind::Date) {
+            p.format = StrL("date:yyyy-mm-dd");
+            p.defaultValue = StrL("2026-10-24");
+        }
+        if (p.kind == FormFieldKind::ListBox) p.defaultValue = StrL("Second");
+        fields[i] = CreateFormField(e, 1, {300.f - i * 20, 250.f + i * 30, 150.f, 24.f}, p, error);
+        utassert(fields[i] != nullptr);
+    }
+    utassert(EngineMupdfCountFormFields(e) == 9);
+    utassert(GetWidgetType(fields[5]) == PDF_WIDGET_TYPE_LISTBOX);
+    utassert(GetWidgetType(fields[6]) == PDF_WIDGET_TYPE_BUTTON);
+    utassert(GetWidgetType(fields[7]) == PDF_WIDGET_TYPE_BUTTON);
+    utassert(SetWidgetTextValue(fields[0], StrL("Ada, \"L\"\n\xc3\xa9")));
+    utassert(SetWidgetChoiceValue(fields[5], StrL("First")));
+    utassert(ToggleFormButton(fields[1]));
+    for (int i = 0; i < 4; i++) {
+        Str data = ExportFormData(e, (FormDataFormat)i, error);
+        utassert(len(data) > 0);
+        utassert(ClearFormData(e, error));
+        utassert(!len(GetWidgetValue(fields[0])));
+        utassert(ImportFormData(e, (FormDataFormat)i, data, error));
+        utassert(str::Eq(GetWidgetValue(fields[0]), StrL("Ada, \"L\"\n\xc3\xa9")));
+        utassert(str::Eq(GetWidgetValue(fields[1]), StrL("Yes")));
+        utassert(str::Eq(GetWidgetValue(fields[5]), StrL("First")));
+    }
+    utassert(!ImportFormData(e, FormDataFormat::Json, StrL("{\"Field0\":\"Changed\",\"Unknown\":\"value\"}"), error));
+    utassert(str::Eq(GetWidgetValue(fields[0]), StrL("Ada, \"L\"\n\xc3\xa9")));
+    utassert(!ImportFormData(e, FormDataFormat::Csv, StrL("name,value\nField0,one,extra\n"), error));
+    utassert(!ImportFormData(e, FormDataFormat::Json, StrL("{\"Field5\":\"Unknown option\"}"), error));
+    utassert(!SetFormTabOrder(e, FormTabOrder::Manual, StrL("Field0"), error));
+    utassert(SetFormTabOrder(e, FormTabOrder::Column, {}, error));
+    Vec<Annotation*> widgets;
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    utassert(GetFormFieldProperties(widgets[0], p) && str::Eq(p.name, StrL("Field8")));
+    utassert(SetFormTabOrder(e, FormTabOrder::Row, {}, error));
+    utassert(!SetFormTabOrder(e, FormTabOrder::Structure, {}, error));
+    utassert(SetFormTabOrder(e, FormTabOrder::Manual,
+                             StrL("Field8\nField7\nField6\nField5\nField4\nField3\nField2\nField1\nField0"), error));
+    TempStr path = GetTempFilePathTemp(StrL("advanced-forms"));
+    TempStr flattened = GetTempFilePathTemp(StrL("flattened-form"));
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    utassert(SaveFlattenedForm(e, flattened, error));
+    utassert(EngineMupdfCountFormFields(e) == 9);
+    SafeEngineRelease(&e);
+    e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+    utassert(e && EngineMupdfCountFormFields(e) == 9);
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    utassert(GetFormFieldProperties(widgets[0], p) && p.kind == FormFieldKind::Date);
+    utassert(str::Eq(p.format, StrL("date:yyyy-mm-dd")));
+    utassert(GetFormFieldProperties(widgets[1], p) && p.kind == FormFieldKind::Image);
+    utassert(GetFormFieldProperties(widgets[2], p) && p.kind == FormFieldKind::PushButton &&
+             str::Eq(p.action, StrL("reset")));
+    utassert(GetFormFieldProperties(widgets[3], p) && p.kind == FormFieldKind::ListBox);
+    utassert(GetFormFieldProperties(widgets[9], p));
+    utassert(str::Eq(p.tooltip, StrL("Helpful tooltip")) && str::Eq(p.font, StrL("Cour")));
+    utassert(p.comb && p.maxLength == 32 && p.borderWidth == 2);
+    utassert(fabsf(p.textColor[2] - 0.7f) < 0.001f && fabsf(p.backgroundColor[0] - 0.9f) < 0.001f);
+    SafeEngineRelease(&e);
+    e = CreateEngineMupdfFromFile(flattened, FileType::PDF, 96);
+    utassert(e && EngineMupdfCountFormFields(e) == 0);
+    SafeEngineRelease(&e);
+    file::Delete(path);
+    file::Delete(flattened);
 }
 
 static void FormAuthoringTest() {
@@ -1404,6 +1518,258 @@ static void PageStampsTest() {
     file::Delete(basePdf);
 }
 
+
+static void PageTools2Test() {
+    const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",
+                             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+                             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"};
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    int offsets[4];
+    for (int i = 0; i < 4; i++) {
+        offsets[i] = len(pdf);
+        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, Str(objects[i])));
+    }
+    int xref = len(pdf);
+    pdf.Append(StrL("xref\n0 5\n0000000000 65535 f \n"));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+
+    TempStr basePdf = GetTempFilePathTemp(StrL("base-pt2.pdf"));
+    utassert(file::WriteFile(basePdf, ToStrTemp(pdf)));
+
+    // 1. Crop & edit page boxes
+    {
+        PdfPageBoxesParams bp;
+        bp.boxType = 1; // CropBox
+        bp.marginLeft = 50;
+        bp.marginBottom = 50;
+        bp.marginRight = 50;
+        bp.marginTop = 50;
+        bp.pagesSpec = StrL("all");
+        TempStr cropPdf = GetTempFilePathTemp(StrL("crop-test.pdf"));
+        bool ok = PdfApplyPageBoxes(basePdf, cropPdf, bp);
+        utassert(ok);
+        EngineBase* e = CreateEngineMupdfFromFile(cropPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(cropPdf);
+    }
+
+    // 2. N-up and Combine Long Page
+    {
+        PdfNUpParams nup;
+        nup.pagesPerSheet = 2;
+        nup.drawBorders = true;
+        TempStr nupPdf = GetTempFilePathTemp(StrL("nup-test.pdf"));
+        bool ok = PdfApplyNUp(basePdf, nupPdf, nup);
+        utassert(ok);
+        EngineBase* e = CreateEngineMupdfFromFile(nupPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 1);
+        SafeEngineRelease(&e);
+        file::Delete(nupPdf);
+
+        TempStr longPdf = GetTempFilePathTemp(StrL("long-test.pdf"));
+        ok = PdfApplyCombineLongPage(basePdf, longPdf);
+        utassert(ok);
+        e = CreateEngineMupdfFromFile(longPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 1);
+        SafeEngineRelease(&e);
+        file::Delete(longPdf);
+    }
+
+    // 3. Page Background Color
+    {
+        PdfBackgroundParams bg;
+        bg.useColor = true;
+        bg.color = RGB(255, 200, 200);
+        bg.pagesSpec = StrL("all");
+        TempStr bgPdf = GetTempFilePathTemp(StrL("bg-test.pdf"));
+        bool ok = PdfApplyPageBackground(basePdf, bgPdf, bg);
+        utassert(ok);
+        EngineBase* e = CreateEngineMupdfFromFile(bgPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(bgPdf);
+    }
+
+    // 4. Duplicate, Reverse, Insert Blank
+    {
+        TempStr dupPdf = GetTempFilePathTemp(StrL("dup-test.pdf"));
+        bool ok = PdfDuplicatePages(basePdf, dupPdf, StrL("1"));
+        utassert(ok);
+        EngineBase* e = CreateEngineMupdfFromFile(dupPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 3);
+        SafeEngineRelease(&e);
+        file::Delete(dupPdf);
+
+        TempStr revPdf = GetTempFilePathTemp(StrL("rev-test.pdf"));
+        ok = PdfReversePageOrder(basePdf, revPdf);
+        utassert(ok);
+        e = CreateEngineMupdfFromFile(revPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(revPdf);
+
+        TempStr insPdf = GetTempFilePathTemp(StrL("ins-test.pdf"));
+        ok = PdfInsertBlankPages(basePdf, insPdf, 1, 1);
+        utassert(ok);
+        e = CreateEngineMupdfFromFile(insPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 3);
+        SafeEngineRelease(&e);
+        file::Delete(insPdf);
+    }
+
+    // 5. Document Properties
+    {
+        PdfDocPropsParams props;
+        props.title = StrL("Custom Title");
+        props.author = StrL("Author Name");
+        props.subject = StrL("Test Subject");
+        props.keywords = StrL("k1, k2, k3");
+        TempStr propPdf = GetTempFilePathTemp(StrL("prop-test.pdf"));
+        bool ok = PdfSetDocProps(basePdf, propPdf, props);
+        utassert(ok);
+
+        PdfDocPropsParams readProps;
+        ok = PdfGetDocProps(propPdf, readProps);
+        utassert(ok);
+        utassert(str::Eq(readProps.title, StrL("Custom Title")));
+        utassert(str::Eq(readProps.author, StrL("Author Name")));
+        str::Free(readProps.title);
+        str::Free(readProps.author);
+        str::Free(readProps.subject);
+        str::Free(readProps.keywords);
+        str::Free(readProps.xmp);
+        file::Delete(propPdf);
+    }
+
+    // 6. Attachments
+    {
+        TempStr txtFile = GetTempFilePathTemp(StrL("attach.txt"));
+        file::WriteFile(txtFile, StrL("attachment data"));
+        TempStr attachPdf = GetTempFilePathTemp(StrL("attach-test.pdf"));
+        bool ok = PdfAddAttachment(basePdf, attachPdf, txtFile);
+        utassert(ok);
+
+        Vec<PdfAttachmentInfo> list;
+        ok = PdfListAttachments(attachPdf, list);
+        utassert(ok);
+        utassert(len(list) == 1);
+        for (auto& a : list) str::Free(a.name);
+
+        TempStr delPdf = GetTempFilePathTemp(StrL("attach-del.pdf"));
+        TempStr baseName = path::GetBaseNameTemp(txtFile);
+        ok = PdfDeleteAttachment(attachPdf, delPdf, baseName);
+        utassert(ok);
+        Vec<PdfAttachmentInfo> list2;
+        PdfListAttachments(delPdf, list2);
+        utassert(len(list2) == 0);
+
+        file::Delete(txtFile);
+        file::Delete(attachPdf);
+        file::Delete(delPdf);
+    }
+
+    // 7. Bookmarks
+    {
+        Vec<PdfBookmarkItem> bms;
+        PdfBookmarkItem b1{StrL("Chapter 1"), 1, 0};
+        PdfBookmarkItem b2{StrL("Chapter 2"), 2, 0};
+        VecAppend(bms, b1);
+        VecAppend(bms, b2);
+        TempStr bmPdf = GetTempFilePathTemp(StrL("bm-test.pdf"));
+        bool ok = PdfSaveBookmarks(basePdf, bmPdf, bms);
+        utassert(ok);
+
+        Vec<PdfBookmarkItem> readBms;
+        ok = PdfListBookmarks(bmPdf, readBms);
+        utassert(ok);
+        utassert(len(readBms) == 2);
+        for (auto& b : readBms) str::Free(b.title);
+        file::Delete(bmPdf);
+    }
+
+    // 8. Page Labels
+    {
+        Vec<PdfPageLabelRange> ranges;
+        PdfPageLabelRange r1{0, 'R', {}, 1};
+        VecAppend(ranges, r1);
+        TempStr lblPdf = GetTempFilePathTemp(StrL("lbl-test.pdf"));
+        bool ok = PdfSetPageLabelRanges(basePdf, lblPdf, ranges);
+        utassert(ok);
+
+        Vec<Str> labels;
+        ok = PdfGetPageLabels(lblPdf, labels);
+        utassert(ok);
+        utassert(len(labels) == 2);
+        utassert(str::Eq(labels[0], StrL("I")));
+        utassert(str::Eq(labels[1], StrL("II")));
+        for (auto& l : labels) str::Free(l);
+        file::Delete(lblPdf);
+    }
+
+    // 9. Linearize, Grayscale, Invert, Repair
+    {
+        TempStr linPdf = GetTempFilePathTemp(StrL("lin-test.pdf"));
+        bool ok = PdfLinearize(basePdf, linPdf);
+        utassert(ok);
+        EngineBase* e = CreateEngineMupdfFromFile(linPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(linPdf);
+
+        TempStr grayPdf = GetTempFilePathTemp(StrL("gray-test.pdf"));
+        ok = PdfConvertToGrayscale(basePdf, grayPdf);
+        utassert(ok);
+        e = CreateEngineMupdfFromFile(grayPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(grayPdf);
+
+        TempStr invPdf = GetTempFilePathTemp(StrL("inv-test.pdf"));
+        ok = PdfInvertColors(basePdf, invPdf);
+        utassert(ok);
+        e = CreateEngineMupdfFromFile(invPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(invPdf);
+
+        TempStr repPdf = GetTempFilePathTemp(StrL("rep-test.pdf"));
+        ok = PdfRepair(basePdf, repPdf);
+        utassert(ok);
+        e = CreateEngineMupdfFromFile(repPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(repPdf);
+    }
+
+    // 10. Layers (OCG)
+    {
+        TempStr flatPdf = GetTempFilePathTemp(StrL("flat-test.pdf"));
+        bool ok = PdfFlattenLayers(basePdf, flatPdf);
+        utassert(ok);
+        EngineBase* e = CreateEngineMupdfFromFile(flatPdf, FileType::PDF, 96);
+        utassert(e != nullptr);
+        utassert(e->PageCount() == 2);
+        SafeEngineRelease(&e);
+        file::Delete(flatPdf);
+    }
+
+    file::Delete(basePdf);
+}
+
 static LONG WINAPI ForAiCrashHandler(EXCEPTION_POINTERS* ei) {
     printf("unit tests crash\n");
     str::Builder s;
@@ -1446,7 +1812,12 @@ int RunAppUnitTests(bool forAi) {
     printf("Panel layout, settings and animation tests passed\n");
     utassert(EngineMupdf_UnitTestPanelData());
     FormAuthoringTest();
+    AdvancedFormsTest();
     PageStampsTest();
+#if !defined(SUMATRA_NG)
+    ExportFormatsUnitTests();
+#endif
+    PageTools2Test();
     PdfDocumentToolsTest();
     ReviewToolsTest();
 
