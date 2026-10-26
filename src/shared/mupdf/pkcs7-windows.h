@@ -20,12 +20,14 @@ pdf_signature_error pkcs7_windows_check_digest(fz_context* ctx, fz_stream* stm, 
 pdf_signature_error pkcs7_windows_check_certificate(char* sig, size_t sig_len);
 pdf_pkcs7_distinguished_name* pkcs7_windows_distinguished_name(fz_context* ctx, char* sig, size_t sig_len);
 
+uint32_t pkcs7_windows_chain_status(unsigned char* sig, size_t sig_len, int64_t signing_time);
+
 pdf_pkcs7_verifier* pkcs7_windows_new_verifier(fz_context* ctx);
 
 pdf_pkcs7_signer* pkcs7_windows_read_pfx(fz_context* ctx, const char* pfile, const char* pw);
 pdf_pkcs7_signer* pkcs7_windows_read_pfx_from_buffer(fz_context* ctx, fz_buffer* buf, const char* pw);
 pdf_pkcs7_signer* pkcs7_windows_read_store(fz_context* ctx, const char* thumbprint_hex);
-void pkcs7_windows_set_tsa_url(pdf_pkcs7_signer* signer, const char* tsa_url);
+int pkcs7_windows_set_tsa_url(pdf_pkcs7_signer* signer, const char* tsa_url);
 
 typedef struct {
     char* signer_cn;
@@ -55,6 +57,7 @@ typedef struct {
     unsigned char* cert_der;
     int cert_der_len;
     int has_timestamp;
+    int64_t trusted_time_unix;
     int n_ts;
     pkcs7_windows_ts_info ts[PKCS7_WINDOWS_MAX_TS];
 } pkcs7_windows_sig_info;

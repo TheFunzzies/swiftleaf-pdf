@@ -242,7 +242,9 @@ bool EngineMupdfSignDocument(EngineBase* engine, const PdfSignArgs& args, Str* e
             tsaUrl = gSettings->tsaUrl;
         }
         if (len(tsaUrl) > 0 && signer) {
-            pkcs7_windows_set_tsa_url(signer, CStrTemp(tsaUrl));
+            if (!pkcs7_windows_set_tsa_url(signer, CStrTemp(tsaUrl))) {
+                fz_throw(ctx, FZ_ERROR_SYSTEM, "cannot allocate TSA URL");
+            }
         }
 #else
         if (args.certThumbprint) {
@@ -391,7 +393,8 @@ static TempStr FormatPdfDateRawTemp(fz_context* ctx, pdf_obj* obj) {
     str::TrimPrefix(s, StrL("D:"));
     if (s.len < 14) return {};
     char buf[80];
-    int n = snprintf(buf, sizeof(buf), "%.4s/%.2s/%.2s %.2s:%.2s:%.2s", s.s, s.s + 4, s.s + 6, s.s + 8, s.s + 10, s.s + 12);
+    int n =
+        snprintf(buf, sizeof(buf), "%.4s/%.2s/%.2s %.2s:%.2s:%.2s", s.s, s.s + 4, s.s + 6, s.s + 8, s.s + 10, s.s + 12);
     if (n < 0) return {};
     if (s.len > 14) {
         Str tz = Str(s.s + 14, s.len - 14);
@@ -449,15 +452,6 @@ bool EngineMupdfGetSignaturesInfo(EngineBase* engine, Vec<SignatureItemInfo>& ou
                     }
                 }
             }
-            if (!sig.isCertified) {
-                pdf_obj* root = pdf_dict_get(ctx, pdf_trailer(ctx, epdf->pdfdoc), PDF_NAME(Root));
-                pdf_obj* perms = root ? pdf_dict_get(ctx, root, PDF_NAME(Perms)) : nullptr;
-                if (perms && pdf_dict_get(ctx, perms, PDF_NAME(DocMDP))) {
-                    sig.isCertified = true;
-                    sig.mdpPerm = 2;
-                }
-            }
-
             // Reason and Location
             pdf_obj* rObj = pdf_dict_get(ctx, v, PDF_NAME(Reason));
             if (rObj) {
@@ -483,7 +477,6 @@ bool EngineMupdfGetSignaturesInfo(EngineBase* engine, Vec<SignatureItemInfo>& ou
             if (contentsLen > 0) {
                 pkcs7_windows_inspect(ctx, (unsigned char*)contents, contentsLen, &info);
             }
-            fz_free(ctx, contents);
 
             if (info.signer_cn && info.signer_cn[0]) {
                 sig.signerName = str::Dup(StrL(info.signer_cn));
@@ -500,54 +493,63 @@ bool EngineMupdfGetSignaturesInfo(EngineBase* engine, Vec<SignatureItemInfo>& ou
                 sig.certDer = str::Dup(Str((const char*)info.cert_der, (size_t)info.cert_der_len));
             }
 
-            // Verification
-            pdf_signature_error certErr = PDF_SIGNATURE_ERROR_UNKNOWN;
-            pdf_signature_error digErr = PDF_SIGNATURE_ERROR_UNKNOWN;
-            int edits = 0;
-            if (verifier) {
-                certErr = pdf_check_certificate(ctx, verifier, epdf->pdfdoc, field);
-                digErr = pdf_check_digest(ctx, verifier, epdf->pdfdoc, field);
-                edits = pdf_signature_incremental_change_since_signing(ctx, epdf->pdfdoc, field);
+            // Digest checks the signed revision; later revisions have separate policy checks.
+            pdf_signature_error digErr = pdf_check_digest(ctx, verifier, epdf->pdfdoc, field);
+            int edits = pdf_signature_incremental_change_since_signing(ctx, epdf->pdfdoc, field);
+            bool permitted = pdf_validate_signature(ctx, epdf->pdfdoc, field) == 0;
+            int unsaved = pdf_count_unsaved_versions(ctx, epdf->pdfdoc);
+            int version = pdf_find_version_for_obj(ctx, epdf->pdfdoc, v) - unsaved;
+            for (int i = version - 1; i >= 0; i--) {
+                if (!pdf_validate_changes(ctx, epdf->pdfdoc, i)) permitted = false;
             }
 
-            int64_t nowUnix = (int64_t)time(nullptr);
-            bool isExpired = (info.not_after_unix > 0 && nowUnix > info.not_after_unix);
-
-            bool isRevoked = false;
-            if (info.cert_der && info.cert_der_len > 0) {
-                PCCERT_CONTEXT pCert = CertCreateCertificateContext(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
-                                                                   info.cert_der, (DWORD)info.cert_der_len);
-                if (pCert) {
-                    CERT_CHAIN_PARA chainPara{};
-                    chainPara.cbSize = sizeof(chainPara);
-                    PCCERT_CHAIN_CONTEXT pChain = nullptr;
-                    if (CertGetCertificateChain(nullptr, pCert, nullptr, nullptr, &chainPara,
-                                                CERT_CHAIN_REVOCATION_CHECK_CHAIN, nullptr, &pChain)) {
-                        if (pChain->TrustStatus.dwErrorStatus & CERT_TRUST_IS_REVOKED) {
-                            isRevoked = true;
-                        }
-                        CertFreeCertificateChain(pChain);
-                    }
-                    CertFreeCertificateContext(pCert);
-                }
-            }
-
-            if (digErr != PDF_SIGNATURE_ERROR_OKAY || edits > 0) {
+            // /M is a signed claim. Only a verified, trusted timestamp proves time.
+            int64_t signTime = info.trusted_time_unix;
+            if (!signTime) signTime = pdf_dict_get_date(ctx, v, PDF_NAME(M));
+            DWORD trust = pkcs7_windows_chain_status((unsigned char*)contents, contentsLen, signTime);
+            fz_free(ctx, contents);
+            const DWORD revUnknown = CERT_TRUST_REVOCATION_STATUS_UNKNOWN | CERT_TRUST_IS_OFFLINE_REVOCATION;
+            if (digErr == PDF_SIGNATURE_ERROR_DIGEST_FAILURE || !permitted) {
                 sig.status = SignatureStatus::ModifiedAfterSigning;
-                sig.statusDesc = str::Dup(StrL("Document has been modified or corrupted after signing"));
-            } else if (isRevoked) {
+                sig.statusDesc = str::Dup(StrL("Signed bytes changed or later changes violate signature permissions"));
+            } else if (digErr != PDF_SIGNATURE_ERROR_OKAY) {
+                sig.status = SignatureStatus::UnknownSigner;
+                sig.statusDesc = str::Dup(StrL("Signature integrity could not be verified"));
+            } else if (trust & CERT_TRUST_IS_REVOKED) {
                 sig.status = SignatureStatus::Revoked;
                 sig.statusDesc = str::Dup(StrL("Certificate was revoked by issuer"));
-            } else if (isExpired) {
+            } else if (trust & CERT_TRUST_IS_NOT_TIME_VALID) {
                 sig.status = SignatureStatus::Expired;
-                sig.statusDesc = str::Dup(StrL("Certificate has expired"));
-            } else if (certErr != PDF_SIGNATURE_ERROR_OKAY) {
+                sig.statusDesc = str::Dup(StrL("Certificate was not valid at the evaluated signing time"));
+            } else if (trust & ~revUnknown) {
                 sig.status = SignatureStatus::UnknownSigner;
-                sig.statusDesc = str::Dup(StrL("Signer certificate is untrusted or self-signed"));
+                sig.statusDesc = str::Dup(StrL("Signer certificate chain is untrusted or could not be verified"));
+            } else if (trust & revUnknown) {
+                sig.status = SignatureStatus::UnknownSigner;
+                sig.statusDesc = str::Dup(StrL("Signature integrity verified; certificate revocation status unknown"));
             } else {
                 sig.status = SignatureStatus::Valid;
-                sig.statusDesc = str::Dup(StrL("Signature is valid and document has not been modified"));
+                sig.statusDesc = str::Dup(edits ? StrL("Signature valid; permitted incremental changes")
+                                                : StrL("Signature valid; signed revision unchanged"));
             }
+            str::Builder detail;
+            detail.Append(sig.statusDesc);
+            if (info.trusted_time_unix > 0) {
+                detail.Append(StrL(". Signing time established by trusted RFC 3161 timestamp"));
+            } else if (info.has_timestamp) {
+                detail.Append(StrL(". Timestamp present but unverified or untrusted; signing time not proven"));
+            } else if (signTime > 0) {
+                detail.Append(StrL(". No trusted timestamp; signing time is a signer claim"));
+            } else {
+                detail.Append(StrL(". Signing time unknown; certificate evaluated at current time"));
+            }
+            if (edits && permitted && digErr == PDF_SIGNATURE_ERROR_OKAY) {
+                detail.Append(sig.isCertified ? StrL(". Later changes comply with DocMDP permissions")
+                                              : StrL(". Later incremental changes permitted by signature locks"));
+            }
+            if (trust & revUnknown) detail.Append(StrL(". Revocation status unknown; no historical revocation proof"));
+            str::Free(sig.statusDesc);
+            sig.statusDesc = str::Dup(ToStrTemp(detail));
 
             pkcs7_windows_sig_info_free(ctx, &info);
             VecAppend(outSigs, sig);
@@ -600,7 +602,8 @@ bool EngineMupdfClearSignature(EngineBase* engine, Str fieldName) {
                 pdf_obj* perms = pdf_dict_get(ctx, root, PDF_NAME(Perms));
                 if (perms) {
                     pdf_obj* mdp = pdf_dict_get(ctx, perms, PDF_NAME(DocMDP));
-                    if (mdp && v && (mdp == v || (pdf_to_num(ctx, mdp) > 0 && pdf_to_num(ctx, mdp) == pdf_to_num(ctx, v)))) {
+                    if (mdp && v &&
+                        (mdp == v || (pdf_to_num(ctx, mdp) > 0 && pdf_to_num(ctx, mdp) == pdf_to_num(ctx, v)))) {
                         pdf_dict_del(ctx, perms, PDF_NAME(DocMDP));
                     }
                 }
@@ -705,7 +708,11 @@ bool EngineMupdfSignDocument(EngineBase*, const PdfSignArgs&, Str* errOut) {
 }
 
 void ListWindowsSigningCertificates(StrVec&, StrVec&) {}
-bool EngineMupdfGetSignaturesInfo(EngineBase*, Vec<SignatureItemInfo>&) { return false; }
-bool EngineMupdfClearSignature(EngineBase*, Str) { return false; }
+bool EngineMupdfGetSignaturesInfo(EngineBase*, Vec<SignatureItemInfo>&) {
+    return false;
+}
+bool EngineMupdfClearSignature(EngineBase*, Str) {
+    return false;
+}
 
 #endif
