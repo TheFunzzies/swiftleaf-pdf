@@ -530,7 +530,6 @@ static void AuditByteContributions(Str path, PdfOptimizationAudit* audit) {
 
         int n = pdf_count_objects(ctx, doc);
         for (int i = 1; i < n; i++) {
-            if (!pdf_object_exists(ctx, doc, i)) continue;
             pdf_obj* obj = pdf_load_object(ctx, doc, i);
             if (!obj) continue;
 
@@ -542,7 +541,12 @@ static void AuditByteContributions(Str path, PdfOptimizationAudit* audit) {
 
                 if (sz > 0) {
                     pdf_obj* type = pdf_dict_get(ctx, obj, PDF_NAME(Type));
-                    if (pdf_is_image_stream(ctx, obj)) {
+                    pdf_obj* subtype = pdf_dict_get(ctx, obj, PDF_NAME(Subtype));
+                    bool isImage = (type && pdf_name_eq(ctx, type, PDF_NAME(XObject)) &&
+                                    subtype && pdf_name_eq(ctx, subtype, PDF_NAME(Image))) ||
+                                   (pdf_dict_get(ctx, obj, PDF_NAME(Width)) != nullptr &&
+                                    pdf_dict_get(ctx, obj, PDF_NAME(Height)) != nullptr);
+                    if (isImage) {
                         audit->imageBytes += sz;
                     } else if ((type && pdf_name_eq(ctx, type, PDF_NAME(Font))) ||
                                (pdf_dict_get(ctx, obj, PDF_NAME(Length1)) != nullptr)) {
