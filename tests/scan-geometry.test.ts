@@ -6,6 +6,10 @@ test("OCR undoes preprocessing in interactive and batch paths", () => {
   expect(s.match(/MapOcrWords\(words, preprocessing\)/g)?.length).toBe(2);
   expect(s).toContain("preprocessing.Invert()");
 });
+test("WIA 2.0 feeder mode excludes obsolete source flags", () => {
+  const s = source("src/ScannerWia.cpp");
+  expect(s).not.toContain("FEEDER | ");
+});
 test("scanner transfers device pixels, never manufactures a scan", () => {
   const s = source("src/ScannerWia.cpp");
   expect(s).toContain("->CreateDevice(");

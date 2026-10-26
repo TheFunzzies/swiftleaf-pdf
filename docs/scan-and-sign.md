@@ -7,6 +7,10 @@ missing paper, jams and driver errors fail visibly with the HRESULT. Empty or
 invalid transfers never produce a substitute blank page. Real blank paper is
 preserved, including blank duplex backs.
 
+WIA 2.0 selects the source by item category. Feeder mode writes `FRONT_ONLY` or
+`DUPLEX`, without the obsolete WIA 1.0 `FEEDER` flag that strict drivers reject.
+See [document handling modes](https://learn.microsoft.com/en-us/windows-hardware/drivers/image/wia-ips-document-handling-select).
+
 Acquisition runs on a worker. Cancel requests cancellation through the WIA
 callback; response time depends on the driver. Closing while scanning requests
 cancellation and keeps the dialog alive until the worker stops. A PDF is published
