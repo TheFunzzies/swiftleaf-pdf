@@ -1829,9 +1829,9 @@ static void PdfDocumentToolsTest() {
         pdf_dict_put_text_string(ctx, revisionInfo, PDF_NAME(Title), "REVISION-SECRET");
         pdf_write_options incremental = {};
         incremental.do_incremental = 1;
-        pdf_save_document(ctx, doc, CStrTemp(sourcePath), &incremental);
+        pdf_save_document(ctx, doc, CStrTemp(cleanPath), &incremental);
         pdf_drop_document(ctx, doc);
-        doc = pdf_open_document(ctx, CStrTemp(sourcePath));
+        doc = pdf_open_document(ctx, CStrTemp(cleanPath));
         CheckPdfTool(ctx, pdf_count_versions(ctx, doc) > 1, "fixture has incremental history");
         revisionInfo = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
         pdf_dict_put_text_string(ctx, revisionInfo, PDF_NAME(Title), "Current title");
