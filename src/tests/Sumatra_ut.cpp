@@ -2422,6 +2422,13 @@ static void PageTools2Test() {
         utassert(pdf_dict_get(ctx, oi, PDF_NAME(Type)) == PDF_NAME(OutputIntent));
         utassert(pdf_dict_get(ctx, oi, PDF_NAME(DestOutputProfile)) != nullptr);
 
+        TempStr badProfilePdf = GetTempFilePathTemp(StrL("pdfa-bad-profile.pdf"));
+        fz_buffer* badProfile = fz_new_buffer(ctx, 32);
+        fz_append_string(ctx, badProfile, "sRGB Profile");
+        pdf_update_stream(ctx, doc, pdf_dict_get(ctx, oi, PDF_NAME(DestOutputProfile)), badProfile, 0);
+        fz_drop_buffer(ctx, badProfile);
+        pdf_write_options badOpts = pdf_default_write_options;
+        pdf_save_document(ctx, doc, CStrTemp(badProfilePdf), &badOpts);
         pdf_drop_document(ctx, doc);
         fz_drop_context(ctx);
 
@@ -2430,6 +2437,14 @@ static void PageTools2Test() {
         utassert(!valid);
         utassert(len(violations) > 0);
         file::Delete(pdfaPdf);
+        StrVec badViolations;
+        utassert(!ValidatePdfA(badProfilePdf, 1, badViolations));
+        bool rejectedProfile = false;
+        for (const auto finding : badViolations) {
+            if (str::Eq(finding, StrL("Invalid OutputIntent ICC profile bytes"))) rejectedProfile = true;
+        }
+        utassert(rejectedProfile);
+        file::Delete(badProfilePdf);
 
         // (d) Preflight & Report Export & Color Conversion
         PreflightReport prep = RunPreflightFile(basePdf);

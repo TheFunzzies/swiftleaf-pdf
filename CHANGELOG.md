@@ -2,10 +2,6 @@
 
 ## Unreleased
 
-- Accessibility: flag unverified reading order and figure content links; preserve existing tags and label generated roles as drafts.
-- PDF/A: reject invalid ICC profiles, retain transparency, and report unverified conformance and conversion limits.
-- Tools search: enable Tab navigation and avoid minimum-width clipping on resize.
-
 - Recommended section at top of the All tools panel for quick access to primary workflows.
 - Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
 - Command palette lists all commands with description and ribbon tab destination.
@@ -211,7 +207,7 @@
   release as the payload: it detects corruption or local tampering, not a
   compromised release. There is no automatic rollback.
 
-## 0.3.3 â€” 2026-10-15
+## 0.3.3 — 2026-10-15
 
 ### Improved
 
@@ -241,7 +237,7 @@
   saved text follows the PDF page axes. Full Unicode replacement of existing PDF
   text remains unfinished. No performance improvement has been measured.
 
-## 0.3.2 â€” 2026-10-15
+## 0.3.2 — 2026-10-15
 
 ### Improved
 
@@ -263,7 +259,7 @@
 - Edit Text rejects unsupported characters before removing the original text,
   instead of silently substituting question marks. Rejected drafts remain
   available for correction or copying.
-- Windows-1252 characters such as Å’, Å¡, Å¸ and â‚¬ use MuPDF's complete mapping.
+- Windows-1252 characters such as Œ, š, Ÿ and € use MuPDF's complete mapping.
 
 ### Validation and limitations
 
