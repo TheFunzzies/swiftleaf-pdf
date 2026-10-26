@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- PDF signatures: check permitted revisions and signing-time certificate validity; report TSA trust and unknown/offline revocation explicitly.
+
 - PDF signatures: embed verified RFC 3161 tokens over the signature value; fail saving when a requested TSA fails.
 
 - Accessibility: warn about unverified reading order and figure links; preserve existing tags and mark generated roles as drafts.

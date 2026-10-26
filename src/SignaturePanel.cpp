@@ -520,6 +520,12 @@ bool Signature_UnitTests() {
 
     CertSetCertificateContextProperty(pCert, CERT_KEY_PROV_INFO_PROP_ID, 0, &kpi);
 
+#if defined(DEBUG)
+    extern bool PdfSignTimeTest(HCRYPTPROV, CRYPT_KEY_PROV_INFO*, CERT_NAME_BLOB*);
+    bool timeOkay = PdfSignTimeTest(hProv, &kpi, &subjectIssuerBlob);
+    if (!timeOkay) logf("signature historical time test failed\n");
+#endif
+
     HCERTSTORE memStore = CertOpenStore(CERT_STORE_PROV_MEMORY, 0, 0, CERT_STORE_CREATE_NEW_FLAG, nullptr);
     CertAddCertificateContextToStore(memStore, pCert, CERT_STORE_ADD_ALWAYS, nullptr);
 
@@ -548,6 +554,7 @@ bool Signature_UnitTests() {
 
 #if defined(DEBUG)
     extern bool PdfSignCryptoTest(Str pfxPath);
+    if (!timeOkay) return false;
     if (!PdfSignCryptoTest(pfxPath)) return false;
 #endif
 
@@ -562,6 +569,13 @@ bool Signature_UnitTests() {
 
     EngineBase* engine = CreateEngineMupdfFromFile(origPdfPath, FileType::PDF, 96);
     if (engine) {
+#if defined(DEBUG)
+        extern bool PdfSignPrepareTest(EngineBase*);
+        if (!PdfSignPrepareTest(engine)) {
+            SafeEngineRelease(&engine);
+            return false;
+        }
+#endif
         PdfSignArgs signArgs;
         signArgs.certPath = pfxPath;
         signArgs.certPassword = StrL("testpass");
@@ -622,6 +636,17 @@ bool Signature_UnitTests() {
             SafeEngineRelease(&engine);
             return false;
         }
+
+#if defined(DEBUG)
+        extern bool PdfSignChangesTest(Str, Str);
+        Str changedPath = fmt("%s\\swiftleaf_test_changes.pdf", ToUtf8Temp(WStr(tempDir)));
+        if (!PdfSignChangesTest(signedPdfPath, changedPath) ||
+            !str::Contains(sigs[0].statusDesc, StrL("No verified timestamp"))) {
+            FreeSignatures(sigs);
+            SafeEngineRelease(&engine);
+            return false;
+        }
+#endif
 
         // Test Clear Signature
         bool okClear = EngineMupdfClearSignature(engine, sigs[0].fieldName);

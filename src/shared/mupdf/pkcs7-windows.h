@@ -50,6 +50,14 @@ typedef struct {
     int64_t gen_time_unix;
     int64_t not_after_unix;
     int has_qc_statement;
+    int64_t signing_time_unix;
+    int64_t verified_time_unix;
+    int timestamp_checked;
+    int timestamp_valid;
+    int timestamp_trusted;
+    uint32_t timestamp_chain_errors;
+    int chain_checked;
+    uint32_t chain_errors;
     int has_cades_attr;
     int has_sig_policy_attr;
     unsigned char* cert_der;

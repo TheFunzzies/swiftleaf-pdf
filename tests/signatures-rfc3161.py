@@ -44,11 +44,15 @@ def main():
         (root / 'tsa.cnf').write_text('''[tsa]
 default_tsa = local
 [local]
+crypto_device = builtin
 serial = serial
 signer_cert = tsa.pem
+certs = tsa.pem
 signer_key = tsa.key
 signer_digest = sha256
+ess_cert_id_alg = sha256
 default_policy = 1.2.3.4.1
+other_policies = 1.2.3.4.2
 digests = sha256
 accuracy = secs:1
 ordering = yes
@@ -71,12 +75,13 @@ ess_cert_id_chain = no
         threading.Thread(target=server.serve_forever, daemon=True).start()
         env = dict(os.environ, SWIFTLEAF_SIGNATURE_TEST_ONLY='1',
                    SWIFTLEAF_TEST_TSA_URL=f'http://127.0.0.1:{server.server_port}/')
+        cms_path = repo / 'out/signature-test.der'
+        cms_path.unlink(missing_ok=True)
         try:
             subprocess.run([str((repo / args.exe).resolve()), '-unit-tests', '-for-ai', '-for-testing'],
                            cwd=repo, env=env, check=True, timeout=120)
         finally:
             server.shutdown()
-        cms_path = repo / 'out/signature-test.der'
         data = cms_path.read_bytes()
         (root / 'content.bin').write_bytes(b'test')
         ssl('cms', '-verify', '-binary', '-inform', 'DER', '-in', str(cms_path), '-content', 'content.bin',
