@@ -1820,6 +1820,44 @@ static void PdfDocumentToolsTest() {
             CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, secret), secret);
         }
         pdf_drop_document(ctx, doc);
+        // A removed title must not survive as an earlier incremental revision.
+        doc = pdf_open_document(ctx, CStrTemp(sourcePath));
+        pdf_obj* aliases = pdf_dict_put_dict(ctx, ToolsTestRoot(ctx, doc), pdf_new_name(ctx, "RedactionAliases"), 2);
+        pdf_dict_put_text_string(ctx, aliases, PDF_NAME(ActualText), "ID-123");
+        pdf_dict_put_text_string(ctx, aliases, PDF_NAME(Alt), "ID-456");
+        pdf_obj* revisionInfo = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
+        pdf_dict_put_text_string(ctx, revisionInfo, PDF_NAME(Title), "REVISION-SECRET");
+        pdf_write_options incremental = {};
+        incremental.do_incremental = 1;
+        pdf_save_document(ctx, doc, CStrTemp(cleanPath), &incremental);
+        pdf_drop_document(ctx, doc);
+        doc = pdf_open_document(ctx, CStrTemp(cleanPath));
+        CheckPdfTool(ctx, pdf_count_versions(ctx, doc) > 1, "fixture has incremental history");
+        revisionInfo = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
+        pdf_dict_put_text_string(ctx, revisionInfo, PDF_NAME(Title), "Current title");
+        pdf_save_document(ctx, doc, CStrTemp(sourcePath), &incremental);
+        pdf_drop_document(ctx, doc);
+        Vec<PdfRedactMatch> matches;
+        CheckPdfTool(ctx,
+                     EngineMupdfPreviewRedactions(sources[0], StrL("ID-[0-9]+"), PdfSearchMode::Regex, matches, &error),
+                     "preview regex");
+        CheckPdfTool(ctx, len(matches) == 4 && matches[0].pageNo == 1 && matches[2].pageNo == 2,
+                     "preview lists repeated matches by page");
+        CheckPdfTool(ctx, matches[0].box.dx > 0 && matches[0].box.dy > 0, "preview has page boxes");
+        Vec<int> selected;
+        VecAppend(selected, 1);
+        int chosen = 0;
+        CheckPdfTool(ctx,
+                     EngineMupdfRedactMatches(sources[0], redactedPath, StrL("ID-[0-9]+"), PdfSearchMode::Regex,
+                                              &chosen, &error, &selected, StrL("PRIVATE"), StrL("Personal data")),
+                     "apply chosen match");
+        CheckPdfTool(ctx, chosen == 1, "only chosen match applied");
+        doc = pdf_open_document(ctx, CStrTemp(redactedPath));
+        CheckPdfTool(ctx, ToolsTestHasText(ctx, doc, "ID-456") && ToolsTestHasText(ctx, doc, "ID-123"),
+                     "unselected matches remain");
+        CheckPdfTool(ctx, ToolsTestHasText(ctx, doc, "PRIVATE"), "overlay survives reopen");
+        CheckPdfTool(ctx, !pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info)), "redaction removes metadata");
+        pdf_drop_document(ctx, doc);
         int count = 0;
         CheckPdfTool(
             ctx,
@@ -1832,6 +1870,15 @@ static void PdfDocumentToolsTest() {
         CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "ID-123") && !ToolsTestObjectText(ctx, doc, "ID-456"),
                      "old text streams removed");
         CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "IMAGE-SECRET"), "touching image removed from saved objects");
+        for (auto* secret : {"AUTHOR-SECRET", "XMP-SECRET", "ATTACHMENT-SECRET", "THUMB-SECRET", "COMMENT-SECRET"})
+            CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, secret), secret);
+        CheckPdfTool(ctx, !pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Prev)), "no prior revision chain");
+        CheckPdfTool(ctx, pdf_count_versions(ctx, doc) == 1, "saved redaction has one revision");
+        CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "REVISION-SECRET"), "prior revision objects absent");
+        Str savedBytes = file::ReadFile(redactedPath);
+        bool oldRevision = str::Contains(savedBytes, StrL("REVISION-SECRET"));
+        str::Free(savedBytes);
+        CheckPdfTool(ctx, !oldRevision, "prior revision bytes absent");
         pdf_drop_document(ctx, doc);
         CheckPdfTool(
             ctx,

@@ -4,6 +4,8 @@
 
 - PDF compression honesty: distinct Archive preset from ISO PDF/A, separate Print and Archive backends, detailed image/font/object byte contributions in audit and dialog, honest preset descriptions, and keep-original guarantee when output would grow.
 - Release size and footprint gate: automated CI check against recorded baselines with warning on growth and strict >10% growth prevention gate.
+- Search redaction: review page boxes, choose match IDs, email/SSN patterns and replacement labels. Saved copies remove metadata, attachments, scripts, comments and tags.
+
 - Accessibility: warn about unverified reading order and figure links; preserve existing tags and mark generated roles as drafts.
 - PDF/A: reject invalid ICC profiles, preserve transparency, and report unverified conformance.
 - PDF compare: report load, render, and text extraction failures honestly without false 0% diffs, include extra-page details, and ensure atomic report writes.
