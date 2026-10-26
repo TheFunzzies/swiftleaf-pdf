@@ -365,7 +365,7 @@ const commandsRaw = [
     "CmdAddHeaderFooter", "Add Header/Footer...",
     "CmdBatesNumbering", "Bates Numbering...",
     "CmdPdfSanitize", "Sanitize Document...",
-    "CmdPdfRedactSearch", "Redact All Search Matches...",
+    "CmdPdfRedactSearch", "Search and Redact...",
 "CmdMeasureDistance", "Distance Tool",
     "CmdMeasurePerimeter", "Perimeter Tool",
     "CmdMeasureArea", "Area Tool",

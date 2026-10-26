@@ -12202,7 +12202,8 @@ static void MarkSearchMatch(fz_context* ctx, pdf_page* page, const Vec<RedactCha
     }
 }
 
-static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str term, fz_regex* regex) {
+static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str term, fz_regex* regex,
+                            Vec<PdfRedactMatch>& matches, const Vec<int>* selected, int* applied) {
     pdf_page* page = nullptr;
     fz_stext_page* text = nullptr;
     fz_var(page);
@@ -12252,8 +12253,19 @@ static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str 
                 cursor = end + fz_chartorune(&rune, end);
                 continue;
             }
-            MarkSearchMatch(ctx, page, chars, (int)(start - begin), (int)(end - begin));
-            count++;
+            fz_rect box = fz_empty_rect;
+            for (const auto& c : chars) {
+                if (c.offset >= start - begin && c.offset < end - begin)
+                    box = fz_union_rect(box, fz_rect_from_quad(c.quad));
+            }
+            if (!fz_is_empty_rect(box)) {
+                int id = len(matches) + 1;
+                VecAppend(matches, PdfRedactMatch{number + 1, RectF(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0)});
+                if (applied && (!selected || VecFind(*selected, id) >= 0)) {
+                    MarkSearchMatch(ctx, page, chars, (int)(start - begin), (int)(end - begin));
+                    count++;
+                }
+            }
             cursor = end;
         }
         if (count) {
@@ -12272,11 +12284,14 @@ static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str 
     fz_catch(ctx) {
         fz_rethrow(ctx);
     }
+    if (applied) *applied += count;
     return count;
 }
 
-bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode, int* countOut,
-                              Str* errorOut) {
+static bool SearchRedactions(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode, int* countOut,
+                             Str* errorOut, Vec<PdfRedactMatch>& matches, const Vec<int>* selected, Str overlay,
+                             Str reason) {
+    VecReset(matches);
     if (countOut) *countOut = 0;
     if (errorOut) *errorOut = {};
     if (!len(term)) {
@@ -12304,16 +12319,46 @@ bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term,
             VecAppend(layerStates, pdf_layer_is_enabled(ctx, doc, i));
             pdf_enable_layer(ctx, doc, i, 1);
         }
-        for (int i = 0; i < pdf_count_pages(ctx, doc); i++) count += RedactSearchPage(ctx, doc, i, term, regex);
+        for (int i = 0; i < pdf_count_pages(ctx, doc); i++)
+            RedactSearchPage(ctx, doc, i, term, regex, matches, selected, len(destPath) ? &count : nullptr);
         for (int i = 0; i < len(layerStates); i++) pdf_enable_layer(ctx, doc, i, layerStates[i]);
         if (count) {
             // Tags and thumbnails can hold copies of removed content.
             pdf_dict_del(ctx, MergeRoot(ctx, doc), PDF_NAME(StructTreeRoot));
             PdfSanitizeOptions clean = {};
-            clean.metadata = clean.javascript = clean.attachments = clean.comments = clean.forms = false;
             VisitPdfObjects(ctx, doc, SanitizePdfObject, &clean);
+            pdf_dict_del(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
+            pdf_dict_del(ctx, pdf_trailer(ctx, doc), PDF_NAME(ID));
+            // Only our replacement labels are baked; source comments were removed above.
+            Str label = len(overlay) ? overlay : reason;
+            if (len(label)) {
+                for (int i = 0; i < len(matches); i++) {
+                    if (selected && VecFind(*selected, i + 1) < 0) continue;
+                    const auto& m = matches[i];
+                    pdf_page* page = pdf_load_page(ctx, doc, m.pageNo - 1);
+                    pdf_annot* annot = nullptr;
+                    fz_var(annot);
+                    fz_try(ctx) {
+                        annot = pdf_create_annot(ctx, page, PDF_ANNOT_FREE_TEXT);
+                        pdf_set_annot_rect(ctx, annot,
+                                           fz_make_rect(m.box.x, m.box.y, m.box.x + m.box.dx, m.box.y + m.box.dy));
+                        float white = 1;
+                        pdf_set_annot_default_appearance(ctx, annot, "Helv", 8, 1, &white);
+                        pdf_set_annot_contents(ctx, annot, CStrTemp(label));
+                        pdf_update_annot(ctx, annot);
+                    }
+                    fz_always(ctx) {
+                        pdf_drop_annot(ctx, annot);
+                        fz_drop_page(ctx, (fz_page*)page);
+                    }
+                    fz_catch(ctx) {
+                        fz_rethrow(ctx);
+                    }
+                }
+                pdf_bake_document(ctx, doc, 1, 0);
+            }
         }
-        ok = SaveCleanPdf(ctx, doc, output);
+        ok = !len(destPath) || SaveCleanPdf(ctx, doc, output);
     }
     fz_always(ctx) {
         fz_regfree(ctx, regex);
@@ -12326,6 +12371,21 @@ bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term,
     fz_drop_context(ctx);
     if (ok && countOut) *countOut = count;
     return ok;
+}
+
+bool EngineMupdfPreviewRedactions(const PdfMergeSource& src, Str term, PdfSearchMode mode, Vec<PdfRedactMatch>& matches,
+                                  Str* errorOut) {
+    return SearchRedactions(src, {}, term, mode, nullptr, errorOut, matches, nullptr, {}, {});
+}
+
+bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode, int* countOut,
+                              Str* errorOut, const Vec<int>* selected, Str overlay, Str reason) {
+    if (!len(destPath) || (selected && !len(*selected))) {
+        if (errorOut) *errorOut = StrL("Choose matches and an output file.");
+        return false;
+    }
+    Vec<PdfRedactMatch> matches;
+    return SearchRedactions(src, destPath, term, mode, countOut, errorOut, matches, selected, overlay, reason);
 }
 
 // Step one operation back (or forward with redo). Returns false if there was

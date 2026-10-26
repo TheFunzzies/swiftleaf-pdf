@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Search redaction: review page boxes, choose match IDs, email/SSN patterns and replacement labels. Saved copies remove metadata, attachments, scripts, comments and tags.
+
 - Accessibility: warn about unverified reading order and figure links; preserve existing tags and mark generated roles as drafts.
 - PDF/A: reject invalid ICC profiles, preserve transparency, and report unverified conformance.
 - PDF compare: report load, render, and text extraction failures honestly without false 0% diffs, include extra-page details, and ensure atomic report writes.
