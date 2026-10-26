@@ -448,21 +448,19 @@ typedef struct {
     char* tsa_url;
 } windows_signer;
 
-void pkcs7_windows_set_tsa_url(pdf_pkcs7_signer* signer, const char* tsa_url) {
+void pkcs7_windows_set_tsa_url(fz_context* ctx, pdf_pkcs7_signer* signer, const char* tsa_url) {
     if (!signer) {
         return;
     }
     windows_signer* s = (windows_signer*)signer;
     if (s->tsa_url) {
-        free(s->tsa_url);
+        fz_free(ctx, s->tsa_url);
         s->tsa_url = NULL;
     }
     if (tsa_url && tsa_url[0]) {
         size_t n = strlen(tsa_url);
-        s->tsa_url = (char*)malloc(n + 1);
-        if (s->tsa_url) {
-            memcpy(s->tsa_url, tsa_url, n + 1);
-        }
+        s->tsa_url = fz_malloc(ctx, n + 1);
+        memcpy(s->tsa_url, tsa_url, n + 1);
     }
 }
 
@@ -488,7 +486,7 @@ static void windows_drop_signer(fz_context* ctx, pdf_pkcs7_signer* signer) {
         CertCloseStore(s->hStore, 0);
     }
     if (s->tsa_url) {
-        free(s->tsa_url);
+        fz_free(ctx, s->tsa_url);
         s->tsa_url = NULL;
     }
     fz_free(ctx, s);
@@ -509,6 +507,69 @@ static pdf_pkcs7_distinguished_name* windows_get_signing_name(fz_context* ctx, p
         fz_rethrow(ctx);
     }
     return dn;
+}
+
+// Bound the PDF placeholder; oversized TSA responses fail instead of truncating.
+static const DWORD timestamp_reserve = 65536;
+
+static DWORD timestamp_cms(fz_context* ctx, windows_signer* s, BYTE* digest, DWORD sig_len, DWORD capacity) {
+    HCRYPTMSG msg = NULL;
+    PCMSG_SIGNER_INFO si = NULL;
+    PCRYPT_TIMESTAMP_CONTEXT ts = NULL;
+    PCCERT_CONTEXT tsa = NULL;
+    HCERTSTORE store = NULL;
+    BYTE* encoded = NULL;
+    WCHAR* url = NULL;
+    DWORD result = 0;
+    DWORD error = ERROR_INVALID_DATA;
+    CRYPT_TIMESTAMP_PARA para = {0};
+    CRYPT_ATTRIBUTE attr = {0};
+    CRYPT_ATTR_BLOB value = {0};
+    CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR_PARA add = {0};
+    DWORD encoded_len = 0;
+
+    url = utf8_to_wide(ctx, s->tsa_url);
+    msg = open_msg_for_metadata(digest, sig_len);
+    if (!msg || !(si = get_signer_info(msg, 0))) goto done;
+    para.fRequestCerts = TRUE;
+    // With no DONT_HASH flag, Windows hashes only the signature OCTET STRING.
+    if (!CryptRetrieveTimeStamp(url, TIMESTAMP_VERIFY_CONTEXT_SIGNATURE, 15000, szOID_NIST_sha256, &para,
+                                si->EncryptedHash.pbData, si->EncryptedHash.cbData, &ts, &tsa, &store))
+        goto done;
+    value.pbData = ts->pbEncoded;
+    value.cbData = ts->cbEncoded;
+    attr.pszObjId = "1.2.840.113549.1.9.16.2.14";
+    attr.cValue = 1;
+    attr.rgValue = &value;
+    if (!CryptEncodeObjectEx(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, PKCS_ATTRIBUTE, &attr, CRYPT_ENCODE_ALLOC_FLAG,
+                             NULL, &encoded, &encoded_len))
+        goto done;
+    add.cbSize = sizeof(add);
+    add.dwSignerIndex = 0;
+    add.blob.pbData = encoded;
+    add.blob.cbData = encoded_len;
+    if (!CryptMsgControl(msg, 0, CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR, &add)) goto done;
+    if (!CryptMsgGetParam(msg, CMSG_ENCODED_MESSAGE, 0, NULL, &result)) goto done;
+    if (result > capacity) {
+        SetLastError(ERROR_INSUFFICIENT_BUFFER);
+        goto done;
+    }
+    if (!CryptMsgGetParam(msg, CMSG_ENCODED_MESSAGE, 0, digest, &result)) goto done;
+    error = ERROR_SUCCESS;
+done:
+    if (error != ERROR_SUCCESS) {
+        error = GetLastError();
+        if (error == ERROR_SUCCESS) error = ERROR_INVALID_DATA;
+    }
+    if (url) fz_free(ctx, url);
+    if (encoded) LocalFree(encoded);
+    if (ts) CryptMemFree(ts);
+    if (tsa) CertFreeCertificateContext(tsa);
+    if (store) CertCloseStore(store, 0);
+    if (si) LocalFree(si);
+    if (msg) CryptMsgClose(msg);
+    if (error != ERROR_SUCCESS) fz_throw(ctx, FZ_ERROR_GENERIC, "RFC 3161 timestamp failed (gle=%lu)", error);
+    return result;
 }
 
 // Build a detached PKCS#7 SignedData over the bytes from `in` and write the
@@ -562,15 +623,7 @@ static int windows_create_digest(fz_context* ctx, pdf_pkcs7_signer* signer, fz_s
             }
             res = (int)sigLen;
             if (s->tsa_url && s->tsa_url[0]) {
-                WCHAR* wUrl = utf8_to_wide(ctx, s->tsa_url);
-                PCRYPT_TIMESTAMP_CONTEXT pTsCtx = NULL;
-                if (wUrl) {
-                    CryptRetrieveTimeStamp(wUrl, 0, 3000, szOID_NIST_sha256, NULL, digest, (DWORD)res, &pTsCtx, NULL, NULL);
-                    if (pTsCtx) {
-                        CryptMemFree(pTsCtx);
-                    }
-                    fz_free(ctx, wUrl);
-                }
+                res = (int)timestamp_cms(ctx, s, digest, sigLen, digest_len);
             }
         }
     }
@@ -589,7 +642,7 @@ static size_t windows_max_digest_size(fz_context* ctx, pdf_pkcs7_signer* signer)
     windows_signer* s = (windows_signer*)signer;
     size_t sz = (size_t)windows_create_digest(ctx, signer, NULL, NULL, 0);
     if (s && s->tsa_url && s->tsa_url[0]) {
-        sz += 8192;
+        sz += timestamp_reserve;
     }
     return sz;
 }

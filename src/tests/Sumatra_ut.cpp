@@ -2736,6 +2736,10 @@ int RunAppUnitTests(bool forAi) {
         SetupForAi();
     }
     printf("Running unit tests\n");
+    if (getenv("SWIFTLEAF_SIGNATURE_TEST_ONLY")) {
+        utassert(Signature_UnitTests());
+        return utassert_print_results();
+    }
     utassert(Ocr_UnitTests());
     utassert(Signature_UnitTests());
     DocumentPanel_UnitTests();

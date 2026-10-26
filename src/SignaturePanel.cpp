@@ -56,11 +56,12 @@ static EngineBase* GetPdfEngine(MainWindow* win) {
 
 void ViewSignatureCertificate(HWND hwndParent, const Str& certDer) {
     if (len(certDer) == 0) {
-        MessageBoxWarning(hwndParent, Tr("No certificate data is available for this signature."), Tr("View Certificate"));
+        MessageBoxWarning(hwndParent, Tr("No certificate data is available for this signature."),
+                          Tr("View Certificate"));
         return;
     }
-    PCCERT_CONTEXT pCert = CertCreateCertificateContext(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
-                                                        (const BYTE*)certDer.s, (DWORD)len(certDer));
+    PCCERT_CONTEXT pCert = CertCreateCertificateContext(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, (const BYTE*)certDer.s,
+                                                        (DWORD)len(certDer));
     if (!pCert) {
         MessageBoxWarning(hwndParent, Tr("Failed to parse the certificate."), Tr("View Certificate"));
         return;
@@ -76,8 +77,8 @@ bool ClearDocumentSignature(MainWindow* win, Str fieldName) {
     }
     bool ok = EngineMupdfClearSignature(engine, fieldName);
     if (!ok) {
-        MessageBoxWarning(win ? win->hwndFrame : nullptr,
-            Tr("Could not clear the digital signature."), Tr("Clear Signature"));
+        MessageBoxWarning(win ? win->hwndFrame : nullptr, Tr("Could not clear the digital signature."),
+                          Tr("Clear Signature"));
         return false;
     }
     WindowTab* tab = win ? win->CurrentTab() : nullptr;
@@ -98,9 +99,7 @@ struct SignaturePanelWnd : WindowBase {
     VirtButton* btnClear = nullptr;
     VirtButton* btnClose = nullptr;
 
-    ~SignaturePanelWnd() override {
-        FreeSignatures(sigs);
-    }
+    ~SignaturePanelWnd() override { FreeSignatures(sigs); }
 
     bool Create(MainWindow* win);
     void RefreshDetails();
@@ -126,9 +125,8 @@ void SignaturePanelWnd::OnClearSig(VirtMouseEvent*) {
     int idx = CbGetCurrentSelection(ddSigs);
     if (idx < 0 || idx >= sigs.len) idx = 0;
 
-    int res = MessageBox(hwnd,
-        L"Are you sure you want to clear this digital signature?",
-        L"Clear Signature", MB_YESNO | MB_ICONQUESTION);
+    int res = MessageBox(hwnd, L"Are you sure you want to clear this digital signature?", L"Clear Signature",
+                         MB_YESNO | MB_ICONQUESTION);
     if (res != IDYES) return;
 
     Str field = str::Dup(sigs[idx].fieldName);
@@ -156,9 +154,9 @@ void SignaturePanelWnd::RefreshDetails() {
     str::Builder sb;
     sb.Append(fmt(Tr("Validity Status: %s\n").s, len(sig.statusDesc) > 0 ? sig.statusDesc : StrL("(unknown)")));
     if (sig.isCertified) {
-        Str permStr = (sig.mdpPerm == 1) ? StrL("No changes permitted (P=1)") :
-                      (sig.mdpPerm == 3) ? StrL("Annotations, form fill & signing permitted (P=3)") :
-                                           StrL("Form fill & signing permitted (P=2)");
+        Str permStr = (sig.mdpPerm == 1)   ? StrL("No changes permitted (P=1)")
+                      : (sig.mdpPerm == 3) ? StrL("Annotations, form fill & signing permitted (P=3)")
+                                           : StrL("Form fill & signing permitted (P=2)");
         sb.Append(fmt(Tr("DocMDP Certified: %s\n").s, permStr));
     } else {
         sb.Append(StrL("Standard Digital Signature\n"));
@@ -179,7 +177,8 @@ void SignaturePanelWnd::RefreshDetails() {
     if (len(sig.location) > 0) {
         det.Append(fmt(Tr("Location: %s\n").s, sig.location));
     }
-    det.Append(fmt(Tr("Field: %s (Page %d)\n").s, len(sig.fieldName) > 0 ? sig.fieldName : StrL("Signature"), sig.pageNo));
+    det.Append(
+        fmt(Tr("Field: %s (Page %d)\n").s, len(sig.fieldName) > 0 ? sig.fieldName : StrL("Signature"), sig.pageNo));
     txtDetails->SetText(ToStrTemp(det));
 
     if (btnViewCert) btnViewCert->SetIsEnabled(len(sig.certDer) > 0);
@@ -220,13 +219,13 @@ bool SignaturePanelWnd::Create(MainWindow* parentWin) {
         items.Append(Tr("(No digital signatures)"));
     } else {
         for (int i = 0; i < sigs.len; i++) {
-            Str st = (sigs[i].status == SignatureStatus::Valid) ? StrL("Valid") :
-                     (sigs[i].status == SignatureStatus::ModifiedAfterSigning) ? StrL("Modified!") :
-                     (sigs[i].status == SignatureStatus::Expired) ? StrL("Expired") :
-                     (sigs[i].status == SignatureStatus::Revoked) ? StrL("Revoked!") : StrL("Unknown Signer");
+            Str st = (sigs[i].status == SignatureStatus::Valid)                  ? StrL("Valid")
+                     : (sigs[i].status == SignatureStatus::ModifiedAfterSigning) ? StrL("Modified!")
+                     : (sigs[i].status == SignatureStatus::Expired)              ? StrL("Expired")
+                     : (sigs[i].status == SignatureStatus::Revoked)              ? StrL("Revoked!")
+                                                                                 : StrL("Unknown Signer");
             items.Append(fmt("%d: %s [%s] (Page %d)", i + 1,
-                             len(sigs[i].signerName) > 0 ? sigs[i].signerName : StrL("Signer"),
-                             st, sigs[i].pageNo));
+                             len(sigs[i].signerName) > 0 ? sigs[i].signerName : StrL("Signer"), st, sigs[i].pageNo));
         }
     }
     ddSigs->SetItems(items);
@@ -352,7 +351,8 @@ void CertifyDocumentWnd::OnCertify(VirtMouseEvent*) {
     Str err;
     bool ok = EngineMupdfSignDocument(engine, args, &err);
     if (!ok) {
-        MessageBoxWarning(hwnd, fmt(Tr("Could not certify document: %s").s, len(err) > 0 ? err : StrL("Unknown error")), Tr("Certify Document"));
+        MessageBoxWarning(hwnd, fmt(Tr("Could not certify document: %s").s, len(err) > 0 ? err : StrL("Unknown error")),
+                          Tr("Certify Document"));
         str::Free(err);
         return;
     }
@@ -480,7 +480,8 @@ void ShowCertifyDocumentDialog(MainWindow* win) {
     if (!dlg->Create(win)) delete dlg;
 }
 
-// Unit test: in-memory throwaway self-signed cert creation, PDF signing, DocMDP verify, tamper detection, and clear signature.
+// Unit test: in-memory throwaway self-signed cert creation, PDF signing, DocMDP verify, tamper detection, and clear
+// signature.
 bool Signature_UnitTests() {
     HCRYPTPROV hProv = 0;
     LPCWSTR containerName = L"SwiftleafTestSigContainer";
@@ -504,11 +505,13 @@ bool Signature_UnitTests() {
     CERT_NAME_BLOB subjectIssuerBlob{};
     BYTE encodedName[128]{};
     DWORD cbEncodedName = sizeof(encodedName);
-    CertStrToNameW(X509_ASN_ENCODING, L"CN=Swiftleaf Test Signer, O=Swiftleaf PDF", CERT_X500_NAME_STR, nullptr, encodedName, &cbEncodedName, nullptr);
+    CertStrToNameW(X509_ASN_ENCODING, L"CN=Swiftleaf Test Signer, O=Swiftleaf PDF", CERT_X500_NAME_STR, nullptr,
+                   encodedName, &cbEncodedName, nullptr);
     subjectIssuerBlob.cbData = cbEncodedName;
     subjectIssuerBlob.pbData = encodedName;
 
-    PCCERT_CONTEXT pCert = CertCreateSelfSignCertificate(hProv, &subjectIssuerBlob, 0, &kpi, nullptr, nullptr, nullptr, nullptr);
+    PCCERT_CONTEXT pCert =
+        CertCreateSelfSignCertificate(hProv, &subjectIssuerBlob, 0, &kpi, nullptr, nullptr, nullptr, nullptr);
     if (!pCert) {
         if (hKey) CryptDestroyKey(hKey);
         CryptReleaseContext(hProv, 0);
@@ -542,6 +545,11 @@ bool Signature_UnitTests() {
     CertFreeCertificateContext(pCert);
     if (hKey) CryptDestroyKey(hKey);
     CryptReleaseContext(hProv, 0);
+
+#if defined(DEBUG)
+    extern bool PdfSignCryptoTest(Str pfxPath);
+    if (!PdfSignCryptoTest(pfxPath)) return false;
+#endif
 
     Str origPdfPath = fmt("%s\\swiftleaf_test_orig.pdf", ToUtf8Temp(WStr(tempDir)));
     Str sample = file::ReadFile(StrL("docs/test/swiftleaf-sample.pdf"));
@@ -584,6 +592,11 @@ bool Signature_UnitTests() {
         }
         Vec<SignatureItemInfo> sigs;
         bool okInfo = EngineMupdfGetSignaturesInfo(engine, sigs);
+        if (okInfo && len(sigs)) {
+            logf("signature test: status=%d certified=%d permission=%d reason=%s signer=%s detail=%s\n",
+                 (int)sigs[0].status, (int)sigs[0].isCertified, sigs[0].mdpPerm, sigs[0].reason, sigs[0].signerName,
+                 sigs[0].statusDesc);
+        }
         if (!okInfo || sigs.len < 1) {
             FreeSignatures(sigs);
             SafeEngineRelease(&engine);
@@ -640,7 +653,8 @@ bool Signature_UnitTests() {
             if (engTampered) {
                 Vec<SignatureItemInfo> tamperedSigs;
                 EngineMupdfGetSignaturesInfo(engTampered, tamperedSigs);
-                bool detectedTamper = (tamperedSigs.len >= 1 && tamperedSigs[0].status == SignatureStatus::ModifiedAfterSigning);
+                bool detectedTamper =
+                    (tamperedSigs.len >= 1 && tamperedSigs[0].status == SignatureStatus::ModifiedAfterSigning);
                 FreeSignatures(tamperedSigs);
                 SafeEngineRelease(&engTampered);
                 file::Delete(tamperedPdfPath);

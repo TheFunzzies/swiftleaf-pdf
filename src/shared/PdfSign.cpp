@@ -216,6 +216,8 @@ bool EngineMupdfSignDocument(EngineBase* engine, const PdfSignArgs& args, Str* e
     fz_buffer* imgBuf = nullptr;
     int pageNo = args.pageNo;
     bool ok = false;
+    bool operation = false;
+    int oldIncrements = epdf->pdfdoc->disallow_new_increments;
     fz_var(signer);
     fz_var(widget);
     fz_var(page);
@@ -223,6 +225,7 @@ bool EngineMupdfSignDocument(EngineBase* engine, const PdfSignArgs& args, Str* e
     fz_var(imgBuf);
     fz_var(ok);
     fz_var(pageNo);
+    fz_var(operation);
 
     static_assert(kPdfSignShowLabels == PDF_SIGNATURE_SHOW_LABELS);
     static_assert(kPdfSignShowDN == PDF_SIGNATURE_SHOW_DN);
@@ -242,7 +245,7 @@ bool EngineMupdfSignDocument(EngineBase* engine, const PdfSignArgs& args, Str* e
             tsaUrl = gSettings->tsaUrl;
         }
         if (len(tsaUrl) > 0 && signer) {
-            pkcs7_windows_set_tsa_url(signer, CStrTemp(tsaUrl));
+            pkcs7_windows_set_tsa_url(ctx, signer, CStrTemp(tsaUrl));
         }
 #else
         if (args.certThumbprint) {
@@ -250,6 +253,8 @@ bool EngineMupdfSignDocument(EngineBase* engine, const PdfSignArgs& args, Str* e
         }
         signer = pkcs7_openssl_read_pfx(ctx, CStrTemp(args.certPath), CStrTemp(args.certPassword));
 #endif
+        pdf_begin_operation(ctx, epdf->pdfdoc, "Sign document");
+        operation = true;
         if (args.fieldName) {
             widget = FindUnsignedSignatureWidget(ctx, epdf->pdfdoc, args.fieldName, &pageNo, &page);
             if (!widget) {
@@ -282,6 +287,8 @@ bool EngineMupdfSignDocument(EngineBase* engine, const PdfSignArgs& args, Str* e
         appearance &= ~PDF_SIGNATURE_SHOW_LOGO;
         pdf_sign_signature(ctx, widget, signer, appearance, graphic, reason, location);
 
+        // Certification belongs to the signed revision, before its byte ranges freeze.
+        epdf->pdfdoc->disallow_new_increments = 1;
         pdf_obj* wobj = pdf_annot_obj(ctx, widget);
         pdf_obj* v = pdf_dict_get(ctx, wobj, PDF_NAME(V));
         if (v && args.reason) {
@@ -313,9 +320,12 @@ bool EngineMupdfSignDocument(EngineBase* engine, const PdfSignArgs& args, Str* e
                 pdf_dict_put(ctx, perms, PDF_NAME(DocMDP), v);
             }
         }
+        pdf_end_operation(ctx, epdf->pdfdoc);
+        operation = false;
         ok = true;
     }
     fz_always(ctx) {
+        epdf->pdfdoc->disallow_new_increments = oldIncrements;
         fz_drop_image(ctx, graphic);
         fz_drop_buffer(ctx, imgBuf);
         pdf_drop_annot(ctx, widget);
@@ -323,6 +333,7 @@ bool EngineMupdfSignDocument(EngineBase* engine, const PdfSignArgs& args, Str* e
         pdf_drop_signer(ctx, signer);
     }
     fz_catch(ctx) {
+        if (operation) pdf_abandon_operation(ctx, epdf->pdfdoc);
         fz_report_error(ctx);
         if (errOut) {
             *errOut = str::Dup(Str(fz_caught_message(ctx)));
@@ -391,7 +402,8 @@ static TempStr FormatPdfDateRawTemp(fz_context* ctx, pdf_obj* obj) {
     str::TrimPrefix(s, StrL("D:"));
     if (s.len < 14) return {};
     char buf[80];
-    int n = snprintf(buf, sizeof(buf), "%.4s/%.2s/%.2s %.2s:%.2s:%.2s", s.s, s.s + 4, s.s + 6, s.s + 8, s.s + 10, s.s + 12);
+    int n =
+        snprintf(buf, sizeof(buf), "%.4s/%.2s/%.2s %.2s:%.2s:%.2s", s.s, s.s + 4, s.s + 6, s.s + 8, s.s + 10, s.s + 12);
     if (n < 0) return {};
     if (s.len > 14) {
         Str tz = Str(s.s + 14, s.len - 14);
@@ -423,7 +435,7 @@ bool EngineMupdfGetSignaturesInfo(EngineBase* engine, Vec<SignatureItemInfo>& ou
             SignatureItemInfo sig;
             char* fName = pdf_load_field_name(ctx, field);
             if (fName && fName[0]) {
-                sig.fieldName = str::Dup(StrL(fName));
+                sig.fieldName = str::Dup(Str(fName));
             } else {
                 sig.fieldName = str::Dup(StrL("Signature"));
             }
@@ -462,12 +474,12 @@ bool EngineMupdfGetSignaturesInfo(EngineBase* engine, Vec<SignatureItemInfo>& ou
             pdf_obj* rObj = pdf_dict_get(ctx, v, PDF_NAME(Reason));
             if (rObj) {
                 const char* rStr = pdf_to_text_string(ctx, rObj);
-                if (rStr && rStr[0]) sig.reason = str::Dup(StrL(rStr));
+                if (rStr && rStr[0]) sig.reason = str::Dup(Str(rStr));
             }
             pdf_obj* lObj = pdf_dict_get(ctx, v, PDF_NAME(Location));
             if (lObj) {
                 const char* lStr = pdf_to_text_string(ctx, lObj);
-                if (lStr && lStr[0]) sig.location = str::Dup(StrL(lStr));
+                if (lStr && lStr[0]) sig.location = str::Dup(Str(lStr));
             }
 
             // Date
@@ -486,12 +498,12 @@ bool EngineMupdfGetSignaturesInfo(EngineBase* engine, Vec<SignatureItemInfo>& ou
             fz_free(ctx, contents);
 
             if (info.signer_cn && info.signer_cn[0]) {
-                sig.signerName = str::Dup(StrL(info.signer_cn));
+                sig.signerName = str::Dup(Str(info.signer_cn));
             } else {
                 sig.signerName = str::Dup(StrL("Unknown Signer"));
             }
             if (info.issuer_cn && info.issuer_cn[0]) {
-                sig.issuerName = str::Dup(StrL(info.issuer_cn));
+                sig.issuerName = str::Dup(Str(info.issuer_cn));
             }
             if (len(sig.date) == 0 && info.gen_time_unix > 0) {
                 sig.date = str::Dup(FormatUnixTimeTemp(info.gen_time_unix));
@@ -516,7 +528,7 @@ bool EngineMupdfGetSignaturesInfo(EngineBase* engine, Vec<SignatureItemInfo>& ou
             bool isRevoked = false;
             if (info.cert_der && info.cert_der_len > 0) {
                 PCCERT_CONTEXT pCert = CertCreateCertificateContext(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
-                                                                   info.cert_der, (DWORD)info.cert_der_len);
+                                                                    info.cert_der, (DWORD)info.cert_der_len);
                 if (pCert) {
                     CERT_CHAIN_PARA chainPara{};
                     chainPara.cbSize = sizeof(chainPara);
@@ -576,6 +588,8 @@ bool EngineMupdfClearSignature(EngineBase* engine, Str fieldName) {
 
     bool ok = false;
     int pageNo = 1;
+    bool operation = false;
+    fz_var(operation);
     Vec<pdf_obj*> fields;
     fz_try(ctx) {
         CollectSignatureFields(ctx, epdf->pdfdoc, fields);
@@ -585,7 +599,7 @@ bool EngineMupdfClearSignature(EngineBase* engine, Str fieldName) {
                 continue;
             }
             char* name = pdf_load_field_name(ctx, field);
-            bool match = (len(fieldName) == 0 || (name && str::Eq(fieldName, StrL(name))));
+            bool match = (len(fieldName) == 0 || (name && str::Eq(fieldName, Str(name))));
             fz_free(ctx, name);
             if (match) {
                 target = field;
@@ -594,13 +608,16 @@ bool EngineMupdfClearSignature(EngineBase* engine, Str fieldName) {
             }
         }
         if (target) {
+            pdf_begin_operation(ctx, epdf->pdfdoc, "Clear signature");
+            operation = true;
             pdf_obj* v = pdf_dict_get(ctx, target, PDF_NAME(V));
             pdf_obj* root = pdf_dict_get(ctx, pdf_trailer(ctx, epdf->pdfdoc), PDF_NAME(Root));
             if (root) {
                 pdf_obj* perms = pdf_dict_get(ctx, root, PDF_NAME(Perms));
                 if (perms) {
                     pdf_obj* mdp = pdf_dict_get(ctx, perms, PDF_NAME(DocMDP));
-                    if (mdp && v && (mdp == v || (pdf_to_num(ctx, mdp) > 0 && pdf_to_num(ctx, mdp) == pdf_to_num(ctx, v)))) {
+                    if (mdp && v &&
+                        (mdp == v || (pdf_to_num(ctx, mdp) > 0 && pdf_to_num(ctx, mdp) == pdf_to_num(ctx, v)))) {
                         pdf_dict_del(ctx, perms, PDF_NAME(DocMDP));
                     }
                 }
@@ -609,6 +626,8 @@ bool EngineMupdfClearSignature(EngineBase* engine, Str fieldName) {
             pdf_dict_del(ctx, target, PDF_NAME(AP));
             int ff = pdf_to_int(ctx, pdf_dict_get(ctx, target, PDF_NAME(Ff)));
             pdf_dict_put_int(ctx, target, PDF_NAME(Ff), ff & ~PDF_FIELD_IS_READ_ONLY);
+            pdf_end_operation(ctx, epdf->pdfdoc);
+            operation = false;
             ok = true;
         }
     }
@@ -618,6 +637,7 @@ bool EngineMupdfClearSignature(EngineBase* engine, Str fieldName) {
         }
     }
     fz_catch(ctx) {
+        if (operation) pdf_abandon_operation(ctx, epdf->pdfdoc);
         fz_report_error(ctx);
         return false;
     }
@@ -705,7 +725,65 @@ bool EngineMupdfSignDocument(EngineBase*, const PdfSignArgs&, Str* errOut) {
 }
 
 void ListWindowsSigningCertificates(StrVec&, StrVec&) {}
-bool EngineMupdfGetSignaturesInfo(EngineBase*, Vec<SignatureItemInfo>&) { return false; }
-bool EngineMupdfClearSignature(EngineBase*, Str) { return false; }
+bool EngineMupdfGetSignaturesInfo(EngineBase*, Vec<SignatureItemInfo>&) {
+    return false;
+}
+bool EngineMupdfClearSignature(EngineBase*, Str) {
+    return false;
+}
 
+#endif
+
+#if OS_WIN && defined(DEBUG)
+bool PdfSignCryptoTest(Str pfxPath) {
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) return false;
+    pdf_pkcs7_signer* signer = nullptr;
+    fz_stream* stream = nullptr;
+    unsigned char* cms = nullptr;
+    bool rejected = false;
+    bool okay = false;
+    fz_var(signer);
+    fz_var(stream);
+    fz_var(cms);
+    fz_var(rejected);
+    fz_var(okay);
+    fz_try(ctx) {
+        signer = pkcs7_windows_read_pfx(ctx, CStrTemp(pfxPath), "testpass");
+        size_t plainSize = signer->max_digest_size(ctx, signer);
+        pkcs7_windows_set_tsa_url(ctx, signer, "http://127.0.0.1:1/");
+        size_t capacity = signer->max_digest_size(ctx, signer);
+        if (capacity <= plainSize) fz_throw(ctx, FZ_ERROR_GENERIC, "missing timestamp reservation");
+        cms = (unsigned char*)fz_malloc(ctx, capacity);
+        stream = fz_open_memory(ctx, (const unsigned char*)"test", 4);
+        fz_try(ctx) {
+            signer->create_digest(ctx, signer, stream, cms, capacity);
+        }
+        fz_catch(ctx) {
+            rejected = strstr(fz_caught_message(ctx), "timestamp failed") != nullptr;
+        }
+        okay = rejected;
+        const char* tsa = getenv("SWIFTLEAF_TEST_TSA_URL");
+        if (tsa && tsa[0]) {
+            pkcs7_windows_set_tsa_url(ctx, signer, tsa);
+            fz_seek(ctx, stream, 0, SEEK_SET);
+            int size = signer->create_digest(ctx, signer, stream, cms, capacity);
+            pkcs7_windows_sig_info info{};
+            pkcs7_windows_inspect(ctx, cms, size, &info);
+            okay = okay && info.has_timestamp;
+            pkcs7_windows_sig_info_free(ctx, &info);
+            okay = okay && file::WriteFile(StrL("out/signature-test.der"), Str((const char*)cms, size));
+        }
+    }
+    fz_always(ctx) {
+        fz_drop_stream(ctx, stream);
+        if (signer) pdf_drop_signer(ctx, signer);
+        fz_free(ctx, cms);
+    }
+    fz_catch(ctx) {
+        okay = false;
+    }
+    fz_drop_context(ctx);
+    return okay;
+}
 #endif

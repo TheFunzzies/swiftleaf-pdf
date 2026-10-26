@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- PDF signatures: embed verified RFC 3161 tokens over the signature value; fail saving when a requested TSA fails.
+
 - Accessibility: warn about unverified reading order and figure links; preserve existing tags and mark generated roles as drafts.
 - PDF/A: reject invalid ICC profiles, preserve transparency, and report unverified conformance.
 - PDF compare: report load, render, and text extraction failures honestly without false 0% diffs, include extra-page details, and ensure atomic report writes.
