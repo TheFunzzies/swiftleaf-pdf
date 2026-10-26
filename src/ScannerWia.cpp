@@ -372,7 +372,7 @@ Pixmap* PerspectiveCropPixmap(const Pixmap* src, const PerspectiveCorners& corne
         for (int c = 0; c < 3; c++) {
             float top = (1.0f - dx) * p00[c] + dx * p10[c];
             float bot = (1.0f - dx) * p01[c] + dx * p11[c];
-            outBgra[c] = (u8)std::max(0.0f, std::min(255.0f, (1.0f - dy) * top + dy * bot));
+            outBgra[c] = (u8)std::max(0.0f, std::min(255.0f, (1.0f - dy) * top + dy * bot + 0.5f));
         }
         outBgra[3] = 255;
     };
@@ -972,53 +972,55 @@ bool ScannerWia_UnitTests() {
     }
     PerspectiveCorners identity{{0, 0}, {100, 0}, {100, 100}, {0, 100}};
     Pixmap* copy = PerspectiveCropPixmap(src, identity);
-    bool ok = copy && copy->width == 101 && copy->height == 101;
-    if (ok)
+    bool okCamera = copy && copy->width == 101 && copy->height == 101;
+    if (okCamera) {
         for (int y = 0; y < 101; y++) {
-            if (memcmp(src->data + y * src->stride, copy->data + y * copy->stride, 404)) ok = false;
+            if (memcmp(src->data + y * src->stride, copy->data + y * copy->stride, 404)) okCamera = false;
         }
+    }
     FreePixmap(copy);
     // The trapezoid center must differ from bilinear interpolation.
     PerspectiveCorners trapezoid{{10, 0}, {90, 0}, {70, 100}, {30, 100}};
     copy = PerspectiveCropPixmap(src, trapezoid);
-    if (!copy)
-        ok = false;
-    else {
+    if (!copy) {
+        okCamera = false;
+    } else {
         const u8* center = copy->data + (copy->height / 2) * copy->stride + (copy->width / 2) * 4;
         // For these corners the projective center is (50, 66.6667).
-        ok = ok && abs(center[0] - 50) <= 1 && abs(center[1] - 67) <= 2;
+        okCamera = okCamera && abs(center[0] - 50) <= 1 && abs(center[1] - 67) <= 2;
     }
     FreePixmap(copy);
     PerspectiveCorners crossed{{0, 0}, {100, 100}, {100, 0}, {0, 100}};
     copy = PerspectiveCropPixmap(src, crossed);
-    ok = ok && !copy;
+    okCamera = okCamera && !copy;
     FreePixmap(copy);
     FreePixmap(src);
-    printf("Camera projective pixels / identity edges / invalid corners: %s\n", ok ? "PASS" : "FAIL");
+    printf("Camera projective pixels / identity edges / invalid corners: %s\n", okCamera ? "PASS" : "FAIL");
 
+    bool okWia = true;
     ScanJob job;
     PdfCreator pdf;
     ScanTransfer transfer(&job, &pdf);
     AutoReleaseComPtr<IStream> stream;
-    ok = ok && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_OK;
+    okWia = okWia && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_OK;
     Gdiplus::Bitmap bitmap(32, 32, PixelFormat32bppARGB);
     {
         Gdiplus::Graphics graphics(&bitmap);
         graphics.Clear(Gdiplus::Color(255, 20, 40, 60));
     }
     CLSID encoder = GetGdiPlusEncoderClsid(WStrL(L"image/bmp"));
-    ok = ok && bitmap.Save(stream, &encoder) == Gdiplus::Ok;
+    okWia = okWia && bitmap.Save(stream, &encoder) == Gdiplus::Ok;
     WiaTransferParams params{};
     params.lMessage = WIA_TRANSFER_MSG_END_OF_STREAM;
-    ok = ok && transfer.TransferCallback(0, &params) == S_OK && job.pages == 1;
+    okWia = okWia && transfer.TransferCallback(0, &params) == S_OK && job.pages == 1;
     stream = nullptr;
-    ok = ok && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_OK;
+    okWia = okWia && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_OK;
     // An empty driver stream must fail, without appending another page.
-    ok = ok && FAILED(transfer.TransferCallback(0, &params)) && job.pages == 1;
+    okWia = okWia && FAILED(transfer.TransferCallback(0, &params)) && job.pages == 1;
     SetEvent(job.cancel);
     stream = nullptr;
-    ok = ok && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_FALSE && !stream.Get();
-    printf("WIA pixel stream / empty transfer / cancellation: %s\n", ok ? "PASS" : "FAIL");
-    return ok;
+    okWia = okWia && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_FALSE && !stream.Get();
+    printf("WIA pixel stream / empty transfer / cancellation: %s\n", okWia ? "PASS" : "FAIL");
+    return okCamera && okWia;
 }
 #endif
