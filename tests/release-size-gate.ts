@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { checkReleaseSizes } from "../tools/check-release-size";
-import { runStandalone } from "./util";
+import { runStandalone, TESTS_TMP_DIR } from "./util";
 
 export async function testit(): Promise<void> {
   const root = join(import.meta.dir, "..");
@@ -17,42 +17,44 @@ export async function testit(): Promise<void> {
     throw new Error("baseline files missing Swiftleaf.exe");
   }
 
-  // 1. Current sizes match or are within baseline
-  const okPass = checkReleaseSizes();
-  if (!okPass) {
-    throw new Error("expected checkReleaseSizes to pass for current build");
-  }
+  // Create isolated temp directory with mock binaries matching baseline
+  const testDir = join(TESTS_TMP_DIR, "release-size-test");
+  mkdirSync(testDir, { recursive: true });
 
-  // 2. Simulated +5% growth: should warn but pass (return true)
-  const origFiles = { ...parsed.files };
   try {
-    const smallerFiles: Record<string, number> = {};
-    for (const [k, v] of Object.entries(origFiles)) {
-      smallerFiles[k] = Math.round(Number(v) * 0.95); // 5% growth
-    }
-    parsed.files = smallerFiles;
-    writeFileSync(baselinePath, JSON.stringify(parsed, null, 2), "utf8");
+    const baseExeSize = parsed.files["Swiftleaf.exe"];
+    const baseInstallSize = parsed.files["Swiftleaf-install.exe"] ?? baseExeSize;
 
-    const okWarn = checkReleaseSizes();
+    // 1. Files match baseline exactly -> passes
+    writeFileSync(join(testDir, "Swiftleaf.exe"), Buffer.alloc(baseExeSize));
+    writeFileSync(join(testDir, "Swiftleaf-install.exe"), Buffer.alloc(baseInstallSize));
+
+    const okPass = checkReleaseSizes(testDir);
+    if (!okPass) {
+      throw new Error("expected checkReleaseSizes to pass for exact baseline sizes");
+    }
+
+    // 2. Simulated +5% growth: should warn but pass (return true)
+    const warnExeSize = Math.round(baseExeSize * 1.05);
+    writeFileSync(join(testDir, "Swiftleaf.exe"), Buffer.alloc(warnExeSize));
+    writeFileSync(join(testDir, "Swiftleaf-install.exe"), Buffer.alloc(warnExeSize));
+
+    const okWarn = checkReleaseSizes(testDir);
     if (!okWarn) {
       throw new Error("expected 5% growth to pass with warning, not fail");
     }
 
     // 3. Simulated +15% growth: should fail (return false)
-    const muchSmallerFiles: Record<string, number> = {};
-    for (const [k, v] of Object.entries(origFiles)) {
-      muchSmallerFiles[k] = Math.round(Number(v) * 0.85); // 17.6% growth (>10%)
-    }
-    parsed.files = muchSmallerFiles;
-    writeFileSync(baselinePath, JSON.stringify(parsed, null, 2), "utf8");
+    const failExeSize = Math.round(baseExeSize * 1.15);
+    writeFileSync(join(testDir, "Swiftleaf.exe"), Buffer.alloc(failExeSize));
+    writeFileSync(join(testDir, "Swiftleaf-install.exe"), Buffer.alloc(failExeSize));
 
-    const okFail = checkReleaseSizes();
+    const okFail = checkReleaseSizes(testDir);
     if (okFail) {
       throw new Error("expected >10% growth to fail");
     }
   } finally {
-    parsed.files = origFiles;
-    writeFileSync(baselinePath, JSON.stringify(parsed, null, 2) + "\n", "utf8");
+    rmSync(testDir, { recursive: true, force: true });
   }
 }
 
