@@ -536,8 +536,9 @@ static void AuditByteContributions(Str path, PdfOptimizationAudit* audit) {
 
             if (pdf_is_stream(ctx, obj)) {
                 fz_buffer* buf = pdf_load_raw_stream(ctx, obj);
-                i64 sz = buf ? (i64)buf->len : 0;
-                fz_drop_buffer(ctx, buf);
+                unsigned char* bufData = nullptr;
+                i64 sz = buf ? (i64)fz_buffer_storage(ctx, buf, &bufData) : 0;
+                if (buf) fz_drop_buffer(ctx, buf);
 
                 if (sz > 0) {
                     pdf_obj* type = pdf_dict_get(ctx, obj, PDF_NAME(Type));
