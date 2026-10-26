@@ -142,10 +142,61 @@ static void SplitWords(Str s, Vec<Str>& words) {
     }
 }
 
-static int AppendWordDiff(str::Builder& out, Str left, Str right) {
+// Exact word LCS needs (n+1)*(m+1) table cells. Cap at 1M cells (4 MB) and
+// report one coarse changed span above it. Page alignment compares every pair;
+// above 20k pairs (about 141x141 pages) fall back to index alignment.
+static constexpr int kMaxDiffCells = 1 << 20;
+static constexpr int kMaxAlignPairs = 20000;
+// A page pair counts as the same page at 40% bag-of-words overlap.
+static constexpr int kPageMatchPercent = 40;
+
+enum WordOp : u8 {
+    WordSame,
+    WordDel,
+    WordIns
+};
+
+static void AppendWordSpan(str::Builder& out, const Vec<Str>& words, int from, int to, bool& first) {
+    for (int i = from; i < to; i++) {
+        if (!first) out.AppendChar(' ');
+        first = false;
+        AppendHtml(out, words[i]);
+    }
+}
+
+// Emit one edit run: deleted words first (if any), then inserted words.
+static void AppendWordRun(str::Builder& out, const Vec<Str>& del, int dfrom, int dto, const Vec<Str>& ins, int ifrom,
+                          int ito, bool& first) {
+    if (dto > dfrom) {
+        if (!first) out.AppendChar(' ');
+        first = false;
+        out.Append(StrL("<del>"));
+        for (int i = dfrom; i < dto; i++) {
+            if (i > dfrom) out.AppendChar(' ');
+            AppendHtml(out, del[i]);
+        }
+        out.Append(StrL("</del>"));
+    }
+    if (ito > ifrom) {
+        if (!first) out.AppendChar(' ');
+        first = false;
+        out.Append(StrL("<ins>"));
+        for (int i = ifrom; i < ito; i++) {
+            if (i > ifrom) out.AppendChar(' ');
+            AppendHtml(out, ins[i]);
+        }
+        out.Append(StrL("</ins>"));
+    }
+}
+
+PdfWordDiff ComparePdfWordDiff(Str leftText, Str rightText) {
+    PdfWordDiff res;
     Vec<Str> a, b;
-    SplitWords(left, a);
-    SplitWords(right, b);
+    SplitWords(leftText, a);
+    SplitWords(rightText, b);
+
+    // Trim the common prefix/suffix first: it shrinks the LCS table and keeps
+    // unchanged text out of the edit script.
     int prefix = 0;
     while (prefix < len(a) && prefix < len(b) && str::Eq(a[prefix], b[prefix])) prefix++;
     int suffix = 0;
@@ -153,44 +204,258 @@ static int AppendWordDiff(str::Builder& out, Str left, Str right) {
            str::Eq(a[len(a) - suffix - 1], b[len(b) - suffix - 1])) {
         suffix++;
     }
-    for (int i = 0; i < prefix; i++) {
-        if (i) out.AppendChar(' ');
-        AppendHtml(out, a[i]);
-    }
-    int changes = std::max(len(a) - prefix - suffix, len(b) - prefix - suffix);
-    if (len(a) > prefix + suffix) {
-        out.Append(StrL(" <del>"));
-        for (int i = prefix; i < len(a) - suffix; i++) {
-            if (i > prefix) out.AppendChar(' ');
-            AppendHtml(out, a[i]);
+    int an = len(a) - prefix - suffix;
+    int bn = len(b) - prefix - suffix;
+
+    str::Builder out;
+    bool first = true;
+    AppendWordSpan(out, a, 0, prefix, first);
+
+    bool tooBig = (i64)an * bn > kMaxDiffCells;
+    if (tooBig || an == 0 || bn == 0) {
+        if (an > 0 || bn > 0) {
+            AppendWordRun(out, a, prefix, prefix + an, b, prefix, prefix + bn, first);
+            res.editRuns = 1;
+            res.changedWords = std::max(an, bn);
         }
-        out.Append(StrL("</del>"));
-    }
-    if (len(b) > prefix + suffix) {
-        out.Append(StrL(" <ins>"));
-        for (int i = prefix; i < len(b) - suffix; i++) {
-            if (i > prefix) out.AppendChar(' ');
-            AppendHtml(out, b[i]);
+        res.coarse = tooBig;
+    } else {
+        // Bounded LCS table; traceback derives the edit script without a
+        // second direction matrix.
+        int cols = bn + 1;
+        u32* dp = (u32*)AllocZero((an + 1) * cols, sizeof(u32));
+        for (int i = 1; i <= an; i++) {
+            for (int j = 1; j <= bn; j++) {
+                if (str::Eq(a[prefix + i - 1], b[prefix + j - 1])) {
+                    dp[i * cols + j] = dp[(i - 1) * cols + j - 1] + 1;
+                } else {
+                    dp[i * cols + j] = std::max(dp[(i - 1) * cols + j], dp[i * cols + j - 1]);
+                }
+            }
         }
-        out.Append(StrL("</ins>"));
+
+        Vec<Str> words;
+        Vec<u8> ops;
+        int i = an, j = bn;
+        while (i > 0 || j > 0) {
+            if (i > 0 && j > 0 && str::Eq(a[prefix + i - 1], b[prefix + j - 1])) {
+                VecAppend(words, a[prefix + i - 1]);
+                VecAppend(ops, (u8)WordSame);
+                i--;
+                j--;
+            } else if (j > 0 && (i == 0 || dp[i * cols + j - 1] >= dp[(i - 1) * cols + j])) {
+                VecAppend(words, b[prefix + j - 1]);
+                VecAppend(ops, (u8)WordIns);
+                j--;
+            } else {
+                VecAppend(words, a[prefix + i - 1]);
+                VecAppend(ops, (u8)WordDel);
+                i--;
+            }
+        }
+        VecReverse(words);
+        VecReverse(ops);
+        free(dp);
+
+        // Walk the script once: same words are printed, every maximal run of
+        // del/ins words becomes one <del>..</del> <ins>..</ins> edit.
+        for (int k = 0; k < len(ops);) {
+            if (ops[k] == WordSame) {
+                AppendWordSpan(out, words, k, k + 1, first);
+                k++;
+                continue;
+            }
+            Vec<Str> dels, inss;
+            while (k < len(ops) && ops[k] != WordSame) {
+                VecAppend(ops[k] == WordDel ? dels : inss, words[k]);
+                k++;
+            }
+            AppendWordRun(out, dels, 0, len(dels), inss, 0, len(inss), first);
+            res.editRuns++;
+            res.changedWords += std::max(len(dels), len(inss));
+        }
     }
-    for (int i = suffix; i > 0; i--) {
-        out.AppendChar(' ');
-        AppendHtml(out, a[len(a) - i]);
-    }
-    return changes;
+
+    AppendWordSpan(out, a, len(a) - suffix, len(a), first);
+    res.html = ToStrTemp(out);
+    return res;
 }
 
-static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int pageNo, double* ratioOut, Str* leftPngOut,
-                        Str* rightPngOut) {
+// --- page alignment -------------------------------------------------------
+// Each page is reduced to sorted word hashes. Similarity is bag-of-words
+// overlap, so an inserted or moved page no longer shifts every later index.
+struct PageSigs {
+    Vec<u32> hashes;
+    Vec<int> offsets; // one past-end offset per page, starting with 0
+};
+
+static void StartSigs(PageSigs& sigs) {
+    VecAppend(sigs.offsets, 0);
+}
+
+static int CmpU32(const void* x, const void* y) {
+    u32 a = *(const u32*)x, b = *(const u32*)y;
+    return (a > b) - (a < b);
+}
+
+static void AddPageSig(PageSigs& sigs, Str text) {
+    Vec<Str> words;
+    SplitWords(text, words);
+    int start = len(sigs.hashes);
+    for (Str w : words) VecAppend(sigs.hashes, MurmurHash2(w));
+    int count = len(sigs.hashes) - start;
+    if (count > 0) qsort((void*)(sigs.hashes.els + start), (size_t)count, sizeof(u32), CmpU32);
+    VecAppend(sigs.offsets, len(sigs.hashes));
+}
+
+static int PageSim(const PageSigs& a, int ai, const PageSigs& b, int bi) {
+    int ab = a.offsets[ai], ae = a.offsets[ai + 1];
+    int bb = b.offsets[bi], be = b.offsets[bi + 1];
+    int na = ae - ab, nb = be - bb;
+    if (na + nb == 0) return 0;
+    int i = ab, j = bb, common = 0;
+    while (i < ae && j < be) {
+        u32 ha = a.hashes[i], hb = b.hashes[j];
+        if (ha == hb) {
+            common++;
+            i++;
+            j++;
+        } else if (ha < hb) {
+            i++;
+        } else {
+            j++;
+        }
+    }
+    return (200 * common) / (na + nb);
+}
+
+static void AddMatch(Vec<PdfPageMatch>& out, int left, int right, int similarity, bool moved) {
+    PdfPageMatch m;
+    m.left = left;
+    m.right = right;
+    m.similarity = similarity;
+    m.moved = moved;
+    VecAppend(out, m);
+}
+
+static void AlignPageSigs(const PageSigs& left, const PageSigs& right, Vec<PdfPageMatch>& out) {
+    int nl = len(left.offsets) - 1, nr = len(right.offsets) - 1;
+    if (nl <= 0 || nr <= 0) {
+        for (int i = 0; i < nl; i++) AddMatch(out, i, -1, 0, false);
+        for (int j = 0; j < nr; j++) AddMatch(out, -1, j, 0, false);
+        return;
+    }
+
+    int* rightOfLeft = AllocArray<int>(nl);
+    int* leftOfRight = AllocArray<int>(nr);
+    u8* moved = AllocArray<u8>(nl);
+    for (int i = 0; i < nl; i++) rightOfLeft[i] = -1;
+    for (int j = 0; j < nr; j++) leftOfRight[j] = -1;
+
+    // Above the pair cap keep the old index alignment; expensive but bounded.
+    if ((i64)nl * nr <= kMaxAlignPairs) {
+        u8* sim = (u8*)AllocZero(nl * nr, 1);
+        for (int i = 0; i < nl; i++) {
+            for (int j = 0; j < nr; j++) sim[i * nr + j] = (u8)PageSim(left, i, right, j);
+        }
+
+        // Phase 1: order-preserving LCS over sufficiently similar pages. This
+        // matches the unchanged pages around an insertion or deletion.
+        int cols = nr + 1;
+        u16* dp = (u16*)AllocZero((nl + 1) * cols, sizeof(u16));
+        for (int i = 1; i <= nl; i++) {
+            for (int j = 1; j <= nr; j++) {
+                if (sim[(i - 1) * nr + (j - 1)] >= kPageMatchPercent) {
+                    dp[i * cols + j] = dp[(i - 1) * cols + j - 1] + 1;
+                } else {
+                    dp[i * cols + j] = std::max(dp[(i - 1) * cols + j], dp[i * cols + j - 1]);
+                }
+            }
+        }
+        int i = nl, j = nr;
+        while (i > 0 && j > 0) {
+            int s = sim[(i - 1) * nr + (j - 1)];
+            if (s >= kPageMatchPercent && dp[i * cols + j] == dp[(i - 1) * cols + j - 1] + 1) {
+                rightOfLeft[i - 1] = j - 1;
+                leftOfRight[j - 1] = i - 1;
+                i--;
+                j--;
+            } else if (dp[(i - 1) * cols + j] >= dp[i * cols + j - 1]) {
+                i--;
+            } else {
+                j--;
+            }
+        }
+        free(dp);
+
+        // Phase 2: pages left over but textually the same are moves (index
+        // order alone cannot explain them).
+        for (int li = 0; li < nl; li++) {
+            if (rightOfLeft[li] >= 0) continue;
+            int best = -1, bestSim = kPageMatchPercent - 1;
+            for (int ri = 0; ri < nr; ri++) {
+                if (leftOfRight[ri] >= 0) continue;
+                int s = sim[li * nr + ri];
+                if (s > bestSim) {
+                    bestSim = s;
+                    best = ri;
+                }
+            }
+            if (best < 0) continue;
+            rightOfLeft[li] = best;
+            leftOfRight[best] = li;
+            moved[li] = 1;
+        }
+        free(sim);
+    }
+
+    // Phase 3: index fallback for the rest (scanned or fully rewritten pages
+    // have no text signal; pairing them by index preserves side-by-side view).
+    int ri = 0;
+    for (int li = 0; li < nl; li++) {
+        if (rightOfLeft[li] >= 0) continue;
+        while (ri < nr && leftOfRight[ri] >= 0) ri++;
+        if (ri >= nr) break;
+        rightOfLeft[li] = ri;
+        leftOfRight[ri] = li;
+    }
+
+    for (int li = 0; li < nl; li++) {
+        int r = rightOfLeft[li];
+        if (r >= 0) {
+            AddMatch(out, li, r, PageSim(left, li, right, r), moved[li] != 0);
+        } else {
+            AddMatch(out, li, -1, 0, false);
+        }
+    }
+    for (int r = 0; r < nr; r++) {
+        if (leftOfRight[r] < 0) AddMatch(out, -1, r, 0, false);
+    }
+
+    free(rightOfLeft);
+    free(leftOfRight);
+    free(moved);
+}
+
+void ComparePdfAlignPages(const Vec<Str>& leftTexts, const Vec<Str>& rightTexts, Vec<PdfPageMatch>& out) {
+    PageSigs ls, rs;
+    StartSigs(ls);
+    StartSigs(rs);
+    for (Str t : leftTexts) AddPageSig(ls, t);
+    for (Str t : rightTexts) AddPageSig(rs, t);
+    AlignPageSigs(ls, rs, out);
+}
+
+static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int aPageNo, int bPageNo, double* ratioOut,
+                        Str* leftPngOut, Str* rightPngOut) {
     fz_page* pa = nullptr;
     fz_page* pb = nullptr;
     fz_pixmap* xa = nullptr;
     fz_pixmap* xb = nullptr;
     bool ok = false;
     fz_try(ctx) {
-        pa = fz_load_page(ctx, a, pageNo);
-        pb = fz_load_page(ctx, b, pageNo);
+        pa = fz_load_page(ctx, a, aPageNo);
+        pb = fz_load_page(ctx, b, bPageNo);
         xa = fz_new_pixmap_from_page(ctx, pa, fz_scale(0.25f, 0.25f), fz_device_rgb(ctx), 0);
         xb = fz_new_pixmap_from_page(ctx, pb, fz_scale(0.25f, 0.25f), fz_device_rgb(ctx), 0);
         *leftPngOut = PixmapPngUri(ctx, xa);
@@ -285,89 +550,130 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     html.Append(fmt("</p><p>%d pages vs %d pages</p>", leftPages, rightPages));
 
     int wordChanges = 0;
+    int editRuns = 0;
+    int coarsePages = 0;
+    int movedPages = 0;
+    int addedPages = 0;
+    int removedPages = 0;
     double pixelChanges = 0;
     int pixelPages = 0;
-    int compared = std::min(leftPages, rightPages);
     int totalPages = std::max(leftPages, rightPages);
 
-    for (int i = 0; i < compared; i++) {
+    // Text similarity alignment: inserted, removed and moved pages no longer
+    // shift every later page comparison.
+    PageSigs leftSigs, rightSigs;
+    StartSigs(leftSigs);
+    StartSigs(rightSigs);
+    for (int i = 0; i < leftPages; i++) {
+        TempStr t;
+        AddPageSig(leftSigs, PageText(ctx, left, i, t) ? t : Str());
+    }
+    for (int i = 0; i < rightPages; i++) {
+        TempStr t;
+        AddPageSig(rightSigs, PageText(ctx, right, i, t) ? t : Str());
+    }
+    Vec<PdfPageMatch> matches;
+    AlignPageSigs(leftSigs, rightSigs, matches);
+
+    for (const PdfPageMatch& m : matches) {
         TempStr a, b;
-        bool okA = PageText(ctx, left, i, a);
-        bool okB = PageText(ctx, right, i, b);
+        bool okA = m.left >= 0 && PageText(ctx, left, m.left, a);
+        bool okB = m.right >= 0 && PageText(ctx, right, m.right, b);
         int aw = okA ? CountWords(a) : 0;
         int bw = okB ? CountWords(b) : 0;
-        str::Builder diff;
-        int wc = 0;
-        if (okA && okB) {
-            wc = AppendWordDiff(diff, a, b);
-        } else {
-            wc = std::max(1, std::max(aw, bw));
-            diff.Append(StrL("<span class=\"error\">[Text extraction failed"));
-            if (!okA) diff.Append(StrL(" on left"));
-            if (!okB) diff.Append(StrL(" on right"));
-            diff.Append(StrL("]</span>"));
+
+        if (m.left >= 0 && m.right >= 0) {
+            str::Builder diff;
+            int wc = 0, runs = 0;
+            bool coarse = false;
+            if (okA && okB) {
+                PdfWordDiff d = ComparePdfWordDiff(a, b);
+                diff.Append(d.html);
+                wc = d.changedWords;
+                runs = d.editRuns;
+                coarse = d.coarse;
+            } else {
+                wc = std::max(1, std::max(aw, bw));
+                diff.Append(StrL("<span class=\"error\">[Text extraction failed"));
+                if (!okA) diff.Append(StrL(" on left"));
+                if (!okB) diff.Append(StrL(" on right"));
+                diff.Append(StrL("]</span>"));
+            }
+            wordChanges += wc;
+            editRuns += runs;
+            if (coarse) coarsePages++;
+            if (m.moved) movedPages++;
+
+            double pixelRatio = 0;
+            TempStr leftPng, rightPng;
+            bool pixelOk = PixelChange(ctx, left, right, m.left, m.right, &pixelRatio, &leftPng, &rightPng);
+            if (pixelOk) {
+                pixelChanges += pixelRatio;
+                pixelPages++;
+            }
+
+            if (m.left == m.right) {
+                html.Append(fmt("<section class=\"page\" id=\"match-%d\"><h2>Page %d", m.left + 1, m.left + 1));
+            } else {
+                html.Append(fmt("<section class=\"page\" id=\"match-%d\"><h2>Left page %d, right page %d", m.left + 1,
+                                m.left + 1, m.right + 1));
+            }
+            if (m.moved) html.Append(StrL(" (moved)"));
+            html.Append(StrL("</h2><p>"));
+
+            if (okA && okB) {
+                html.Append(fmt("%d vs %d words; %d changed words in %d edits", aw, bw, wc, runs));
+                if (coarse) html.Append(StrL(" (coarse: too many changed words)"));
+                html.Append(StrL("; "));
+            } else {
+                html.Append(StrL("<span class=\"error\">[Text extraction failed]</span> "));
+            }
+            if (pixelOk) {
+                html.Append(fmt("%.2f%% changed pixels</p>", pixelRatio * 100.0));
+            } else {
+                html.Append(StrL("<span class=\"error\">[Pixel comparison failed: render error]</span></p>"));
+            }
+
+            html.Append(StrL("<h3>Word diff</h3><pre>"));
+            html.Append(ToStrTemp(diff));
+            html.Append(StrL("</pre><div class=\"images\">"));
+
+            if (len(leftPng) > 0) {
+                html.Append(StrL("<figure><figcaption>Left</figcaption><img src=\""));
+                html.Append(leftPng);
+                html.Append(StrL("\"></figure>"));
+            } else {
+                html.Append(
+                    StrL("<figure><figcaption>Left</figcaption><p class=\"error\">[Render failed]</p></figure>"));
+            }
+
+            if (len(rightPng) > 0) {
+                html.Append(StrL("<figure><figcaption>Right</figcaption><img src=\""));
+                html.Append(rightPng);
+                html.Append(StrL("\"></figure>"));
+            } else {
+                html.Append(
+                    StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
+            }
+
+            html.Append(StrL("</div></section>"));
+            continue;
         }
-        wordChanges += wc;
 
-        double pixelRatio = 0;
-        TempStr leftPng, rightPng;
-        bool pixelOk = PixelChange(ctx, left, right, i, &pixelRatio, &leftPng, &rightPng);
-        if (pixelOk) {
-            pixelChanges += pixelRatio;
-            pixelPages++;
-        }
-
-        html.Append(fmt("<section class=\"page\" id=\"page-%d\"><h2>Page %d</h2><p>", i + 1, i + 1));
-        if (okA && okB) {
-            html.Append(fmt("%d vs %d words; %d changed words; ", aw, bw, wc));
-        } else {
-            html.Append(StrL("<span class=\"error\">[Text extraction failed]</span> "));
-        }
-        if (pixelOk) {
-            html.Append(fmt("%.2f%% changed pixels</p>", pixelRatio * 100.0));
-        } else {
-            html.Append(StrL("<span class=\"error\">[Pixel comparison failed: render error]</span></p>"));
-        }
-
-        html.Append(StrL("<h3>Word diff</h3><pre>"));
-        html.Append(ToStrTemp(diff));
-        html.Append(StrL("</pre><div class=\"images\">"));
-
-        if (len(leftPng) > 0) {
-            html.Append(StrL("<figure><figcaption>Left</figcaption><img src=\""));
-            html.Append(leftPng);
-            html.Append(StrL("\"></figure>"));
-        } else {
-            html.Append(StrL("<figure><figcaption>Left</figcaption><p class=\"error\">[Render failed]</p></figure>"));
-        }
-
-        if (len(rightPng) > 0) {
-            html.Append(StrL("<figure><figcaption>Right</figcaption><img src=\""));
-            html.Append(rightPng);
-            html.Append(StrL("\"></figure>"));
-        } else {
-            html.Append(StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
-        }
-
-        html.Append(StrL("</div></section>"));
-    }
-
-    for (int i = compared; i < totalPages; i++) {
-        if (leftPages > rightPages) {
-            TempStr a;
-            bool okA = PageText(ctx, left, i, a);
-            int aw = okA ? CountWords(a) : 0;
+        if (m.left >= 0) {
+            removedPages++;
             int wc = std::max(1, aw);
             wordChanges += wc;
 
             TempStr leftPng;
-            bool renderOk = RenderPagePng(ctx, left, i, leftPng);
+            bool renderOk = RenderPagePng(ctx, left, m.left, leftPng);
             if (renderOk) {
                 pixelChanges += 1.0;
                 pixelPages++;
             }
 
-            html.Append(fmt("<section class=\"page\" id=\"page-%d\"><h2>Page %d (Only in Left / Removed)</h2><p>", i + 1, i + 1));
+            html.Append(fmt("<section class=\"page\" id=\"left-%d\"><h2>Page %d (Only in Left / Removed)</h2><p>",
+                            m.left + 1, m.left + 1));
             if (okA) {
                 html.Append(fmt("%d words in removed page; %d changed words; 100.00%% changed pixels</p>", aw, wc));
             } else {
@@ -385,57 +691,65 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
                 html.Append(leftPng);
                 html.Append(StrL("\"></figure>"));
             } else {
-                html.Append(StrL("<figure><figcaption>Left</figcaption><p class=\"error\">[Render failed]</p></figure>"));
+                html.Append(
+                    StrL("<figure><figcaption>Left</figcaption><p class=\"error\">[Render failed]</p></figure>"));
             }
             html.Append(StrL("<figure><figcaption>Right</figcaption><p><em>(Page absent)</em></p></figure>"));
             html.Append(StrL("</div></section>"));
-        } else {
-            TempStr b;
-            bool okB = PageText(ctx, right, i, b);
-            int bw = okB ? CountWords(b) : 0;
-            int wc = std::max(1, bw);
-            wordChanges += wc;
-
-            TempStr rightPng;
-            bool renderOk = RenderPagePng(ctx, right, i, rightPng);
-            if (renderOk) {
-                pixelChanges += 1.0;
-                pixelPages++;
-            }
-
-            html.Append(fmt("<section class=\"page\" id=\"page-%d\"><h2>Page %d (Only in Right / Added)</h2><p>", i + 1, i + 1));
-            if (okB) {
-                html.Append(fmt("%d words in added page; %d changed words; 100.00%% changed pixels</p>", bw, wc));
-            } else {
-                html.Append(StrL("<span class=\"error\">[Text extraction failed]</span> added page</p>"));
-            }
-            html.Append(StrL("<h3>Word diff</h3><pre><ins>"));
-            if (okB) {
-                AppendHtml(html, b);
-            } else {
-                html.Append(StrL("[Text extraction failed]"));
-            }
-            html.Append(StrL("</ins></pre><div class=\"images\">"));
-            html.Append(StrL("<figure><figcaption>Left</figcaption><p><em>(Page absent)</em></p></figure>"));
-            if (len(rightPng) > 0) {
-                html.Append(StrL("<figure><figcaption>Right (Added)</figcaption><img src=\""));
-                html.Append(rightPng);
-                html.Append(StrL("\"></figure>"));
-            } else {
-                html.Append(StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
-            }
-            html.Append(StrL("</div></section>"));
+            continue;
         }
+
+        addedPages++;
+        int wc = std::max(1, bw);
+        wordChanges += wc;
+
+        TempStr rightPng;
+        bool renderOk = RenderPagePng(ctx, right, m.right, rightPng);
+        if (renderOk) {
+            pixelChanges += 1.0;
+            pixelPages++;
+        }
+
+        html.Append(fmt("<section class=\"page\" id=\"right-%d\"><h2>Page %d (Only in Right / Added)</h2><p>",
+                        m.right + 1, m.right + 1));
+        if (okB) {
+            html.Append(fmt("%d words in added page; %d changed words; 100.00%% changed pixels</p>", bw, wc));
+        } else {
+            html.Append(StrL("<span class=\"error\">[Text extraction failed]</span> added page</p>"));
+        }
+        html.Append(StrL("<h3>Word diff</h3><pre><ins>"));
+        if (okB) {
+            AppendHtml(html, b);
+        } else {
+            html.Append(StrL("[Text extraction failed]"));
+        }
+        html.Append(StrL("</ins></pre><div class=\"images\">"));
+        html.Append(StrL("<figure><figcaption>Left</figcaption><p><em>(Page absent)</em></p></figure>"));
+        if (len(rightPng) > 0) {
+            html.Append(StrL("<figure><figcaption>Right (Added)</figcaption><img src=\""));
+            html.Append(rightPng);
+            html.Append(StrL("\"></figure>"));
+        } else {
+            html.Append(StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
+        }
+        html.Append(StrL("</div></section>"));
     }
 
     html.Append(StrL("<h2>Summary</h2><ul>"));
-    for (int i = 0; i < totalPages; i++) {
-        if (i < compared) {
-            html.Append(fmt("<li><a href=\"#page-%d\">Page %d</a></li>", i + 1, i + 1));
-        } else if (leftPages > rightPages) {
-            html.Append(fmt("<li><a href=\"#page-%d\">Page %d (Left only)</a></li>", i + 1, i + 1));
+    for (const PdfPageMatch& m : matches) {
+        if (m.left >= 0 && m.right >= 0) {
+            if (m.left == m.right) {
+                html.Append(fmt("<li><a href=\"#match-%d\">Page %d</a></li>", m.left + 1, m.left + 1));
+            } else {
+                html.Append(
+                    fmt("<li><a href=\"#match-%d\">Left page %d, right page %d", m.left + 1, m.left + 1, m.right + 1));
+                if (m.moved) html.Append(StrL(" (moved)"));
+                html.Append(StrL("</a></li>"));
+            }
+        } else if (m.left >= 0) {
+            html.Append(fmt("<li><a href=\"#left-%d\">Page %d (Left only)</a></li>", m.left + 1, m.left + 1));
         } else {
-            html.Append(fmt("<li><a href=\"#page-%d\">Page %d (Right only)</a></li>", i + 1, i + 1));
+            html.Append(fmt("<li><a href=\"#right-%d\">Page %d (Right only)</a></li>", m.right + 1, m.right + 1));
         }
     }
     html.Append(StrL("</ul>"));
@@ -446,8 +760,9 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
         fz_buffer* buffer = fz_new_buffer_from_copied_data(ctx, (unsigned char*)ToStr(html).s, len(ToStr(html)));
         fz_archive* archive = fz_open_directory(ctx, CStrTemp(path::GetDirTemp(reportPath)));
         fz_story* story = fz_new_story(ctx, buffer,
-                                       "body { font-family: sans-serif; font-size: 11pt; } img { max-width: 100%; } pre { white-space: pre-wrap; }", 11,
-                                       archive);
+                                       "body { font-family: sans-serif; font-size: 11pt; } img { max-width: 100%; } "
+                                       "pre { white-space: pre-wrap; }",
+                                       11, archive);
         fz_document_writer* writer = fz_new_pdf_writer(ctx, CStrTemp(output.tempPath), "compress");
         if (writer && story) {
             int more = 1, count = 0;
@@ -480,11 +795,15 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     if (resultJsonOut) {
         if (ok) {
             *resultJsonOut = str::DupTemp(
-                fmt("{\"ok\":true,\"pages\":%d,\"wordChanges\":%d,\"pixelChangePercent\":%.2f,\"report\":\"%s\"}",
-                    totalPages, wordChanges, avgPixelPct, json::EscapeStrTemp(reportPath)));
+                fmt("{\"ok\":true,\"pages\":%d,\"sections\":%d,\"wordChanges\":%d,\"editRuns\":%d,\"movedPages\":%d,"
+                    "\"addedPages\":%d,\"removedPages\":%d,\"coarsePages\":%d,\"pixelChangePercent\":%.2f,\"report\":"
+                    "\"%s\"}",
+                    totalPages, len(matches), wordChanges, editRuns, movedPages, addedPages, removedPages, coarsePages,
+                    avgPixelPct, json::EscapeStrTemp(reportPath)));
         } else {
             *resultJsonOut = str::DupTemp(
-                fmt("{\"ok\":false,\"error\":\"Failed to generate comparison report\",\"pages\":%d,\"wordChanges\":%d,\"pixelChangePercent\":%.2f}",
+                fmt("{\"ok\":false,\"error\":\"Failed to generate comparison report\",\"pages\":%d,\"wordChanges\":%d,"
+                    "\"pixelChangePercent\":%.2f}",
                     totalPages, wordChanges, avgPixelPct));
         }
     }
