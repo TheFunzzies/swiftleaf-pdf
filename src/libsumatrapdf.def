@@ -1536,6 +1536,7 @@ EXPORTS
 
 	pdf_lookup_page_number
 
+	pdf_count_versions
 	pdf_count_pages
 
 	pdf_lookup_page_obj
