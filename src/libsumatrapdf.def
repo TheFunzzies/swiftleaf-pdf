@@ -2005,6 +2005,10 @@ EXPORTS
 	pdf_signature_error_description
 
 	pdf_signature_incremental_change_since_signing
+	pdf_validate_changes
+	pdf_validate_signature
+	pdf_find_version_for_obj
+	pdf_count_unsaved_versions
 
 	pdf_drop_verifier
 
