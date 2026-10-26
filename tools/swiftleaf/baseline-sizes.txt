@@ -1,0 +1,3 @@
+Swiftleaf.exe 5600000
+Swiftleaf-install.exe 5600000
+# Recorded sizes for CI release size gate
