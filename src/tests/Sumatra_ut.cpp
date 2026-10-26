@@ -2517,6 +2517,44 @@ static void PageTools2Test() {
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(Type)) == PDF_NAME(StructTreeRoot));
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(K)) != nullptr);
 
+        pdf_obj* parentTree = pdf_dict_gets(ctx, strRoot, "ParentTree");
+        pdf_obj* nums = pdf_dict_gets(ctx, parentTree, "Nums");
+        utassert(pdf_array_len(ctx, nums) >= 4);
+        pdf_obj* firstPage = pdf_lookup_page_obj(ctx, doc, 0);
+        utassert(pdf_to_int(ctx, pdf_dict_gets(ctx, firstPage, "StructParents")) == 0);
+        pdf_obj* owners = pdf_array_get(ctx, nums, 1);
+        pdf_obj* owner = pdf_array_get(ctx, owners, 0);
+        utassert(pdf_to_int(ctx, pdf_dict_get(ctx, owner, PDF_NAME(K))) == 0);
+        utassert(pdf_objcmp(ctx, pdf_dict_gets(ctx, owner, "Pg"), firstPage) == 0);
+        pdf_obj* contents = pdf_dict_get(ctx, firstPage, PDF_NAME(Contents));
+        utassert(pdf_is_array(ctx, contents));
+        fz_buffer* prefix = pdf_load_stream(ctx, pdf_array_get(ctx, contents, 0));
+        unsigned char* bytes = nullptr;
+        size_t size = fz_buffer_storage(ctx, prefix, &bytes);
+        utassert(size >= 20 && memcmp(bytes, "/P <</MCID 0>> BDC", 17) == 0);
+        fz_drop_buffer(ctx, prefix);
+
+        // Source TH scope is reported without certifying header associations.
+        pdf_obj* header = pdf_new_dict(ctx, doc, 2);
+        pdf_dict_put(ctx, header, PDF_NAME(S), PDF_NAME(TH));
+        pdf_obj* attrs = pdf_dict_put_dict(ctx, header, PDF_NAME(A), 2);
+        pdf_dict_put(ctx, attrs, PDF_NAME(O), PDF_NAME(Table));
+        pdf_dict_puts_drop(ctx, attrs, "Scope", pdf_new_name(ctx, "Column"));
+        pdf_obj* savedKids = pdf_keep_obj(ctx, pdf_dict_get(ctx, strRoot, PDF_NAME(K)));
+        pdf_dict_put(ctx, strRoot, PDF_NAME(K), header);
+        AccessReport scopeReport = RunAccessibilityCheck(ctx, doc);
+        bool foundScope = false;
+        for (const auto& item : scopeReport.items) {
+            if (str::Eq(item.title, StrL("Header scope"))) {
+                foundScope = true;
+                utassert(item.status == AccessCheckStatus::Warning);
+            }
+        }
+        utassert(foundScope);
+        FreeAccessReport(scopeReport);
+        pdf_dict_put_drop(ctx, strRoot, PDF_NAME(K), savedKids);
+        pdf_drop_obj(ctx, header);
+
         // Nonempty malformed K and Marked=true must not establish accessibility.
         pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_TRUE);
         pdf_dict_put_int(ctx, strRoot, PDF_NAME(K), 42);
