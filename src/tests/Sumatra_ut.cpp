@@ -38,6 +38,7 @@
 #include "Accessibility.h"
 #include "Preflight.h"
 #include <mupdf/pdf.h>
+extern const pdf_write_options gPdfDefaultWriteOptions;
 #include "AppUnitTests.h"
 #include "Ocr.h"
 #include "SignaturePanel.h"
@@ -2427,7 +2428,7 @@ static void PageTools2Test() {
         fz_append_string(ctx, badProfile, "sRGB Profile");
         pdf_update_stream(ctx, doc, pdf_dict_get(ctx, oi, PDF_NAME(DestOutputProfile)), badProfile, 0);
         fz_drop_buffer(ctx, badProfile);
-        pdf_write_options badOpts = pdf_default_write_options;
+        pdf_write_options badOpts = gPdfDefaultWriteOptions;
         pdf_save_document(ctx, doc, CStrTemp(badProfilePdf), &badOpts);
         pdf_drop_document(ctx, doc);
         fz_drop_context(ctx);
@@ -2468,6 +2469,7 @@ static void PageTools2Test() {
         utassert(e->PageCount() == 2);
         SafeEngineRelease(&e);
         file::Delete(rgbPdf);
+
     }
 
     file::Delete(basePdf);

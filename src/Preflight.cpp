@@ -404,7 +404,16 @@ static bool HasIccHeader(Str data) {
     if (len(data) < 132 || memcmp(data.s + 36, "acsp", 4) != 0) return false;
     const u8* b = (const u8*)data.s;
     u32 size = ((u32)b[0] << 24) | ((u32)b[1] << 16) | ((u32)b[2] << 8) | b[3];
-    return size == (u32)len(data);
+    if (size != (u32)len(data)) return false;
+    u32 tagCount = ((u32)b[128] << 24) | ((u32)b[129] << 16) | ((u32)b[130] << 8) | b[131];
+    if (tagCount == 0 || 132 + tagCount * 12 > size) return false;
+    for (u32 i = 0; i < tagCount; i++) {
+        u32 pos = 132 + i * 12;
+        u32 tagOffset = ((u32)b[pos + 4] << 24) | ((u32)b[pos + 5] << 16) | ((u32)b[pos + 6] << 8) | b[pos + 7];
+        u32 tagLen = ((u32)b[pos + 8] << 24) | ((u32)b[pos + 9] << 16) | ((u32)b[pos + 10] << 8) | b[pos + 11];
+        if (tagOffset < 132 || tagOffset + tagLen > size || tagOffset + tagLen < tagOffset) return false;
+    }
+    return true;
 }
 
 // PDF/A Conversion & Validation
@@ -509,18 +518,7 @@ bool ConvertPdfToPdfA(Str srcPath, Str destPath, int part) {
         if (iccData.len > 0) {
             fz_buffer* iccBuf =
                 fz_new_buffer_from_copied_data(ctx, (const unsigned char*)iccData.s, (size_t)iccData.len);
-            fz_colorspace* cs = nullptr;
-            fz_try(ctx) {
-                cs = fz_new_icc_colorspace(ctx, FZ_COLORSPACE_RGB, 0, "sRGB", iccBuf);
-            }
-            fz_always(ctx) {
-                fz_drop_colorspace(ctx, cs);
-                str::Free(iccData);
-            }
-            fz_catch(ctx) {
-                fz_drop_buffer(ctx, iccBuf);
-                fz_rethrow(ctx);
-            }
+            str::Free(iccData);
             iccStream = pdf_add_stream(ctx, doc, iccBuf, nullptr, 0);
             fz_drop_buffer(ctx, iccBuf);
             pdf_dict_put_int(ctx, iccStream, PDF_NAME(N), 3);
@@ -613,20 +611,16 @@ bool ValidatePdfA(Str filePath, int part, StrVec& violationsOut) {
                 violationsOut.Append(StrL("OutputIntent missing DestOutputProfile ICC profile"));
             } else {
                 fz_buffer* profile = pdf_load_stream(ctx, pdf_dict_gets(ctx, oi, "DestOutputProfile"));
-                fz_colorspace* cs = nullptr;
-                fz_try(ctx) {
+                bool validIcc = false;
+                if (profile) {
                     unsigned char* bytes = nullptr;
                     size_t size = fz_buffer_storage(ctx, profile, &bytes);
-                    if (size > INT_MAX || !HasIccHeader(Str{(const char*)bytes, (int)size})) {
-                        fz_throw(ctx, FZ_ERROR_FORMAT, "Invalid ICC header");
+                    if (size <= INT_MAX && HasIccHeader(Str{(const char*)bytes, (int)size})) {
+                        validIcc = true;
                     }
-                    cs = fz_new_icc_colorspace(ctx, FZ_COLORSPACE_NONE, 0, "OutputIntent", profile);
-                }
-                fz_always(ctx) {
-                    fz_drop_colorspace(ctx, cs);
                     fz_drop_buffer(ctx, profile);
                 }
-                fz_catch(ctx) {
+                if (!validIcc) {
                     violationsOut.Append(StrL("Invalid OutputIntent ICC profile bytes"));
                 }
             }
