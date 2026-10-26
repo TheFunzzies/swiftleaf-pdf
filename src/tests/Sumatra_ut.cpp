@@ -2158,6 +2158,84 @@ static void PageStampsTest() {
     file::Delete(basePdf);
 }
 
+static void PdfCompressionHonestyTest() {
+    // Honest preset descriptions
+    Str descArchive = PdfOptimizerPresetDescription(PdfOptimizerPreset::Archive);
+    Str descPrint = PdfOptimizerPresetDescription(PdfOptimizerPreset::Print);
+    Str descWeb = PdfOptimizerPresetDescription(PdfOptimizerPreset::Web);
+    Str descMinSize = PdfOptimizerPresetDescription(PdfOptimizerPreset::MinSize);
+
+    utassert(str::Contains(descArchive, StrL("ISO PDF/A")));
+    utassert(str::Contains(descPrint, StrL("300 DPI")));
+    utassert(str::Contains(descWeb, StrL("150 DPI")));
+    utassert(str::Contains(descMinSize, StrL("96 DPI")));
+
+    // Create a test PDF with an uncompressed text stream
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    const char* o1 = "<< /Type /Catalog /Pages 2 0 R >>";
+    const char* o2 = "<< /Type /Pages /Count 1 /Kids [3 0 R] >>";
+    const char* o3 = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>";
+    const char* o4 =
+        "<< /Length 80 >>\nstream\nBT /F1 12 Tf 72 712 Td (SwiftLeaf Compression Honesty Test) Tj ET\nendstream";
+    int offsets[4];
+    offsets[0] = len(pdf);
+    pdf.Append(fmt("1 0 obj\n%s\nendobj\n", Str(o1)));
+    offsets[1] = len(pdf);
+    pdf.Append(fmt("2 0 obj\n%s\nendobj\n", Str(o2)));
+    offsets[2] = len(pdf);
+    pdf.Append(fmt("3 0 obj\n%s\nendobj\n", Str(o3)));
+    offsets[3] = len(pdf);
+    pdf.Append(fmt("4 0 obj\n%s\nendobj\n", Str(o4)));
+    int xref = len(pdf);
+    pdf.Append(StrL("xref\n0 5\n0000000000 65535 f \n"));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+
+    TempStr basePdf = GetTempFilePathTemp(StrL("compress-base.pdf"));
+    utassert(file::WriteFile(basePdf, ToStrTemp(pdf)));
+
+    // Audit initial breakdown
+    PdfOptimizationAudit auditInit{};
+    bool audited = PdfAuditBreakdown(basePdf, &auditInit);
+    utassert(audited);
+    utassert(auditInit.beforeBytes > 0);
+    utassert(auditInit.imageBytes + auditInit.fontBytes + auditInit.objectBytes == auditInit.beforeBytes);
+
+    // Test Archive preset: distinct from PDF/A, keeps structure, losslessly deflates
+    TempStr archivePdf = GetTempFilePathTemp(StrL("compress-archive.pdf"));
+    PdfOptimizationAudit auditArchive{};
+    bool okArchive = PdfOptimizeFile(basePdf, archivePdf, PdfOptimizerPreset::Archive, &auditArchive);
+    utassert(okArchive);
+    utassert(file::Exists(archivePdf));
+    utassert(auditArchive.beforeBytes == file::GetSize(basePdf));
+    utassert(auditArchive.imageBytes + auditArchive.fontBytes + auditArchive.objectBytes == auditArchive.afterBytes);
+
+    // Test Print preset: distinct backend from Archive
+    TempStr printPdf = GetTempFilePathTemp(StrL("compress-print.pdf"));
+    PdfOptimizationAudit auditPrint{};
+    bool okPrint = PdfOptimizeFile(basePdf, printPdf, PdfOptimizerPreset::Print, &auditPrint);
+    utassert(okPrint);
+    utassert(file::Exists(printPdf));
+
+    // Test "keep original if output would grow":
+    // Attempting to compress an already compressed/compact file where overhead would grow:
+    // Output size must never exceed source size!
+    TempStr recompactPdf = GetTempFilePathTemp(StrL("compress-recompact.pdf"));
+    PdfOptimizationAudit auditRecompact{};
+    bool okRecompact = PdfOptimizeFile(archivePdf, recompactPdf, PdfOptimizerPreset::Archive, &auditRecompact);
+    utassert(okRecompact);
+    i64 origArchiveSize = file::GetSize(archivePdf);
+    i64 recompactSize = file::GetSize(recompactPdf);
+    utassert(recompactSize <= origArchiveSize);
+    utassert(auditRecompact.afterBytes <= auditRecompact.beforeBytes);
+
+    file::Delete(basePdf);
+    file::Delete(archivePdf);
+    file::Delete(printPdf);
+    file::Delete(recompactPdf);
+}
+
 static void PageTools2Test() {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
@@ -2759,6 +2837,7 @@ int RunAppUnitTests(bool forAi) {
     AdvancedFormsTest();
     BatchPlanTest();
     PageStampsTest();
+    PdfCompressionHonestyTest();
 #if !defined(SUMATRA_NG)
     ExportFormatsUnitTests();
 #endif
