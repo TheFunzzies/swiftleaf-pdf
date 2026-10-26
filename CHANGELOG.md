@@ -2,12 +2,13 @@
 
 ## Unreleased
 
+- PDF compression honesty: distinct Archive preset from ISO PDF/A, separate Print and Archive backends, detailed image/font/object byte contributions in audit and dialog, honest preset descriptions, and keep-original guarantee when output would grow.
+- Release size and footprint gate: automated CI check against recorded baselines with warning on growth and strict >10% growth prevention gate.
 - Accessibility: warn about unverified reading order and figure links; preserve existing tags and mark generated roles as drafts.
 - PDF/A: reject invalid ICC profiles, preserve transparency, and report unverified conformance.
 - PDF compare: report load, render, and text extraction failures honestly without false 0% diffs, include extra-page details, and ensure atomic report writes.
 - PDF compare: report separate word edits with a bounded diff and coarse fallback, and align inserted, removed or moved pages by text similarity instead of page index.
 - Tools search: enable Tab navigation and prevent minimum-width clipping on resize.
-
 - Recommended section at top of the All tools panel for quick access to primary workflows.
 - Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
 - Command palette lists all commands with description and ribbon tab destination.

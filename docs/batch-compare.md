@@ -33,3 +33,15 @@ atomically, and truncated PDF stories fail without leaving corrupt output. The
 report is written as HTML (or PDF); the CLI returns its machine-readable summary
 as JSON, including section, edit-run, moved/added/removed page and coarse-diff
 page counts.
+
+### Compression presets and honesty
+
+Optimizer presets are `web`, `print`, `archive`, and `min-size`; `compress` is
+an alias for the optimizer:
+
+- `archive`: Lossless stream deflation, object stream compacting, and structure preservation (`--structure=keep`) for long-term storage. Note: does not convert to ISO PDF/A compliance.
+- `print`: High-resolution image preservation (subsamples above 450 DPI down to 300 DPI, JPEG 85) and stream compression for physical printing.
+- `web`: Balanced screen compression (subsamples photos above 225 DPI to 150 DPI, JPEG 75).
+- `min-size`: Aggressive compression (subsamples photos above 144 DPI to 96 DPI, JPEG 50).
+
+Optimization audits report `beforeBytes`, `afterBytes`, `imageBytes`, `fontBytes`, and `objectBytes`. If optimization would cause the output file size to grow compared to the original, SwiftLeaf keeps the original document rather than producing a larger file.
