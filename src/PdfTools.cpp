@@ -512,8 +512,12 @@ bool PdfAuditBreakdown(Str filePath, PdfOptimizationAudit* auditOut) {
     if (total <= 0) {
         return false;
     }
-    auditOut->beforeBytes = total;
-    auditOut->afterBytes = total;
+    if (auditOut->beforeBytes <= 0) {
+        auditOut->beforeBytes = total;
+    }
+    if (auditOut->afterBytes <= 0) {
+        auditOut->afterBytes = total;
+    }
     auditOut->imageBytes = 0;
     auditOut->fontBytes = 0;
     auditOut->objectBytes = 0;
@@ -588,10 +592,12 @@ bool PdfAuditBreakdown(Str filePath, PdfOptimizationAudit* auditOut) {
         }
     }
     fz_always(ctx) {
-        pdf_drop_document(ctx, doc);
-        fz_drop_context(ctx);
+        if (doc) {
+            pdf_drop_document(ctx, doc);
+        }
     }
     fz_catch(ctx) {}
+    fz_drop_context(ctx);
 
     if (images > total) {
         images = total;
@@ -682,9 +688,10 @@ bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOp
 
     VecAppend(argv, CStrTemp(srcPath));
     VecAppend(argv, CStrTemp(tempOutput));
+    VecAppend(argv, (char*)nullptr);
 
     fz_set_optind(0);
-    int res = pdfclean_main(len(argv), argv.els);
+    int res = pdfclean_main(len(argv) - 1, argv.els);
     if (res != 0) {
         file::Delete(tempOutput);
         return false;
