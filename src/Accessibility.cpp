@@ -154,28 +154,29 @@ static void WalkAcroFields(fz_context* ctx, pdf_obj* fields, int& fieldCount, in
     }
 }
 
-// Only direct image OBJR links are verified here; MCID stream coverage needs manual review.
-static bool HasFigureAlt(fz_context* ctx, pdf_obj* tree, pdf_obj* image, int depth = 0) {
+// Verify both directions of direct image OBJR links. MCID coverage remains unverified.
+static bool HasFigureAlt(fz_context* ctx, pdf_obj* tree, pdf_obj* image, pdf_obj* parent, int depth = 0) {
     if (!tree || depth > 64) return false;
     if (pdf_is_array(ctx, tree)) {
         for (int i = 0; i < pdf_array_len(ctx, tree); i++) {
-            if (HasFigureAlt(ctx, pdf_array_get(ctx, tree, i), image, depth + 1)) return true;
+            if (HasFigureAlt(ctx, pdf_array_get(ctx, tree, i), image, parent, depth + 1)) return true;
         }
         return false;
     }
     if (!pdf_is_dict(ctx, tree)) return false;
     pdf_obj* kids = pdf_dict_get(ctx, tree, PDF_NAME(K));
     const char* alt = pdf_to_text_string(ctx, pdf_dict_get(ctx, tree, PDF_NAME(Alt)));
-    if (pdf_dict_get(ctx, tree, PDF_NAME(S)) == PDF_NAME(Figure) && alt && *alt) {
+    if (pdf_dict_get(ctx, tree, PDF_NAME(S)) == PDF_NAME(Figure) && alt && *alt && parent &&
+        pdf_objcmp(ctx, parent, tree) == 0) {
         int n = pdf_is_array(ctx, kids) ? pdf_array_len(ctx, kids) : 1;
         for (int i = 0; i < n; i++) {
             pdf_obj* ref = pdf_is_array(ctx, kids) ? pdf_array_get(ctx, kids, i) : kids;
             if (pdf_dict_get(ctx, ref, PDF_NAME(Type)) == PDF_NAME(OBJR) &&
-                pdf_objcmp(ctx, pdf_dict_get(ctx, ref, PDF_NAME(Obj)), image) == 0)
+                pdf_objcmp(ctx, pdf_dict_gets(ctx, ref, "Obj"), image) == 0)
                 return true;
         }
     }
-    return HasFigureAlt(ctx, kids, image, depth + 1);
+    return HasFigureAlt(ctx, kids, image, parent, depth + 1);
 }
 
 AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
@@ -276,12 +277,15 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
         int firstBadTablePage = 0;
         WalkTreeForTables(ctx, structTree, tableCount, tablesWithoutHeaders, firstBadTablePage);
         if (tableCount == 0) {
-            AddReportItem(report, StrL("Tables"), StrL("Table Headers"), StrL("No tables found in structure tree"),
-                          AccessCheckStatus::Pass);
-        } else if (tablesWithoutHeaders == 0) {
             AddReportItem(report, StrL("Tables"), StrL("Table Headers"),
-                          fmt(Tr("All %d table(s) contain proper header cells (/TH)").s, tableCount),
-                          AccessCheckStatus::Pass);
+                          StrL("No table roles found; manual check required for untagged tables"),
+                          AccessCheckStatus::Warning);
+        } else if (tablesWithoutHeaders == 0) {
+            AddReportItem(
+                report, StrL("Tables"), StrL("Table Headers"),
+                fmt(Tr("%d table(s) contain TH roles; header scope and content associations require manual check").s,
+                    tableCount),
+                AccessCheckStatus::Warning);
         } else {
             AddReportItem(report, StrL("Tables"), StrL("Table Headers"),
                           fmt(Tr("%d table(s) lack header cells (/TH)").s, tablesWithoutHeaders),
@@ -331,7 +335,7 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
 
         int pageImages = 0;
         pdf_obj* pageObj = pdf_lookup_page_obj(ctx, doc, i);
-        pdf_obj* res = pageObj ? pdf_dict_get(ctx, pageObj, PDF_NAME(Resources)) : nullptr;
+        pdf_obj* res = pageObj ? pdf_dict_get_inheritable(ctx, pageObj, PDF_NAME(Resources)) : nullptr;
         pdf_obj* xobj = res ? pdf_dict_get(ctx, res, PDF_NAME(XObject)) : nullptr;
         if (xobj && pdf_is_dict(ctx, xobj)) {
             int xLen = pdf_dict_len(ctx, xobj);
@@ -340,7 +344,12 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
                 if (pdf_is_dict(ctx, item) && pdf_dict_get(ctx, item, PDF_NAME(Subtype)) == PDF_NAME(Image)) {
                     pageImages++;
                     totalImages++;
-                    if (!HasFigureAlt(ctx, structTree, item)) {
+                    pdf_obj* key = pdf_dict_gets(ctx, item, "StructParent");
+                    pdf_obj* parents = pdf_dict_get(ctx, structTree, PDF_NAME(ParentTree));
+                    pdf_obj* parent = pdf_is_int(ctx, key) && pdf_to_int(ctx, key) >= 0
+                                          ? pdf_lookup_number(ctx, parents, pdf_to_int(ctx, key))
+                                          : nullptr;
+                    if (!HasFigureAlt(ctx, structTree, item, parent)) {
                         imagesWithoutAlt++;
                         if (firstImageWithoutAltPage == 0) firstImageWithoutAltPage = i + 1;
                     }
@@ -883,7 +892,7 @@ struct AccessibilityFixesDialog : WindowBase {
         dispDocTitleCheck->Create(cbargs);
         mainBox->AddChild(dispDocTitleCheck);
 
-        cbargs.text = Tr("Auto-tag basic structure (Headings H1/H2, Paragraphs P, Lists L, Figures)");
+        cbargs.text = Tr("Generate draft roles only (not linked to content; existing tags preserved)");
         cbargs.initialState = Checkbox::State::Checked;
         autoTagCheck = new Checkbox();
         autoTagCheck->Create(cbargs);
@@ -895,7 +904,7 @@ struct AccessibilityFixesDialog : WindowBase {
                                            .font = font,
                                            .isRtl = IsUIRtl()}));
 
-            eargs.text = StrL("Figure illustration");
+            eargs.text = StrL("");
             altEdit = new Edit();
             altEdit->Create(eargs);
             mainBox->AddChild(altEdit);

@@ -409,7 +409,7 @@ static bool HasIccHeader(Str data) {
 
 // PDF/A Conversion & Validation
 bool ConvertPdfToPdfA(Str srcPath, Str destPath, int part) {
-    if (len(srcPath) == 0 || len(destPath) == 0) return false;
+    if (len(srcPath) == 0 || len(destPath) == 0 || (part != 1 && part != 2)) return false;
     file::AtomicFile output(destPath);
     if (len(output.tempPath) == 0) return false;
 
@@ -466,14 +466,14 @@ bool ConvertPdfToPdfA(Str srcPath, Str destPath, int part) {
             fz_drop_page(ctx, (fz_page*)page);
         }
 
-        // 2. Add XMP Metadata with pdfaid
+        // 2. Describe preparation without asserting unverified PDF/A conformance.
         TempStr xmp =
             fmt("<?xpacket begin=\"\xEF\xBB\xBF\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n"
                 "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n"
                 " <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n"
-                "  <rdf:Description rdf:about=\"\" xmlns:pdfaid=\"http://www.aiim.org/pdfa/ns/id/\">\n"
-                "   <pdfaid:part>%d</pdfaid:part>\n"
-                "   <pdfaid:conformance>B</pdfaid:conformance>\n"
+                "  <rdf:Description rdf:about=\"\" xmlns:sl=\"https://swiftleaf.app/ns/preparation/1.0/\">\n"
+                "   <sl:target>PDF/A-%db</sl:target>\n"
+                "   <sl:status>Unverified: fonts not embedded; transparency not flattened</sl:status>\n"
                 "  </rdf:Description>\n"
                 " </rdf:RDF>\n"
                 "</x:xmpmeta>\n"
@@ -938,7 +938,8 @@ struct PdfAConvertDialog : WindowBase {
         CbSetCurrentSelection(partDrop, 1);
         mainBox->AddChild(partDrop);
 
-        mainBox->AddChild(NewVirtText({.s = Tr("Save converted PDF/A to:"), .font = font, .isRtl = IsUIRtl()}));
+        mainBox->AddChild(
+            NewVirtText({.s = Tr("Save unverified prepared copy to:"), .font = font, .isRtl = IsUIRtl()}));
 
         auto* destRow = new HBox();
         destRow->alignCross = CrossAxisAlign::CrossCenter;
@@ -1024,7 +1025,8 @@ struct PdfAConvertDialog : WindowBase {
         int part = CbGetCurrentSelection(partDrop) == 0 ? 1 : 2;
         bool ok = ConvertPdfToPdfA(srcPath, dest, part);
         if (!ok) {
-            MessageBoxWarning(hwnd, Tr("Failed to convert PDF to PDF/A."), Tr("Error"));
+            MessageBoxWarning(hwnd, Tr("Preparation failed. A valid RGB ICC profile and readable PDF are required."),
+                              Tr("Error"));
             return;
         }
 
@@ -1147,18 +1149,12 @@ struct PdfAValidateDialog : WindowBase {
         violations.Reset();
 
         int part = CbGetCurrentSelection(partDrop) == 0 ? 1 : 2;
-        bool valid = ValidatePdfA(srcPath, part, violations);
+        ValidatePdfA(srcPath, part, violations);
 
         auto* newModel = new ListBoxModelStrings();
-        if (valid) {
-            newModel->strings.Append(fmt("PASS: Document complies with basic PDF/A-%db rules.", part));
-            newModel->strings.Append(
-                StrL("No forbidden features (encryption, JS, external actions) or missing metadata found."));
-        } else {
-            newModel->strings.Append(fmt("UNVERIFIED: %d finding(s) for PDF/A-%db:", len(violations), part));
-            for (const auto v : violations) {
-                newModel->strings.Append(fmt("  - %s", v));
-            }
+        newModel->strings.Append(fmt("UNVERIFIED: %d finding(s) for PDF/A-%db:", len(violations), part));
+        for (const auto v : violations) {
+            newModel->strings.Append(fmt("  - %s", v));
         }
         listBox->SetModel(newModel);
     }

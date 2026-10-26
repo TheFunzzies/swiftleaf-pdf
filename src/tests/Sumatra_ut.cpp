@@ -2363,11 +2363,57 @@ static void PageTools2Test() {
         pdf_dict_put_int(ctx, strRoot, PDF_NAME(K), 42);
         AccessReport taggedReport = RunAccessibilityCheck(ctx, doc);
         for (const auto& item : taggedReport.items) {
-            if (str::Eq(item.title, StrL("Logical Reading Order")) || str::Eq(item.title, StrL("Tagged PDF"))) {
+            if (str::Eq(item.title, StrL("Logical Reading Order")) || str::Eq(item.title, StrL("Tagged PDF")) ||
+                str::Eq(item.title, StrL("Table Headers"))) {
                 utassert(item.status != AccessCheckStatus::Pass);
             }
         }
         FreeAccessReport(taggedReport);
+
+        // Figure Alt is not a content association without the reverse ParentTree link.
+        pdf_obj* image = pdf_new_dict(ctx, doc, 4);
+        pdf_dict_put(ctx, image, PDF_NAME(Subtype), PDF_NAME(Image));
+        pdf_dict_put_int(ctx, image, PDF_NAME(Width), 1);
+        pdf_dict_put_int(ctx, image, PDF_NAME(Height), 1);
+        fz_buffer* pixels = fz_new_buffer(ctx, 1);
+        fz_append_byte(ctx, pixels, 0);
+        pdf_obj* imageRef = pdf_add_stream(ctx, doc, pixels, image, 0);
+        fz_drop_buffer(ctx, pixels);
+        pdf_drop_obj(ctx, image);
+        pdf_obj* pageObj = pdf_lookup_page_obj(ctx, doc, 0);
+        pdf_obj* resources = pdf_dict_put_dict(ctx, pageObj, PDF_NAME(Resources), 1);
+        pdf_obj* xobjects = pdf_dict_put_dict(ctx, resources, PDF_NAME(XObject), 1);
+        pdf_dict_puts(ctx, xobjects, "TestImage", imageRef);
+        pdf_obj* figure = pdf_new_dict(ctx, doc, 5);
+        pdf_dict_put(ctx, figure, PDF_NAME(S), PDF_NAME(Figure));
+        pdf_dict_put_text_string(ctx, figure, PDF_NAME(Alt), "A test pixel");
+        pdf_obj* objr = pdf_dict_put_dict(ctx, figure, PDF_NAME(K), 2);
+        pdf_dict_put(ctx, objr, PDF_NAME(Type), PDF_NAME(OBJR));
+        pdf_dict_puts(ctx, objr, "Obj", imageRef);
+        pdf_obj* figureRef = pdf_add_object(ctx, doc, figure);
+        pdf_dict_put(ctx, strRoot, PDF_NAME(K), figureRef);
+        for (int linked = 0; linked < 2; linked++) {
+            if (linked) {
+                pdf_dict_puts_drop(ctx, imageRef, "StructParent", pdf_new_int(ctx, 0));
+                pdf_obj* parents = pdf_dict_put_dict(ctx, strRoot, PDF_NAME(ParentTree), 1);
+                pdf_obj* nums = pdf_dict_put_array(ctx, parents, PDF_NAME(Nums), 2);
+                pdf_array_push_int(ctx, nums, 0);
+                pdf_array_push(ctx, nums, figureRef);
+            }
+            AccessReport figures = RunAccessibilityCheck(ctx, doc);
+            bool found = false;
+            for (const auto& item : figures.items) {
+                if (!str::Eq(item.title, StrL("Alternative Text"))) continue;
+                found = true;
+                utassert(item.status != AccessCheckStatus::Pass);
+                utassert(str::Contains(item.detail, linked ? StrL("have Figure") : StrL("lack verified")));
+            }
+            utassert(found);
+            FreeAccessReport(figures);
+        }
+        pdf_drop_obj(ctx, figureRef);
+        pdf_drop_obj(ctx, figure);
+        pdf_drop_obj(ctx, imageRef);
         pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_FALSE);
 
         // Assert MarkInfo
@@ -2394,7 +2440,7 @@ static void PageTools2Test() {
         ok = ConvertPdfToPdfA(basePdf, pdfaPdf, 1);
         utassert(ok);
 
-        // Reopen saved PDF/A and assert XMP pdfaid and OutputIntent
+        // Preparation must not manufacture a PDF/A conformance declaration.
         ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
         utassert(ctx != nullptr);
         fz_register_document_handlers(ctx);
@@ -2411,7 +2457,7 @@ static void PageTools2Test() {
         utassert(b != nullptr);
         unsigned char* data = nullptr;
         size_t dlen = fz_buffer_storage(ctx, b, &data);
-        utassert(data != nullptr && str::Contains(Str{(const char*)data, (int)dlen}, StrL("pdfaid:part")));
+        utassert(data != nullptr && !str::Contains(Str{(const char*)data, (int)dlen}, StrL("pdfaid:part")));
         fz_drop_buffer(ctx, b);
 
         // Assert OutputIntents

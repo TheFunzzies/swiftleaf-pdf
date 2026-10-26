@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Accessibility: require reverse ParentTree links for direct Figure/OBJR checks; table roles require manual review.
+- PDF/A preparation no longer writes an unverified conformance declaration.
+- Tools: keyboard search entry, named favorites, measured ribbon overflow and system high-contrast colors.
 - Accessibility: warn about unverified reading order and figure links; preserve existing tags and mark generated roles as drafts.
 - PDF/A: reject invalid ICC profiles, preserve transparency, and report unverified conformance.
 - Tools search: enable Tab navigation and prevent minimum-width clipping on resize.
