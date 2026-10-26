@@ -1390,9 +1390,12 @@ static bool OcrRoundTrip(int pageRotation, int viewRotation, float skew = 0) {
         Vec<TextSel>* matches = search.FindFirst(1, word.text);
         ok = matches && len(*matches) > 0 && engine->PageCount() == 2;
         if (ok) {
-            Rect r = (*matches)[0].rect;
-            RectF screen =
-                engine->Transform(RectF((float)r.x, (float)r.y, (float)r.dx, (float)r.dy), 1, zoom, viewRotation);
+            Rect total = (*matches)[0].rect;
+            for (int i = 1; i < len(*matches); i++) {
+                total = total.Union((*matches)[i].rect);
+            }
+            RectF screen = engine->Transform(RectF((float)total.x, (float)total.y, (float)total.dx, (float)total.dy), 1,
+                                             zoom, viewRotation);
             float cx = screen.x + screen.dx / 2;
             float cy = screen.y + screen.dy / 2;
             ok = fabsf(cx - expectedX) < 12 && fabsf(cy - expectedY) < 12;
