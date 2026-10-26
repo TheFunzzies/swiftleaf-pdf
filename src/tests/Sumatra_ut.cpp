@@ -2358,10 +2358,22 @@ static void PageTools2Test() {
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(Type)) == PDF_NAME(StructTreeRoot));
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(K)) != nullptr);
 
+        // Nonempty malformed K and Marked=true must not establish accessibility.
+        pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_TRUE);
+        pdf_dict_put_int(ctx, strRoot, PDF_NAME(K), 42);
+        AccessReport taggedReport = RunAccessibilityCheck(ctx, doc);
+        for (const auto& item : taggedReport.items) {
+            if (str::Eq(item.title, StrL("Logical Reading Order")) || str::Eq(item.title, StrL("Tagged PDF"))) {
+                utassert(item.status != AccessCheckStatus::Pass);
+            }
+        }
+        FreeAccessReport(taggedReport);
+        pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_FALSE);
+
         // Assert MarkInfo
         pdf_obj* minfo = pdf_dict_gets(ctx, root, "MarkInfo");
         utassert(minfo != nullptr);
-        utassert(pdf_to_bool(ctx, pdf_dict_gets(ctx, minfo, "Marked")) == 1);
+        utassert(pdf_to_bool(ctx, pdf_dict_gets(ctx, minfo, "Marked")) == 0);
 
         // Assert Lang
         pdf_obj* lang = pdf_dict_get(ctx, root, PDF_NAME(Lang));
@@ -2415,6 +2427,8 @@ static void PageTools2Test() {
 
         StrVec violations;
         bool valid = ValidatePdfA(pdfaPdf, 1, violations);
+        utassert(!valid);
+        utassert(len(violations) > 0);
         file::Delete(pdfaPdf);
 
         // (d) Preflight & Report Export & Color Conversion

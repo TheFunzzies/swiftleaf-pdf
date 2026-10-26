@@ -71,12 +71,13 @@ static void AddReportItem(AccessReport& report, Str category, Str title, Str det
 }
 
 static void WalkTreeForTables(fz_context* ctx, pdf_obj* node, int& tableCount, int& tablesWithoutHeaders,
-                              int& firstBadPage) {
-    if (!node) return;
+                              int& firstBadPage, int depth = 0) {
+    if (!node || depth > 64) return;
     if (pdf_is_array(ctx, node)) {
         int n = pdf_array_len(ctx, node);
         for (int i = 0; i < n; i++) {
-            WalkTreeForTables(ctx, pdf_array_get(ctx, node, i), tableCount, tablesWithoutHeaders, firstBadPage);
+            WalkTreeForTables(ctx, pdf_array_get(ctx, node, i), tableCount, tablesWithoutHeaders, firstBadPage,
+                              depth + 1);
         }
         return;
     }
@@ -91,7 +92,8 @@ static void WalkTreeForTables(fz_context* ctx, pdf_obj* node, int& tableCount, i
         if (kids) {
             Vec<pdf_obj*> stack;
             VecAppend(stack, kids);
-            while (len(stack) > 0) {
+            int remaining = 4096;
+            while (len(stack) > 0 && remaining-- > 0) {
                 pdf_obj* cur = VecPop(stack);
                 if (pdf_is_array(ctx, cur)) {
                     int kLen = pdf_array_len(ctx, cur);
@@ -122,7 +124,7 @@ static void WalkTreeForTables(fz_context* ctx, pdf_obj* node, int& tableCount, i
     }
 
     pdf_obj* k = pdf_dict_get(ctx, node, PDF_NAME(K));
-    if (k) WalkTreeForTables(ctx, k, tableCount, tablesWithoutHeaders, firstBadPage);
+    if (k) WalkTreeForTables(ctx, k, tableCount, tablesWithoutHeaders, firstBadPage, depth + 1);
 }
 
 static void WalkAcroFields(fz_context* ctx, pdf_obj* fields, int& fieldCount, int& missingTooltipCount,
@@ -152,6 +154,30 @@ static void WalkAcroFields(fz_context* ctx, pdf_obj* fields, int& fieldCount, in
     }
 }
 
+// Only direct image OBJR links are verified here; MCID stream coverage needs manual review.
+static bool HasFigureAlt(fz_context* ctx, pdf_obj* tree, pdf_obj* image, int depth = 0) {
+    if (!tree || depth > 64) return false;
+    if (pdf_is_array(ctx, tree)) {
+        for (int i = 0; i < pdf_array_len(ctx, tree); i++) {
+            if (HasFigureAlt(ctx, pdf_array_get(ctx, tree, i), image, depth + 1)) return true;
+        }
+        return false;
+    }
+    if (!pdf_is_dict(ctx, tree)) return false;
+    pdf_obj* kids = pdf_dict_get(ctx, tree, PDF_NAME(K));
+    const char* alt = pdf_to_text_string(ctx, pdf_dict_get(ctx, tree, PDF_NAME(Alt)));
+    if (pdf_dict_get(ctx, tree, PDF_NAME(S)) == PDF_NAME(Figure) && alt && *alt) {
+        int n = pdf_is_array(ctx, kids) ? pdf_array_len(ctx, kids) : 1;
+        for (int i = 0; i < n; i++) {
+            pdf_obj* ref = pdf_is_array(ctx, kids) ? pdf_array_get(ctx, kids, i) : kids;
+            if (pdf_dict_get(ctx, ref, PDF_NAME(Type)) == PDF_NAME(OBJR) &&
+                pdf_objcmp(ctx, pdf_dict_get(ctx, ref, PDF_NAME(Obj)), image) == 0)
+                return true;
+        }
+    }
+    return HasFigureAlt(ctx, kids, image, depth + 1);
+}
+
 AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
     AccessReport report;
     if (!ctx || !doc) return report;
@@ -172,7 +198,8 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
 
     if (report.isTagged) {
         AddReportItem(report, StrL("Structure"), StrL("Tagged PDF"),
-                      StrL("Document has MarkInfo Marked=true and StructTreeRoot"), AccessCheckStatus::Pass);
+                      StrL("Tag markers present; content links and PDF/UA conformance require manual check"),
+                      AccessCheckStatus::Warning);
     } else if (structTree != nullptr) {
         AddReportItem(report, StrL("Structure"), StrL("Tagged PDF"),
                       StrL("Structure tree present but MarkInfo Marked flag is missing or false"),
@@ -188,9 +215,10 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
         pdf_obj* k = pdf_dict_get(ctx, structTree, PDF_NAME(K));
         int kLen = k ? (pdf_is_array(ctx, k) ? pdf_array_len(ctx, k) : 1) : 0;
         if (kLen > 0) {
-            AddReportItem(report, StrL("Structure"), StrL("Logical Reading Order"),
-                          fmt(Tr("Structure tree root contains %d top-level element(s)").s, kLen),
-                          AccessCheckStatus::Pass);
+            AddReportItem(
+                report, StrL("Structure"), StrL("Logical Reading Order"),
+                StrL("Manual check required: structure children do not verify reading order or content links"),
+                AccessCheckStatus::Warning);
         } else {
             AddReportItem(report, StrL("Structure"), StrL("Logical Reading Order"),
                           StrL("Structure tree exists but contains no child elements"), AccessCheckStatus::Warning);
@@ -211,8 +239,7 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
                       AccessCheckStatus::Pass);
     } else {
         AddReportItem(report, StrL("Metadata"), StrL("Document Language"),
-                      StrL("Document language is not specified in document catalog (/Lang)"),
-                      AccessCheckStatus::Fail);
+                      StrL("Document language is not specified in document catalog (/Lang)"), AccessCheckStatus::Fail);
     }
 
     // 4. Document Title & DisplayDocTitle
@@ -249,8 +276,8 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
         int firstBadTablePage = 0;
         WalkTreeForTables(ctx, structTree, tableCount, tablesWithoutHeaders, firstBadTablePage);
         if (tableCount == 0) {
-            AddReportItem(report, StrL("Tables"), StrL("Table Headers"),
-                          StrL("No tables found in structure tree"), AccessCheckStatus::Pass);
+            AddReportItem(report, StrL("Tables"), StrL("Table Headers"), StrL("No tables found in structure tree"),
+                          AccessCheckStatus::Pass);
         } else if (tablesWithoutHeaders == 0) {
             AddReportItem(report, StrL("Tables"), StrL("Table Headers"),
                           fmt(Tr("All %d table(s) contain proper header cells (/TH)").s, tableCount),
@@ -272,8 +299,8 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
         int firstBadFieldPage = 0;
         WalkAcroFields(ctx, fields, fieldCount, missingTooltips, firstBadFieldName, firstBadFieldPage);
         if (fieldCount == 0) {
-            AddReportItem(report, StrL("Forms"), StrL("Field Tooltips"),
-                          StrL("No interactive form fields found"), AccessCheckStatus::Pass);
+            AddReportItem(report, StrL("Forms"), StrL("Field Tooltips"), StrL("No interactive form fields found"),
+                          AccessCheckStatus::Pass);
         } else if (missingTooltips == 0) {
             AddReportItem(report, StrL("Forms"), StrL("Field Tooltips"),
                           fmt(Tr("All %d form field(s) have accessible descriptions (/TU)").s, fieldCount),
@@ -286,8 +313,8 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
         }
         str::Free(firstBadFieldName);
     } else {
-        AddReportItem(report, StrL("Forms"), StrL("Field Tooltips"),
-                          StrL("No interactive form fields found"), AccessCheckStatus::Pass);
+        AddReportItem(report, StrL("Forms"), StrL("Field Tooltips"), StrL("No interactive form fields found"),
+                      AccessCheckStatus::Pass);
     }
 
     // 7. Scanned / image-only pages and Figures without alt text
@@ -313,7 +340,7 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
                 if (pdf_is_dict(ctx, item) && pdf_dict_get(ctx, item, PDF_NAME(Subtype)) == PDF_NAME(Image)) {
                     pageImages++;
                     totalImages++;
-                    if (!report.isTagged) {
+                    if (!HasFigureAlt(ctx, structTree, item)) {
                         imagesWithoutAlt++;
                         if (firstImageWithoutAltPage == 0) firstImageWithoutAltPage = i + 1;
                     }
@@ -346,7 +373,8 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
 
     if (scannedPagesCount == 0) {
         AddReportItem(report, StrL("Content"), StrL("Scanned Pages"),
-                      StrL("All pages contain searchable text layers"), AccessCheckStatus::Pass);
+                      StrL("No image-only pages detected; text completeness requires manual check"),
+                      AccessCheckStatus::Pass);
     } else {
         AddReportItem(report, StrL("Content"), StrL("Scanned Pages"),
                       fmt(Tr("%d page(s) contain images but no searchable text (e.g. Page %d)").s, scannedPagesCount,
@@ -355,16 +383,22 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
     }
 
     if (totalImages == 0) {
-        AddReportItem(report, StrL("Figures"), StrL("Alternative Text"),
-                      StrL("No raster figures/images found"), AccessCheckStatus::Pass);
+        AddReportItem(
+            report, StrL("Figures"), StrL("Alternative Text"),
+            StrL("No direct raster image resources found; vector, inline and nested figures require manual check"),
+            AccessCheckStatus::Warning);
     } else if (imagesWithoutAlt == 0) {
         AddReportItem(report, StrL("Figures"), StrL("Alternative Text"),
-                      fmt(Tr("All %d figure(s) have alternative text or are decorative").s, totalImages),
-                      AccessCheckStatus::Pass);
+                      fmt("%d direct image resource(s) have Figure Alt/OBJR links; MCIDs, ParentTree and coverage "
+                          "require manual check",
+                          totalImages),
+                      AccessCheckStatus::Warning);
     } else {
-        AddReportItem(report, StrL("Figures"), StrL("Alternative Text"),
-                      fmt(Tr("%d of %d figure(s) lack alternative text").s, imagesWithoutAlt, totalImages),
-                      AccessCheckStatus::Fail, firstImageWithoutAltPage);
+        AddReportItem(
+            report, StrL("Figures"), StrL("Alternative Text"),
+            fmt("%d of %d image resources lack verified Figure Alt/OBJR links; MCID associations require manual check",
+                imagesWithoutAlt, totalImages),
+            AccessCheckStatus::Warning, firstImageWithoutAltPage);
     }
 
     return report;
@@ -388,7 +422,9 @@ AccessReport RunAccessibilityCheckFile(Str filePath) {
         if (doc) pdf_drop_document(ctx, doc);
     }
     fz_catch(ctx) {
-        FreeAccessReport(report);
+        AddReportItem(report, StrL("Document"), StrL("Inspection failed"),
+                      StrL("Unable to complete accessibility inspection; manual check required"),
+                      AccessCheckStatus::Fail);
     }
     fz_drop_context(ctx);
     return report;
@@ -476,13 +512,13 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
         }
 
         // 3. Auto-tag structure
-        if (options.autoTagBasicStructure) {
+        if (options.autoTagBasicStructure && !pdf_dict_get(ctx, root, PDF_NAME(StructTreeRoot))) {
             pdf_obj* markInfo = pdf_dict_gets(ctx, root, "MarkInfo");
             if (!markInfo) {
                 markInfo = pdf_new_dict(ctx, doc, 2);
                 pdf_dict_puts(ctx, root, "MarkInfo", markInfo);
             }
-            pdf_dict_puts(ctx, markInfo, "Marked", PDF_TRUE);
+            pdf_dict_puts(ctx, markInfo, "Marked", PDF_FALSE);
 
             pdf_obj* structTree = pdf_new_dict(ctx, doc, 4);
             pdf_obj* structTreeRef = pdf_add_object(ctx, doc, structTree);
@@ -680,7 +716,8 @@ struct AccessibilityCheckerDialog : WindowBase {
             model->strings.Append(line);
         }
         listBox->SetModel(model);
-        listBox->onDoubleClick = MkMethod0<AccessibilityCheckerDialog, &AccessibilityCheckerDialog::OnListDoubleClick>(this);
+        listBox->onDoubleClick =
+            MkMethod0<AccessibilityCheckerDialog, &AccessibilityCheckerDialog::OnListDoubleClick>(this);
         mainBox->AddChild(listBox);
 
         auto* btnBox = new HBox();
@@ -689,15 +726,18 @@ struct AccessibilityCheckerDialog : WindowBase {
         btnBox->gap = font->averageCharWidth;
 
         gotoBtn = NewThemedButton(hwnd, Tr("Go to Page"), font, false);
-        gotoBtn->onClick = MkMethod1<AccessibilityCheckerDialog, VirtMouseEvent*, &AccessibilityCheckerDialog::OnGoToPage>(this);
+        gotoBtn->onClick =
+            MkMethod1<AccessibilityCheckerDialog, VirtMouseEvent*, &AccessibilityCheckerDialog::OnGoToPage>(this);
         btnBox->AddChild(gotoBtn);
 
         fixBtn = NewThemedButton(hwnd, Tr("Fix Issues..."), font, false);
-        fixBtn->onClick = MkMethod1<AccessibilityCheckerDialog, VirtMouseEvent*, &AccessibilityCheckerDialog::OnFixIssues>(this);
+        fixBtn->onClick =
+            MkMethod1<AccessibilityCheckerDialog, VirtMouseEvent*, &AccessibilityCheckerDialog::OnFixIssues>(this);
         btnBox->AddChild(fixBtn);
 
         closeBtn = NewThemedButton(hwnd, Tr("Close"), font, true);
-        closeBtn->onClick = MkMethod1<AccessibilityCheckerDialog, VirtMouseEvent*, &AccessibilityCheckerDialog::OnCloseBtn>(this);
+        closeBtn->onClick =
+            MkMethod1<AccessibilityCheckerDialog, VirtMouseEvent*, &AccessibilityCheckerDialog::OnCloseBtn>(this);
         btnBox->AddChild(closeBtn);
 
         mainBox->AddChild(btnBox);
@@ -724,18 +764,14 @@ struct AccessibilityCheckerDialog : WindowBase {
         }
     }
 
-    void OnListDoubleClick() {
-        OnGoToPage(nullptr);
-    }
+    void OnListDoubleClick() { OnGoToPage(nullptr); }
 
     void OnFixIssues(VirtMouseEvent*) {
         ScheduleDelete();
         ShowAccessibilityFixesDialog(win);
     }
 
-    void OnCloseBtn(VirtMouseEvent*) {
-        ScheduleDelete();
-    }
+    void OnCloseBtn(VirtMouseEvent*) { ScheduleDelete(); }
 };
 
 void ShowAccessibilityCheckerDialog(MainWindow* win) {
@@ -855,7 +891,9 @@ struct AccessibilityFixesDialog : WindowBase {
 
         // Figures Alt Text
         if (len(figures) > 0) {
-            mainBox->AddChild(NewVirtText({.s = fmt(Tr("Figures found: %d. Set alternate text:").s, len(figures)), .font = font, .isRtl = IsUIRtl()}));
+            mainBox->AddChild(NewVirtText({.s = fmt(Tr("Figures found: %d. Set alternate text:").s, len(figures)),
+                                           .font = font,
+                                           .isRtl = IsUIRtl()}));
 
             eargs.text = StrL("Figure illustration");
             altEdit = new Edit();
@@ -885,7 +923,8 @@ struct AccessibilityFixesDialog : WindowBase {
         destRow->AddChild(destEdit, 1);
 
         browseBtn = NewThemedButton(hwnd, Tr("Browse..."), font, false);
-        browseBtn->onClick = MkMethod1<AccessibilityFixesDialog, VirtMouseEvent*, &AccessibilityFixesDialog::OnBrowse>(this);
+        browseBtn->onClick =
+            MkMethod1<AccessibilityFixesDialog, VirtMouseEvent*, &AccessibilityFixesDialog::OnBrowse>(this);
         destRow->AddChild(browseBtn);
         mainBox->AddChild(destRow);
 
@@ -896,11 +935,13 @@ struct AccessibilityFixesDialog : WindowBase {
         btnBox->gap = font->averageCharWidth;
 
         applyBtn = NewThemedButton(hwnd, Tr("Apply Fixes"), font, true);
-        applyBtn->onClick = MkMethod1<AccessibilityFixesDialog, VirtMouseEvent*, &AccessibilityFixesDialog::OnApply>(this);
+        applyBtn->onClick =
+            MkMethod1<AccessibilityFixesDialog, VirtMouseEvent*, &AccessibilityFixesDialog::OnApply>(this);
         btnBox->AddChild(applyBtn);
 
         cancelBtn = NewThemedButton(hwnd, Tr("Cancel"), font, false);
-        cancelBtn->onClick = MkMethod1<AccessibilityFixesDialog, VirtMouseEvent*, &AccessibilityFixesDialog::OnCancel>(this);
+        cancelBtn->onClick =
+            MkMethod1<AccessibilityFixesDialog, VirtMouseEvent*, &AccessibilityFixesDialog::OnCancel>(this);
         btnBox->AddChild(cancelBtn);
         mainBox->AddChild(btnBox);
 
@@ -979,9 +1020,7 @@ struct AccessibilityFixesDialog : WindowBase {
         }
     }
 
-    void OnCancel(VirtMouseEvent*) {
-        ScheduleDelete();
-    }
+    void OnCancel(VirtMouseEvent*) { ScheduleDelete(); }
 };
 
 void ShowAccessibilityFixesDialog(MainWindow* win) {
