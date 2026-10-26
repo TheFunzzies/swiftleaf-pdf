@@ -37,6 +37,7 @@
 #include "DarkMode.h"
 #include "Theme.h"
 #include "SumatraConfig.h"
+#include "ScannerWia.h"
 #include "Ocr.h"
 #include "SumatraLog.h"
 
@@ -256,7 +257,6 @@ struct OcrJob {
     }
 };
 
-
 void RemoveBordersPixmap(Pixmap* px) {
     if (!px || !px->data || (px->format != PixmapFormat::BGRA8 && px->format != PixmapFormat::BGR8)) {
         return;
@@ -272,7 +272,9 @@ void RemoveBordersPixmap(Pixmap* px) {
     };
     auto setWhite = [px, bpp](int x, int y) {
         u8* p = px->data + (size_t)y * px->stride + (size_t)x * bpp;
-        p[0] = 255; p[1] = 255; p[2] = 255;
+        p[0] = 255;
+        p[1] = 255;
+        p[2] = 255;
         if (bpp == 4) p[3] = 255;
     };
 
@@ -359,7 +361,9 @@ void DespecklePixmap(Pixmap* px) {
     };
     auto setWhite = [px, bpp](int x, int y) {
         u8* p = px->data + (size_t)y * px->stride + (size_t)x * bpp;
-        p[0] = 255; p[1] = 255; p[2] = 255;
+        p[0] = 255;
+        p[1] = 255;
+        p[2] = 255;
         if (bpp == 4) p[3] = 255;
     };
 
@@ -446,7 +450,7 @@ double DetectDeskewAngle(const Pixmap* px) {
     return bestAngle;
 }
 
-void DeskewPixmap(Pixmap* px) {
+static void DeskewPixmapMapped(Pixmap* px, Gdiplus::Matrix* preprocessing) {
     if (!px || !px->data || px->width < 20 || px->height < 20) return;
     double angle = DetectDeskewAngle(px);
     if (fabs(angle) < 0.25 || fabs(angle) > 15.0) {
@@ -462,31 +466,56 @@ void DeskewPixmap(Pixmap* px) {
         return;
     }
 
+    bool drawn = false;
     {
         Gdiplus::Graphics g(dstBmp);
         g.Clear(Gdiplus::Color(255, 255, 255, 255));
         g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBilinear);
         g.TranslateTransform((float)px->width / 2.0f, (float)px->height / 2.0f);
-        g.RotateTransform((float)(-angle));
+        g.RotateTransform((float)angle);
         g.TranslateTransform(-(float)px->width / 2.0f, -(float)px->height / 2.0f);
-        g.DrawImage(srcBmp, 0, 0);
+        drawn = g.DrawImage(srcBmp, 0, 0) == Gdiplus::Ok;
+        if (drawn && preprocessing) drawn = g.GetTransform(preprocessing) == Gdiplus::Ok;
     }
 
     Gdiplus::Rect rect(0, 0, px->width, px->height);
     Gdiplus::BitmapData bdata{};
-    if (dstBmp->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, &bdata) == Gdiplus::Ok) {
+    if (drawn && dstBmp->LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, &bdata) == Gdiplus::Ok) {
         CopyPixmapRows(px, (const u8*)bdata.Scan0, bdata.Stride);
         dstBmp->UnlockBits(&bdata);
+    } else if (preprocessing) {
+        preprocessing->Reset();
     }
 
     delete dstBmp;
     delete srcBmp;
 }
 
-void PreprocessOcrPixmap(Pixmap* px) {
+void DeskewPixmap(Pixmap* px) {
+    DeskewPixmapMapped(px, nullptr);
+}
+
+static void PreprocessOcrMapped(Pixmap* px, Gdiplus::Matrix& preprocessing) {
     RemoveBordersPixmap(px);
-    DeskewPixmap(px);
+    DeskewPixmapMapped(px, &preprocessing);
     DespecklePixmap(px);
+}
+
+void PreprocessOcrPixmap(Pixmap* px) {
+    Gdiplus::Matrix preprocessing;
+    PreprocessOcrMapped(px, preprocessing);
+}
+
+static bool MapOcrWords(Vec<PdfOcrWord>& words, Gdiplus::Matrix& preprocessing) {
+    if (preprocessing.Invert() != Gdiplus::Ok) return false;
+    for (auto& word : words) {
+        auto& r = word.box;
+        Gdiplus::PointF corners[] = {{r.x, r.y}, {r.x + r.dx, r.y}, {r.x + r.dx, r.y + r.dy}, {r.x, r.y + r.dy}};
+        if (preprocessing.TransformPoints(corners, 4) != Gdiplus::Ok) return false;
+        for (int i = 0; i < 4; i++) word.corners[i] = {corners[i].X, corners[i].Y};
+        word.mapped = true;
+    }
+    return true;
 }
 
 static void RunOcr(OcrJob* job) {
@@ -533,11 +562,13 @@ static void RunOcr(OcrJob* job) {
         }
         RenderPageArgs args(page, zoom, job->rotation, nullptr, RenderTarget::Export);
         Pixmap* px = PixmapToBgra(engine->RenderPage(args));
-        PreprocessOcrPixmap(px);
+        Gdiplus::Matrix preprocessing;
+        PreprocessOcrMapped(px, preprocessing);
         str::Builder pageText;
         Vec<PdfOcrWord> words;
         job->error = reader.Recognize(px, job->cancel, pageText, words);
         FreePixmap(px);
+        if (SUCCEEDED(job->error) && !MapOcrWords(words, preprocessing)) job->error = E_FAIL;
         if (SUCCEEDED(job->error) && EngineMupdfIsPdf(engine) &&
             !EngineMupdfAddOcrText(engine, page, zoom, job->rotation, words))
             job->error = E_FAIL;
@@ -925,7 +956,8 @@ void ShowOcrDialog(MainWindow* win) {
     if (!dlg->Create(win)) delete dlg;
 }
 
-bool BatchOcrPdf(Str inputPdfPath, Str outputPdfPath, Str language, BatchOcrProgressFn progress, void* user, Str* errOut) {
+bool BatchOcrPdf(Str inputPdfPath, Str outputPdfPath, Str language, BatchOcrProgressFn progress, void* user,
+                 Str* errOut) {
     if (len(inputPdfPath) == 0 || len(outputPdfPath) == 0) {
         if (errOut) *errOut = str::Dup(StrL("Invalid file path"));
         return false;
@@ -963,16 +995,19 @@ bool BatchOcrPdf(Str inputPdfPath, Str outputPdfPath, Str language, BatchOcrProg
         if (zoom <= 0) zoom = 1.0f;
         RenderPageArgs args(p, zoom, 0, nullptr, RenderTarget::Export);
         Pixmap* px = PixmapToBgra(engine->RenderPage(args));
-        if (!px) continue;
-        PreprocessOcrPixmap(px);
+        if (!px) {
+            ok = false;
+            break;
+        }
+        Gdiplus::Matrix preprocessing;
+        PreprocessOcrMapped(px, preprocessing);
         str::Builder pageText;
         Vec<PdfOcrWord> words;
         hr = reader.Recognize(px, cancel, pageText, words);
         FreePixmap(px);
-        if (SUCCEEDED(hr)) {
-            EngineMupdfAddOcrText(engine, p, zoom, 0, words);
-        }
+        ok = SUCCEEDED(hr) && MapOcrWords(words, preprocessing) && EngineMupdfAddOcrText(engine, p, zoom, 0, words);
         for (auto& w : words) str::Free(w.text);
+        if (!ok) break;
     }
 
     if (ok) {
@@ -1017,7 +1052,8 @@ static void RunBatchOcr(BatchOcrJob* job) {
         Str inPath = job->inputFiles[i];
         TempStr baseName = path::GetBaseNameTemp(inPath);
         TempStr outName = fmt("%s_searchable.pdf", baseName);
-        TempStr outPath = len(job->outputFolder) > 0 ? path::JoinTemp(job->outputFolder, outName) : fmt("%s_searchable.pdf", inPath);
+        TempStr outPath =
+            len(job->outputFolder) > 0 ? path::JoinTemp(job->outputFolder, outName) : fmt("%s_searchable.pdf", inPath);
 
         auto progressCb = [](int, int, int curP, int totP, void* user) -> bool {
             auto* j = (BatchOcrJob*)user;
@@ -1226,13 +1262,17 @@ bool BatchOcrDialog::Create(MainWindow* win) {
     {
         AutoReleaseComPtr<ocr::IOcrEngineStatics> factory;
         if (SUCCEEDED(OcrFactory(RuntimeClass_Windows_Media_Ocr_OcrEngine, factory))) {
-            AutoReleaseComPtr<ABI::Windows::Foundation::Collections::IVectorView<ABI::Windows::Globalization::Language*>> available;
+            AutoReleaseComPtr<
+                ABI::Windows::Foundation::Collections::IVectorView<ABI::Windows::Globalization::Language*>>
+                available;
             UINT32 count = 0;
-            if (SUCCEEDED(factory->get_AvailableRecognizerLanguages(&available)) && SUCCEEDED(available->get_Size(&count))) {
+            if (SUCCEEDED(factory->get_AvailableRecognizerLanguages(&available)) &&
+                SUCCEEDED(available->get_Size(&count))) {
                 for (UINT32 i = 0; i < count; i++) {
                     AutoReleaseComPtr<ABI::Windows::Globalization::ILanguage> item;
                     OcrString tag, name;
-                    if (FAILED(available->GetAt(i, &item)) || FAILED(item->get_LanguageTag(&tag.value)) || FAILED(item->get_DisplayName(&name.value)))
+                    if (FAILED(available->GetAt(i, &item)) || FAILED(item->get_LanguageTag(&tag.value)) ||
+                        FAILED(item->get_DisplayName(&name.value)))
                         continue;
                     languageTags.Append(ToUtf8Temp(WindowsGetStringRawBuffer(tag.value, nullptr)));
                     names.Append(ToUtf8Temp(WindowsGetStringRawBuffer(name.value, nullptr)));
@@ -1272,7 +1312,6 @@ void ShowBatchOcrDialog(MainWindow* win) {
     if (!dlg->Create(win)) delete dlg;
 }
 
-
 #if IS_DEBUG
 // A real xref table keeps this regression independent of PDF repair heuristics.
 static Str OcrFixture(int rotation) {
@@ -1310,7 +1349,7 @@ static bool SameOcrPixels(Pixmap* a, Pixmap* b) {
     return true;
 }
 
-static bool OcrRoundTrip(int pageRotation, int viewRotation) {
+static bool OcrRoundTrip(int pageRotation, int viewRotation, float skew = 0) {
     Str fixture = OcrFixture(pageRotation);
     EngineBase* engine = CreateEngineMupdfFromData(fixture, StrL("ocr.pdf"), nullptr);
     if (!engine) {
@@ -1324,6 +1363,16 @@ static bool OcrRoundTrip(int pageRotation, int viewRotation) {
     PdfOcrWord word{StrL("Searchable"), {80, 90, 220, 36}};
     VecAppend(words, word);
     VecAppend(words, PdfOcrWord{StrL("caf\xc3\xa9"), {80, 160, 100, 36}});
+    Gdiplus::Matrix preprocessing;
+    preprocessing.Translate(400, 500);
+    preprocessing.Rotate(skew);
+    preprocessing.Translate(-400, -500);
+    if (!MapOcrWords(words, preprocessing)) return false;
+    double angle = -skew * 3.14159265358979323846 / 180;
+    double x = word.box.x + word.box.dx / 2 - 400;
+    double y = word.box.y + word.box.dy / 2 - 500;
+    float expectedX = (float)(400 + x * cos(angle) - y * sin(angle));
+    float expectedY = (float)(500 + x * sin(angle) + y * cos(angle));
     Str dest = str::Dup(GetTempFilePathTemp(StrL("ocr")));
     bool ok = EngineMupdfAddOcrText(engine, 1, zoom, viewRotation, words) && EngineMupdfSaveCopy(engine, dest);
     engine->Release();
@@ -1340,8 +1389,7 @@ static bool OcrRoundTrip(int pageRotation, int viewRotation) {
                 engine->Transform(RectF((float)r.x, (float)r.y, (float)r.dx, (float)r.dy), 1, zoom, viewRotation);
             float cx = screen.x + screen.dx / 2;
             float cy = screen.y + screen.dy / 2;
-            ok = cx >= word.box.x && cx <= word.box.x + word.box.dx && cy >= word.box.y - 10 &&
-                 cy <= word.box.y + word.box.dy + 10;
+            ok = fabsf(cx - expectedX) < 12 && fabsf(cy - expectedY) < 12;
         }
         ok = ok && search.FindFirst(1, StrL("caf\xc3\xa9"));
         PageText untouched = engine->ExtractPageText(2);
@@ -1356,8 +1404,8 @@ static bool OcrRoundTrip(int pageRotation, int viewRotation) {
     file::Delete(dest);
     str::Free(dest);
     str::Free(fixture);
-    printf("OCR save/reopen/search: page rotation %d, view rotation %d: %s\n", pageRotation, viewRotation,
-           ok ? "PASS" : "FAIL");
+    printf("OCR save/reopen/search: page rotation %d, view rotation %d, skew %.1f: %s\n", pageRotation, viewRotation,
+           skew, ok ? "PASS" : "FAIL");
     return ok;
 }
 
@@ -1450,13 +1498,16 @@ static void OcrSmokeTest(bool* ok) {
 }
 
 bool Ocr_UnitTests() {
+    if (!ScannerWia_UnitTests()) return false;
     if (OcrZoom({0, 0, 0, 0}, 72, 4096) != 0) return false;
     float zoom = OcrZoom({0, 0, 72000, 36000}, 72, 4096);
     if (zoom <= 0 || ceilf(zoom * 72000) > 4096) return false;
     if (OcrZoom({0, 0, 612, 792}, 72, 4096) != 300.f / 72) return false;
     for (int pageRotation : {0, 90, 180, 270}) {
         for (int viewRotation : {0, 90, 180, 270}) {
-            if (!OcrRoundTrip(pageRotation, viewRotation)) return false;
+            for (float skew : {-7.5f, 0.f, 7.5f}) {
+                if (!OcrRoundTrip(pageRotation, viewRotation, skew)) return false;
+            }
         }
     }
     if (!OcrCancelSaveTest()) return false;
@@ -1467,7 +1518,8 @@ bool Ocr_UnitTests() {
             for (int y = 0; y < 60; y++) {
                 for (int x = 0; x < 60; x++) {
                     u8* p = px->data + y * px->stride + x * 4;
-                    p[0] = p[1] = p[2] = 255; p[3] = 255;
+                    p[0] = p[1] = p[2] = 255;
+                    p[3] = 255;
                 }
             }
             for (int y = 0; y < 3; y++) {

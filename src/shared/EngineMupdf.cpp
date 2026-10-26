@@ -10361,6 +10361,17 @@ bool EngineMupdfAddOcrText(EngineBase* engine, int pageNo, float zoom, int rotat
                 float sx = word.box.dx / width;
                 float sy = word.box.dy / height;
                 fz_matrix fit = {sx, 0, 0, sy, word.box.x - bounds.x0 * sx, word.box.y - bounds.y0 * sy};
+                if (word.mapped) {
+                    const PointF* q = word.corners;
+                    fit = {(q[1].x - q[0].x) / width,
+                           (q[1].y - q[0].y) / width,
+                           (q[3].x - q[0].x) / height,
+                           (q[3].y - q[0].y) / height,
+                           0,
+                           0};
+                    fit.e = q[0].x - bounds.x0 * fit.a - bounds.y0 * fit.c;
+                    fit.f = q[0].y - bounds.x0 * fit.b - bounds.y0 * fit.d;
+                }
                 fz_ignore_text(ctx, dev, text, fz_concat(fit, toPdf));
             }
             fz_drop_text(ctx, text);

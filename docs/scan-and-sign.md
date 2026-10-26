@@ -1,45 +1,58 @@
-# Scan & OCR and Digital Signatures (Parity with Adobe Acrobat)
+# Scanning, OCR and signatures
 
-SwiftLeaf PDF provides comprehensive scanner document acquisition, camera image capture, OCR preprocessing, and cryptographic digital signature workflows with parity to Adobe Acrobat's **Scan & OCR** and **Certificates / Signatures** toolsets.
+Scanning requires a Windows WIA 2.0 driver. This is not a claim of Acrobat parity.
 
----
+## Scanner acquisition
 
-## 1. Scanner Acquisition & Camera Import (WIA & Image Prep)
+Select a device, DPI, color mode and flatbed, feeder or duplex source. SwiftLeaf
+creates that device, configures its scan item and downloads BMP pixel streams.
+Feeder mode requests all pages; duplex requests both sides. Unsupported settings,
+missing paper, jams and driver errors fail visibly with the HRESULT. Empty or
+invalid transfers never produce a substitute blank page. Real blank paper is
+preserved, including blank duplex backs.
 
-### Scanner Acquisition (WIA COM)
-- **Device Enumeration & Selection**: Connects via Windows Image Acquisition (`CLSID_WiaDevMgr`). If multiple scanners are connected, users can choose their target hardware or default scanner.
-- **Graceful Degradation**: If no WIA scanner or scanning driver is detected, SwiftLeaf presents a clear diagnostic message offering the user to import a camera/photo image instead (`CmdImportCameraImage`).
-- **Scan Settings**:
-  - **Resolution**: Selectable DPI presets (150 DPI for drafts/emails, 300 DPI for standard OCR, 600 DPI for archival high-resolution).
-  - **Color Mode**: Full Color (24-bit RGB), Grayscale (8-bit), and Black & White thresholding (1-bit line art).
-  - **Input Source**: Flatbed platen, Automatic Document Feeder (ADF), or Duplex (both sides).
-  - **Multi-page Acquisition**: Scans successive pages until the feeder is empty or user completes scanning, assembling pages into a single PDF document.
-  - **Integrated OCR**: Prompts to run optical character recognition (`src/Ocr.cpp`) upon acquisition to produce searchable, selectable PDF output immediately.
+Acquisition runs on a worker. Cancel requests cancellation through the WIA
+callback; response time depends on the driver. Closing while scanning requests
+cancellation and keeps the dialog alive until the worker stops. A PDF is published
+atomically only after complete acquisition. Failures and cancellation discard
+partial scans and preserve an existing destination. Optional OCR runs afterward.
 
-### Camera & Mobile Photo Image Import
-- **Perspective Correction**: Automatic 4-corner document boundary detection and quad perspective transformation matrix mapping skewed or angled photos into an upright, rectangular page.
-- **Image Enhancement**:
-  - Original Color: Preserves captured colors.
-  - Grayscale: Removes color noise and chromatic aberration.
-  - Enhanced Contrast: Linear stretching and histogram normalization to maximize text contrast.
-  - Black & White Threshold: Otsu-inspired dynamic binarization yielding clean document backgrounds.
-- **Auto-Deskew**: Hough / projection-based skew detection and rotation alignment (±15° range) to straighten text lines.
+Hardware validation is still required: flatbed, multi-sheet feeder, duplex ordering,
+unsupported DPI/color/source, unplug, paper jam, empty feeder and mid-page cancel.
+Automated tests exercise transfer callbacks with encoded pixels, invalid streams
+and cancellation; they do not replace real-driver testing.
 
----
+Reference: [WIA stream transfer](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/wia/-wia-transferring-image-data-in-wia2)
+and [feeder page counts](https://learn.microsoft.com/en-us/windows-hardware/drivers/image/wia-ips-pages).
 
-## 2. OCR Preprocessing & Batch OCR
+## Camera image import
 
-### Image Preparation Pipeline (`OcrPrep`)
-Before invoking the Windows OCR engine (`Windows.Media.Ocr`), SwiftLeaf can run preprocessing on input page rasterizations:
-1. **Deskew**: Detects dominant text line orientation angles and applies bilinear rotation correction.
-2. **Despeckle**: Median filtering to eliminate scanner dust, salt-and-pepper noise, and dark scanning artifacts.
-3. **Border Removal**: Identifies dark scanner edges and shadow borders around document margins and suppresses them to white.
+Perspective correction is optional and off by default. Enter four pixel coordinates
+as `x,y`, clockwise: top left, top right, bottom right, bottom left. Coordinates use
+the decoded image, starting at `(0,0)`; the defaults cover the full image. The
+quadrilateral must be convex and stay inside the image. Invalid corners fail
+without silently falling back to a different crop.
 
-### Batch OCR API
-- `BatchOcrPdf(const char* inputPdfPath, const char* outputPdfPath, const char* langTag, bool preprocess)`: Processes an entire multi-page PDF in batch, rendering each page at 300 DPI, running preprocessing, recognizing text, and inserting invisible searchable text layers into the output PDF.
-- `ShowBatchOcrDialog(MainWindow* win)`: User-facing interactive dialog to run batch OCR across documents with progress updates.
+Correction uses a projective homography with bilinear pixel sampling. It does not
+detect document edges automatically. There is no interactive corner preview yet;
+use an image viewer to determine coordinates. Grayscale, linear contrast and global
+Otsu threshold are available; this is not adaptive thresholding. Optional deskew is
+off by default because rotation can clip edge content. Output is published atomically.
 
----
+## OCR coordinates
+
+OCR preprocessing records the actual raster transform. Its inverse maps all four
+word corners back to the original raster. PDF insertion retains the transformed
+word axes, then undoes view rotation, zoom, crop origin and PDF UserUnit. Both
+interactive and batch OCR use this path. Batch rendering, recognition or insertion
+failure aborts output instead of reporting a partially searchable file as success.
+
+Regression tests save/reopen searchable PDFs with crop offsets, UserUnit, all page
+and view quarter-turns and positive/negative deskew. Pixel tests cover identity
+camera corners, a trapezoid and crossed corners.
+
+Run `bun test tests/scan-geometry.test.ts` for source guards and
+`bun tests/ad-hoc-scan-geometry.ts --no-build` after a debug build for native tests.
 
 ## 3. Digital Signatures & Certificates (Certificates / Signatures)
 
