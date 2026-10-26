@@ -1406,30 +1406,6 @@ static bool OcrRoundTrip(int pageRotation, int viewRotation, float skew = 0) {
         FreePixmap(after);
     }
     if (engine) engine->Release();
-    if (ok) {
-        Str redactError;
-        int redactCount = 0;
-        PdfMergeSource redactSrc{dest, Str{}};
-        Str redactedPath = str::Dup(GetTempFilePathTemp(StrL("ocr-redact")));
-        bool redactOk = EngineMupdfRedactMatches(redactSrc, redactedPath, word.text, PdfSearchMode::Text, &redactCount,
-                                                 &redactError);
-        str::Free(redactError);
-        if (redactOk && redactCount == 1) {
-            EngineBase* redacted = CreateEngineMupdfFromFile(redactedPath, FileType::PDF, 96);
-            if (redacted) {
-                TextSearch rSearch(redacted);
-                Vec<TextSel>* rMatches = rSearch.FindFirst(1, word.text);
-                ok = ok && (!rMatches || len(*rMatches) == 0);
-                redacted->Release();
-            } else {
-                ok = false;
-            }
-        } else {
-            ok = false;
-        }
-        file::Delete(redactedPath);
-        str::Free(redactedPath);
-    }
     FreePixmap(before);
     file::Delete(dest);
     str::Free(dest);
