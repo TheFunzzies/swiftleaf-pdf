@@ -171,7 +171,7 @@ static bool HasFigureAlt(fz_context* ctx, pdf_obj* tree, pdf_obj* image, int dep
         for (int i = 0; i < n; i++) {
             pdf_obj* ref = pdf_is_array(ctx, kids) ? pdf_array_get(ctx, kids, i) : kids;
             if (pdf_dict_get(ctx, ref, PDF_NAME(Type)) == PDF_NAME(OBJR) &&
-                pdf_objcmp(ctx, pdf_dict_get(ctx, ref, PDF_NAME(Obj)), image) == 0)
+                pdf_objcmp(ctx, pdf_dict_gets(ctx, ref, "Obj"), image) == 0)
                 return true;
         }
     }
@@ -213,15 +213,22 @@ AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc) {
     // 2. Reading order / StructTreeRoot contents
     if (structTree) {
         pdf_obj* k = pdf_dict_get(ctx, structTree, PDF_NAME(K));
-        int kLen = k ? (pdf_is_array(ctx, k) ? pdf_array_len(ctx, k) : 1) : 0;
+        bool isArray = pdf_is_array(ctx, k);
+        bool isDict = pdf_is_dict(ctx, k);
+        int kLen = isArray ? pdf_array_len(ctx, k) : (isDict ? 1 : 0);
         if (kLen > 0) {
             AddReportItem(
                 report, StrL("Structure"), StrL("Logical Reading Order"),
                 StrL("Manual check required: structure children do not verify reading order or content links"),
                 AccessCheckStatus::Warning);
+        } else if (k && !isArray && !isDict) {
+            AddReportItem(report, StrL("Structure"), StrL("Logical Reading Order"),
+                          StrL("Structure tree contains malformed child elements; manual check required"),
+                          AccessCheckStatus::Fail);
         } else {
             AddReportItem(report, StrL("Structure"), StrL("Logical Reading Order"),
-                          StrL("Structure tree exists but contains no child elements"), AccessCheckStatus::Warning);
+                          StrL("Structure tree exists but contains no child elements; manual check required"),
+                          AccessCheckStatus::Warning);
         }
     } else {
         AddReportItem(report, StrL("Structure"), StrL("Logical Reading Order"),
