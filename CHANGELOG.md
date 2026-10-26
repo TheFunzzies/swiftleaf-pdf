@@ -8,6 +8,10 @@
   atomic output. Report unsupported settings and transfer errors; never fabricate scans.
 - Replace camera import's fixed inset with explicit corners and projective correction.
   Preserve full image by default; reject invalid corners and fix image ownership.
+- Accessibility: warn about unverified reading order and figure links; preserve existing tags and mark generated roles as drafts.
+- PDF/A: reject invalid ICC profiles, preserve transparency, and report unverified conformance.
+- PDF compare: report load, render, and text extraction failures honestly without false 0% diffs, include extra-page details, and ensure atomic report writes.
+- Tools search: enable Tab navigation and prevent minimum-width clipping on resize.
 
 - Recommended section at top of the All tools panel for quick access to primary workflows.
 - Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
@@ -17,6 +21,12 @@
 - First-run dismissible Quick tour card on the start page, persisted in settings (QuickTourDismissed).
 
 ### Added
+
+- Batch plans are validated before the first write: empty or unknown actions,
+  invalid optimizer presets, exports that are not last, duplicate outputs and
+  source overwrites are rejected. The Action Wizard previews the actions and
+  each input's final output before running, and intermediate cleanup never
+  deletes an input file. See `docs/batch-compare.md`.
 
 - Edit Images and Objects replaces page images and scales, rotates or flips
   named images and grouped objects in a separate copy. Shared resources on

@@ -762,7 +762,7 @@ static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
         RECT r{};
         GetClientRect(panel->host->native, &r);
         int searchWidth = r.right - DpiScale(16);
-        if (searchWidth < DpiScale(80)) searchWidth = DpiScale(80);
+        if (searchWidth < 0) searchWidth = 0;
         SetWindowPos(panel->searchEdit->hwnd, nullptr, DpiScale(8), DpiScale(6), searchWidth, DpiScale(34),
                      SWP_NOACTIVATE | SWP_NOZORDER);
     } else if (ev->msg == WM_KEYDOWN && ev->wp == VK_TAB) {
@@ -818,6 +818,8 @@ void CreateToolsPanel(MainWindow* win) {
     searchArgs.cueText = Tr("Search tools by name or description");
     searchArgs.isRtl = IsUIRtl();
     panel->searchEdit->Create(searchArgs);
+    SetWindowLongPtrW(panel->searchEdit->hwnd, GWL_STYLE,
+                      GetWindowLongPtrW(panel->searchEdit->hwnd, GWL_STYLE) | WS_TABSTOP);
     panel->searchEdit->onTextChanged = MkFunc0(OnSearchChanged, panel);
     ShowWindow(panel->searchEdit->hwnd, SW_HIDE);
     ToolsPanelShowPage(win);

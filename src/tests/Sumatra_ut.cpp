@@ -9,6 +9,7 @@
 #include "base/DbgHelpDyn.h"
 #include "base/File.h"
 #include "base/GuessFileType.h"
+#include "base/JsonParser.h"
 #include "base/Pixmap.h"
 #include "base/Timer.h"
 
@@ -37,7 +38,9 @@
 #include "PageTools2.h"
 #include "Accessibility.h"
 #include "Preflight.h"
+#include "ComparePdf.h"
 #include <mupdf/pdf.h>
+extern const pdf_write_options gPdfDefaultWriteOptions;
 #include "AppUnitTests.h"
 #include "Ocr.h"
 #include "SignaturePanel.h"
@@ -1924,6 +1927,66 @@ static void PdfDocumentToolsTest() {
     utassert(valid);
 }
 
+static bool BatchPlanRejected(Str def, const Vec<Str>& files, Str needle) {
+    BatchPlan plan = BuildBatchPlan(def, files);
+    return !plan.valid && str::Contains(plan.error, needle);
+}
+
+static void BatchPlanTest() {
+    TempStr dir = path::GetDirTemp(GetTempFilePathTemp(StrL("batch-plan")));
+    TempStr aDir = path::JoinTemp(dir, StrL("a"));
+    TempStr bDir = path::JoinTemp(dir, StrL("b"));
+    TempStr outDir = path::JoinTemp(dir, StrL("out"));
+    TempStr a = path::JoinTemp(aDir, StrL("same.pdf"));
+    TempStr b = path::JoinTemp(bDir, StrL("same.pdf"));
+
+    Vec<Str> one;
+    VecAppend(one, a);
+    Vec<Str> two;
+    VecAppend(two, a);
+    VecAppend(two, b);
+
+    BatchPlan plan = BuildBatchPlan(StrL("{\"suffix\":\"_out\",\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"},"
+                                         "{\"type\":\"export-text\"}]}"),
+                                    one);
+    utassert(plan.valid);
+    utassert(plan.actionCount == 2);
+    utassert(plan.fileCount == 1);
+    utassert(str::Contains(plan.preview, StrL("optimize (web)")));
+    utassert(str::Contains(plan.preview, StrL("export-text")));
+    utassert(str::Contains(plan.preview, a));
+    utassert(str::Contains(plan.preview, StrL("same_out.txt")));
+
+    utassert(BatchPlanRejected(StrL("{\"actions\":[]}"), one, StrL("no actions")));
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"text\":\"x\"}]}"), one, StrL("no type")));
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"bogus\"}]}"), one, StrL("unknown type")));
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"bogus\"}]}"), one,
+                               StrL("invalid preset")));
+    utassert(
+        BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"export-text\"},{\"type\":\"watermark\",\"text\":\"X\"}]}"),
+                          one, StrL("must be last")));
+
+    Str collisionDef = fmt("{\"outputFolder\":\"%s\",\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}",
+                           json::EscapeStrTemp(outDir));
+    utassert(BatchPlanRejected(collisionDef, two, StrL("collision")));
+
+    Vec<Str> duplicate;
+    VecAppend(duplicate, a);
+    VecAppend(duplicate, a);
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}"), duplicate,
+                               StrL("collision")));
+
+    Str overwriteDef =
+        fmt("{\"suffix\":\"\",\"outputFolder\":\"%s\","
+            "\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}",
+            json::EscapeStrTemp(aDir));
+    utassert(BatchPlanRejected(overwriteDef, one, StrL("overwrite input")));
+
+    Str rejected = RunBatchActionsJson(StrL("{\"actions\":[{\"type\":\"bogus\"}]}"), one);
+    utassert(str::Contains(rejected, StrL("unknown type")));
+    utassert(!str::Contains(rejected, StrL("\"ok\":true")));
+}
+
 static void PageStampsTest() {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
@@ -1970,6 +2033,23 @@ static void PageStampsTest() {
         utassert(e != nullptr && e->PageCount() == 2);
         SafeEngineRelease(&e);
         file::Delete(output);
+    }
+    {
+        // A planned intermediate must not overwrite another input.
+        TempStr colliding = path::JoinTemp(path::GetDirTemp(basePdf), StrL("base-stamps_batch_1_1.pdf"));
+        file::Delete(colliding);
+        utassert(file::Copy(colliding, basePdf, true));
+        Vec<Str> inputs;
+        VecAppend(inputs, basePdf);
+        VecAppend(inputs, colliding);
+        Str result =
+            RunBatchActionsJson(StrL("{\"suffix\":\"_batch\",\"actions\":[{\"type\":\"watermark\",\"text\":\"A\"},"
+                                     "{\"type\":\"rotate\",\"value\":90}]}"),
+                                inputs);
+        utassert(str::Contains(result, StrL("overwrite input")));
+        utassert(file::Exists(basePdf));
+        utassert(file::Exists(colliding));
+        file::Delete(colliding);
     }
 
     // 1. Watermark test (apply to page 1 only)
@@ -2358,10 +2438,22 @@ static void PageTools2Test() {
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(Type)) == PDF_NAME(StructTreeRoot));
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(K)) != nullptr);
 
+        // Nonempty malformed K and Marked=true must not establish accessibility.
+        pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_TRUE);
+        pdf_dict_put_int(ctx, strRoot, PDF_NAME(K), 42);
+        AccessReport taggedReport = RunAccessibilityCheck(ctx, doc);
+        for (const auto& item : taggedReport.items) {
+            if (str::Eq(item.title, StrL("Logical Reading Order")) || str::Eq(item.title, StrL("Tagged PDF"))) {
+                utassert(item.status != AccessCheckStatus::Pass);
+            }
+        }
+        FreeAccessReport(taggedReport);
+        pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_FALSE);
+
         // Assert MarkInfo
         pdf_obj* minfo = pdf_dict_gets(ctx, root, "MarkInfo");
         utassert(minfo != nullptr);
-        utassert(pdf_to_bool(ctx, pdf_dict_gets(ctx, minfo, "Marked")) == 1);
+        utassert(pdf_to_bool(ctx, pdf_dict_gets(ctx, minfo, "Marked")) == 0);
 
         // Assert Lang
         pdf_obj* lang = pdf_dict_get(ctx, root, PDF_NAME(Lang));
@@ -2410,12 +2502,29 @@ static void PageTools2Test() {
         utassert(pdf_dict_get(ctx, oi, PDF_NAME(Type)) == PDF_NAME(OutputIntent));
         utassert(pdf_dict_get(ctx, oi, PDF_NAME(DestOutputProfile)) != nullptr);
 
+        TempStr badProfilePdf = GetTempFilePathTemp(StrL("pdfa-bad-profile.pdf"));
+        fz_buffer* badProfile = fz_new_buffer(ctx, 32);
+        fz_append_string(ctx, badProfile, "sRGB Profile");
+        pdf_update_stream(ctx, doc, pdf_dict_get(ctx, oi, PDF_NAME(DestOutputProfile)), badProfile, 0);
+        fz_drop_buffer(ctx, badProfile);
+        pdf_write_options badOpts = gPdfDefaultWriteOptions;
+        pdf_save_document(ctx, doc, CStrTemp(badProfilePdf), &badOpts);
         pdf_drop_document(ctx, doc);
         fz_drop_context(ctx);
 
         StrVec violations;
         bool valid = ValidatePdfA(pdfaPdf, 1, violations);
+        utassert(!valid);
+        utassert(len(violations) > 0);
         file::Delete(pdfaPdf);
+        StrVec badViolations;
+        utassert(!ValidatePdfA(badProfilePdf, 1, badViolations));
+        bool rejectedProfile = false;
+        for (const auto finding : badViolations) {
+            if (str::Eq(finding, StrL("Invalid OutputIntent ICC profile bytes"))) rejectedProfile = true;
+        }
+        utassert(rejectedProfile);
+        file::Delete(badProfilePdf);
 
         // (d) Preflight & Report Export & Color Conversion
         PreflightReport prep = RunPreflightFile(basePdf);
@@ -2439,6 +2548,30 @@ static void PageTools2Test() {
         utassert(e->PageCount() == 2);
         SafeEngineRelease(&e);
         file::Delete(rgbPdf);
+
+        // (f) PDF Compare error honesty, atomic write, and extra-page details
+        {
+            Str dummyJson;
+            ok = ComparePdfReport(StrL("missing-left.pdf"), StrL("missing-right.pdf"), StrL("report.html"), &dummyJson);
+            utassert(!ok);
+            utassert(str::Contains(dummyJson, StrL("\"ok\":false")));
+
+            TempStr insPdf = GetTempFilePathTemp(StrL("ins-compare.pdf"));
+            ok = PdfInsertBlankPages(basePdf, insPdf, 1, 1);
+            utassert(ok);
+
+            TempStr cmpReport = GetTempFilePathTemp(StrL("compare-extra.html"));
+            Str cmpJson;
+            ok = ComparePdfReport(basePdf, insPdf, cmpReport, &cmpJson);
+            utassert(ok);
+            utassert(str::Contains(cmpJson, StrL("\"ok\":true")));
+            utassert(str::Contains(cmpJson, StrL("\"pages\":3")));
+            Str reportHtml = file::ReadFile(cmpReport);
+            utassert(str::Contains(reportHtml, StrL("Only in Right / Added")));
+            str::Free(reportHtml);
+            file::Delete(cmpReport);
+            file::Delete(insPdf);
+        }
     }
 
     file::Delete(basePdf);
@@ -2491,6 +2624,7 @@ int RunAppUnitTests(bool forAi) {
     ObjectEditTest();
     FormAuthoringTest();
     AdvancedFormsTest();
+    BatchPlanTest();
     PageStampsTest();
 #if !defined(SUMATRA_NG)
     ExportFormatsUnitTests();
