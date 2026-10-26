@@ -18,3 +18,9 @@ test("camera uses explicit corners and a projective denominator", () => {
   expect(s).toContain("ReadCorners");
   expect(s).toContain("g * s + h * t + 1");
 });
+test("camera rejects non-convex and out-of-bounds corners", () => {
+  const s = source("src/ScannerWia.cpp");
+  expect(s).toContain("PerspectiveCropPixmap");
+  expect(s).toContain("!_finite(a.x)");
+  expect(s).toContain("abs(center[0] - 50) <= 1");
+});
