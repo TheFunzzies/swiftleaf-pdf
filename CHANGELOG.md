@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Compress PDF Archive preset is lossless structural cleanup, distinct from Print (300 dpi JPEG 85). Archive does not produce PDF/A.
+- Batch compress/optimize JSON reports imageBytes, fontBytes, objectBytes, and keptOriginal.
+
 - Recommended section at top of the All tools panel for quick access to primary workflows.
 - Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
 - Command palette lists all commands with description and ribbon tab destination.
