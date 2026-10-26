@@ -2498,6 +2498,7 @@ int RunAppUnitTests(bool forAi) {
     PageTools2Test();
     PdfDocumentToolsTest();
     ReviewToolsTest();
+    PdfPresetDescriptionTest();
 
     ArchiveTest();
     AppendStoreTest();
