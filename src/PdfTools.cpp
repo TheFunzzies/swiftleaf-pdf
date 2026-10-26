@@ -526,7 +526,7 @@ static void AuditByteContributions(Str path, PdfOptimizationAudit* audit) {
     pdf_document* doc = nullptr;
     fz_try(ctx) {
         doc = pdf_open_document(ctx, CStrTemp(path));
-        if (!doc) fz_throw(ctx, "cannot open document for audit");
+        if (!doc) fz_throw(ctx, FZ_ERROR_GENERIC, "cannot open document for audit");
 
         int n = pdf_count_objects(ctx, doc);
         for (int i = 1; i < n; i++) {
