@@ -264,8 +264,8 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
         if (resultJsonOut) {
             *resultJsonOut = str::DupTemp(StrL("{\"ok\":false,\"error\":\"Failed to open comparison documents\"}"));
         }
-        fz_drop_document(ctx, left);
-        fz_drop_document(ctx, right);
+        if (left) fz_drop_document(ctx, left);
+        if (right) fz_drop_document(ctx, right);
         fz_drop_context(ctx);
         return false;
     }
@@ -488,8 +488,8 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
                     totalPages, wordChanges, avgPixelPct));
         }
     }
-    fz_drop_document(ctx, left);
-    fz_drop_document(ctx, right);
+    if (left) fz_drop_document(ctx, left);
+    if (right) fz_drop_document(ctx, right);
     fz_drop_context(ctx);
     return ok;
 }

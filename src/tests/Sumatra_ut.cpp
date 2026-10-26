@@ -2477,7 +2477,6 @@ static void PageTools2Test() {
             ok = ComparePdfReport(StrL("missing-left.pdf"), StrL("missing-right.pdf"), StrL("report.html"), &dummyJson);
             utassert(!ok);
             utassert(str::Contains(dummyJson, StrL("\"ok\":false")));
-            str::Free(dummyJson);
 
             TempStr insPdf = GetTempFilePathTemp(StrL("ins-compare.pdf"));
             ok = PdfInsertBlankPages(basePdf, insPdf, 1, 1);
@@ -2493,7 +2492,6 @@ static void PageTools2Test() {
             utassert(str::Contains(reportHtml, StrL("Only in Right / Added")));
             str::Free(reportHtml);
             file::Delete(cmpReport);
-            str::Free(cmpJson);
             file::Delete(insPdf);
         }
     }
