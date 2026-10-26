@@ -11,6 +11,12 @@
 
 ### Added
 
+- Batch plans are validated before the first write: empty or unknown actions,
+  invalid optimizer presets, exports that are not last, duplicate outputs and
+  source overwrites are rejected. The Action Wizard previews the actions and
+  each input's final output before running, and intermediate cleanup never
+  deletes an input file. See `docs/batch-compare.md`.
+
 - Edit Images and Objects replaces page images and scales, rotates or flips
   named images and grouped objects in a separate copy. Shared resources on
   other pages remain unchanged; failed operations preserve existing output.

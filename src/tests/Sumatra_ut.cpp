@@ -9,6 +9,7 @@
 #include "base/DbgHelpDyn.h"
 #include "base/File.h"
 #include "base/GuessFileType.h"
+#include "base/JsonParser.h"
 #include "base/Pixmap.h"
 #include "base/Timer.h"
 
@@ -1924,6 +1925,66 @@ static void PdfDocumentToolsTest() {
     utassert(valid);
 }
 
+static bool BatchPlanRejected(Str def, const Vec<Str>& files, Str needle) {
+    BatchPlan plan = BuildBatchPlan(def, files);
+    return !plan.valid && str::Contains(plan.error, needle);
+}
+
+static void BatchPlanTest() {
+    TempStr dir = path::GetDirTemp(GetTempFilePathTemp(StrL("batch-plan")));
+    TempStr aDir = path::JoinTemp(dir, StrL("a"));
+    TempStr bDir = path::JoinTemp(dir, StrL("b"));
+    TempStr outDir = path::JoinTemp(dir, StrL("out"));
+    TempStr a = path::JoinTemp(aDir, StrL("same.pdf"));
+    TempStr b = path::JoinTemp(bDir, StrL("same.pdf"));
+
+    Vec<Str> one;
+    VecAppend(one, a);
+    Vec<Str> two;
+    VecAppend(two, a);
+    VecAppend(two, b);
+
+    BatchPlan plan = BuildBatchPlan(StrL("{\"suffix\":\"_out\",\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"},"
+                                         "{\"type\":\"export-text\"}]}"),
+                                    one);
+    utassert(plan.valid);
+    utassert(plan.actionCount == 2);
+    utassert(plan.fileCount == 1);
+    utassert(str::Contains(plan.preview, StrL("optimize (web)")));
+    utassert(str::Contains(plan.preview, StrL("export-text")));
+    utassert(str::Contains(plan.preview, a));
+    utassert(str::Contains(plan.preview, StrL("same_out.txt")));
+
+    utassert(BatchPlanRejected(StrL("{\"actions\":[]}"), one, StrL("no actions")));
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"text\":\"x\"}]}"), one, StrL("no type")));
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"bogus\"}]}"), one, StrL("unknown type")));
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"bogus\"}]}"), one,
+                               StrL("invalid preset")));
+    utassert(
+        BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"export-text\"},{\"type\":\"watermark\",\"text\":\"X\"}]}"),
+                          one, StrL("must be last")));
+
+    Str collisionDef = fmt("{\"outputFolder\":\"%s\",\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}",
+                           json::EscapeStrTemp(outDir));
+    utassert(BatchPlanRejected(collisionDef, two, StrL("collision")));
+
+    Vec<Str> duplicate;
+    VecAppend(duplicate, a);
+    VecAppend(duplicate, a);
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}"), duplicate,
+                               StrL("collision")));
+
+    Str overwriteDef =
+        fmt("{\"suffix\":\"\",\"outputFolder\":\"%s\","
+            "\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}",
+            json::EscapeStrTemp(aDir));
+    utassert(BatchPlanRejected(overwriteDef, one, StrL("overwrite input")));
+
+    Str rejected = RunBatchActionsJson(StrL("{\"actions\":[{\"type\":\"bogus\"}]}"), one);
+    utassert(str::Contains(rejected, StrL("unknown type")));
+    utassert(!str::Contains(rejected, StrL("\"ok\":true")));
+}
+
 static void PageStampsTest() {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
@@ -1970,6 +2031,23 @@ static void PageStampsTest() {
         utassert(e != nullptr && e->PageCount() == 2);
         SafeEngineRelease(&e);
         file::Delete(output);
+    }
+    {
+        // A planned intermediate must not overwrite another input.
+        TempStr colliding = path::JoinTemp(path::GetDirTemp(basePdf), StrL("base-stamps_batch_1_1.pdf"));
+        file::Delete(colliding);
+        utassert(file::Copy(colliding, basePdf, true));
+        Vec<Str> inputs;
+        VecAppend(inputs, basePdf);
+        VecAppend(inputs, colliding);
+        Str result =
+            RunBatchActionsJson(StrL("{\"suffix\":\"_batch\",\"actions\":[{\"type\":\"watermark\",\"text\":\"A\"},"
+                                     "{\"type\":\"rotate\",\"value\":90}]}"),
+                                inputs);
+        utassert(str::Contains(result, StrL("overwrite input")));
+        utassert(file::Exists(basePdf));
+        utassert(file::Exists(colliding));
+        file::Delete(colliding);
     }
 
     // 1. Watermark test (apply to page 1 only)
@@ -2491,6 +2569,7 @@ int RunAppUnitTests(bool forAi) {
     ObjectEditTest();
     FormAuthoringTest();
     AdvancedFormsTest();
+    BatchPlanTest();
     PageStampsTest();
 #if !defined(SUMATRA_NG)
     ExportFormatsUnitTests();

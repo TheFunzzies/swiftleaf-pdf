@@ -179,7 +179,8 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action, PdfOpt
         for (int i = 1; i <= nPages; i++) VecAppend(pages, PdfMergePage{0, i, degrees});
         return EngineMupdfMergePdfs(sources, pages, dst);
     }
-    if (str::Eq(action.type, StrL("flatten")) || str::Eq(action.type, StrL("flatten-layers"))) return PdfFlattenLayers(src, dst);
+    if (str::Eq(action.type, StrL("flatten")) || str::Eq(action.type, StrL("flatten-layers")))
+        return PdfFlattenLayers(src, dst);
     if (str::Eq(action.type, StrL("sanitize"))) {
         PdfSanitizeOptions opts{};
         Str error;
@@ -198,8 +199,8 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action, PdfOpt
         char* pwdZ = CStrTemp(action.text);
         file::AtomicFile output(dst);
         if (len(output.tempPath) == 0) return false;
-        char* argv[] = {(char*)"clean", (char*)"-E", (char*)"aes-256", (char*)"-U", pwdZ, (char*)"-O", pwdZ,
-                        CStrTemp(src), CStrTemp(output.tempPath)};
+        char* argv[] = {(char*)"clean", (char*)"-E",   (char*)"aes-256",         (char*)"-U", pwdZ, (char*)"-O",
+                        pwdZ,           CStrTemp(src), CStrTemp(output.tempPath)};
         fz_set_optind(0);
         int res = pdfclean_main(9, argv);
         if (res == 0 && !output.Commit()) res = 1;
@@ -232,7 +233,8 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action, PdfOpt
                 for (int i = 0; i < nPages; i++) {
                     fz_page* page = fz_load_page(ctx, doc, i);
                     fz_pixmap* pix = fz_new_pixmap_from_page(ctx, page, fz_scale(2.0f, 2.0f), fz_device_rgb(ctx), 0);
-                    TempStr outImg = (nPages == 1) ? str::DupTemp(dst) : fmt("%s_%d.png", path::GetPathNoExtTemp(dst), i + 1);
+                    TempStr outImg =
+                        (nPages == 1) ? str::DupTemp(dst) : fmt("%s_%d.png", path::GetPathNoExtTemp(dst), i + 1);
                     fz_save_pixmap_as_png(ctx, pix, CStrTemp(outImg));
                     fz_drop_pixmap(ctx, pix);
                     fz_drop_page(ctx, page);
@@ -278,14 +280,165 @@ static TempStr BatchOutputPath(Str input, Str suffix, Str folder, Str outputExt 
     return path::JoinTemp(path::GetDirTemp(input), name);
 }
 
+static bool BatchLoadDefinition(Str definition, BatchDefinition* batch) {
+    return json::Parse(definition, MkFunc1(ReadActionValue, batch));
+}
+
+static bool BatchIsExportAction(Str type) {
+    return str::Eq(type, StrL("export-text")) || str::Eq(type, StrL("export-images")) ||
+           str::Eq(type, StrL("export-image")) || str::Eq(type, StrL("export-html")) ||
+           str::Eq(type, StrL("export-markdown")) || str::Eq(type, StrL("export-json")) ||
+           str::Eq(type, StrL("export-svg"));
+}
+
+static bool BatchIsKnownAction(Str type) {
+    if (BatchIsExportAction(type)) return true;
+    return str::Eq(type, StrL("ocr")) || str::Eq(type, StrL("compress")) || str::Eq(type, StrL("optimize")) ||
+           str::Eq(type, StrL("watermark")) || str::Eq(type, StrL("header-footer")) || str::Eq(type, StrL("bates")) ||
+           str::Eq(type, StrL("crop")) || str::Eq(type, StrL("rotate")) || str::Eq(type, StrL("flatten")) ||
+           str::Eq(type, StrL("flatten-layers")) || str::Eq(type, StrL("sanitize")) ||
+           str::Eq(type, StrL("redact-matches")) || str::Eq(type, StrL("encrypt")) ||
+           str::Eq(type, StrL("properties")) || str::Eq(type, StrL("set-properties"));
+}
+
+static bool BatchPresetValid(Str preset) {
+    return str::EqI(preset, StrL("web")) || str::EqI(preset, StrL("print")) || str::EqI(preset, StrL("archive")) ||
+           str::EqI(preset, StrL("min-size"));
+}
+
+// Rejects plans that cannot run deterministically. Error strings live in the temp arena.
+static Str BatchValidate(const BatchDefinition& batch) {
+    if (len(batch.actions) == 0) return StrL("plan has no actions");
+
+    int last = len(batch.actions) - 1;
+    for (int i = 0; i <= last; i++) {
+        const BatchAction& a = batch.actions[i];
+        if (len(a.type) == 0) return fmt("action %d has no type", i + 1);
+        if (!BatchIsKnownAction(a.type)) return fmt("action %d has unknown type '%s'", i + 1, a.type);
+
+        bool optimizer = str::Eq(a.type, StrL("optimize")) || str::Eq(a.type, StrL("compress"));
+        if (optimizer && !BatchPresetValid(a.text)) {
+            return fmt("action %d has invalid preset '%s'", i + 1, a.text);
+        }
+        if (BatchIsExportAction(a.type) && i != last) {
+            return fmt("export action '%s' must be last", a.type);
+        }
+    }
+    return {};
+}
+
+// Every path the runner writes: intermediates, final outputs and staged files.
+static bool BatchAddWrite(Str path, Str input, const Vec<Str>& inputs, Vec<Str>* writes, Str* errorOut) {
+    TempStr norm = path::NormalizeTemp(path);
+    for (Str in : inputs) {
+        if (str::EqI(norm, in)) {
+            *errorOut = fmt("output '%s' would overwrite input '%s'", path, input);
+            return false;
+        }
+    }
+    for (Str prev : *writes) {
+        if (str::EqI(norm, prev)) {
+            *errorOut = fmt("output collision at '%s'", path);
+            return false;
+        }
+    }
+    VecAppend(*writes, norm);
+    return true;
+}
+
+static bool BatchPlanWrites(const BatchDefinition& batch, const Vec<Str>& files, Vec<Str>* finals, Str* errorOut) {
+    Vec<Str> inputs;
+    for (Str file : files) VecAppend(inputs, path::NormalizeTemp(file));
+
+    Vec<Str> writes;
+    int nActions = len(batch.actions);
+    for (int i = 0; i < len(files); i++) {
+        Str input = files[i];
+        for (int j = 0; j < nActions; j++) {
+            bool last = j == nActions - 1;
+            Str outputExt = last ? BatchExportExt(batch.actions[j].type) : Str();
+            TempStr dest =
+                last ? BatchOutputPath(input, batch.suffix, batch.outputFolder, outputExt)
+                     : BatchOutputPath(input, fmt("%s_%d_%d", batch.suffix, i + 1, j + 1), batch.outputFolder);
+            if (!BatchAddWrite(dest, input, inputs, &writes, errorOut)) return false;
+            if (last) {
+                VecAppend(*finals, dest);
+                TempStr staged = BatchOutputPath(input, fmt("%s_partial", batch.suffix), batch.outputFolder, outputExt);
+                if (!BatchAddWrite(staged, input, inputs, &writes, errorOut)) return false;
+            }
+        }
+    }
+    return true;
+}
+
+static Str BatchPreviewTemp(const BatchDefinition& batch, const Vec<Str>& files, const Vec<Str>& finals) {
+    str::Builder b;
+    b.Append(fmt("Batch plan: %d files, %d actions\n", len(files), len(batch.actions)));
+    b.Append(fmt("Suffix: %s\n", len(batch.suffix) ? batch.suffix : StrL("(none)")));
+    if (len(batch.outputFolder) > 0) b.Append(fmt("Output folder: %s\n", batch.outputFolder));
+
+    b.Append(StrL("Actions:\n"));
+    for (int i = 0; i < len(batch.actions); i++) {
+        const BatchAction& a = batch.actions[i];
+        b.Append(fmt("  %d. %s", i + 1, a.type));
+        if (str::Eq(a.type, StrL("optimize")) || str::Eq(a.type, StrL("compress"))) {
+            b.Append(fmt(" (%s)", a.text));
+        }
+        b.AppendChar('\n');
+    }
+
+    b.Append(StrL("Files:\n"));
+    for (int i = 0; i < len(files); i++) {
+        b.Append(fmt("  %s -> %s\n", files[i], finals[i]));
+    }
+    return ToStrTemp(b);
+}
+
+BatchPlan BuildBatchPlan(Str definition, const Vec<Str>& files) {
+    BatchPlan plan;
+    BatchDefinition batch;
+    if (!BatchLoadDefinition(definition, &batch)) {
+        plan.error = StrL("invalid action JSON");
+        return plan;
+    }
+    plan.error = BatchValidate(batch);
+    if (len(plan.error)) return plan;
+
+    Vec<Str> finals;
+    if (!BatchPlanWrites(batch, files, &finals, &plan.error)) return plan;
+
+    plan.valid = true;
+    plan.actionCount = len(batch.actions);
+    plan.fileCount = len(files);
+    plan.preview = BatchPreviewTemp(batch, files, finals);
+    return plan;
+}
+
+static bool BatchIsInputPath(const Vec<Str>& inputs, Str path) {
+    TempStr norm = path::NormalizeTemp(path);
+    for (Str in : inputs) {
+        if (str::EqI(norm, in)) return true;
+    }
+    return false;
+}
+
 TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files, BatchProgress* progress) {
     BatchDefinition batch;
-    if (!json::Parse(definition, MkFunc1(ReadActionValue, &batch))) {
+    if (!BatchLoadDefinition(definition, &batch)) {
         return str::DupTemp(StrL("{\"error\":\"invalid action JSON\",\"results\":[]}"));
+    }
+    Str planError = BatchValidate(batch);
+    Vec<Str> finals;
+    if (!len(planError)) BatchPlanWrites(batch, files, &finals, &planError);
+    if (len(planError)) {
+        return fmt("{\"error\":\"%s\",\"results\":[]}", json::EscapeStrTemp(planError));
     }
     if (len(batch.outputFolder) > 0 && !dir::CreateAll(batch.outputFolder)) {
         return str::DupTemp(StrL("{\"error\":\"cannot create output folder\",\"results\":[]}"));
     }
+
+    Vec<Str> inputs;
+    for (Str file : files) VecAppend(inputs, path::NormalizeTemp(file));
     str::Builder out;
     bool allOk = true;
     if (progress) {
@@ -330,10 +483,14 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files, BatchProgress
             if (!ok) {
                 error = action.type;
                 file::Delete(staged);
-                if (j > 0 && !str::Eq(current, files[i])) file::Delete(current);
+                if (j > 0 && !str::Eq(current, files[i]) && !BatchIsInputPath(inputs, current)) {
+                    file::Delete(current);
+                }
                 break;
             }
-            if (j > 0 && !str::Eq(current, files[i])) file::Delete(current);
+            if (j > 0 && !str::Eq(current, files[i]) && !BatchIsInputPath(inputs, current)) {
+                file::Delete(current);
+            }
             current = str::DupTemp(dest);
         }
         if (len(batch.actions) == 0) {
@@ -489,14 +646,30 @@ void BatchActionsDialog::OnStart(VirtMouseEvent*) {
     int sel = CbGetCurrentSelection(actionPreset);
     Str def;
     switch (sel) {
-        case 0: def = StrL("{\"actions\":[{\"type\":\"ocr\"}]}"); break;
-        case 1: def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}"); break;
-        case 2: def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"print\"}]}"); break;
-        case 3: def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"min-size\"}]}"); break;
-        case 4: def = StrL("{\"actions\":[{\"type\":\"sanitize\"}]}"); break;
-        case 5: def = StrL("{\"actions\":[{\"type\":\"flatten\"}]}"); break;
-        case 6: def = StrL("{\"actions\":[{\"type\":\"watermark\",\"text\":\"CONFIDENTIAL\"}]}"); break;
-        default: def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}"); break;
+        case 0:
+            def = StrL("{\"actions\":[{\"type\":\"ocr\"}]}");
+            break;
+        case 1:
+            def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}");
+            break;
+        case 2:
+            def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"print\"}]}");
+            break;
+        case 3:
+            def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"min-size\"}]}");
+            break;
+        case 4:
+            def = StrL("{\"actions\":[{\"type\":\"sanitize\"}]}");
+            break;
+        case 5:
+            def = StrL("{\"actions\":[{\"type\":\"flatten\"}]}");
+            break;
+        case 6:
+            def = StrL("{\"actions\":[{\"type\":\"watermark\",\"text\":\"CONFIDENTIAL\"}]}");
+            break;
+        default:
+            def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}");
+            break;
     }
     TempStr sfx = suffixEdit ? suffixEdit->GetTextTemp() : StrL("_batch");
     if (len(sfx) == 0) sfx = StrL("_batch");
@@ -513,13 +686,25 @@ void BatchActionsDialog::OnStart(VirtMouseEvent*) {
     b.Append(StrL(",\"actions\":"));
     b.Append(Str(def.s + 11)); // skip {"actions":
 
+    TempStr definition = ToStr(b);
+    BatchPlan plan = BuildBatchPlan(definition, inputFiles);
+    if (!plan.valid) {
+        status->SetText(fmt(Tr("Batch plan rejected: %s").s, plan.error));
+        return;
+    }
+    if (MessageBoxW(hwnd, CWStrTemp(ToWStrTemp(plan.preview)), CWStrTemp(ToWStrTemp(Tr("Batch Plan"))),
+                    MB_OKCANCEL | MB_ICONINFORMATION) != IDOK) {
+        status->SetText(Tr("Batch plan not started."));
+        return;
+    }
+
     if (job) {
         str::Free(job->definition);
         str::Free(job->resultJson);
         delete job;
     }
     job = new BatchWizardJob();
-    job->definition = str::Dup(ToStr(b));
+    job->definition = str::Dup(definition);
     job->files = inputFiles;
 
     running = true;
