@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Compare: bounded word LCS, separate edits, text/raster page alignment, extra-page
+  details, streamed atomic HTML/PDF reports, explicit failures and cancellable worker.
+- Find and Replace: worker progress/cancel and bounded page/block scans.
+- Batch: strict typed plans and preview, collision/overwrite preflight, unique owned
+  intermediates, safe cancellation and no input cleanup. Unsafe multi-file batch
+  image/SVG exports are rejected.
+
 - Recommended section at top of the All tools panel for quick access to primary workflows.
 - Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
 - Command palette lists all commands with description and ribbon tab destination.

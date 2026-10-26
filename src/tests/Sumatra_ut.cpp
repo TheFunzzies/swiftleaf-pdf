@@ -32,6 +32,7 @@
 #include "AdvancedForms.h"
 #include "shared/PdfTools.h"
 #include "BatchActions.h"
+#include "ComparePdf.h"
 #include "CommentIO.h"
 #include "Measure.h"
 #include "PageTools2.h"
@@ -954,6 +955,13 @@ static void TextReplaceToolsTest() {
     }
     SafeEngineRelease(&reopened);
     Str saved = file::ReadFile(output);
+    TextReplaceProgress cancelled;
+    cancelled.cancelled = 1;
+    utassert(!EngineMupdfReplaceAllText(e, output, StrL("Original"), StrL("changed"), &count, &error, &cancelled));
+    utassert(count == 0 && len(error));
+    Str cancelledOutput = file::ReadFile(output);
+    utassert(str::Eq(saved, cancelledOutput));
+    str::Free(cancelledOutput);
     utassert(!EngineMupdfReplaceAllText(e, output, StrL("missing"), {}, &count, &error));
     utassert(count == 0 && len(error));
     Str after = file::ReadFile(output);
@@ -1943,6 +1951,20 @@ static void PageStampsTest() {
     TempStr basePdf =
         path::JoinTemp(path::GetDirTemp(GetTempFilePathTemp(StrL("base-stamps"))), StrL("base-stamps.pdf"));
     utassert(file::WriteFile(basePdf, ToStrTemp(pdf)));
+
+    {
+        TempStr report = GetTempFilePathTemp(StrL("compare-cancel"));
+        utassert(file::WriteFile(report, StrL("keep")));
+        CompareProgress progress;
+        progress.cancelled = 1;
+        Str result;
+        utassert(!ComparePdfReport(basePdf, basePdf, report, &result, &progress));
+        Str data = file::ReadFile(report);
+        utassert(str::Eq(data, StrL("keep")));
+        str::Free(data);
+        file::Delete(report);
+        utassert(!ComparePdfReport(basePdf, basePdf, basePdf));
+    }
 
     {
         Vec<Str> inputs;

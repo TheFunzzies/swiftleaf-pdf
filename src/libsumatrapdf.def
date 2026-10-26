@@ -2204,3 +2204,7 @@ EXPORTS
 	pdf_set_page_labels
 	pdf_recolor_page
 	pdf_remove_output_intents
+
+	fz_new_pool
+	fz_drop_pool
+	fz_parse_json

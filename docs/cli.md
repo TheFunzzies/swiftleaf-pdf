@@ -29,7 +29,9 @@ directory by the batch action store.
 Supported action types are `ocr`, `compress` and `optimize` (set `text` to
 `web`, `print`, `archive`, or `min-size`), `watermark`, `header-footer`,
 `bates`, `crop`, `rotate`, `flatten-layers`, `sanitize`, `redact-matches`, `properties`,
-`export-text`, `export-html`, `export-markdown`, `export-json`, and `export-svg`.
+`export-text`, `export-html`, `export-markdown`, and `export-json`.
+Exports must be last. Multi-file PNG/SVG plans are rejected. Plans are strictly
+validated and existing/colliding outputs are never overwritten.
 Watermark, header/footer, Bates, crop and export actions accept a `pages` value.
 The `text` property supplies watermark/Bates text or the search term for
 `redact-matches`. Document properties use `title`, `author`, `subject`, and

@@ -4254,7 +4254,64 @@ void ShowPdfFontManager(MainWindow* win) {
     if (!dialog->Create(win, tab)) delete dialog;
 }
 
+struct TextReplaceJob {
+    volatile LONG refs = 1, done = 0;
+    TextReplaceProgress progress;
+    EngineBase* engine = nullptr;
+    Str destination, find, replacement, error;
+    int count = 0;
+    bool ok = false;
+    ~TextReplaceJob() {
+        SafeEngineRelease(&engine);
+        str::Free(destination);
+        str::Free(find);
+        str::Free(replacement);
+        str::Free(error);
+    }
+    void Release() {
+        if (!InterlockedDecrement(&refs)) delete this;
+    }
+};
+static void RunTextReplace(TextReplaceJob* job) {
+    Str error;
+    job->ok = EngineMupdfReplaceAllText(job->engine, job->destination, job->find, job->replacement, &job->count, &error,
+                                        &job->progress);
+    job->error = str::Dup(error);
+    InterlockedExchange(&job->done, 1);
+    job->Release();
+}
+
 struct PdfReplaceDialog : PdfToolDialog {
+    TextReplaceJob* job = nullptr;
+    VirtText* status = nullptr;
+    ~PdfReplaceDialog() override {
+        if (job) {
+            InterlockedExchange(&job->progress.cancelled, 1);
+            job->Release();
+        }
+    }
+    void Cancel(VirtMouseEvent*) {
+        if (job && !InterlockedCompareExchange(&job->done, 0, 0)) {
+            InterlockedExchange(&job->progress.cancelled, 1);
+            status->SetText(Tr("Cancelling..."));
+            return;
+        }
+        Close();
+    }
+    void Poll(WindowBase::TimerEvent*) {
+        if (!job) return;
+        if (!InterlockedCompareExchange(&job->done, 0, 0)) {
+            status->SetText(fmt("Replacing: %d / %d", (int)InterlockedCompareExchange(&job->progress.completed, 0, 0),
+                                (int)InterlockedCompareExchange(&job->progress.total, 0, 0)));
+            return;
+        }
+        KillTimer(hwnd, 1);
+        actionBtn->SetIsEnabled(true);
+        cancelBtn->SetText(Tr("Close"));
+        status->SetText(job->ok           ? fmt("Saved copy: %d replacements.", job->count)
+                        : len(job->error) ? job->error
+                                          : Tr("Replacement failed or exceeded limits. No copy written."));
+    }
     Edit* find = nullptr;
     Edit* replacement = nullptr;
 
@@ -4271,7 +4328,11 @@ struct PdfReplaceDialog : PdfToolDialog {
             {.s = Tr("Matches within paragraphs on all pages. Empty replacement deletes matches."), .font = font}));
         AddRow()->AddChild(NewVirtText(
             {.s = Tr("Unsupported blocks stop the operation. The original document is kept."), .font = font}));
+        status = NewVirtText({.s = Tr("Ready"), .font = font});
+        AddRow()->AddChild(status);
         AddButtonsRow(Tr("Replace All in Copy"));
+        cancelBtn->onClick = MkMethod1<PdfReplaceDialog, VirtMouseEvent*, &PdfReplaceDialog::Cancel>(this);
+        onTimer = MkMethod1<PdfReplaceDialog, WindowBase::TimerEvent*, &PdfReplaceDialog::Poll>(this);
         FinishDialog(find, 740);
         return true;
     }
@@ -4279,21 +4340,28 @@ struct PdfReplaceDialog : PdfToolDialog {
     void DoIt(VirtMouseEvent*) override {
         WindowTab* tab = win ? win->CurrentTab() : nullptr;
         if (!tab || !path::IsSame(tab->filePath, srcPath)) return;
-        Str error;
-        int count = 0;
-        Str destination = destEdit->GetTextTemp();
-        if (!EngineMupdfReplaceAllText(tab->GetEngine(), destination, find->GetTextTemp(), replacement->GetTextTemp(),
-                                       &count, &error)) {
-            MessageBoxWarning(hwnd, len(error) ? error : Tr("Could not save the replacement copy."),
-                              Tr("Find and Replace Text"));
+        if (job && !InterlockedCompareExchange(&job->done, 0, 0)) return;
+        if (job) job->Release();
+        job = new TextReplaceJob();
+        job->engine = tab->GetEngine();
+        job->engine->AddRef();
+        job->destination = str::Dup(destEdit->GetTextTemp());
+        job->find = str::Dup(find->GetTextTemp());
+        job->replacement = str::Dup(replacement->GetTextTemp());
+        InterlockedIncrement(&job->refs);
+        ThreadHandle thread = StartThread(MkFunc0(RunTextReplace, job), StrL("Replace text"));
+        if (!thread) {
+            job->Release();
+            job->Release();
+            job = nullptr;
+            status->SetText(Tr("Could not start worker."));
             return;
         }
-        MainWindow* w = win;
-        TempStr saved = str::DupTemp(destination);
-        Close();
-        LoadArgs args(saved, w);
-        StartLoadDocument(&args);
-        ShowTemporaryNotification(w->hwndCanvas, fmt(Tr("Replaced %d matches. Saved a separate copy.").s, count));
+        SafeCloseThreadHandle(&thread);
+        actionBtn->SetIsEnabled(false);
+        cancelBtn->SetText(Tr("Cancel"));
+        status->SetText(Tr("Replacing text..."));
+        SetTimer(hwnd, 1, 100, nullptr);
     }
 };
 

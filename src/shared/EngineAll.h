@@ -199,7 +199,11 @@ bool EngineMupdfGetTextRun(EngineBase*, int pageNo, RectF area, TextRunScope, Pd
 bool EngineMupdfCanEditText(Str text);
 bool EngineMupdfReplaceText(EngineBase*, int pageNo, const PdfTextRun& run, Str newText, Vec<Annotation*>& deletedOut,
                             Str* errorOut = nullptr);
-bool EngineMupdfReplaceAllText(EngineBase*, Str destination, Str find, Str replacement, int* countOut, Str* errorOut);
+struct TextReplaceProgress {
+    volatile LONG cancelled = 0, completed = 0, total = 0;
+};
+bool EngineMupdfReplaceAllText(EngineBase*, Str destination, Str find, Str replacement, int* countOut, Str* errorOut,
+                               TextReplaceProgress* progress = nullptr);
 TempStr EngineMupdfObjectList(EngineBase*, int pageNo);
 bool EngineMupdfEditObjectCopy(EngineBase*, Str destination, int pageNo, Str name, Str imagePath, float scaleX,
                                float scaleY, float rotation, Str* errorOut);

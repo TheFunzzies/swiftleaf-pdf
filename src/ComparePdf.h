@@ -5,7 +5,14 @@
 
 struct MainWindow;
 
-bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJsonOut = nullptr);
+struct CompareProgress {
+    volatile LONG cancelled = 0;
+    volatile LONG completed = 0;
+    volatile LONG total = 0;
+};
+
+bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJsonOut = nullptr,
+                      CompareProgress* progress = nullptr);
 void ShowComparePdfDialog(MainWindow* win);
 
 #endif

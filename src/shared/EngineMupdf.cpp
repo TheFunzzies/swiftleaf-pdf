@@ -10941,28 +10941,48 @@ static bool CollectEditBlocks(EngineMupdf* e, int pageNo, Vec<RectF>& boxes) {
     return ok;
 }
 
-static Str ReplaceEditMatches(Str text, Str find, Str replacement, int& count) {
+// Linear-time literal scan; adversarial repeated prefixes cannot monopolize the worker.
+static Str ReplaceEditMatches(Str text, Str find, Str replacement, int& count, TextReplaceProgress* progress) {
+    Vec<int> fallback;
+    VecResize(fallback, len(find));
+    for (int i = 1, j = 0; i < len(find); i++) {
+        while (j && find.s[i] != find.s[j]) j = fallback[j - 1];
+        if (find.s[i] == find.s[j]) j++;
+        fallback[i] = j;
+    }
     str::Builder result;
-    for (int pos = 0; pos < len(text);) {
-        if (pos + len(find) <= len(text) && memcmp(text.s + pos, find.s, len(find)) == 0) {
-            result.Append(replacement);
-            pos += len(find);
-            count++;
-        } else {
-            result.AppendChar(text.s[pos++]);
+    int start = 0, matched = 0;
+    for (int i = 0; i < len(text); i++) {
+        if ((i % 4096 == 0 && progress && InterlockedCompareExchange(&progress->cancelled, 0, 0)) ||
+            len(result) > 2 * 1024 * 1024) {
+            count = -1;
+            return {};
         }
+        while (matched && text.s[i] != find.s[matched]) matched = fallback[matched - 1];
+        if (text.s[i] == find.s[matched]) matched++;
+        if (matched != len(find)) continue;
+        result.Append(Str(text.s + start, i + 1 - len(find) - start));
+        result.Append(replacement);
+        start = i + 1;
+        matched = 0;
+        count++;
+    }
+    result.Append(Str(text.s + start, len(text) - start));
+    if (len(result) > 2 * 1024 * 1024) {
+        count = -1;
+        return {};
     }
     return result.TakeStr();
 }
 
 // Edit a private snapshot, then atomically publish only after every match succeeds.
 bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, Str replacement, int* countOut,
-                               Str* errorOut) {
+                               Str* errorOut, TextReplaceProgress* progress) {
     if (countOut) *countOut = 0;
     if (errorOut) *errorOut = {};
     EngineMupdf* original = AsEngineMupdf(engine);
     if (!original || !original->pdfdoc || !len(find) || !len(destination) || !EngineMupdfCanEditText(find) ||
-        !EngineMupdfCanEditText(replacement)) {
+        !EngineMupdfCanEditText(replacement) || len(find) > 4096 || len(replacement) > 4096) {
         if (errorOut) *errorOut = StrL("Enter a nonempty search, a destination and supported Unicode text.");
         return false;
     }
@@ -10991,12 +11011,25 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
     auto* e = AsEngineMupdf(copy);
     bool ok = e != nullptr;
     int count = 0;
+    if (ok && copy->PageCount() > 10000) ok = false;
+    if (progress && ok) InterlockedExchange(&progress->total, copy->PageCount());
+    str::Builder scanError;
     for (int pageNo = 1; ok && pageNo <= copy->PageCount(); pageNo++) {
+        AutoArenaSavepoint scratch;
+        if (progress && InterlockedCompareExchange(&progress->cancelled, 0, 0)) {
+            ok = false;
+            break;
+        }
         Vec<RectF> boxes;
-        ok = CollectEditBlocks(e, pageNo, boxes);
+        ok = CollectEditBlocks(e, pageNo, boxes) && len(boxes) <= 4096;
+        int pageBytes = 0;
         Vec<PdfTextRun> runs;
         StrVec replacements;
         for (int b = 0; ok && b < len(boxes); b++) {
+            if (progress && InterlockedCompareExchange(&progress->cancelled, 0, 0)) {
+                ok = false;
+                break;
+            }
             PdfTextRun run;
             if (!EngineMupdfGetTextRun(copy, pageNo, boxes[b], TextRunScope::Paragraph, &run)) {
                 str::Free(run.text);
@@ -11004,8 +11037,20 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
                 ok = false;
                 break;
             }
+            pageBytes += len(run.text);
+            if (pageBytes > 2 * 1024 * 1024) {
+                str::Free(run.text);
+                ok = false;
+                break;
+            }
             int matches = 0;
-            Str changed = ReplaceEditMatches(run.text, find, replacement, matches);
+            Str changed = ReplaceEditMatches(run.text, find, replacement, matches, progress);
+            if (matches < 0) {
+                str::Free(run.text);
+                str::Free(changed);
+                ok = false;
+                break;
+            }
             if (matches) {
                 for (int n = 0; n < len(boxes); n++) {
                     if (n != b && RectsTouch(ToFzRect(boxes[b]), ToFzRect(boxes[n]))) ok = false;
@@ -11029,6 +11074,14 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
             if (!ok && errorOut) *errorOut = fmt("Page %d: %s", pageNo, error);
         }
         for (PdfTextRun& run : runs) str::Free(run.text);
+        if (!ok && errorOut && len(*errorOut)) scanError.Append(*errorOut);
+        if (errorOut) *errorOut = {};
+        if (progress) InterlockedExchange(&progress->completed, pageNo);
+    }
+    if (errorOut && len(ToStr(scanError))) *errorOut = ToStrTemp(scanError);
+    if (progress && InterlockedCompareExchange(&progress->cancelled, 0, 0)) {
+        ok = false;
+        if (errorOut) *errorOut = StrL("Cancelled. No copy was written.");
     }
     if (ok && count == 0) {
         ok = false;

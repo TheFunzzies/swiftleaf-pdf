@@ -31,13 +31,30 @@
 #include "Ocr.h"
 #include "shared/PdfTools.h"
 #include <mupdf/pdf.h>
+#include <mupdf/fitz/json.h>
 #include "PageTools2.h"
 #include "ExportFormats.h"
 #include "BatchActions.h"
 
 extern "C" int pdfclean_main(int argc, char** argv);
 
+enum class BatchKind {
+    Ocr,
+    Optimize,
+    Watermark,
+    Header,
+    Bates,
+    Crop,
+    Rotate,
+    Flatten,
+    Sanitize,
+    Redact,
+    Encrypt,
+    Properties,
+    Export
+};
 struct BatchAction {
+    BatchKind kind = BatchKind::Ocr;
     Str type;
     Str text;
     Str pages;
@@ -71,10 +88,11 @@ static TempStr BatchNamedPath(Str name) {
     return path::JoinTemp(dir, fmt("%s.json", name));
 }
 
-static void BatchIgnoreJsonValue(json::Value*) {}
+static bool ParseBatch(Str definition, BatchDefinition* batch);
 
 bool SaveBatchActionsJson(Str name, Str definition) {
-    if (!BatchNameValid(name) || !json::Parse(definition, MkFunc1Void(BatchIgnoreJsonValue))) return false;
+    BatchDefinition batch;
+    if (!BatchNameValid(name) || !ParseBatch(definition, &batch)) return false;
     TempStr path = BatchNamedPath(name);
     if (len(path) == 0) return false;
     file::AtomicFile output(path);
@@ -90,37 +108,157 @@ TempStr LoadBatchActionsJsonTemp(Str name) {
     return result;
 }
 
-static void ReadActionValue(BatchDefinition* batch, json::Value* v) {
-    StrNode* a = v->path;
-    if (!a) return;
-    Str rootKey = json::PathSegKey(a);
-    if (!a->next) {
-        if (str::Eq(rootKey, StrL("suffix"))) batch->suffix = str::Dup(GetPermArena(), v->value);
-        if (str::Eq(rootKey, StrL("outputFolder"))) batch->outputFolder = str::Dup(GetPermArena(), v->value);
-        return;
+static Str BatchExportExt(Str type);
+
+static bool ReadBatchObject(fz_json* obj, BatchDefinition* batch) {
+    if (!obj || obj->type != FZ_JSON_OBJECT) return false;
+    bool haveActions = false, haveSuffix = false, haveFolder = false;
+    for (auto* field = obj->u.object; field; field = field->next) {
+        Str key(field->key);
+        auto* value = field->value;
+        if (str::Eq(key, StrL("suffix"))) {
+            if (haveSuffix || value->type != FZ_JSON_STRING) return false;
+            haveSuffix = true;
+            batch->suffix = str::DupTemp(Str(value->u.string));
+        } else if (str::Eq(key, StrL("outputFolder"))) {
+            if (haveFolder || value->type != FZ_JSON_STRING) return false;
+            haveFolder = true;
+            batch->outputFolder = str::DupTemp(Str(value->u.string));
+        } else if (str::Eq(key, StrL("actions"))) {
+            if (haveActions || value->type != FZ_JSON_ARRAY) return false;
+            haveActions = true;
+            for (auto* item = value->u.array; item; item = item->next) {
+                if (len(batch->actions) >= 64 || item->value->type != FZ_JSON_OBJECT) return false;
+                BatchAction action;
+                unsigned seen = 0;
+                const char* names[] = {"type", "text", "pages", "title", "author", "subject", "keywords", "value"};
+                Str* strings[] = {&action.type,   &action.text,    &action.pages,   &action.title,
+                                  &action.author, &action.subject, &action.keywords};
+                for (auto* f = item->value->u.object; f; f = f->next) {
+                    int index = -1;
+                    for (int k = 0; k < dimof(names); k++)
+                        if (str::Eq(Str(f->key), Str(names[k]))) index = k;
+                    if (index < 0 || (seen & (1u << index))) return false;
+                    seen |= 1u << index;
+                    if (index == 7) {
+                        if (f->value->type != FZ_JSON_NUMBER || !isfinite(f->value->u.number)) return false;
+                        action.value = (float)f->value->u.number;
+                    } else {
+                        if (f->value->type != FZ_JSON_STRING) return false;
+                        *strings[index] = str::DupTemp(Str(f->value->u.string));
+                    }
+                }
+                if (!(seen & 1)) return false;
+                Str t = action.type;
+                unsigned allowed = 1, required = 1;
+                if (str::Eq(t, StrL("ocr")))
+                    action.kind = BatchKind::Ocr;
+                else if (str::Eq(t, StrL("compress")) || str::Eq(t, StrL("optimize"))) {
+                    action.kind = BatchKind::Optimize;
+                    allowed |= 2;
+                    if (len(action.text) && !str::Eq(action.text, StrL("web")) &&
+                        !str::Eq(action.text, StrL("print")) && !str::Eq(action.text, StrL("archive")) &&
+                        !str::Eq(action.text, StrL("min-size")))
+                        return false;
+                } else if (str::Eq(t, StrL("watermark")) || str::Eq(t, StrL("header-footer")) ||
+                           str::Eq(t, StrL("bates"))) {
+                    action.kind = str::Eq(t, StrL("watermark")) ? BatchKind::Watermark
+                                  : str::Eq(t, StrL("bates"))   ? BatchKind::Bates
+                                                                : BatchKind::Header;
+                    allowed |= 2 | 4;
+                    required |= 2;
+                    if (!len(action.text)) return false;
+                } else if (str::Eq(t, StrL("crop"))) {
+                    action.kind = BatchKind::Crop;
+                    allowed |= 128 | 4;
+                    required |= 128;
+                    if (!(action.value >= 0 && action.value <= 14400)) return false;
+                } else if (str::Eq(t, StrL("rotate"))) {
+                    action.kind = BatchKind::Rotate;
+                    allowed |= 128;
+                    required |= 128;
+                    if (action.value != 90 && action.value != 180 && action.value != 270) return false;
+                } else if (str::Eq(t, StrL("flatten")) || str::Eq(t, StrL("flatten-layers")))
+                    action.kind = BatchKind::Flatten;
+                else if (str::Eq(t, StrL("sanitize")))
+                    action.kind = BatchKind::Sanitize;
+                else if (str::Eq(t, StrL("encrypt")) || str::Eq(t, StrL("redact-matches"))) {
+                    action.kind = str::Eq(t, StrL("encrypt")) ? BatchKind::Encrypt : BatchKind::Redact;
+                    allowed |= 2;
+                    required |= 2;
+                    if (!len(action.text)) return false;
+                } else if (str::Eq(t, StrL("properties")) || str::Eq(t, StrL("set-properties"))) {
+                    action.kind = BatchKind::Properties;
+                    allowed |= 8 | 16 | 32 | 64;
+                    if (!(seen & (8 | 16 | 32 | 64))) return false;
+                } else if (len(BatchExportExt(t))) {
+                    // Multi-file image/SVG exports need a manifest transaction; refuse unsafe legacy plans.
+                    if (str::Eq(t, StrL("export-images")) || str::Eq(t, StrL("export-image")) ||
+                        str::Eq(t, StrL("export-svg")))
+                        return false;
+                    action.kind = BatchKind::Export;
+                    allowed |= 4;
+                    if (item->next) return false;
+                } else
+                    return false;
+                if ((seen & ~allowed) || (seen & required) != required) return false;
+                if (len(action.pages)) {
+                    // Strict positive ascending ranges, no silently ignored fragments.
+                    const char* q = CStrTemp(action.pages);
+                    while (*q) {
+                        char* end = nullptr;
+                        long first = strtol(q, &end, 10);
+                        if (end == q || first <= 0 || first > 1000000) return false;
+                        q = end;
+                        if (*q == '-') {
+                            long last = strtol(q + 1, &end, 10);
+                            if (end == q + 1 || last < first || last > 1000000) return false;
+                            q = end;
+                        }
+                        if (!*q) break;
+                        if (*q++ != ',' || !*q) return false;
+                    }
+                }
+                VecAppend(batch->actions, action);
+            }
+        } else
+            return false;
     }
-    if (!str::Eq(rootKey, StrL("actions")) || !a->next || json::PathSegIndex(a->next) < 0) return;
-    int idx = json::PathSegIndex(a->next);
-    if (idx >= len(batch->actions)) VecResize(batch->actions, idx + 1);
-    BatchAction& action = batch->actions[idx];
-    Str key = json::PathSegKey(a->next->next);
-    Str value = str::Dup(GetPermArena(), v->value);
-    if (str::Eq(key, StrL("type")))
-        action.type = value;
-    else if (str::Eq(key, StrL("text")))
-        action.text = value;
-    else if (str::Eq(key, StrL("pages")))
-        action.pages = value;
-    else if (str::Eq(key, StrL("title")))
-        action.title = value;
-    else if (str::Eq(key, StrL("author")))
-        action.author = value;
-    else if (str::Eq(key, StrL("subject")))
-        action.subject = value;
-    else if (str::Eq(key, StrL("keywords")))
-        action.keywords = value;
-    else if (str::Eq(key, StrL("value")))
-        action.value = (float)atof(CStrTemp(value));
+    return haveActions && len(batch->actions) && BatchNameValid(batch->suffix);
+}
+
+static void CheckBatchStrings(int* valid, json::Value* v) {
+    for (int i = 0; i < len(v->value); i++)
+        if (!v->value.s[i]) *valid = false;
+    for (StrNode* p = v->path; p; p = p->next)
+        for (int i = 0; i < len(p->s); i++)
+            if (!p->s.s[i]) *valid = false;
+}
+
+static bool ParseBatch(Str definition, BatchDefinition* batch) {
+    int stringsValid = 1;
+    if (len(definition) > 1024 * 1024 || !json::Parse(definition, MkFunc1(CheckBatchStrings, &stringsValid)) ||
+        !stringsValid)
+        return false;
+    // The structural parser also sees empty containers and rejects unknown fields.
+    fz_context* ctx = fz_new_context(nullptr, nullptr, 16 * 1024 * 1024);
+    if (!ctx) return false;
+    fz_pool* pool = nullptr;
+    bool ok = false;
+    fz_var(pool);
+    fz_var(ok);
+    fz_try(ctx) {
+        pool = fz_new_pool(ctx);
+        ok = ReadBatchObject(fz_parse_json(ctx, pool, CStrTemp(definition)), batch);
+    }
+    fz_always(ctx) {
+        fz_drop_pool(ctx, pool);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    fz_drop_context(ctx);
+    return ok;
 }
 
 static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action, PdfOptimizationAudit* auditOut) {
@@ -179,7 +317,8 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action, PdfOpt
         for (int i = 1; i <= nPages; i++) VecAppend(pages, PdfMergePage{0, i, degrees});
         return EngineMupdfMergePdfs(sources, pages, dst);
     }
-    if (str::Eq(action.type, StrL("flatten")) || str::Eq(action.type, StrL("flatten-layers"))) return PdfFlattenLayers(src, dst);
+    if (str::Eq(action.type, StrL("flatten")) || str::Eq(action.type, StrL("flatten-layers")))
+        return PdfFlattenLayers(src, dst);
     if (str::Eq(action.type, StrL("sanitize"))) {
         PdfSanitizeOptions opts{};
         Str error;
@@ -198,8 +337,8 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action, PdfOpt
         char* pwdZ = CStrTemp(action.text);
         file::AtomicFile output(dst);
         if (len(output.tempPath) == 0) return false;
-        char* argv[] = {(char*)"clean", (char*)"-E", (char*)"aes-256", (char*)"-U", pwdZ, (char*)"-O", pwdZ,
-                        CStrTemp(src), CStrTemp(output.tempPath)};
+        char* argv[] = {(char*)"clean", (char*)"-E",   (char*)"aes-256",         (char*)"-U", pwdZ, (char*)"-O",
+                        pwdZ,           CStrTemp(src), CStrTemp(output.tempPath)};
         fz_set_optind(0);
         int res = pdfclean_main(9, argv);
         if (res == 0 && !output.Commit()) res = 1;
@@ -232,7 +371,8 @@ static bool ApplyBatchAction(Str src, Str dst, const BatchAction& action, PdfOpt
                 for (int i = 0; i < nPages; i++) {
                     fz_page* page = fz_load_page(ctx, doc, i);
                     fz_pixmap* pix = fz_new_pixmap_from_page(ctx, page, fz_scale(2.0f, 2.0f), fz_device_rgb(ctx), 0);
-                    TempStr outImg = (nPages == 1) ? str::DupTemp(dst) : fmt("%s_%d.png", path::GetPathNoExtTemp(dst), i + 1);
+                    TempStr outImg =
+                        (nPages == 1) ? str::DupTemp(dst) : fmt("%s_%d.png", path::GetPathNoExtTemp(dst), i + 1);
                     fz_save_pixmap_as_png(ctx, pix, CStrTemp(outImg));
                     fz_drop_pixmap(ctx, pix);
                     fz_drop_page(ctx, page);
@@ -278,108 +418,110 @@ static TempStr BatchOutputPath(Str input, Str suffix, Str folder, Str outputExt 
     return path::JoinTemp(path::GetDirTemp(input), name);
 }
 
+static bool BatchDestinations(const BatchDefinition& batch, const Vec<Str>& files, StrVec& outputs) {
+    if (!len(files) || len(files) > 10000) return false;
+    for (Str input : files) {
+        if (!file::Exists(input)) return false;
+        TempStr dst = path::NormalizeTemp(BatchOutputPath(input, batch.suffix, batch.outputFolder,
+                                                          BatchExportExt(batch.actions[len(batch.actions) - 1].type)));
+        if (FileSystemEntryExists(dst)) return false;
+        for (Str source : files)
+            if (path::IsSame(source, dst)) return false;
+        for (int j = 0; j < len(outputs); j++)
+            if (path::IsSame(outputs[j], dst)) return false;
+        outputs.Append(dst);
+    }
+    return true;
+}
+
 TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files, BatchProgress* progress) {
     BatchDefinition batch;
-    if (!json::Parse(definition, MkFunc1(ReadActionValue, &batch))) {
-        return str::DupTemp(StrL("{\"error\":\"invalid action JSON\",\"results\":[]}"));
-    }
-    if (len(batch.outputFolder) > 0 && !dir::CreateAll(batch.outputFolder)) {
-        return str::DupTemp(StrL("{\"error\":\"cannot create output folder\",\"results\":[]}"));
-    }
-    str::Builder out;
+    StrVec outputs;
+    if (!ParseBatch(definition, &batch) || !BatchDestinations(batch, files, outputs))
+        return StrL(
+            "{\"ok\":false,\"error\":\"Invalid plan, duplicate output, input overwrite or existing "
+            "destination\",\"results\":[]}");
+    if (len(batch.outputFolder) && !dir::CreateAll(batch.outputFolder))
+        return StrL("{\"ok\":false,\"error\":\"Cannot create output folder\",\"results\":[]}");
+    str::Builder records;
     bool allOk = true;
     if (progress) {
         InterlockedExchange(&progress->completedFiles, 0);
         InterlockedExchange(&progress->totalFiles, len(files));
-        InterlockedExchange(&progress->totalActions, 0);
     }
-    out.Append(StrL("{\"ok\":"));
-    out.Append(StrL("true,\"total\":"));
-    out.Append(fmt("%d,\"results\":[", len(files)));
     for (int i = 0; i < len(files); i++) {
-        if (i) out.AppendChar(',');
+        AutoArenaSavepoint scratch;
+        if (i) records.AppendChar(',');
         Str current = files[i];
         bool ok = true;
-        Str error;
+        Vec<file::AtomicFile*> stages;
         PdfOptimizationAudit audit{};
         if (progress) {
             InterlockedExchange(&progress->currentFile, i + 1);
             InterlockedExchange(&progress->totalActions, len(batch.actions));
         }
-        for (int j = 0; j < len(batch.actions); j++) {
+        for (int j = 0; ok && j < len(batch.actions); j++) {
             if (progress && InterlockedCompareExchange(&progress->cancelled, 0, 0)) {
                 ok = false;
-                error = StrL("cancelled");
                 break;
             }
             if (progress) InterlockedExchange(&progress->currentAction, j + 1);
-            const BatchAction& action = batch.actions[j];
-            bool last = j == len(batch.actions) - 1;
-            Str outputExt = last ? BatchExportExt(action.type) : Str();
-            TempStr dest;
-            if (last) {
-                dest = BatchOutputPath(files[i], batch.suffix, batch.outputFolder, outputExt);
-            } else {
-                TempStr suffix = fmt("%s_%d_%d", batch.suffix, i + 1, j + 1);
-                dest = BatchOutputPath(files[i], suffix, batch.outputFolder);
-            }
-            TempStr staged =
-                last ? BatchOutputPath(files[i], fmt("%s_partial", batch.suffix), batch.outputFolder, outputExt) : dest;
-            ok = ApplyBatchAction(current, staged, action, &audit);
-            if (ok && last) ok = file::RenameReplace(dest, staged);
-            if (!ok) {
-                error = action.type;
-                file::Delete(staged);
-                if (j > 0 && !str::Eq(current, files[i])) file::Delete(current);
-                break;
-            }
-            if (j > 0 && !str::Eq(current, files[i])) file::Delete(current);
-            current = str::DupTemp(dest);
+            // Only owned, exclusively created siblings may be removed during cleanup.
+            auto* stage = new file::AtomicFile(outputs[i]);
+            VecAppend(stages, stage);
+            ok = len(stage->tempPath) && ApplyBatchAction(current, stage->tempPath, batch.actions[j], &audit);
+            if (ok) current = stage->tempPath;
         }
-        if (len(batch.actions) == 0) {
-            ok = false;
-            error = StrL("no actions configured");
-        }
-        allOk = allOk && ok;
-        if (progress) InterlockedExchange(&progress->completedFiles, i + 1);
-        out.Append(StrL("{\"input\":\""));
-        out.Append(json::EscapeStrTemp(files[i]));
-        out.Append(StrL("\",\"ok\":"));
-        out.Append(ok ? StrL("true") : StrL("false"));
+        if (progress && InterlockedCompareExchange(&progress->cancelled, 0, 0)) ok = false;
         if (ok) {
-            out.Append(StrL(",\"output\":\""));
-            out.Append(json::EscapeStrTemp(current));
-            out.AppendChar('"');
-            if (audit.beforeBytes > 0) {
-                out.Append(fmt(",\"beforeBytes\":%lld,\"afterBytes\":%lld", audit.beforeBytes, audit.afterBytes));
+            auto handle = file::OpenReadWrite(current, false);
+            ok = handle != file::kInvalidFileHandle;
+            if (ok) {
+                ok = file::Flush(handle);
+                file::Close(handle);
             }
-        } else {
-            out.Append(StrL(",\"error\":\"action failed: "));
-            out.Append(json::EscapeStrTemp(error));
-            out.AppendChar('"');
+            // No replace flag: a racing writer must win without losing its file.
+            if (ok) ok = MoveFileExW(CWStrTemp(current), CWStrTemp(outputs[i]), MOVEFILE_WRITE_THROUGH) != 0;
         }
-        out.AppendChar('}');
+        for (auto* stage : stages) delete stage;
+        allOk = allOk && ok;
+        records.Append(
+            fmt("{\"input\":\"%s\",\"ok\":%s", json::EscapeStrTemp(files[i]), ok ? StrL("true") : StrL("false")));
+        if (ok)
+            records.Append(fmt(",\"output\":\"%s\",\"beforeBytes\":%lld,\"afterBytes\":%lld",
+                               json::EscapeStrTemp(outputs[i]), audit.beforeBytes, audit.afterBytes));
+        else
+            records.Append(StrL(",\"error\":\"Action failed, cancelled or output already exists\""));
+        records.AppendChar('}');
+        if (progress) InterlockedExchange(&progress->completedFiles, i + 1);
+        if (progress && InterlockedCompareExchange(&progress->cancelled, 0, 0)) break;
     }
-    out.Append(StrL("]}"));
-    if (!allOk) {
-        Str json = ToStrTemp(out);
-        return str::ReplaceTemp(json, StrL("\"ok\":true"), StrL("\"ok\":false"));
-    }
-    return ToStrTemp(out);
+    return fmt("{\"ok\":%s,\"total\":%d,\"results\":[%s]}", allOk ? StrL("true") : StrL("false"), len(files),
+               ToStr(records));
 }
 
 struct BatchWizardJob {
+    volatile LONG refs = 1;
     Str definition;
     Vec<Str> files;
     BatchProgress progress;
     Str resultJson;
     volatile LONG done = 0;
+    ~BatchWizardJob() {
+        str::Free(definition);
+        str::Free(resultJson);
+        for (Str f : files) str::Free(f);
+    }
+    void Release() {
+        if (!InterlockedDecrement(&refs)) delete this;
+    }
 };
 
 static void RunBatchWizardThread(BatchWizardJob* job) {
     TempStr res = RunBatchActionsJson(job->definition, job->files, &job->progress);
     job->resultJson = str::Dup(res);
     InterlockedExchange(&job->done, 1);
+    job->Release();
 }
 
 struct BatchActionsDialog : WindowBase {
@@ -401,10 +543,9 @@ struct BatchActionsDialog : WindowBase {
     ~BatchActionsDialog() override {
         if (job) {
             InterlockedExchange(&job->progress.cancelled, 1);
-            str::Free(job->definition);
-            str::Free(job->resultJson);
-            delete job;
+            job->Release();
         }
+        for (Str f : inputFiles) str::Free(f);
         str::Free(outputFolder);
     }
 
@@ -489,14 +630,30 @@ void BatchActionsDialog::OnStart(VirtMouseEvent*) {
     int sel = CbGetCurrentSelection(actionPreset);
     Str def;
     switch (sel) {
-        case 0: def = StrL("{\"actions\":[{\"type\":\"ocr\"}]}"); break;
-        case 1: def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}"); break;
-        case 2: def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"print\"}]}"); break;
-        case 3: def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"min-size\"}]}"); break;
-        case 4: def = StrL("{\"actions\":[{\"type\":\"sanitize\"}]}"); break;
-        case 5: def = StrL("{\"actions\":[{\"type\":\"flatten\"}]}"); break;
-        case 6: def = StrL("{\"actions\":[{\"type\":\"watermark\",\"text\":\"CONFIDENTIAL\"}]}"); break;
-        default: def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}"); break;
+        case 0:
+            def = StrL("{\"actions\":[{\"type\":\"ocr\"}]}");
+            break;
+        case 1:
+            def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}");
+            break;
+        case 2:
+            def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"print\"}]}");
+            break;
+        case 3:
+            def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"min-size\"}]}");
+            break;
+        case 4:
+            def = StrL("{\"actions\":[{\"type\":\"sanitize\"}]}");
+            break;
+        case 5:
+            def = StrL("{\"actions\":[{\"type\":\"flatten\"}]}");
+            break;
+        case 6:
+            def = StrL("{\"actions\":[{\"type\":\"watermark\",\"text\":\"CONFIDENTIAL\"}]}");
+            break;
+        default:
+            def = StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}");
+            break;
     }
     TempStr sfx = suffixEdit ? suffixEdit->GetTextTemp() : StrL("_batch");
     if (len(sfx) == 0) sfx = StrL("_batch");
@@ -513,14 +670,25 @@ void BatchActionsDialog::OnStart(VirtMouseEvent*) {
     b.Append(StrL(",\"actions\":"));
     b.Append(Str(def.s + 11)); // skip {"actions":
 
-    if (job) {
-        str::Free(job->definition);
-        str::Free(job->resultJson);
-        delete job;
+    BatchDefinition typed;
+    StrVec outputs;
+    if (!ParseBatch(ToStr(b), &typed) || !BatchDestinations(typed, inputFiles, outputs)) {
+        status->SetText(Tr("Invalid plan or output collision. No files written."));
+        return;
     }
+    str::Builder preview;
+    preview.Append(StrL("Validated PDF plan:\n"));
+    for (const auto& a : typed.actions)
+        preview.Append(
+            fmt("  PDF -> %s: %s\n", a.kind == BatchKind::Export ? BatchExportExt(a.type) : StrL("PDF"), a.type));
+    for (int i = 0; i < len(inputFiles); i++) preview.Append(fmt("%s -> %s\n", inputFiles[i], outputs[i]));
+    preview.Append(StrL("Existing files will not be overwritten. Run this plan?"));
+    if (MessageBoxW(hwnd, CWStrTemp(ToStr(preview)), L"Batch plan preview", MB_OKCANCEL | MB_ICONINFORMATION) != IDOK)
+        return;
+    if (job) job->Release();
     job = new BatchWizardJob();
     job->definition = str::Dup(ToStr(b));
-    job->files = inputFiles;
+    for (Str f : inputFiles) VecAppend(job->files, str::Dup(f));
 
     running = true;
     btnAddFiles->SetIsEnabled(false);
@@ -531,9 +699,14 @@ void BatchActionsDialog::OnStart(VirtMouseEvent*) {
     btnCancel->SetText(Tr("Cancel"));
     status->SetText(Tr("Starting batch execution..."));
 
+    InterlockedIncrement(&job->refs);
     ThreadHandle thread = StartThread(MkFunc0(RunBatchWizardThread, job), StrL("Batch Actions"));
     if (!thread) {
+        job->Release();
+        InterlockedExchange(&job->done, 1);
         running = false;
+        btnStart->SetIsEnabled(true);
+        status->SetText(Tr("Could not start batch worker."));
         return;
     }
     SafeCloseThreadHandle(&thread);
@@ -573,7 +746,10 @@ void BatchActionsDialog::Poll(WindowBase::TimerEvent*) {
         status->SetText(Tr("Batch actions cancelled."));
     } else {
         int comp = InterlockedCompareExchange(&job->progress.completedFiles, 0, 0);
-        status->SetText(fmt(Tr("Batch actions completed (%d files processed).").s, comp));
+        status->SetText(fmt("Batch finished (%d files). %s", comp,
+                            str::StartsWith(job->resultJson, StrL("{\"ok\":true"))
+                                ? StrL("Saved successfully.")
+                                : StrL("Failed; inspect plan and output paths.")));
     }
 }
 
