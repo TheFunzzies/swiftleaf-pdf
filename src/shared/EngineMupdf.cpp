@@ -12179,6 +12179,13 @@ bool EngineMupdfSanitizePdf(const PdfMergeSource& src, Str destPath, const PdfSa
     return ok;
 }
 
+static void CleanRedactObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, void*) {
+    PdfSanitizeOptions clean = {};
+    SanitizePdfObject(ctx, doc, obj, &clean);
+    pdf_dict_del(ctx, obj, PDF_NAME(ActualText));
+    pdf_dict_del(ctx, obj, PDF_NAME(Alt));
+}
+
 struct RedactChar {
     int offset;
     fz_quad quad;
@@ -12322,11 +12329,15 @@ static bool SearchRedactions(const PdfMergeSource& src, Str destPath, Str term, 
         for (int i = 0; i < pdf_count_pages(ctx, doc); i++)
             RedactSearchPage(ctx, doc, i, term, regex, matches, selected, len(destPath) ? &count : nullptr);
         for (int i = 0; i < len(layerStates); i++) pdf_enable_layer(ctx, doc, i, layerStates[i]);
+        if (selected) {
+            for (int id : *selected) {
+                if (id < 1 || id > len(matches)) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Unknown match ID");
+            }
+        }
         if (count) {
             // Tags and thumbnails can hold copies of removed content.
             pdf_dict_del(ctx, MergeRoot(ctx, doc), PDF_NAME(StructTreeRoot));
-            PdfSanitizeOptions clean = {};
-            VisitPdfObjects(ctx, doc, SanitizePdfObject, &clean);
+            VisitPdfObjects(ctx, doc, CleanRedactObject, nullptr);
             pdf_dict_del(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
             pdf_dict_del(ctx, pdf_trailer(ctx, doc), PDF_NAME(ID));
             // Only our replacement labels are baked; source comments were removed above.

@@ -1822,6 +1822,9 @@ static void PdfDocumentToolsTest() {
         pdf_drop_document(ctx, doc);
         // A removed title must not survive as an earlier incremental revision.
         doc = pdf_open_document(ctx, CStrTemp(sourcePath));
+        pdf_obj* aliases = pdf_dict_put_dict(ctx, ToolsTestRoot(ctx, doc), pdf_new_name(ctx, "RedactionAliases"), 2);
+        pdf_dict_put_text_string(ctx, aliases, PDF_NAME(ActualText), "ID-123");
+        pdf_dict_put_text_string(ctx, aliases, PDF_NAME(Alt), "ID-456");
         pdf_obj* revisionInfo = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
         pdf_dict_put_text_string(ctx, revisionInfo, PDF_NAME(Title), "REVISION-SECRET");
         pdf_write_options incremental = {};

@@ -4023,7 +4023,7 @@ Checkbox* PdfPrivacyDialog::AddCheck(Str label, bool checked) {
 
 bool PdfPrivacyDialog::Create(MainWindow* w, WindowTab* tab, bool isRedact) {
     redact = isRedact;
-    if (!CreateToolDialog(w, tab, redact ? Tr("Redact All Search Matches") : Tr("Sanitize Document"))) return false;
+    if (!CreateToolDialog(w, tab, redact ? Tr("Search and Redact") : Tr("Sanitize Document"))) return false;
     AddPathRow();
     Str stem = srcPath;
     if (str::EndsWithI(stem, StrL(".pdf"))) stem.len -= 4;
@@ -4119,7 +4119,7 @@ void PdfPrivacyDialog::DoIt(VirtMouseEvent*) {
     if (len(snapshot)) file::Delete(snapshot);
     if (!ok) {
         MessageBoxWarning(hwnd, len(error) ? error : Tr("Failed to save PDF copy."),
-                          redact ? Tr("Redact All Search Matches") : Tr("Sanitize Document"));
+                          redact ? Tr("Search and Redact") : Tr("Sanitize Document"));
         return;
     }
     MainWindow* w = win;
