@@ -4,6 +4,7 @@
 
 - Accessibility: warn about unverified reading order and figure links; preserve existing tags and mark generated roles as drafts.
 - PDF/A: reject invalid ICC profiles, preserve transparency, and report unverified conformance.
+- PDF compare: report load, render, and text extraction failures honestly without false 0% diffs, include extra-page details, and ensure atomic report writes.
 - Tools search: enable Tab navigation and prevent minimum-width clipping on resize.
 
 - Recommended section at top of the All tools panel for quick access to primary workflows.

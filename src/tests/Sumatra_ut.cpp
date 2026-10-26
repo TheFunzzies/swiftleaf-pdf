@@ -37,6 +37,7 @@
 #include "PageTools2.h"
 #include "Accessibility.h"
 #include "Preflight.h"
+#include "ComparePdf.h"
 #include <mupdf/pdf.h>
 extern const pdf_write_options gPdfDefaultWriteOptions;
 #include "AppUnitTests.h"
@@ -2470,6 +2471,31 @@ static void PageTools2Test() {
         SafeEngineRelease(&e);
         file::Delete(rgbPdf);
 
+        // (f) PDF Compare error honesty, atomic write, and extra-page details
+        {
+            Str dummyJson;
+            ok = ComparePdfReport(StrL("missing-left.pdf"), StrL("missing-right.pdf"), StrL("report.html"), &dummyJson);
+            utassert(!ok);
+            utassert(str::Contains(dummyJson, StrL("\"ok\":false")));
+            str::Free(dummyJson);
+
+            TempStr insPdf = GetTempFilePathTemp(StrL("ins-compare.pdf"));
+            ok = PdfInsertBlankPages(basePdf, insPdf, 1, 1);
+            utassert(ok);
+
+            TempStr cmpReport = GetTempFilePathTemp(StrL("compare-extra.html"));
+            Str cmpJson;
+            ok = ComparePdfReport(basePdf, insPdf, cmpReport, &cmpJson);
+            utassert(ok);
+            utassert(str::Contains(cmpJson, StrL("\"ok\":true")));
+            utassert(str::Contains(cmpJson, StrL("\"pages\":3")));
+            Str reportHtml = file::ReadFile(cmpReport);
+            utassert(str::Contains(reportHtml, StrL("Only in Right / Added")));
+            str::Free(reportHtml);
+            file::Delete(cmpReport);
+            str::Free(cmpJson);
+            file::Delete(insPdf);
+        }
     }
 
     file::Delete(basePdf);

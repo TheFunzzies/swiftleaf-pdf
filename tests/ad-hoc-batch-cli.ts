@@ -29,9 +29,15 @@ export async function testit(): Promise<void> {
   check(result.ok && result.results[0].ok, "batch JSON did not report success");
   check(existsSync(output), "batch output PDF was not created");
 
+  const failCompare = run(["-compare", input, tmpPath("nonexistent.pdf"), "-report", report]);
+  check(failCompare.code !== 0, "compare should fail on missing input");
+  check(JSON.parse(failCompare.stdout).ok === false, "compare JSON should report failure on missing file");
+
   const compare = run(["-compare", input, output, "-report", report]);
   check(compare.code === 0, `compare exit ${compare.code}: ${compare.stderr}`);
-  check(JSON.parse(compare.stdout).ok, "compare JSON did not report success");
+  const cmpResult = JSON.parse(compare.stdout);
+  check(cmpResult.ok, "compare JSON did not report success");
+  check(cmpResult.pages > 0, "compare JSON omitted page count");
   const html = readFileSync(report, "utf8");
   check(html.includes("PDF comparison"), "HTML report was not written");
   check(html.includes("<ins>") && html.includes("data:image/png;base64,"), "report omitted text or visual differences");
