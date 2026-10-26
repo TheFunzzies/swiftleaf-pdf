@@ -2176,8 +2176,8 @@ static void PdfCompressionHonestyTest() {
     const char* o1 = "<< /Type /Catalog /Pages 2 0 R >>";
     const char* o2 = "<< /Type /Pages /Count 1 /Kids [3 0 R] >>";
     const char* o3 = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>";
-    const char* o4 =
-        "<< /Length 80 >>\nstream\nBT /F1 12 Tf 72 712 Td (SwiftLeaf Compression Honesty Test) Tj ET\nendstream";
+    const char* streamContent = "BT /F1 12 Tf 72 712 Td (SwiftLeaf Compression Honesty Test) Tj ET\n";
+    TempStr o4 = fmt("<< /Length %d >>\nstream\n%sendstream", (int)strlen(streamContent), Str(streamContent));
     int offsets[4];
     offsets[0] = len(pdf);
     pdf.Append(fmt("1 0 obj\n%s\nendobj\n", Str(o1)));
@@ -2186,14 +2186,15 @@ static void PdfCompressionHonestyTest() {
     offsets[2] = len(pdf);
     pdf.Append(fmt("3 0 obj\n%s\nendobj\n", Str(o3)));
     offsets[3] = len(pdf);
-    pdf.Append(fmt("4 0 obj\n%s\nendobj\n", Str(o4)));
+    pdf.Append(fmt("4 0 obj\n%s\nendobj\n", o4));
     int xref = len(pdf);
     pdf.Append(StrL("xref\n0 5\n0000000000 65535 f \n"));
     for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
     pdf.Append(fmt("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
 
-    TempStr basePdf = GetTempFilePathTemp(StrL("compress-base.pdf"));
+    TempStr basePdf = str::JoinTemp(GetTempFilePathTemp(StrL("cbase")), StrL(".pdf"));
     utassert(file::WriteFile(basePdf, ToStrTemp(pdf)));
+    i64 basePdfSize = file::GetSize(basePdf);
 
     // Audit initial breakdown
     PdfOptimizationAudit auditInit{};
@@ -2203,16 +2204,16 @@ static void PdfCompressionHonestyTest() {
     utassert(auditInit.imageBytes + auditInit.fontBytes + auditInit.objectBytes == auditInit.beforeBytes);
 
     // Test Archive preset: distinct from PDF/A, keeps structure, losslessly deflates
-    TempStr archivePdf = GetTempFilePathTemp(StrL("compress-archive.pdf"));
+    TempStr archivePdf = str::JoinTemp(GetTempFilePathTemp(StrL("carch")), StrL(".pdf"));
     PdfOptimizationAudit auditArchive{};
     bool okArchive = PdfOptimizeFile(basePdf, archivePdf, PdfOptimizerPreset::Archive, &auditArchive);
     utassert(okArchive);
     utassert(file::Exists(archivePdf));
-    utassert(auditArchive.beforeBytes == file::GetSize(basePdf));
+    utassert(auditArchive.beforeBytes == basePdfSize);
     utassert(auditArchive.imageBytes + auditArchive.fontBytes + auditArchive.objectBytes == auditArchive.afterBytes);
 
     // Test Print preset: distinct backend from Archive
-    TempStr printPdf = GetTempFilePathTemp(StrL("compress-print.pdf"));
+    TempStr printPdf = str::JoinTemp(GetTempFilePathTemp(StrL("cprt")), StrL(".pdf"));
     PdfOptimizationAudit auditPrint{};
     bool okPrint = PdfOptimizeFile(basePdf, printPdf, PdfOptimizerPreset::Print, &auditPrint);
     utassert(okPrint);
@@ -2221,7 +2222,7 @@ static void PdfCompressionHonestyTest() {
     // Test "keep original if output would grow":
     // Attempting to compress an already compressed/compact file where overhead would grow:
     // Output size must never exceed source size!
-    TempStr recompactPdf = GetTempFilePathTemp(StrL("compress-recompact.pdf"));
+    TempStr recompactPdf = str::JoinTemp(GetTempFilePathTemp(StrL("crec")), StrL(".pdf"));
     PdfOptimizationAudit auditRecompact{};
     bool okRecompact = PdfOptimizeFile(archivePdf, recompactPdf, PdfOptimizerPreset::Archive, &auditRecompact);
     utassert(okRecompact);

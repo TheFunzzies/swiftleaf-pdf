@@ -13,10 +13,12 @@
 
 char *fz_optarg; /* Global argument pointer. */
 int fz_optind = 0; /* Global argv index. */
+static char *scan = NULL; /* Private scan pointer. */
 
 void fz_set_optind(int val)
 {
 	fz_optind = val;
+	scan = NULL;
 }
 const fz_getopt_long_options *fz_optlong = NULL;
 int fz_optitem = 0; /* Which item in a long opt list is selected? */
@@ -96,8 +98,6 @@ match_long_option(int argc, char * const *argv, const fz_getopt_long_options *lo
 	return '?';
 }
 
-static char *scan = NULL; /* Private scan pointer. */
-
 int
 fz_getopt_long(int argc, char * const *argv, const char *optstring, const fz_getopt_long_options *longopts)
 {
@@ -111,7 +111,10 @@ fz_getopt_long(int argc, char * const *argv, const char *optstring, const fz_get
 	while (!scan || *scan == '\0')
 	{
 		if (fz_optind == 0)
+		{
 			fz_optind++;
+			scan = NULL;
+		}
 
 		if (fz_optind >= argc || argv[fz_optind][0] != '-' || argv[fz_optind][1] == '\0')
 			return EOF;

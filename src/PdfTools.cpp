@@ -643,7 +643,8 @@ bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOp
     if (len(destDir) == 0) {
         destDir = path::GetDirTemp(srcPath);
     }
-    TempStr tempOutput = path::JoinTemp(destDir, fmt("opt-%u-%u.pdf", (u32)GetCurrentProcessId(), (u32)GetTickCount()));
+    static u32 gOptCounter = 0;
+    TempStr tempOutput = path::JoinTemp(destDir, fmt("opt-%u-%u-%u.pdf", (u32)GetCurrentProcessId(), (u32)GetTickCount(), ++gOptCounter));
 
     Vec<char*> argv;
     VecAppend(argv, (char*)"clean");
@@ -653,6 +654,7 @@ bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOp
     VecAppend(argv, (char*)"-f");
     VecAppend(argv, (char*)"-i");
     VecAppend(argv, (char*)"-t");
+    VecAppend(argv, (char*)"-z");
     VecAppend(argv, (char*)"-Z");
 
     switch (preset) {
@@ -703,13 +705,13 @@ bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOp
         logf("PdfOptimizeFile: output would grow (%lld -> %lld bytes), keeping original\n", beforeBytes, tempSize);
         file::Delete(tempOutput);
         if (!path::IsSame(srcPath, destPath)) {
-            if (!file::Copy(srcPath, destPath, false)) {
+            if (!file::Copy(destPath, srcPath, false)) {
                 return false;
             }
         }
     } else {
         if (!file::RenameReplace(destPath, tempOutput)) {
-            if (!file::Copy(tempOutput, destPath, false)) {
+            if (!file::Copy(destPath, tempOutput, false)) {
                 file::Delete(tempOutput);
                 return false;
             }
