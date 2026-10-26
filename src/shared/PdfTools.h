@@ -25,8 +25,17 @@ enum class PdfOptimizerPreset {
 struct PdfOptimizationAudit {
     i64 beforeBytes = 0;
     i64 afterBytes = 0;
+    // byte contributions from the source document
+    i64 imageBytes = 0;   // image XObject streams
+    i64 fontBytes = 0;    // font streams
+    i64 objectBytes = 0;  // all other objects
+    // true when output grew instead of shrinking; the original was kept
+    bool keptOriginal = false;
 };
 bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOptimizationAudit* auditOut = nullptr);
+// honest one-line description of what each preset does
+Str PdfPresetDescription(PdfOptimizerPreset preset);
+void PdfPresetDescriptionTest();
 void ShowPdfDecompressDialog(MainWindow* win);
 void ShowPdfDeletePageDialog(MainWindow* win);
 void ShowPdfExtractPagesDialog(MainWindow* win);

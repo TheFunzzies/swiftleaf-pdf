@@ -505,33 +505,142 @@ enum class CompressLevel {
 };
 constexpr int kCompressLevelCount = 3;
 
+// Best-effort: opens the source PDF and categorizes stream byte
+// contributions as image/font/other. On any error fields are left
+// at zero and objectBytes falls back to the total file size.
+static void AuditByteContributions(Str path, PdfOptimizationAudit* audit) {
+    if (!audit) return;
+    audit->imageBytes = 0;
+    audit->fontBytes = 0;
+    audit->objectBytes = 0;
+    i64 total = file::GetSize(path);
+    if (total <= 0) return;
+
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_UNLIMITED);
+    if (!ctx) {
+        audit->objectBytes = total;
+        return;
+    }
+    fz_register_document_handlers(ctx);
+
+    pdf_document* doc = nullptr;
+    fz_try(ctx) {
+        doc = pdf_open_document(ctx, CStrTemp(path));
+        if (!doc) fz_throw(ctx, "cannot open document for audit");
+
+        int n = pdf_count_objects(ctx, doc);
+        for (int i = 1; i < n; i++) {
+            if (!pdf_object_exists(ctx, doc, i)) continue;
+            pdf_obj* obj = pdf_load_object(ctx, doc, i);
+            if (!obj) continue;
+
+            if (pdf_is_stream(ctx, obj)) {
+                fz_buffer* buf = pdf_load_raw_stream(ctx, obj);
+                i64 sz = buf ? (i64)buf->len : 0;
+                fz_drop_buffer(ctx, buf);
+
+                if (sz > 0) {
+                    pdf_obj* type = pdf_dict_get(ctx, obj, PDF_NAME(Type));
+                    if (pdf_is_image_stream(ctx, obj)) {
+                        audit->imageBytes += sz;
+                    } else if ((type && pdf_name_eq(ctx, type, PDF_NAME(Font))) ||
+                               (pdf_dict_get(ctx, obj, PDF_NAME(Length1)) != nullptr)) {
+                        audit->fontBytes += sz;
+                    }
+                }
+            }
+        }
+    }
+    fz_catch(ctx) { /* best-effort: leave partial or zero */ }
+
+    if (doc) pdf_drop_document(ctx, doc);
+    fz_drop_context(ctx);
+
+    // residual = everything that is not image or font bytes
+    if (total > audit->imageBytes + audit->fontBytes) {
+        audit->objectBytes = total - audit->imageBytes - audit->fontBytes;
+    } else {
+        audit->objectBytes = 0;
+        audit->imageBytes = 0;
+        audit->fontBytes = 0;
+    }
+}
+
 bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOptimizationAudit* auditOut) {
-    CompressLevel level = CompressLevel::Light;
-    if (preset == PdfOptimizerPreset::Web) level = CompressLevel::Medium;
-    if (preset == PdfOptimizerPreset::MinSize) level = CompressLevel::High;
+    i64 beforeSize = file::GetSize(srcPath);
     file::AtomicFile output(destPath);
     if (len(output.tempPath) == 0) return false;
+
     Vec<char*> argv;
     const char* base[] = {"clean", "-gggg", "-e", "100", "-f", "-i", "-t", "-Z"};
     for (const char* a : base) VecAppend(argv, (char*)a);
-    if (level == CompressLevel::Medium) {
-        VecAppend(argv, (char*)"--color-image-subsample-dpi=225,150");
-        VecAppend(argv, (char*)"--gray-image-subsample-dpi=225,150");
-        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:75");
-        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:75");
-    } else if (level == CompressLevel::High) {
-        VecAppend(argv, (char*)"--color-image-subsample-dpi=144,96");
-        VecAppend(argv, (char*)"--gray-image-subsample-dpi=144,96");
-        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:50");
-        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
+
+    // Print and Archive must not silently share the same Light backend.
+    switch (preset) {
+        case PdfOptimizerPreset::Web:
+            // 225/150 dpi, JPEG 75 -- for screen viewing
+            VecAppend(argv, (char*)"--color-image-subsample-dpi=225,150");
+            VecAppend(argv, (char*)"--gray-image-subsample-dpi=225,150");
+            VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:75");
+            VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:75");
+            break;
+
+        case PdfOptimizerPreset::Print:
+            // 300 dpi, JPEG 85 -- print-applicable quality, lossy
+            VecAppend(argv, (char*)"--color-image-subsample-dpi=300,300");
+            VecAppend(argv, (char*)"--gray-image-subsample-dpi=300,300");
+            VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:85");
+            VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:85");
+            break;
+
+        case PdfOptimizerPreset::Archive:
+            // Lossless (Light): no image recoding. Font subsetting and
+            // structure-drop make this distinct from Print. Archive is NOT
+            // PDF/A -- no conformance guarantee is produced here.
+            VecAppend(argv, (char*)"-S");
+            VecAppend(argv, (char*)"--structure=drop");
+            break;
+
+        case PdfOptimizerPreset::MinSize:
+            // 144/96 dpi, JPEG 50 -- smallest possible
+            VecAppend(argv, (char*)"--color-image-subsample-dpi=144,96");
+            VecAppend(argv, (char*)"--gray-image-subsample-dpi=144,96");
+            VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:50");
+            VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
+            break;
     }
+
     VecAppend(argv, CStrTemp(srcPath));
     VecAppend(argv, CStrTemp(output.tempPath));
     fz_set_optind(0);
-    if (pdfclean_main(len(argv), argv.els) != 0 || !output.Commit()) return false;
+
+    if (pdfclean_main(len(argv), argv.els) != 0) {
+        file::Delete(output.tempPath);
+        return false;
+    }
+
+    // Keep the original if compression did not shrink the file.
+    i64 afterSize = file::GetSize(output.tempPath);
+    if (afterSize >= beforeSize) {
+        file::Delete(output.tempPath);
+        if (file::Copy(destPath, srcPath, false)) {
+            if (auditOut) {
+                auditOut->beforeBytes = beforeSize;
+                auditOut->afterBytes = beforeSize;
+                auditOut->keptOriginal = true;
+                AuditByteContributions(srcPath, auditOut);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    if (!output.Commit()) return false;
+
     if (auditOut) {
-        auditOut->beforeBytes = file::GetSize(srcPath);
+        auditOut->beforeBytes = beforeSize;
         auditOut->afterBytes = file::GetSize(destPath);
+        AuditByteContributions(srcPath, auditOut);
     }
     return true;
 }
@@ -551,11 +660,27 @@ struct PdfCompressDialog : PdfToolDialog {
 static Str CompressLevelHint(CompressLevel level) {
     switch (level) {
         case CompressLevel::Light:
-            return Tr("Lossless: removes waste, the pages look the same.");
+            return Tr("Lossless: removes waste, pages look the same.");
         case CompressLevel::Medium:
-            return Tr("Photos scaled to 150 dpi: good for screens and printing.");
+            return Tr("Photos at 150 dpi, JPEG 75: good for screens.");
         case CompressLevel::High:
-            return Tr("Photos scaled to 96 dpi: smallest file, for screens.");
+            return Tr("Photos at 96 dpi, JPEG 50: smallest file, screens only.");
+    }
+    return {};
+}
+
+// Honest descriptions for the batch optimizer presets. Archive is a
+// compression preset, not PDF/A conformance -- do not imply otherwise.
+Str PdfPresetDescription(PdfOptimizerPreset preset) {
+    switch (preset) {
+        case PdfOptimizerPreset::Web:
+            return Tr("Photos at 150 dpi, JPEG 75: smallest file for screen viewing.");
+        case PdfOptimizerPreset::Print:
+            return Tr("Photos at 300 dpi, JPEG 85: good quality for printing.");
+        case PdfOptimizerPreset::Archive:
+            return Tr("Lossless: removes waste, subsets fonts, drops structure. Not PDF/A.");
+        case PdfOptimizerPreset::MinSize:
+            return Tr("Photos at 96 dpi, JPEG 50: smallest file, lowest quality.");
     }
     return {};
 }
@@ -4546,3 +4671,22 @@ void ShowCreatePdfFilesDialog(MainWindow* win, bool clipboard) {
     dlg->create = true;
     if (!dlg->Create(win, clipboard)) delete dlg;
 }
+
+#if IS_DEBUG
+#include "base/tests/UtAssert.h"
+
+void PdfPresetDescriptionTest() {
+    Str web = PdfPresetDescription(PdfOptimizerPreset::Web);
+    Str print = PdfPresetDescription(PdfOptimizerPreset::Print);
+    Str arch = PdfPresetDescription(PdfOptimizerPreset::Archive);
+    Str minsize = PdfPresetDescription(PdfOptimizerPreset::MinSize);
+    utassert(len(web) > 0 && len(print) > 0 && len(arch) > 0 && len(minsize) > 0);
+    // Print and Archive must not silently share the same backend
+    utassert(!str::Eq(print, arch));
+    utassert(!str::Eq(web, arch));
+    // Archive must explicitly disclaim it is not PDF/A
+    utassert(str::ContainsI(arch, StrL("not pdf/a")));
+    // Print is lossy (JPEG), must not claim lossless
+    utassert(!str::ContainsI(print, StrL("lossless")));
+}
+#endif
