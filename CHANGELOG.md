@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Use WIA 2.0 feeder flags so strict drivers accept simplex and duplex acquisition.
 - Map deskewed OCR word corners back to the original scan, preserving orientation
   through page rotation, crop offsets and UserUnit. Fail batch OCR on incomplete pages.
 - Acquire real WIA 2.0 scanner pixels with feeder/duplex settings, cancellation and

@@ -238,7 +238,8 @@ static HRESULT AcquireWia(ScanJob* job, PdfCreator& pdf) {
     hr = item->QueryInterface(IID_PPV_ARGS(&props));
     if (FAILED(hr)) return hr;
     if (job->source != 0) {
-        hr = SetWiaLong(props, WIA_IPS_DOCUMENT_HANDLING_SELECT, FEEDER | (job->source == 2 ? DUPLEX : FRONT_ONLY));
+        // WIA 2.0 selects the feeder by item category, not the obsolete FEEDER flag.
+        hr = SetWiaLong(props, WIA_IPS_DOCUMENT_HANDLING_SELECT, job->source == 2 ? DUPLEX : FRONT_ONLY);
         if (FAILED(hr)) return hr;
         hr = SetWiaLong(props, WIA_IPS_PAGES, ALL_PAGES);
         if (FAILED(hr)) return hr;
