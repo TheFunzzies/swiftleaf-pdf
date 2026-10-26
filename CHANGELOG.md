@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Compare PDFs runs in a cancellable worker with page progress, streams reports,
+  bounds preview/cache memory, and preserves existing output on failure.
+
 - Recommended section at top of the All tools panel for quick access to primary workflows.
 - Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
 - Command palette lists all commands with description and ribbon tab destination.
