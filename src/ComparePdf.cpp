@@ -448,6 +448,15 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
                        "sans-serif}pre{white-space:pre-wrap}del{background:#fdd}ins{background:#dfd}img{max-width:48%}<"
                        "/style><h1>PDF comparison</h1><p>72 dpi previews, downscaled to 2048 pixels per side. "
                        "Text/raster fingerprint alignment; edited scans use page order.</p>"));
+    if (ok) {
+        str::Builder inputs;
+        inputs.Append(StrL("<p>Left: "));
+        AppendHtml(inputs, leftPath);
+        inputs.Append(StrL("<br>Right: "));
+        AppendHtml(inputs, rightPath);
+        inputs.Append(fmt("</p><p>%d pages vs %d pages</p>", na, nb));
+        ok = write(ToStr(inputs));
+    }
     int words = 0, compared = 0;
     double pixels = 0;
     for (int index = 0; ok && index < na + nb; index++) {
@@ -517,8 +526,9 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     else
         ok = false;
     if (ok && resultJsonOut)
-        *resultJsonOut = fmt("{\"ok\":true,\"pages\":%d,\"wordChanges\":%d,\"pixelChangePercent\":%.2f}", compared,
-                             words, compared ? pixels * 100 / compared : 0);
+        *resultJsonOut =
+            fmt("{\"ok\":true,\"pages\":%d,\"wordChanges\":%d,\"pixelChangePercent\":%.2f,\"report\":\"%s\"}", compared,
+                words, compared ? pixels * 100 / compared : 0, json::EscapeStrTemp(reportPath));
     if (ok && progress) InterlockedExchange(&progress->completed, InterlockedCompareExchange(&progress->total, 0, 0));
     return ok;
 }

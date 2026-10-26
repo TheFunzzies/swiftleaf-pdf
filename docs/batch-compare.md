@@ -46,3 +46,10 @@ memory cap: individual PDF objects/decoders can allocate more. Replacement limit
 strings, and 2 MiB replacement text per block. Unsupported text still stops the copy.
 
 Focused regression: `bun tests/ad-hoc-compare-safety.ts --no-build` after a debug build.
+
+Memory probe: `bun tests/ad-hoc-compare-memory.ts --no-build`. On 2026-10-26,
+x64 Debug, synthetic 600x800 RGB noise scans compared with themselves:
+16 pages produced 58.7 MiB HTML at 77.0 MiB peak working set (18.4 seconds);
+80 pages produced 293.3 MiB HTML at 79.9 MiB peak (57.5 seconds).
+The fixture reuses one image across pages. This demonstrates streamed-report
+memory behavior, not a general PDF decoder memory ceiling or performance promise.
