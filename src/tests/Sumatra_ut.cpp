@@ -2577,7 +2577,7 @@ static void PageTools2Test() {
     file::Delete(basePdf);
 }
 
-// Builds a PDF whose pages each hold one line of text, for compare fixtures.
+// Writes a PDF whose pages each hold one line of text, for compare fixtures.
 static TempStr CompareTextPdf(const Str* pageTexts, int pageCount) {
     str::Builder pdf;
     pdf.Append(StrL("%PDF-1.7\n"));
@@ -2617,7 +2617,9 @@ static TempStr CompareTextPdf(const Str* pageTexts, int pageCount) {
     for (int i = 0; i < objCount; i++) pdf.Append(fmt("%010d 00000 n \n", offsets[i]));
     pdf.Append(fmt("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", objCount + 1, xref));
     free(offsets);
-    return ToStrTemp(pdf);
+    TempStr path = GetTempFilePathTemp(StrL("compare-text.pdf"));
+    utassert(file::WriteFile(path, ToStr(pdf)));
+    return path;
 }
 
 static void ComparePdfTest() {
@@ -2687,6 +2689,8 @@ static void ComparePdfTest() {
     utassert(str::Contains(alignHtml, StrL("Only in Right / Added")));
     str::Free(alignHtml);
     file::Delete(alignReport);
+    file::Delete(leftPdf);
+    file::Delete(rightPdf);
 
     // Same report path renders two edits instead of one swallowed span.
     Str editLeftPages[] = {StrL("alpha beta gamma delta epsilon")};
@@ -2702,6 +2706,8 @@ static void ComparePdfTest() {
     utassert(str::Contains(editHtml, StrL("<del>epsilon</del> <ins>Y</ins>")));
     str::Free(editHtml);
     file::Delete(editReport);
+    file::Delete(leftPdf);
+    file::Delete(rightPdf);
 }
 
 static LONG WINAPI ForAiCrashHandler(EXCEPTION_POINTERS* ei) {
