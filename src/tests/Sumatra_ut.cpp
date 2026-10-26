@@ -2577,6 +2577,139 @@ static void PageTools2Test() {
     file::Delete(basePdf);
 }
 
+// Writes a PDF whose pages each hold one line of text, for compare fixtures.
+static TempStr CompareTextPdf(const Str* pageTexts, int pageCount) {
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    int objCount = 3 + pageCount * 2;
+    int* offsets = AllocArray<int>(objCount);
+
+    auto addObject = [&](int no, Str body) {
+        offsets[no - 1] = len(pdf);
+        pdf.Append(fmt("%d 0 obj\n", no));
+        pdf.Append(body);
+        pdf.Append(StrL("\nendobj\n"));
+    };
+
+    addObject(1, StrL("<< /Type /Catalog /Pages 2 0 R >>"));
+    str::Builder kids;
+    kids.Append(StrL("<< /Type /Pages /Count "));
+    kids.Append(fmt("%d", pageCount));
+    kids.Append(StrL(" /Kids ["));
+    for (int i = 0; i < pageCount; i++) {
+        if (i) kids.AppendChar(' ');
+        kids.Append(fmt("%d 0 R", 4 + i * 2));
+    }
+    kids.Append(StrL("] >>"));
+    addObject(2, ToStr(kids));
+    addObject(3, StrL("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"));
+
+    for (int i = 0; i < pageCount; i++) {
+        addObject(4 + i * 2, fmt("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                                 "/Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>",
+                                 5 + i * 2));
+        Str stream = fmt("BT /F1 12 Tf 72 700 Td (%s) Tj ET\n", pageTexts[i]);
+        addObject(5 + i * 2, fmt("<< /Length %d >>\nstream\n%sendstream", len(stream), stream));
+    }
+
+    int xref = len(pdf);
+    pdf.Append(fmt("xref\n0 %d\n0000000000 65535 f \n", objCount + 1));
+    for (int i = 0; i < objCount; i++) pdf.Append(fmt("%010d 00000 n \n", offsets[i]));
+    pdf.Append(fmt("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", objCount + 1, xref));
+    free(offsets);
+    TempStr path = GetTempFilePathTemp(StrL("compare-text.pdf"));
+    utassert(file::WriteFile(path, ToStr(pdf)));
+    return path;
+}
+
+static void ComparePdfTest() {
+    // Two separated edits are reported as two runs, keeping the unchanged
+    // words between them.
+    PdfWordDiff d = ComparePdfWordDiff(StrL("alpha beta gamma delta epsilon"), StrL("alpha X gamma delta Y"));
+    utassert(d.editRuns == 2);
+    utassert(d.changedWords == 2);
+    utassert(!d.coarse);
+    utassert(str::Contains(d.html, StrL("<del>beta</del> <ins>X</ins>")));
+    utassert(str::Contains(d.html, StrL("<del>epsilon</del> <ins>Y</ins>")));
+
+    // Above the LCS cell cap the diff degrades to one coarse run, not a wrong
+    // fine-grained script.
+    str::Builder leftLong, rightLong;
+    for (int i = 0; i < 1200; i++) {
+        if (i) {
+            leftLong.AppendChar(' ');
+            rightLong.AppendChar(' ');
+        }
+        leftLong.Append(fmt("w%d", i));
+        rightLong.Append(fmt("x%d", i));
+    }
+    PdfWordDiff coarse = ComparePdfWordDiff(ToStr(leftLong), ToStr(rightLong));
+    utassert(coarse.coarse);
+    utassert(coarse.editRuns == 1);
+    utassert(coarse.changedWords == 1200);
+
+    // Inserted page: the pages after it still match their original partner.
+    Vec<Str> left, right;
+    VecAppend(left, StrL("alpha beta gamma"));
+    VecAppend(left, StrL("delta epsilon zeta eta"));
+    VecAppend(right, StrL("alpha beta gamma"));
+    VecAppend(right, StrL("inserted brand new page"));
+    VecAppend(right, StrL("delta epsilon zeta eta"));
+    Vec<PdfPageMatch> matches;
+    ComparePdfAlignPages(left, right, matches);
+    utassert(len(matches) == 3);
+    utassert(matches[0].left == 0 && matches[0].right == 0 && !matches[0].moved);
+    utassert(matches[1].left == 1 && matches[1].right == 2 && !matches[1].moved);
+    utassert(matches[2].left == -1 && matches[2].right == 1);
+
+    // Moved page: paired by similarity, out of index order, and flagged.
+    Vec<Str> movedLeft, movedRight;
+    VecAppend(movedLeft, StrL("alpha beta"));
+    VecAppend(movedLeft, StrL("gamma delta"));
+    VecAppend(movedLeft, StrL("epsilon zeta"));
+    VecAppend(movedRight, StrL("epsilon zeta"));
+    VecAppend(movedRight, StrL("alpha beta"));
+    VecAppend(movedRight, StrL("gamma delta"));
+    Vec<PdfPageMatch> moved;
+    ComparePdfAlignPages(movedLeft, movedRight, moved);
+    utassert(len(moved) == 3);
+    utassert(moved[2].left == 2 && moved[2].right == 0 && moved[2].moved);
+
+    // End-to-end: the report pairs the surrounding pages across an insertion.
+    Str leftPages[] = {StrL("alpha beta gamma"), StrL("delta epsilon zeta")};
+    Str rightPages[] = {StrL("alpha beta gamma"), StrL("inserted brand new page"), StrL("delta epsilon zeta")};
+    TempStr leftPdf = CompareTextPdf(leftPages, 2);
+    TempStr rightPdf = CompareTextPdf(rightPages, 3);
+    TempStr alignReport = GetTempFilePathTemp(StrL("compare-align.html"));
+    Str alignJson;
+    utassert(ComparePdfReport(leftPdf, rightPdf, alignReport, &alignJson));
+    utassert(str::Contains(alignJson, StrL("\"addedPages\":1")));
+    Str alignHtml = file::ReadFile(alignReport);
+    utassert(str::Contains(alignHtml, StrL("Left page 2, right page 3")));
+    utassert(str::Contains(alignHtml, StrL("Only in Right / Added")));
+    str::Free(alignHtml);
+    file::Delete(alignReport);
+    file::Delete(leftPdf);
+    file::Delete(rightPdf);
+
+    // Same report path renders two edits instead of one swallowed span.
+    Str editLeftPages[] = {StrL("alpha beta gamma delta epsilon")};
+    Str editRightPages[] = {StrL("alpha X gamma delta Y")};
+    leftPdf = CompareTextPdf(editLeftPages, 1);
+    rightPdf = CompareTextPdf(editRightPages, 1);
+    TempStr editReport = GetTempFilePathTemp(StrL("compare-edits.html"));
+    Str editJson;
+    utassert(ComparePdfReport(leftPdf, rightPdf, editReport, &editJson));
+    utassert(str::Contains(editJson, StrL("\"editRuns\":2")));
+    Str editHtml = file::ReadFile(editReport);
+    utassert(str::Contains(editHtml, StrL("<del>beta</del> <ins>X</ins>")));
+    utassert(str::Contains(editHtml, StrL("<del>epsilon</del> <ins>Y</ins>")));
+    str::Free(editHtml);
+    file::Delete(editReport);
+    file::Delete(leftPdf);
+    file::Delete(rightPdf);
+}
+
 static LONG WINAPI ForAiCrashHandler(EXCEPTION_POINTERS* ei) {
     printf("unit tests crash\n");
     str::Builder s;
@@ -2630,6 +2763,7 @@ int RunAppUnitTests(bool forAi) {
     ExportFormatsUnitTests();
 #endif
     PageTools2Test();
+    ComparePdfTest();
     PdfDocumentToolsTest();
     ReviewToolsTest();
 
