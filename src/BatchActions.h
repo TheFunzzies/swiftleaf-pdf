@@ -16,6 +16,16 @@ struct BatchProgress {
     volatile LONG totalActions = 0;
 };
 
+struct BatchPlan {
+    bool valid = false;
+    Str error;
+    Str preview;
+    int actionCount = 0;
+    int fileCount = 0;
+};
+
+// Validates a definition and maps every input to its final output before any write.
+BatchPlan BuildBatchPlan(Str definition, const Vec<Str>& files);
 TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files, BatchProgress* progress = nullptr);
 bool SaveBatchActionsJson(Str name, Str definition);
 TempStr LoadBatchActionsJsonTemp(Str name);

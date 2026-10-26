@@ -179,13 +179,13 @@ PreflightReport RunPreflight(fz_context* ctx, pdf_document* doc) {
                     pdf_obj* st = pdf_dict_get(ctx, f, PDF_NAME(Subtype));
                     const char* stStr = st ? pdf_to_name(ctx, st) : "Unknown";
                     pdf_obj* encObj = pdf_dict_get(ctx, f, PDF_NAME(Encoding));
-                    const char* encStr = encObj ? (pdf_is_name(ctx, encObj) ? pdf_to_name(ctx, encObj) : "Custom") : "Standard";
+                    const char* encStr =
+                        encObj ? (pdf_is_name(ctx, encObj) ? pdf_to_name(ctx, encObj) : "Custom") : "Standard";
 
                     pdf_obj* fd = pdf_dict_get(ctx, f, PDF_NAME(FontDescriptor));
                     bool embedded = false;
                     if (fd && pdf_is_dict(ctx, fd)) {
-                        if (pdf_dict_get(ctx, fd, PDF_NAME(FontFile)) ||
-                            pdf_dict_get(ctx, fd, PDF_NAME(FontFile2)) ||
+                        if (pdf_dict_get(ctx, fd, PDF_NAME(FontFile)) || pdf_dict_get(ctx, fd, PDF_NAME(FontFile2)) ||
                             pdf_dict_get(ctx, fd, PDF_NAME(FontFile3))) {
                             embedded = true;
                         }
@@ -331,12 +331,13 @@ bool ExportPreflightReport(const PreflightReport& report, Str destPath, bool isC
         b.Append(StrL("\n# Page Boxes\n"));
         b.Append(StrL("Page,MediaBox,CropBox,BleedBox,TrimBox,ArtBox\n"));
         for (const auto& pb : report.pageBoxes) {
-            b.Append(fmt("%d,\"%.1f %.1f %.1f %.1f\",\"%.1f %.1f %.1f %.1f\",\"%.1f %.1f %.1f %.1f\",\"%.1f %.1f "
-                         "%.1f %.1f\",\"%.1f %.1f %.1f %.1f\"\n",
-                         pb.pageNo, pb.mediaBox.x, pb.mediaBox.y, pb.mediaBox.dx, pb.mediaBox.dy, pb.cropBox.x,
-                         pb.cropBox.y, pb.cropBox.dx, pb.cropBox.dy, pb.bleedBox.x, pb.bleedBox.y, pb.bleedBox.dx,
-                         pb.bleedBox.dy, pb.trimBox.x, pb.trimBox.y, pb.trimBox.dx, pb.trimBox.dy, pb.artBox.x,
-                         pb.artBox.y, pb.artBox.dx, pb.artBox.dy));
+            b.Append(
+                fmt("%d,\"%.1f %.1f %.1f %.1f\",\"%.1f %.1f %.1f %.1f\",\"%.1f %.1f %.1f %.1f\",\"%.1f %.1f "
+                    "%.1f %.1f\",\"%.1f %.1f %.1f %.1f\"\n",
+                    pb.pageNo, pb.mediaBox.x, pb.mediaBox.y, pb.mediaBox.dx, pb.mediaBox.dy, pb.cropBox.x, pb.cropBox.y,
+                    pb.cropBox.dx, pb.cropBox.dy, pb.bleedBox.x, pb.bleedBox.y, pb.bleedBox.dx, pb.bleedBox.dy,
+                    pb.trimBox.x, pb.trimBox.y, pb.trimBox.dx, pb.trimBox.dy, pb.artBox.x, pb.artBox.y, pb.artBox.dx,
+                    pb.artBox.dy));
         }
     } else {
         b.Append(StrL("================================================================================\n"));
@@ -344,7 +345,8 @@ bool ExportPreflightReport(const PreflightReport& report, Str destPath, bool isC
         b.Append(StrL("================================================================================\n\n"));
         b.Append(fmt("PDF Version:         %d.%d\n", report.pdfMajorVersion, report.pdfMinorVersion));
         b.Append(fmt("Page Count:          %d\n", report.pageCount));
-        b.Append(fmt("Encrypted:           %s (%s)\n", Str(report.isEncrypted ? "Yes" : "No"), report.encryptionMethod));
+        b.Append(
+            fmt("Encrypted:           %s (%s)\n", Str(report.isEncrypted ? "Yes" : "No"), report.encryptionMethod));
         b.Append(fmt("JavaScript:          %s\n", Str(report.hasJavaScript ? "Yes" : "No")));
         b.Append(fmt("Transparency:        %s\n", Str(report.hasTransparency ? "Yes" : "No")));
 
@@ -387,8 +389,8 @@ bool ExportPreflightReport(const PreflightReport& report, Str destPath, bool isC
                          pb.bleedBox.dy));
             b.Append(fmt("  TrimBox:  [%.1f, %.1f, %.1f, %.1f]\n", pb.trimBox.x, pb.trimBox.y, pb.trimBox.dx,
                          pb.trimBox.dy));
-            b.Append(fmt("  ArtBox:   [%.1f, %.1f, %.1f, %.1f]\n", pb.artBox.x, pb.artBox.y, pb.artBox.dx,
-                         pb.artBox.dy));
+            b.Append(
+                fmt("  ArtBox:   [%.1f, %.1f, %.1f, %.1f]\n", pb.artBox.x, pb.artBox.y, pb.artBox.dx, pb.artBox.dy));
         }
     }
 
@@ -396,6 +398,22 @@ bool ExportPreflightReport(const PreflightReport& report, Str destPath, bool isC
     bool ok = file::WriteFile(destPath, res);
     str::Free(res);
     return ok;
+}
+
+static bool HasIccHeader(Str data) {
+    if (len(data) < 132 || memcmp(data.s + 36, "acsp", 4) != 0) return false;
+    const u8* b = (const u8*)data.s;
+    u32 size = ((u32)b[0] << 24) | ((u32)b[1] << 16) | ((u32)b[2] << 8) | b[3];
+    if (size != (u32)len(data)) return false;
+    u32 tagCount = ((u32)b[128] << 24) | ((u32)b[129] << 16) | ((u32)b[130] << 8) | b[131];
+    if (tagCount == 0 || 132 + tagCount * 12 > size) return false;
+    for (u32 i = 0; i < tagCount; i++) {
+        u32 pos = 132 + i * 12;
+        u32 tagOffset = ((u32)b[pos + 4] << 24) | ((u32)b[pos + 5] << 16) | ((u32)b[pos + 6] << 8) | b[pos + 7];
+        u32 tagLen = ((u32)b[pos + 8] << 24) | ((u32)b[pos + 9] << 16) | ((u32)b[pos + 10] << 8) | b[pos + 11];
+        if (tagOffset < 132 || tagOffset + tagLen > size || tagOffset + tagLen < tagOffset) return false;
+    }
+    return true;
 }
 
 // PDF/A Conversion & Validation
@@ -434,26 +452,6 @@ bool ConvertPdfToPdfA(Str srcPath, Str destPath, int part) {
             pdf_obj* pageObj = pdf_lookup_page_obj(ctx, doc, p);
             pdf_dict_del(ctx, pageObj, PDF_NAME(AA));
 
-            // Strip transparency for PDF/A-1b
-            if (part == 1) {
-                pdf_dict_del(ctx, pageObj, PDF_NAME(Group));
-                pdf_obj* res = pdf_dict_get(ctx, pageObj, PDF_NAME(Resources));
-                if (res) {
-                    pdf_obj* egs = pdf_dict_get(ctx, res, PDF_NAME(ExtGState));
-                    if (egs && pdf_is_dict(ctx, egs)) {
-                        int n = pdf_dict_len(ctx, egs);
-                        for (int k = 0; k < n; k++) {
-                            pdf_obj* gs = pdf_dict_get_val(ctx, egs, k);
-                            if (!pdf_is_dict(ctx, gs)) continue;
-                            pdf_dict_del(ctx, gs, pdf_new_name(ctx, "SMask"));
-                            pdf_dict_put(ctx, gs, PDF_NAME(BM), PDF_NAME(Normal));
-                            pdf_dict_put_real(ctx, gs, PDF_NAME(ca), 1.0);
-                            pdf_dict_put_real(ctx, gs, PDF_NAME(CA), 1.0);
-                        }
-                    }
-                }
-            }
-
             // Remove external/launch actions on annotations
             pdf_annot* a = pdf_first_annot(ctx, page);
             while (a) {
@@ -478,18 +476,18 @@ bool ConvertPdfToPdfA(Str srcPath, Str destPath, int part) {
         }
 
         // 2. Add XMP Metadata with pdfaid
-        TempStr xmp = fmt(
-            "<?xpacket begin=\"\xEF\xBB\xBF\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n"
-            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n"
-            " <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n"
-            "  <rdf:Description rdf:about=\"\" xmlns:pdfaid=\"http://www.aiim.org/pdfa/ns/id/\">\n"
-            "   <pdfaid:part>%d</pdfaid:part>\n"
-            "   <pdfaid:conformance>B</pdfaid:conformance>\n"
-            "  </rdf:Description>\n"
-            " </rdf:RDF>\n"
-            "</x:xmpmeta>\n"
-            "<?xpacket end=\"w\"?>\n",
-            part);
+        TempStr xmp =
+            fmt("<?xpacket begin=\"\xEF\xBB\xBF\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n"
+                "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n"
+                " <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n"
+                "  <rdf:Description rdf:about=\"\" xmlns:pdfaid=\"http://www.aiim.org/pdfa/ns/id/\">\n"
+                "   <pdfaid:part>%d</pdfaid:part>\n"
+                "   <pdfaid:conformance>B</pdfaid:conformance>\n"
+                "  </rdf:Description>\n"
+                " </rdf:RDF>\n"
+                "</x:xmpmeta>\n"
+                "<?xpacket end=\"w\"?>\n",
+                part);
 
         fz_buffer* xmpBuf = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)xmp.s, (size_t)xmp.len);
         pdf_obj* metaStream = pdf_add_stream(ctx, doc, xmpBuf, nullptr, 0);
@@ -513,18 +511,19 @@ bool ConvertPdfToPdfA(Str srcPath, Str destPath, int part) {
         }
 
         pdf_obj* iccStream = nullptr;
-        if (iccData.len > 0) {
-            fz_buffer* iccBuf = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)iccData.s, (size_t)iccData.len);
-            iccStream = pdf_add_stream(ctx, doc, iccBuf, nullptr, 0);
-            fz_drop_buffer(ctx, iccBuf);
-            pdf_dict_put_int(ctx, iccStream, PDF_NAME(N), 3);
+        if (!HasIccHeader(iccData) || memcmp(iccData.s + 16, "RGB ", 4) != 0) {
             str::Free(iccData);
-        } else {
-            fz_buffer* iccBuf = fz_new_buffer(ctx, 64);
-            fz_append_string(ctx, iccBuf, "sRGB Profile");
+            fz_throw(ctx, FZ_ERROR_FORMAT, "Valid RGB ICC profile required");
+        }
+        if (iccData.len > 0) {
+            fz_buffer* iccBuf =
+                fz_new_buffer_from_copied_data(ctx, (const unsigned char*)iccData.s, (size_t)iccData.len);
+            str::Free(iccData);
             iccStream = pdf_add_stream(ctx, doc, iccBuf, nullptr, 0);
             fz_drop_buffer(ctx, iccBuf);
             pdf_dict_put_int(ctx, iccStream, PDF_NAME(N), 3);
+        } else {
+            fz_throw(ctx, FZ_ERROR_FORMAT, "Valid RGB ICC profile required");
         }
 
         pdf_obj* outIntent = pdf_new_dict(ctx, doc, 6);
@@ -558,6 +557,9 @@ bool ConvertPdfToPdfA(Str srcPath, Str destPath, int part) {
 }
 
 bool ValidatePdfA(Str filePath, int part, StrVec& violationsOut) {
+    violationsOut.Append(
+        StrL("Compliance unverified: font coverage, nested resources, XMP semantics and transparency require "
+             "independent PDF/A validation"));
     if (len(filePath) == 0) return false;
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
     if (!ctx) return false;
@@ -607,6 +609,20 @@ bool ValidatePdfA(Str filePath, int part, StrVec& violationsOut) {
             pdf_obj* oi = pdf_array_get(ctx, outIntents, 0);
             if (!oi || !pdf_dict_gets(ctx, oi, "DestOutputProfile")) {
                 violationsOut.Append(StrL("OutputIntent missing DestOutputProfile ICC profile"));
+            } else {
+                fz_buffer* profile = pdf_load_stream(ctx, pdf_dict_gets(ctx, oi, "DestOutputProfile"));
+                bool validIcc = false;
+                if (profile) {
+                    unsigned char* bytes = nullptr;
+                    size_t size = fz_buffer_storage(ctx, profile, &bytes);
+                    if (size <= INT_MAX && HasIccHeader(Str{(const char*)bytes, (int)size})) {
+                        validIcc = true;
+                    }
+                    fz_drop_buffer(ctx, profile);
+                }
+                if (!validIcc) {
+                    violationsOut.Append(StrL("Invalid OutputIntent ICC profile bytes"));
+                }
             }
         }
 
@@ -633,9 +649,11 @@ bool ValidatePdfA(Str filePath, int part, StrVec& violationsOut) {
     fz_always(ctx) {
         if (doc) pdf_drop_document(ctx, doc);
     }
-    fz_catch(ctx) {}
+    fz_catch(ctx) {
+        violationsOut.Append(StrL("PDF/A inspection failed to read document or profile"));
+    }
     fz_drop_context(ctx);
-    return len(violationsOut) == 0;
+    return false;
 }
 
 // Convert Colors (Grayscale or RGB)
@@ -727,9 +745,9 @@ struct PreflightDialog : WindowBase {
         mainBox->alignMain = MainAxisAlign::MainStart;
         mainBox->alignCross = CrossAxisAlign::Stretch;
 
-        TempStr header = str::FormatTemp(Tr("Preflight Analysis: %s (PDF %d.%d, %d pages)").s,
-                                         path::GetBaseNameTemp(srcPath), report.pdfMajorVersion,
-                                         report.pdfMinorVersion, report.pageCount);
+        TempStr header =
+            str::FormatTemp(Tr("Preflight Analysis: %s (PDF %d.%d, %d pages)").s, path::GetBaseNameTemp(srcPath),
+                            report.pdfMajorVersion, report.pdfMinorVersion, report.pageCount);
         mainBox->AddChild(NewVirtText({.s = header, .font = font, .isRtl = IsUIRtl()}));
 
         listBox = new VirtListBox();
@@ -739,7 +757,8 @@ struct PreflightDialog : WindowBase {
         model = new ListBoxModelStrings();
 
         model->strings.Append(fmt("PDF Version: %d.%d", report.pdfMajorVersion, report.pdfMinorVersion));
-        model->strings.Append(fmt("Encrypted: %s (%s)", Str(report.isEncrypted ? "Yes" : "No"), report.encryptionMethod));
+        model->strings.Append(
+            fmt("Encrypted: %s (%s)", Str(report.isEncrypted ? "Yes" : "No"), report.encryptionMethod));
         model->strings.Append(fmt("JavaScript: %s", Str(report.hasJavaScript ? "Yes" : "No")));
         model->strings.Append(fmt("Transparency: %s", Str(report.hasTransparency ? "Yes" : "No")));
 
@@ -755,14 +774,14 @@ struct PreflightDialog : WindowBase {
 
         model->strings.Append(fmt("--- FONTS (%d total) ---", len(report.fonts)));
         for (const auto& f : report.fonts) {
-            model->strings.Append(fmt("  Font: %s (%s, Embedded: %s)", f.baseFont, f.subtype,
-                                      Str(f.isEmbedded ? "Yes" : "No")));
+            model->strings.Append(
+                fmt("  Font: %s (%s, Embedded: %s)", f.baseFont, f.subtype, Str(f.isEmbedded ? "Yes" : "No")));
         }
 
         model->strings.Append(fmt("--- IMAGES (%d total) ---", len(report.images)));
         for (const auto& img : report.images) {
-            model->strings.Append(fmt("  Page %d: %dx%d px (%d DPI), %s", img.pageNo, img.width, img.height,
-                                      img.dpiX, img.colorSpace));
+            model->strings.Append(
+                fmt("  Page %d: %dx%d px (%d DPI), %s", img.pageNo, img.width, img.height, img.dpiX, img.colorSpace));
         }
 
         model->strings.Append(fmt("--- PAGE BOXES (%d pages) ---", len(report.pageBoxes)));
@@ -850,9 +869,7 @@ struct PreflightDialog : WindowBase {
         ShowPdfConvertColorsDialog(win);
     }
 
-    void OnCloseBtn(VirtMouseEvent*) {
-        ScheduleDelete();
-    }
+    void OnCloseBtn(VirtMouseEvent*) { ScheduleDelete(); }
 };
 
 void ShowPreflightDialog(MainWindow* win) {
@@ -875,9 +892,7 @@ struct PdfAConvertDialog : WindowBase {
     VirtButton* convertBtn = nullptr;
     VirtButton* cancelBtn = nullptr;
 
-    ~PdfAConvertDialog() override {
-        str::Free(srcPath);
-    }
+    ~PdfAConvertDialog() override { str::Free(srcPath); }
 
     bool Create(MainWindow* w) {
         win = w;
@@ -911,8 +926,8 @@ struct PdfAConvertDialog : WindowBase {
         dargs.font = font;
         partDrop->Create(dargs);
         StrVec partItems;
-        partItems.Append(Tr("PDF/A-1b (ISO 19005-1, PDF 1.4 baseline, flattens transparency)"));
-        partItems.Append(Tr("PDF/A-2b (ISO 19005-2, PDF 1.7 baseline, preserves transparency)"));
+        partItems.Append(Tr("PDF/A-1b preparation (no font embedding or transparency flattening)"));
+        partItems.Append(Tr("PDF/A-2b preparation (conformance unverified)"));
         partDrop->SetItems(partItems);
         CbSetCurrentSelection(partDrop, 1);
         mainBox->AddChild(partDrop);
@@ -942,7 +957,10 @@ struct PdfAConvertDialog : WindowBase {
         mainBox->AddChild(destRow);
 
         mainBox->AddChild(NewVirtText(
-            {.s = Tr("Note: This is a best-effort PDF/A conversion and is not veraPDF-certified."), .font = font, .isRtl = IsUIRtl()}));
+            {.s =
+                 Tr("Preparation only. Fonts are not embedded; transparency is not flattened. Validate independently."),
+             .font = font,
+             .isRtl = IsUIRtl()}));
 
         auto* btnBox = new HBox();
         btnBox->alignMain = MainAxisAlign::MainEnd;
@@ -1011,9 +1029,7 @@ struct PdfAConvertDialog : WindowBase {
         }
     }
 
-    void OnCancel(VirtMouseEvent*) {
-        ScheduleDelete();
-    }
+    void OnCancel(VirtMouseEvent*) { ScheduleDelete(); }
 };
 
 void ShowPdfAConvertDialog(MainWindow* win) {
@@ -1037,9 +1053,7 @@ struct PdfAValidateDialog : WindowBase {
     VirtButton* validateBtn = nullptr;
     VirtButton* closeBtn = nullptr;
 
-    ~PdfAValidateDialog() override {
-        str::Free(srcPath);
-    }
+    ~PdfAValidateDialog() override { str::Free(srcPath); }
 
     bool Create(MainWindow* w) {
         win = w;
@@ -1095,8 +1109,9 @@ struct PdfAValidateDialog : WindowBase {
         listBox->SetModel(model);
         mainBox->AddChild(listBox);
 
-        mainBox->AddChild(NewVirtText(
-            {.s = Tr("Note: This validator is best-effort and not veraPDF-certified."), .font = font, .isRtl = IsUIRtl()}));
+        mainBox->AddChild(NewVirtText({.s = Tr("Note: This validator is best-effort and not veraPDF-certified."),
+                                       .font = font,
+                                       .isRtl = IsUIRtl()}));
 
         auto* btnBox = new HBox();
         btnBox->alignMain = MainAxisAlign::MainEnd;
@@ -1131,9 +1146,10 @@ struct PdfAValidateDialog : WindowBase {
         auto* newModel = new ListBoxModelStrings();
         if (valid) {
             newModel->strings.Append(fmt("PASS: Document complies with basic PDF/A-%db rules.", part));
-            newModel->strings.Append(StrL("No forbidden features (encryption, JS, external actions) or missing metadata found."));
+            newModel->strings.Append(
+                StrL("No forbidden features (encryption, JS, external actions) or missing metadata found."));
         } else {
-            newModel->strings.Append(fmt("FAILED: %d violation(s) detected for PDF/A-%db:", len(violations), part));
+            newModel->strings.Append(fmt("UNVERIFIED: %d finding(s) for PDF/A-%db:", len(violations), part));
             for (const auto v : violations) {
                 newModel->strings.Append(fmt("  - %s", v));
             }
@@ -1141,13 +1157,9 @@ struct PdfAValidateDialog : WindowBase {
         listBox->SetModel(newModel);
     }
 
-    void OnCheck(VirtMouseEvent*) {
-        RunValidation();
-    }
+    void OnCheck(VirtMouseEvent*) { RunValidation(); }
 
-    void OnCloseBtn(VirtMouseEvent*) {
-        ScheduleDelete();
-    }
+    void OnCloseBtn(VirtMouseEvent*) { ScheduleDelete(); }
 };
 
 void ShowPdfAValidateDialog(MainWindow* win) {
@@ -1170,9 +1182,7 @@ struct PdfConvertColorsDialog : WindowBase {
     VirtButton* convertBtn = nullptr;
     VirtButton* cancelBtn = nullptr;
 
-    ~PdfConvertColorsDialog() override {
-        str::Free(srcPath);
-    }
+    ~PdfConvertColorsDialog() override { str::Free(srcPath); }
 
     bool Create(MainWindow* w) {
         win = w;
@@ -1232,7 +1242,8 @@ struct PdfConvertColorsDialog : WindowBase {
         destRow->AddChild(destEdit, 1);
 
         browseBtn = NewThemedButton(hwnd, Tr("Browse..."), font, false);
-        browseBtn->onClick = MkMethod1<PdfConvertColorsDialog, VirtMouseEvent*, &PdfConvertColorsDialog::OnBrowse>(this);
+        browseBtn->onClick =
+            MkMethod1<PdfConvertColorsDialog, VirtMouseEvent*, &PdfConvertColorsDialog::OnBrowse>(this);
         destRow->AddChild(browseBtn);
         mainBox->AddChild(destRow);
 
@@ -1242,11 +1253,13 @@ struct PdfConvertColorsDialog : WindowBase {
         btnBox->gap = font->averageCharWidth;
 
         convertBtn = NewThemedButton(hwnd, Tr("Convert"), font, true);
-        convertBtn->onClick = MkMethod1<PdfConvertColorsDialog, VirtMouseEvent*, &PdfConvertColorsDialog::OnConvert>(this);
+        convertBtn->onClick =
+            MkMethod1<PdfConvertColorsDialog, VirtMouseEvent*, &PdfConvertColorsDialog::OnConvert>(this);
         btnBox->AddChild(convertBtn);
 
         cancelBtn = NewThemedButton(hwnd, Tr("Cancel"), font, false);
-        cancelBtn->onClick = MkMethod1<PdfConvertColorsDialog, VirtMouseEvent*, &PdfConvertColorsDialog::OnCancel>(this);
+        cancelBtn->onClick =
+            MkMethod1<PdfConvertColorsDialog, VirtMouseEvent*, &PdfConvertColorsDialog::OnCancel>(this);
         btnBox->AddChild(cancelBtn);
         mainBox->AddChild(btnBox);
 
@@ -1303,9 +1316,7 @@ struct PdfConvertColorsDialog : WindowBase {
         }
     }
 
-    void OnCancel(VirtMouseEvent*) {
-        ScheduleDelete();
-    }
+    void OnCancel(VirtMouseEvent*) { ScheduleDelete(); }
 };
 
 void ShowPdfConvertColorsDialog(MainWindow* win) {
