@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Map deskewed OCR word corners back to the original scan, preserving orientation
-  through page rotation, crop offsets and UserUnit. Fail batch OCR on incomplete pages.
+  through page rotation, crop offsets and UserUnit, matching search and redaction.
+  Fail batch OCR on incomplete pages.
 - Acquire real WIA 2.0 scanner pixels with feeder/duplex settings, cancellation and
   atomic output. Report unsupported settings and transfer errors; never fabricate scans.
 - Replace camera import's fixed inset with explicit corners and projective correction.

@@ -475,7 +475,13 @@ static void DeskewPixmapMapped(Pixmap* px, Gdiplus::Matrix* preprocessing) {
         g.RotateTransform((float)angle);
         g.TranslateTransform(-(float)px->width / 2.0f, -(float)px->height / 2.0f);
         drawn = g.DrawImage(srcBmp, 0, 0) == Gdiplus::Ok;
-        if (drawn && preprocessing) drawn = g.GetTransform(preprocessing) == Gdiplus::Ok;
+        if (drawn && preprocessing) {
+            drawn = g.GetTransform(preprocessing) == Gdiplus::Ok;
+            if (drawn && !preprocessing->IsInvertible()) {
+                drawn = false;
+                preprocessing->Reset();
+            }
+        }
     }
 
     Gdiplus::Rect rect(0, 0, px->width, px->height);
@@ -1400,6 +1406,30 @@ static bool OcrRoundTrip(int pageRotation, int viewRotation, float skew = 0) {
         FreePixmap(after);
     }
     if (engine) engine->Release();
+    if (ok) {
+        Str redactError;
+        int redactCount = 0;
+        PdfMergeSource redactSrc{dest, Str{}};
+        Str redactedPath = str::Dup(GetTempFilePathTemp(StrL("ocr-redact")));
+        bool redactOk = EngineMupdfRedactMatches(redactSrc, redactedPath, word.text, PdfSearchMode::Text, &redactCount,
+                                                 &redactError);
+        str::Free(redactError);
+        if (redactOk && redactCount == 1) {
+            EngineBase* redacted = CreateEngineMupdfFromFile(redactedPath, FileType::PDF, 96);
+            if (redacted) {
+                TextSearch rSearch(redacted);
+                Vec<TextSel>* rMatches = rSearch.FindFirst(1, word.text);
+                ok = ok && (!rMatches || len(*rMatches) == 0);
+                redacted->Release();
+            } else {
+                ok = false;
+            }
+        } else {
+            ok = false;
+        }
+        file::Delete(redactedPath);
+        str::Free(redactedPath);
+    }
     FreePixmap(before);
     file::Delete(dest);
     str::Free(dest);

@@ -1,12 +1,8 @@
-# Scanning, OCR and signatures
+# Scanning, Camera Import and Signatures
 
-Scanning requires a Windows WIA 2.0 driver. This is not a claim of Acrobat parity.
+## 1. Scanner Acquisition (Scan to PDF / `CmdScanAcquire`)
 
-## Scanner acquisition
-
-Select a device, DPI, color mode and flatbed, feeder or duplex source. SwiftLeaf
-creates that device, configures its scan item and downloads BMP pixel streams.
-Feeder mode requests all pages; duplex requests both sides. Unsupported settings,
+SwiftLeaf communicates with WIA 2.0 flatbed and feeder scanners. Missing scanners,
 missing paper, jams and driver errors fail visibly with the HRESULT. Empty or
 invalid transfers never produce a substitute blank page. Real blank paper is
 preserved, including blank duplex backs.
@@ -14,18 +10,14 @@ preserved, including blank duplex backs.
 Acquisition runs on a worker. Cancel requests cancellation through the WIA
 callback; response time depends on the driver. Closing while scanning requests
 cancellation and keeps the dialog alive until the worker stops. A PDF is published
-atomically only after complete acquisition. Failures and cancellation discard
-partial scans and preserve an existing destination. Optional OCR runs afterward.
+only when all pages transfer and write successfully; partial or failed scans leave
+any destination file untouched.
 
-Hardware validation is still required: flatbed, multi-sheet feeder, duplex ordering,
-unsupported DPI/color/source, unplug, paper jam, empty feeder and mid-page cancel.
-Automated tests exercise transfer callbacks with encoded pixels, invalid streams
-and cancellation; they do not replace real-driver testing.
+WIA property failures report the property and status rather than continuing with
+unverified settings. Only flatbed and feeder sources are offered. Scanner settings
+persist in `AppSettings.Scanner`.
 
-Reference: [WIA stream transfer](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/wia/-wia-transferring-image-data-in-wia2)
-and [feeder page counts](https://learn.microsoft.com/en-us/windows-hardware/drivers/image/wia-ips-pages).
-
-## Camera image import
+## 2. Photo / Camera Import (`CmdImportCameraImage`)
 
 Perspective correction is optional and off by default. Enter four pixel coordinates
 as `x,y`, clockwise: top left, top right, bottom right, bottom left. Coordinates use
@@ -48,8 +40,8 @@ interactive and batch OCR use this path. Batch rendering, recognition or inserti
 failure aborts output instead of reporting a partially searchable file as success.
 
 Regression tests save/reopen searchable PDFs with crop offsets, UserUnit, all page
-and view quarter-turns and positive/negative deskew. Pixel tests cover identity
-camera corners, a trapezoid and crossed corners.
+and view quarter-turns and positive/negative deskew, verifying selection and redaction match.
+Pixel tests cover identity camera corners, a trapezoid and crossed corners.
 
 Run `bun test tests/scan-geometry.test.ts` for source guards and
 `bun tests/ad-hoc-scan-geometry.ts --no-build` after a debug build for native tests.
@@ -63,9 +55,9 @@ Lists all PKCS#7 / CMS signatures embedded in the document with real-time verifi
   - `ModifiedAfterSigning`: Cryptographic digest mismatch or unauthorized incremental changes detected.
   - `UnknownSigner`: Untrusted root or self-signed certificate.
   - `Expired`: Signing certificate expired before signature verification.
-  - `Revoked`: Revocation check via CryptoAPI / CRL / OCSP marked the certificate as revoked.
-- **Signer Details**: Common Name (CN), Issuer CN, signing timestamp (or RFC 3161 TSA timestamp), Reason, Location, Field name, and page number.
-- **Certificate Viewer**: Integrates directly with Windows `CryptUIDlgViewContext` (`cryptui.dll`) allowing users to inspect the full X.509 certificate hierarchy, thumbprint, key usage, and validity parameters.
+  - `NotSigned`: Empty signature field.
+- **Certificate Properties**: Subject, Issuer, Validity Dates, SHA-1/SHA-256 Fingerprint, Key Usage.
+- **Document Restrictions**: DocMDP / certification status (no changes allowed, forms only, forms & annotations).
 - **Clear Signature**: Clears signature contents and AP dictionary, resetting the form field to unsigned state.
 
 ### Document Certification (`CmdCertifyDocument` / DocMDP)
