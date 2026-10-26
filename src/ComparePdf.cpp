@@ -75,11 +75,11 @@ static TempStr PixmapPngUri(fz_context* ctx, fz_pixmap* pixmap) {
     return ToStrTemp(uri);
 }
 
-static TempStr PageText(fz_context* ctx, fz_document* doc, int pageNo) {
+static bool PageText(fz_context* ctx, fz_document* doc, int pageNo, TempStr& outText) {
     fz_buffer* buf = nullptr;
     fz_stext_page* text = nullptr;
     fz_page* page = nullptr;
-    TempStr result;
+    bool ok = false;
     fz_stext_options opts{};
     fz_try(ctx) {
         page = fz_load_page(ctx, doc, pageNo);
@@ -87,15 +87,36 @@ static TempStr PageText(fz_context* ctx, fz_document* doc, int pageNo) {
         buf = fz_new_buffer_from_stext_page(ctx, text);
         unsigned char* data = nullptr;
         size_t size = fz_buffer_storage(ctx, buf, &data);
-        result = str::DupTemp(Str((char*)data, (int)size));
+        outText = str::DupTemp(Str((char*)data, (int)size));
+        ok = true;
     }
     fz_catch(ctx) {
         fz_report_error(ctx);
+        ok = false;
     }
     fz_drop_buffer(ctx, buf);
     fz_drop_stext_page(ctx, text);
     fz_drop_page(ctx, page);
-    return result;
+    return ok;
+}
+
+static bool RenderPagePng(fz_context* ctx, fz_document* doc, int pageNo, TempStr& outPng) {
+    fz_page* page = nullptr;
+    fz_pixmap* pix = nullptr;
+    bool ok = false;
+    fz_try(ctx) {
+        page = fz_load_page(ctx, doc, pageNo);
+        pix = fz_new_pixmap_from_page(ctx, page, fz_scale(0.25f, 0.25f), fz_device_rgb(ctx), 0);
+        outPng = PixmapPngUri(ctx, pix);
+        ok = true;
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        ok = false;
+    }
+    fz_drop_pixmap(ctx, pix);
+    fz_drop_page(ctx, page);
+    return ok;
 }
 
 static int CountWords(Str s) {
@@ -205,8 +226,28 @@ static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int pag
 }
 
 bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJsonOut) {
+    if (len(leftPath) == 0 || len(rightPath) == 0 || len(reportPath) == 0) {
+        if (resultJsonOut) {
+            *resultJsonOut = str::DupTemp(StrL("{\"ok\":false,\"error\":\"Invalid input or report path\"}"));
+        }
+        return false;
+    }
+
+    file::AtomicFile output(reportPath);
+    if (len(output.tempPath) == 0) {
+        if (resultJsonOut) {
+            *resultJsonOut = str::DupTemp(StrL("{\"ok\":false,\"error\":\"Cannot create report destination\"}"));
+        }
+        return false;
+    }
+
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_UNLIMITED);
-    if (!ctx) return false;
+    if (!ctx) {
+        if (resultJsonOut) {
+            *resultJsonOut = str::DupTemp(StrL("{\"ok\":false,\"error\":\"Failed to initialize engine context\"}"));
+        }
+        return false;
+    }
     fz_register_document_handlers(ctx);
     fz_document* left = nullptr;
     fz_document* right = nullptr;
@@ -220,8 +261,11 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     }
     fz_catch(ctx) {
         fz_report_error(ctx);
-        fz_drop_document(ctx, left);
-        fz_drop_document(ctx, right);
+        if (resultJsonOut) {
+            *resultJsonOut = str::DupTemp(StrL("{\"ok\":false,\"error\":\"Failed to open comparison documents\"}"));
+        }
+        if (left) fz_drop_document(ctx, left);
+        if (right) fz_drop_document(ctx, right);
         fz_drop_context(ctx);
         return false;
     }
@@ -230,6 +274,7 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     html.Append(
         StrL("<style>body{font:15px "
              "system-ui;margin:2rem;color:#222}pre{white-space:pre-wrap}del{background:#ffd8d8}ins{background:#d8ffe0}."
+             "error{color:#b00;font-weight:bold}"
              ".images{display:flex;gap:1rem;align-items:flex-start}.images figure{margin:0}.images "
              "img{max-width:48vw;border:1px solid #ccc}."
              "page{border-top:1px solid #ccc;padding:1rem 0}</style>"));
@@ -238,34 +283,161 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     html.Append(StrL(" compared with "));
     AppendHtml(html, rightPath);
     html.Append(fmt("</p><p>%d pages vs %d pages</p>", leftPages, rightPages));
+
     int wordChanges = 0;
     double pixelChanges = 0;
+    int pixelPages = 0;
     int compared = std::min(leftPages, rightPages);
+    int totalPages = std::max(leftPages, rightPages);
+
     for (int i = 0; i < compared; i++) {
-        TempStr a = PageText(ctx, left, i);
-        TempStr b = PageText(ctx, right, i);
-        int aw = CountWords(a), bw = CountWords(b);
+        TempStr a, b;
+        bool okA = PageText(ctx, left, i, a);
+        bool okB = PageText(ctx, right, i, b);
+        int aw = okA ? CountWords(a) : 0;
+        int bw = okB ? CountWords(b) : 0;
         str::Builder diff;
-        int wc = AppendWordDiff(diff, a, b);
+        int wc = 0;
+        if (okA && okB) {
+            wc = AppendWordDiff(diff, a, b);
+        } else {
+            wc = std::max(1, std::max(aw, bw));
+            diff.Append(StrL("<span class=\"error\">[Text extraction failed"));
+            if (!okA) diff.Append(StrL(" on left"));
+            if (!okB) diff.Append(StrL(" on right"));
+            diff.Append(StrL("]</span>"));
+        }
         wordChanges += wc;
+
         double pixelRatio = 0;
         TempStr leftPng, rightPng;
-        PixelChange(ctx, left, right, i, &pixelRatio, &leftPng, &rightPng);
-        pixelChanges += pixelRatio;
-        html.Append(
-            fmt("<section class=\"page\" id=\"page-%d\"><h2>Page %d</h2><p>%d vs %d words; %d changed words; "
-                "%.2f%% changed pixels</p><h3>Word diff</h3><pre>",
-                i + 1, i + 1, aw, bw, wc, pixelRatio * 100.0));
+        bool pixelOk = PixelChange(ctx, left, right, i, &pixelRatio, &leftPng, &rightPng);
+        if (pixelOk) {
+            pixelChanges += pixelRatio;
+            pixelPages++;
+        }
+
+        html.Append(fmt("<section class=\"page\" id=\"page-%d\"><h2>Page %d</h2><p>", i + 1, i + 1));
+        if (okA && okB) {
+            html.Append(fmt("%d vs %d words; %d changed words; ", aw, bw, wc));
+        } else {
+            html.Append(StrL("<span class=\"error\">[Text extraction failed]</span> "));
+        }
+        if (pixelOk) {
+            html.Append(fmt("%.2f%% changed pixels</p>", pixelRatio * 100.0));
+        } else {
+            html.Append(StrL("<span class=\"error\">[Pixel comparison failed: render error]</span></p>"));
+        }
+
+        html.Append(StrL("<h3>Word diff</h3><pre>"));
         html.Append(ToStrTemp(diff));
-        html.Append(StrL("</pre><div class=\"images\"><figure><figcaption>Left</figcaption><img src=\""));
-        html.Append(leftPng);
-        html.Append(StrL("\"></figure><figure><figcaption>Right</figcaption><img src=\""));
-        html.Append(rightPng);
-        html.Append(StrL("\"></figure></div></section>"));
+        html.Append(StrL("</pre><div class=\"images\">"));
+
+        if (len(leftPng) > 0) {
+            html.Append(StrL("<figure><figcaption>Left</figcaption><img src=\""));
+            html.Append(leftPng);
+            html.Append(StrL("\"></figure>"));
+        } else {
+            html.Append(StrL("<figure><figcaption>Left</figcaption><p class=\"error\">[Render failed]</p></figure>"));
+        }
+
+        if (len(rightPng) > 0) {
+            html.Append(StrL("<figure><figcaption>Right</figcaption><img src=\""));
+            html.Append(rightPng);
+            html.Append(StrL("\"></figure>"));
+        } else {
+            html.Append(StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
+        }
+
+        html.Append(StrL("</div></section>"));
     }
-    if (leftPages != rightPages) wordChanges += abs(leftPages - rightPages);
+
+    for (int i = compared; i < totalPages; i++) {
+        if (leftPages > rightPages) {
+            TempStr a;
+            bool okA = PageText(ctx, left, i, a);
+            int aw = okA ? CountWords(a) : 0;
+            int wc = std::max(1, aw);
+            wordChanges += wc;
+
+            TempStr leftPng;
+            bool renderOk = RenderPagePng(ctx, left, i, leftPng);
+            if (renderOk) {
+                pixelChanges += 1.0;
+                pixelPages++;
+            }
+
+            html.Append(fmt("<section class=\"page\" id=\"page-%d\"><h2>Page %d (Only in Left / Removed)</h2><p>", i + 1, i + 1));
+            if (okA) {
+                html.Append(fmt("%d words in removed page; %d changed words; 100.00%% changed pixels</p>", aw, wc));
+            } else {
+                html.Append(StrL("<span class=\"error\">[Text extraction failed]</span> removed page</p>"));
+            }
+            html.Append(StrL("<h3>Word diff</h3><pre><del>"));
+            if (okA) {
+                AppendHtml(html, a);
+            } else {
+                html.Append(StrL("[Text extraction failed]"));
+            }
+            html.Append(StrL("</del></pre><div class=\"images\">"));
+            if (len(leftPng) > 0) {
+                html.Append(StrL("<figure><figcaption>Left (Removed)</figcaption><img src=\""));
+                html.Append(leftPng);
+                html.Append(StrL("\"></figure>"));
+            } else {
+                html.Append(StrL("<figure><figcaption>Left</figcaption><p class=\"error\">[Render failed]</p></figure>"));
+            }
+            html.Append(StrL("<figure><figcaption>Right</figcaption><p><em>(Page absent)</em></p></figure>"));
+            html.Append(StrL("</div></section>"));
+        } else {
+            TempStr b;
+            bool okB = PageText(ctx, right, i, b);
+            int bw = okB ? CountWords(b) : 0;
+            int wc = std::max(1, bw);
+            wordChanges += wc;
+
+            TempStr rightPng;
+            bool renderOk = RenderPagePng(ctx, right, i, rightPng);
+            if (renderOk) {
+                pixelChanges += 1.0;
+                pixelPages++;
+            }
+
+            html.Append(fmt("<section class=\"page\" id=\"page-%d\"><h2>Page %d (Only in Right / Added)</h2><p>", i + 1, i + 1));
+            if (okB) {
+                html.Append(fmt("%d words in added page; %d changed words; 100.00%% changed pixels</p>", bw, wc));
+            } else {
+                html.Append(StrL("<span class=\"error\">[Text extraction failed]</span> added page</p>"));
+            }
+            html.Append(StrL("<h3>Word diff</h3><pre><ins>"));
+            if (okB) {
+                AppendHtml(html, b);
+            } else {
+                html.Append(StrL("[Text extraction failed]"));
+            }
+            html.Append(StrL("</ins></pre><div class=\"images\">"));
+            html.Append(StrL("<figure><figcaption>Left</figcaption><p><em>(Page absent)</em></p></figure>"));
+            if (len(rightPng) > 0) {
+                html.Append(StrL("<figure><figcaption>Right (Added)</figcaption><img src=\""));
+                html.Append(rightPng);
+                html.Append(StrL("\"></figure>"));
+            } else {
+                html.Append(StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
+            }
+            html.Append(StrL("</div></section>"));
+        }
+    }
+
     html.Append(StrL("<h2>Summary</h2><ul>"));
-    for (int i = 0; i < compared; i++) html.Append(fmt("<li><a href=\"#page-%d\">Page %d</a></li>", i + 1, i + 1));
+    for (int i = 0; i < totalPages; i++) {
+        if (i < compared) {
+            html.Append(fmt("<li><a href=\"#page-%d\">Page %d</a></li>", i + 1, i + 1));
+        } else if (leftPages > rightPages) {
+            html.Append(fmt("<li><a href=\"#page-%d\">Page %d (Left only)</a></li>", i + 1, i + 1));
+        } else {
+            html.Append(fmt("<li><a href=\"#page-%d\">Page %d (Right only)</a></li>", i + 1, i + 1));
+        }
+    }
     html.Append(StrL("</ul>"));
 
     bool isPdf = str::EndsWithI(reportPath, StrL(".pdf"));
@@ -276,7 +448,7 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
         fz_story* story = fz_new_story(ctx, buffer,
                                        "body { font-family: sans-serif; font-size: 11pt; } img { max-width: 100%; } pre { white-space: pre-wrap; }", 11,
                                        archive);
-        fz_document_writer* writer = fz_new_pdf_writer(ctx, CStrTemp(reportPath), "compress");
+        fz_document_writer* writer = fz_new_pdf_writer(ctx, CStrTemp(output.tempPath), "compress");
         if (writer && story) {
             int more = 1, count = 0;
             while (more) {
@@ -290,24 +462,34 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
                 fz_end_page(ctx, writer);
             }
             fz_close_document_writer(ctx, writer);
-            ok = file::Exists(reportPath);
+            if (more == 0 && file::Exists(output.tempPath)) {
+                ok = output.Commit();
+            }
         }
         fz_drop_document_writer(ctx, writer);
         fz_drop_story(ctx, story);
         fz_drop_archive(ctx, archive);
         fz_drop_buffer(ctx, buffer);
     } else {
-        ok = file::WriteFile(reportPath, ToStrTemp(html));
+        if (file::WriteFile(output.tempPath, ToStrTemp(html))) {
+            ok = output.Commit();
+        }
     }
 
+    double avgPixelPct = pixelPages > 0 ? (pixelChanges * 100.0 / pixelPages) : 0.0;
     if (resultJsonOut) {
-        *resultJsonOut = str::DupTemp(
-            fmt("{\"ok\":%s,\"pages\":%d,\"wordChanges\":%d,\"pixelChangePercent\":%.2f,\"report\":\"%s\"}",
-                ok ? StrL("true") : StrL("false"), compared, wordChanges,
-                compared ? pixelChanges * 100.0 / compared : 0.0, json::EscapeStrTemp(reportPath)));
+        if (ok) {
+            *resultJsonOut = str::DupTemp(
+                fmt("{\"ok\":true,\"pages\":%d,\"wordChanges\":%d,\"pixelChangePercent\":%.2f,\"report\":\"%s\"}",
+                    totalPages, wordChanges, avgPixelPct, json::EscapeStrTemp(reportPath)));
+        } else {
+            *resultJsonOut = str::DupTemp(
+                fmt("{\"ok\":false,\"error\":\"Failed to generate comparison report\",\"pages\":%d,\"wordChanges\":%d,\"pixelChangePercent\":%.2f}",
+                    totalPages, wordChanges, avgPixelPct));
+        }
     }
-    fz_drop_document(ctx, left);
-    fz_drop_document(ctx, right);
+    if (left) fz_drop_document(ctx, left);
+    if (right) fz_drop_document(ctx, right);
     fz_drop_context(ctx);
     return ok;
 }

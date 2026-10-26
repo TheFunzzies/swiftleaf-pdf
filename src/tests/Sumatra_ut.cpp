@@ -38,7 +38,9 @@
 #include "PageTools2.h"
 #include "Accessibility.h"
 #include "Preflight.h"
+#include "ComparePdf.h"
 #include <mupdf/pdf.h>
+extern const pdf_write_options gPdfDefaultWriteOptions;
 #include "AppUnitTests.h"
 #include "Ocr.h"
 #include "SignaturePanel.h"
@@ -2436,10 +2438,22 @@ static void PageTools2Test() {
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(Type)) == PDF_NAME(StructTreeRoot));
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(K)) != nullptr);
 
+        // Nonempty malformed K and Marked=true must not establish accessibility.
+        pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_TRUE);
+        pdf_dict_put_int(ctx, strRoot, PDF_NAME(K), 42);
+        AccessReport taggedReport = RunAccessibilityCheck(ctx, doc);
+        for (const auto& item : taggedReport.items) {
+            if (str::Eq(item.title, StrL("Logical Reading Order")) || str::Eq(item.title, StrL("Tagged PDF"))) {
+                utassert(item.status != AccessCheckStatus::Pass);
+            }
+        }
+        FreeAccessReport(taggedReport);
+        pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_FALSE);
+
         // Assert MarkInfo
         pdf_obj* minfo = pdf_dict_gets(ctx, root, "MarkInfo");
         utassert(minfo != nullptr);
-        utassert(pdf_to_bool(ctx, pdf_dict_gets(ctx, minfo, "Marked")) == 1);
+        utassert(pdf_to_bool(ctx, pdf_dict_gets(ctx, minfo, "Marked")) == 0);
 
         // Assert Lang
         pdf_obj* lang = pdf_dict_get(ctx, root, PDF_NAME(Lang));
@@ -2488,12 +2502,29 @@ static void PageTools2Test() {
         utassert(pdf_dict_get(ctx, oi, PDF_NAME(Type)) == PDF_NAME(OutputIntent));
         utassert(pdf_dict_get(ctx, oi, PDF_NAME(DestOutputProfile)) != nullptr);
 
+        TempStr badProfilePdf = GetTempFilePathTemp(StrL("pdfa-bad-profile.pdf"));
+        fz_buffer* badProfile = fz_new_buffer(ctx, 32);
+        fz_append_string(ctx, badProfile, "sRGB Profile");
+        pdf_update_stream(ctx, doc, pdf_dict_get(ctx, oi, PDF_NAME(DestOutputProfile)), badProfile, 0);
+        fz_drop_buffer(ctx, badProfile);
+        pdf_write_options badOpts = gPdfDefaultWriteOptions;
+        pdf_save_document(ctx, doc, CStrTemp(badProfilePdf), &badOpts);
         pdf_drop_document(ctx, doc);
         fz_drop_context(ctx);
 
         StrVec violations;
         bool valid = ValidatePdfA(pdfaPdf, 1, violations);
+        utassert(!valid);
+        utassert(len(violations) > 0);
         file::Delete(pdfaPdf);
+        StrVec badViolations;
+        utassert(!ValidatePdfA(badProfilePdf, 1, badViolations));
+        bool rejectedProfile = false;
+        for (const auto finding : badViolations) {
+            if (str::Eq(finding, StrL("Invalid OutputIntent ICC profile bytes"))) rejectedProfile = true;
+        }
+        utassert(rejectedProfile);
+        file::Delete(badProfilePdf);
 
         // (d) Preflight & Report Export & Color Conversion
         PreflightReport prep = RunPreflightFile(basePdf);
@@ -2517,6 +2548,30 @@ static void PageTools2Test() {
         utassert(e->PageCount() == 2);
         SafeEngineRelease(&e);
         file::Delete(rgbPdf);
+
+        // (f) PDF Compare error honesty, atomic write, and extra-page details
+        {
+            Str dummyJson;
+            ok = ComparePdfReport(StrL("missing-left.pdf"), StrL("missing-right.pdf"), StrL("report.html"), &dummyJson);
+            utassert(!ok);
+            utassert(str::Contains(dummyJson, StrL("\"ok\":false")));
+
+            TempStr insPdf = GetTempFilePathTemp(StrL("ins-compare.pdf"));
+            ok = PdfInsertBlankPages(basePdf, insPdf, 1, 1);
+            utassert(ok);
+
+            TempStr cmpReport = GetTempFilePathTemp(StrL("compare-extra.html"));
+            Str cmpJson;
+            ok = ComparePdfReport(basePdf, insPdf, cmpReport, &cmpJson);
+            utassert(ok);
+            utassert(str::Contains(cmpJson, StrL("\"ok\":true")));
+            utassert(str::Contains(cmpJson, StrL("\"pages\":3")));
+            Str reportHtml = file::ReadFile(cmpReport);
+            utassert(str::Contains(reportHtml, StrL("Only in Right / Added")));
+            str::Free(reportHtml);
+            file::Delete(cmpReport);
+            file::Delete(insPdf);
+        }
     }
 
     file::Delete(basePdf);
