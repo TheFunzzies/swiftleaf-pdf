@@ -66,6 +66,7 @@ void DocumentPanel_UnitTests();
 void PanelLayout_UnitTests();
 void Animation_UnitTests();
 void RibbonAccess_UnitTests();
+void EditAccess_UnitTests();
 bool EngineMupdf_UnitTestPanelData();
 void UpdateTempFileTests();
 void GuessFileTypeTest();
@@ -2531,7 +2532,8 @@ static void PageTools2Test() {
         fz_buffer* prefix = pdf_load_stream(ctx, pdf_array_get(ctx, contents, 0));
         unsigned char* bytes = nullptr;
         size_t size = fz_buffer_storage(ctx, prefix, &bytes);
-        utassert(size >= 20 && memcmp(bytes, "/P <</MCID 0>> BDC", 17) == 0);
+        const char marker[] = "/P <</MCID 0>> BDC\n";
+        utassert(size == sizeof(marker) - 1 && memcmp(bytes, marker, sizeof(marker) - 1) == 0);
         fz_drop_buffer(ctx, prefix);
 
         // Source TH scope is reported without certifying header associations.
@@ -2859,6 +2861,7 @@ int RunAppUnitTests(bool forAi) {
     PanelLayout_UnitTests();
     Animation_UnitTests();
     RibbonAccess_UnitTests();
+    EditAccess_UnitTests();
     Settings* panels = NewSettings(StrL("ToolsPanelWidth = 336\nCommentsPanelWidth = 412\n"));
     utassert(panels->toolsPanelWidth == 336 && panels->commentsPanelWidth == 412);
     Str savedPanels = SerializeSettings(panels, {});

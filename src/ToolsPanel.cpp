@@ -815,6 +815,7 @@ void CreateToolsPanel(MainWindow* win) {
     searchArgs.parent = panel->host->native;
     searchArgs.font = GetAppFont();
     searchArgs.withBorder = true;
+    searchArgs.accessibleName = Tr("Search tools");
     searchArgs.cueText = Tr("Search tools by name or description");
     searchArgs.isRtl = IsUIRtl();
     panel->searchEdit->Create(searchArgs);

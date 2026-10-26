@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Accessibility dialogs: name edit fields, fit monitor work areas, and scroll keyboard focus into view. Tools search has a stable accessible name.
+
 - Accessibility: link draft page tags through MCIDs/ParentTree and annotation OBJR; list source tag order and table scope warnings. Disable unsupported figure/decorative edits; preserve source tags.
 
 - PDF compression honesty: distinct Archive preset from ISO PDF/A, separate Print and Archive backends, detailed image/font/object byte contributions in audit and dialog, honest preset descriptions, and keep-original guarantee when output would grow.

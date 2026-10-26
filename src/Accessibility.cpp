@@ -142,7 +142,7 @@ static void ReportTagTree(fz_context* ctx, pdf_obj* node, AccessReport& report, 
         AddReportItem(report, StrL("Tag order"), Str(pdf_to_name(ctx, role)),
                       fmt("Depth %d; page object %d; %s. Verify against visible content.", depth,
                           pdf_to_num(ctx, pdf_dict_gets(ctx, node, "Pg")),
-                          pdf_is_int(ctx, kids) ? "MCID reference" : "child references"),
+                          pdf_is_int(ctx, kids) ? StrL("MCID reference") : StrL("child references")),
                       AccessCheckStatus::Warning);
         if (role == PDF_NAME(TH)) {
             pdf_obj* attrs = pdf_dict_get(ctx, node, PDF_NAME(A));
@@ -598,7 +598,7 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
 
             pdf_obj* kidsArray = pdf_new_array(ctx, doc, 32);
 
-            pdf_obj* parentTree = pdf_dict_puts_dict(ctx, structTree, "ParentTree", 1);
+            pdf_obj* parentTree = pdf_dict_put_dict(ctx, structTree, PDF_NAME(ParentTree), 1);
             pdf_obj* nums = pdf_dict_put_array(ctx, parentTree, PDF_NAME(Nums), 8);
             int nextKey = 0;
             int numPages = pdf_count_pages(ctx, doc);
@@ -765,14 +765,22 @@ struct AccessibilityCheckerDialog : WindowBase {
         mainBox->AddChild(btnBox);
 
         auto* padding = new Padding(mainBox, DpiScaledInsets(8, 12));
-        layout = padding;
+        layout = new ScrollBox(padding);
 
         int dx = DpiScale(540);
         LayoutAndSizeToContent(layout, dx, 0, hwnd);
+        MONITORINFO monitor{sizeof(monitor)};
+        if (GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor)) {
+            Rect r = HwndWindowRect(hwnd);
+            int width = std::min(r.dx, (int)(monitor.rcWork.right - monitor.rcWork.left));
+            int height = std::min(r.dy, (int)(monitor.rcWork.bottom - monitor.rcWork.top));
+            SetWindowPos(hwnd, nullptr, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
         DoLayout(HwndClientRect(hwnd).Size());
         HwndCenterDialog(hwnd, win ? win->hwndFrame : nullptr);
         UpdateTheme();
         SetIsVisible(true);
+        SetFocusTo(listBox);
         return true;
     }
 
@@ -881,6 +889,7 @@ struct AccessibilityFixesDialog : WindowBase {
         eargs.font = font;
         eargs.withBorder = true;
         eargs.isRtl = IsUIRtl();
+        eargs.accessibleName = Tr("Document language");
         eargs.text = defLang;
         langEdit = new Edit();
         langEdit->Create(eargs);
@@ -890,6 +899,7 @@ struct AccessibilityFixesDialog : WindowBase {
         mainBox->AddChild(NewVirtText({.s = Tr("Document Title:"), .font = font, .isRtl = IsUIRtl()}));
 
         Str defTitle = len(rep.docTitle) > 0 ? rep.docTitle : path::GetBaseNameTemp(srcPath);
+        eargs.accessibleName = Tr("Document title");
         eargs.text = defTitle;
         titleEdit = new Edit();
         titleEdit->Create(eargs);
@@ -899,13 +909,13 @@ struct AccessibilityFixesDialog : WindowBase {
         Checkbox::CreateArgs cbargs;
         cbargs.parent = hwnd;
         cbargs.font = font;
-        cbargs.text = Tr("Display document title in window titlebar (/DisplayDocTitle)");
+        cbargs.text = Tr("Display document title");
         cbargs.initialState = Checkbox::State::Checked;
         dispDocTitleCheck = new Checkbox();
         dispDocTitleCheck->Create(cbargs);
         mainBox->AddChild(dispDocTitleCheck);
 
-        cbargs.text = Tr("Link page content and annotations (manual reading-order review required)");
+        cbargs.text = Tr("Link page content and annotations (draft)");
         cbargs.initialState = Checkbox::State::Checked;
         autoTagCheck = new Checkbox();
         autoTagCheck->Create(cbargs);
@@ -928,6 +938,7 @@ struct AccessibilityFixesDialog : WindowBase {
         Str stem = srcPath;
         if (str::EndsWithI(stem, StrL(".pdf"))) stem.len -= 4;
         TempStr defDest = fmt("%s_accessible.pdf", stem);
+        eargs.accessibleName = Tr("Save fixed PDF to");
         eargs.text = defDest;
         destEdit = new Edit();
         destEdit->Create(eargs);
@@ -957,15 +968,23 @@ struct AccessibilityFixesDialog : WindowBase {
         mainBox->AddChild(btnBox);
 
         auto* padding = new Padding(mainBox, DpiScaledInsets(8, 12));
-        layout = padding;
+        layout = new ScrollBox(padding);
 
         int dx = DpiScale(540);
         LayoutAndSizeToContent(layout, dx, 0, hwnd);
+        MONITORINFO monitor{sizeof(monitor)};
+        if (GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor)) {
+            Rect r = HwndWindowRect(hwnd);
+            int width = std::min(r.dx, (int)(monitor.rcWork.right - monitor.rcWork.left));
+            int height = std::min(r.dy, (int)(monitor.rcWork.bottom - monitor.rcWork.top));
+            SetWindowPos(hwnd, nullptr, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
         DoLayout(HwndClientRect(hwnd).Size());
         HwndCenterDialog(hwnd, win ? win->hwndFrame : nullptr);
         UpdateTheme();
         SetIsVisible(true);
 
+        SetFocusTo(langEdit);
         FreeAccessReport(rep);
         return true;
     }

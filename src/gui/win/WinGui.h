@@ -719,6 +719,7 @@ struct Edit : ControlBase {
         bool alignRight = false;
         bool selectAllOnFocus = false;
         bool noTheme = false;
+        Str accessibleName; // stable label, separate from the editable value
         Str cueText;
         Str text;
         int idealSizeLines = 1;

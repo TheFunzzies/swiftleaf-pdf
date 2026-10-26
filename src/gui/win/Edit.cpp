@@ -13,6 +13,7 @@
 #include "gui/PlatformFont.h"
 #include "gui/GuiColors.h"
 #include "gui/win/WinGui.h"
+#include <oleacc.h>
 
 //--- Edit
 
@@ -261,6 +262,18 @@ HWND Edit::Create(const CreateArgs& args) {
     ControlBase::CreateControl(cargs);
     if (!hwnd) {
         return nullptr;
+    }
+    // Native labels remain available when virtual labels have no HWND.
+    Str name = len(args.accessibleName) ? args.accessibleName : args.cueText;
+    if (len(name)) {
+        IAccPropServices* props = nullptr;
+        HRESULT hr = CoCreateInstance(__uuidof(CAccPropServices), nullptr, CLSCTX_INPROC_SERVER,
+                                      __uuidof(IAccPropServices), (void**)&props);
+        if (SUCCEEDED(hr)) {
+            const GUID nameProp = {0x608d3df8, 0x8128, 0x4aa7, {0xa4, 0x28, 0xf5, 0x5e, 0x49, 0x26, 0x72, 0x91}};
+            props->SetHwndPropStr(hwnd, (DWORD)OBJID_CLIENT, CHILDID_SELF, nameProp, CWStrTemp(name));
+            props->Release();
+        }
     }
     if (args.noTheme || createdWithFrame) {
         // strip the Win11 CFD/fluent style so it cannot draw a blue accent
@@ -649,3 +662,45 @@ void Edit::OnMessageReflect(ControlBase::MessageReflectEvent* ev) {
         ev->result = (LRESULT)BackgroundBrush();
     }
 }
+
+#if IS_DEBUG
+#include "base/tests/UtAssert.h"
+void EditAccess_UnitTests() {
+    HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    HWND parent = CreateWindowExW(0, L"STATIC", L"", WS_OVERLAPPED, 0, 0, 200, 100, nullptr, nullptr,
+                                  GetModuleHandleW(nullptr), nullptr);
+    utassert(parent != nullptr);
+    {
+        Edit edit;
+        Edit::CreateArgs args;
+        args.parent = parent;
+        args.accessibleName = StrL("Document language");
+        args.text = StrL("en-US");
+        utassert(edit.Create(args) != nullptr);
+        HMODULE dll = LoadLibraryExW(L"oleacc.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        using GetFn = HRESULT(WINAPI*)(HWND, DWORD, REFIID, void**);
+        auto get = dll ? (GetFn)GetProcAddress(dll, "AccessibleObjectFromWindow") : nullptr;
+        utassert(get != nullptr);
+        IAccessible* acc = nullptr;
+        utassert(SUCCEEDED(get(edit.hwnd, (DWORD)OBJID_CLIENT, __uuidof(IAccessible), (void**)&acc)));
+        if (acc) {
+            VARIANT self{};
+            self.vt = VT_I4;
+            self.lVal = CHILDID_SELF;
+            BSTR name = nullptr;
+            utassert(SUCCEEDED(acc->get_accName(self, &name)));
+            utassert(name && wcscmp(name, L"Document language") == 0);
+            SysFreeString(name);
+            edit.SetText(StrL("fr-FR"));
+            name = nullptr;
+            utassert(SUCCEEDED(acc->get_accName(self, &name)));
+            utassert(name && wcscmp(name, L"Document language") == 0);
+            SysFreeString(name);
+            acc->Release();
+        }
+        if (dll) FreeLibrary(dll);
+    }
+    DestroyWindow(parent);
+    if (SUCCEEDED(init)) CoUninitialize();
+}
+#endif

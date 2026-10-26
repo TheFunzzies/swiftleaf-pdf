@@ -86,6 +86,7 @@ struct ILayout {
     virtual VirtCtrl* AsVirtCtrl() { return nullptr; }
     // non-null for the controls that do have an HWND of their own
     virtual ControlBase* AsControl() { return nullptr; }
+    virtual void EnsureVisible(Rect) {}
 };
 
 bool IsCollapsed(ILayout*);

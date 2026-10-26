@@ -209,6 +209,12 @@ static void ScrollBox_Test() {
     utassert(!sb->ScrollTo(50));
     utassert(sb->ScrollTo(999));
     utassert(sb->scrollY == 120);
+    sb->EnsureVisible({0, -20, 40, 10});
+    utassert(sb->scrollY == 100);
+    sb->EnsureVisible({0, 90, 40, 10});
+    utassert(sb->scrollY == 120);
+    sb->EnsureVisible({0, 10, 40, 10});
+    utassert(sb->scrollY == 120);
     delete sb;
 }
 

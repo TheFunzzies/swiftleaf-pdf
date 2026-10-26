@@ -391,6 +391,7 @@ struct ScrollBox : VirtCtrl {
 
     Size Layout(Constraints bc) override;
     void SetBounds(Rect) override;
+    void EnsureVisible(Rect) override;
     Point ScrollOffset() override;
     void Paint(VirtPaintCtx&) override;
     int MinIntrinsicHeight(int width) override;
