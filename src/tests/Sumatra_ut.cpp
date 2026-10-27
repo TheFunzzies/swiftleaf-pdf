@@ -2517,6 +2517,23 @@ static void PageTools2Test() {
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(Type)) == PDF_NAME(StructTreeRoot));
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(K)) != nullptr);
 
+        pdf_obj* parentTree = pdf_dict_gets(ctx, strRoot, "ParentTree");
+        pdf_obj* nums = pdf_dict_gets(ctx, parentTree, "Nums");
+        utassert(pdf_array_len(ctx, nums) >= 4);
+        pdf_obj* firstPage = pdf_lookup_page_obj(ctx, doc, 0);
+        utassert(pdf_to_int(ctx, pdf_dict_gets(ctx, firstPage, "StructParents")) == 0);
+        pdf_obj* owners = pdf_array_get(ctx, nums, 1);
+        pdf_obj* owner = pdf_array_get(ctx, owners, 0);
+        utassert(pdf_to_int(ctx, pdf_dict_get(ctx, owner, PDF_NAME(K))) == 0);
+        utassert(pdf_objcmp(ctx, pdf_dict_gets(ctx, owner, "Pg"), firstPage) == 0);
+        pdf_obj* contents = pdf_dict_get(ctx, firstPage, PDF_NAME(Contents));
+        utassert(pdf_is_array(ctx, contents));
+        fz_buffer* prefix = pdf_load_stream(ctx, pdf_array_get(ctx, contents, 0));
+        unsigned char* bytes = nullptr;
+        size_t size = fz_buffer_storage(ctx, prefix, &bytes);
+        utassert(size >= 20 && memcmp(bytes, "/P <</MCID 0>> BDC", 17) == 0);
+        fz_drop_buffer(ctx, prefix);
+
         // Nonempty malformed K and Marked=true must not establish accessibility.
         pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_TRUE);
         pdf_dict_put_int(ctx, strRoot, PDF_NAME(K), 42);

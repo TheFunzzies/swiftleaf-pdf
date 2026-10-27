@@ -463,12 +463,30 @@ bool ExtractDocFigures(fz_context* ctx, pdf_document* doc, Vec<FigureAltItem>& o
     return true;
 }
 
-struct TextLineSample {
-    float size = 12.f;
-    bool isBullet = false;
-    int pageNo = 1;
-    pdf_obj* pageObj = nullptr;
-};
+static pdf_obj* TagStream(fz_context* ctx, pdf_document* doc, Str text) {
+    fz_buffer* buffer = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)text.s, len(text));
+    pdf_obj* stream = nullptr;
+    fz_try(ctx) {
+        stream = pdf_add_stream(ctx, doc, buffer, nullptr, 0);
+    }
+    fz_always(ctx) {
+        fz_drop_buffer(ctx, buffer);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+    return stream;
+}
+
+static pdf_obj* NewTag(fz_context* ctx, pdf_document* doc, pdf_obj* parent, pdf_obj* page, const char* role) {
+    pdf_obj* tag = pdf_new_dict(ctx, doc, 6);
+    pdf_obj* ref = pdf_add_object_drop(ctx, doc, tag);
+    pdf_dict_put(ctx, ref, PDF_NAME(Type), PDF_NAME(StructElem));
+    pdf_dict_put_name(ctx, ref, PDF_NAME(S), role);
+    pdf_dict_put(ctx, ref, PDF_NAME(P), parent);
+    pdf_dict_puts(ctx, ref, "Pg", page);
+    return ref;
+}
 
 bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOptions& options) {
     if (len(srcPath) == 0 || len(destPath) == 0) return false;
@@ -483,8 +501,6 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
     bool ok = false;
     fz_var(doc);
     fz_var(ok);
-
-    Vec<TextLineSample> samples;
 
     fz_try(ctx) {
         doc = pdf_open_document(ctx, CStrTemp(srcPath));
@@ -518,6 +534,8 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
             pdf_dict_puts(ctx, vp, "DisplayDocTitle", PDF_TRUE);
         }
 
+        if (len(options.figures) > 0) fz_throw(ctx, FZ_ERROR_GENERIC, "Figure occurrence remediation is not supported");
+
         // 3. Auto-tag structure
         if (options.autoTagBasicStructure && !pdf_dict_get(ctx, root, PDF_NAME(StructTreeRoot))) {
             pdf_obj* markInfo = pdf_dict_gets(ctx, root, "MarkInfo");
@@ -539,95 +557,52 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
 
             pdf_obj* kidsArray = pdf_new_array(ctx, doc, 32);
 
+            pdf_obj* parentTree = pdf_dict_puts_dict(ctx, structTree, "ParentTree", 1);
+            pdf_obj* nums = pdf_dict_put_array(ctx, parentTree, PDF_NAME(Nums), 8);
+            int nextKey = 0;
             int numPages = pdf_count_pages(ctx, doc);
-
             for (int p = 0; p < numPages; p++) {
-                pdf_page* page = pdf_load_page(ctx, doc, p);
-                if (!page) continue;
-                pdf_obj* pageObj = pdf_lookup_page_obj(ctx, doc, p);
+                pdf_obj* page = pdf_lookup_page_obj(ctx, doc, p);
+                if (pdf_dict_gets(ctx, page, "StructParents"))
+                    fz_throw(ctx, FZ_ERROR_GENERIC, "Orphaned source tagging requires manual repair");
+                pdf_obj* tag = NewTag(ctx, doc, docElemRef, page, "P");
+                pdf_dict_put_int(ctx, tag, PDF_NAME(K), 0);
+                pdf_array_push(ctx, kidsArray, tag);
+                pdf_dict_puts_drop(ctx, page, "StructParents", pdf_new_int(ctx, nextKey));
+                pdf_array_push_int(ctx, nums, nextKey++);
+                pdf_obj* owners = pdf_new_array(ctx, doc, 1);
+                pdf_array_push(ctx, owners, tag);
+                pdf_array_push_drop(ctx, nums, owners);
+                pdf_drop_obj(ctx, tag);
 
-                fz_stext_page* stext = fz_new_stext_page_from_page(ctx, (fz_page*)page, nullptr);
-                if (stext) {
-                    for (fz_stext_block* block = stext->first_block; block; block = block->next) {
-                        if (block->type == FZ_STEXT_BLOCK_TEXT) {
-                            for (fz_stext_line* line = block->u.t.first_line; line; line = line->next) {
-                                float maxSz = 0.f;
-                                bool isBul = false;
-                                int charIdx = 0;
-                                for (fz_stext_char* ch = line->first_char; ch; ch = ch->next) {
-                                    if (ch->size > maxSz) maxSz = ch->size;
-                                    if (charIdx == 0) {
-                                        if (ch->c == 0x2022 || ch->c == '-' || ch->c == '*') isBul = true;
-                                    }
-                                    charIdx++;
-                                }
-                                if (maxSz > 0.f) {
-                                    VecAppend(samples, TextLineSample{maxSz, isBul, p + 1, pageObj});
-                                }
-                            }
-                        }
-                    }
-                    fz_drop_stext_page(ctx, stext);
+                pdf_obj* contents = pdf_dict_get(ctx, page, PDF_NAME(Contents));
+                pdf_obj* streams = pdf_new_array(ctx, doc, 4);
+                pdf_array_push_drop(ctx, streams, TagStream(ctx, doc, StrL("/P <</MCID 0>> BDC\n")));
+                if (pdf_is_array(ctx, contents)) {
+                    for (int i = 0; i < pdf_array_len(ctx, contents); i++)
+                        pdf_array_push(ctx, streams, pdf_array_get(ctx, contents, i));
+                } else if (contents) {
+                    pdf_array_push(ctx, streams, contents);
                 }
-                fz_drop_page(ctx, (fz_page*)page);
-            }
+                pdf_array_push_drop(ctx, streams, TagStream(ctx, doc, StrL("\nEMC\n")));
+                pdf_dict_put_drop(ctx, page, PDF_NAME(Contents), streams);
 
-            float baseSize = 12.f;
-            if (len(samples) > 0) {
-                float sum = 0.f;
-                for (const auto& s : samples) sum += s.size;
-                baseSize = sum / (float)len(samples);
-            }
-
-            for (const auto& s : samples) {
-                pdf_obj* elem = pdf_new_dict(ctx, doc, 6);
-                pdf_obj* elemRef = pdf_add_object(ctx, doc, elem);
-                pdf_dict_put(ctx, elem, PDF_NAME(Type), PDF_NAME(StructElem));
-                pdf_dict_put(ctx, elem, PDF_NAME(P), docElemRef);
-                if (s.pageObj) pdf_dict_puts(ctx, elem, "Pg", s.pageObj);
-
-                if (s.size >= 1.35f * baseSize) {
-                    pdf_dict_puts_drop(ctx, elem, "S", pdf_new_name(ctx, "H1"));
-                } else if (s.size >= 1.15f * baseSize) {
-                    pdf_dict_puts_drop(ctx, elem, "S", pdf_new_name(ctx, "H2"));
-                } else if (s.isBullet) {
-                    pdf_dict_puts_drop(ctx, elem, "S", pdf_new_name(ctx, "LI"));
-                } else {
-                    pdf_dict_puts_drop(ctx, elem, "S", pdf_new_name(ctx, "P"));
+                pdf_obj* annots = pdf_dict_get(ctx, page, PDF_NAME(Annots));
+                for (int i = 0; i < pdf_array_len(ctx, annots); i++) {
+                    pdf_obj* annot = pdf_array_get(ctx, annots, i);
+                    tag = NewTag(ctx, doc, docElemRef, page,
+                                 pdf_dict_get(ctx, annot, PDF_NAME(Subtype)) == PDF_NAME(Link) ? "Link" : "Annot");
+                    pdf_obj* objr = pdf_dict_put_dict(ctx, tag, PDF_NAME(K), 3);
+                    pdf_dict_put_name(ctx, objr, PDF_NAME(Type), "OBJR");
+                    pdf_dict_puts(ctx, objr, "Obj", annot);
+                    pdf_dict_puts(ctx, objr, "Pg", page);
+                    pdf_dict_puts_drop(ctx, annot, "StructParent", pdf_new_int(ctx, nextKey));
+                    pdf_array_push_int(ctx, nums, nextKey++);
+                    pdf_array_push(ctx, nums, tag);
+                    pdf_array_push_drop(ctx, kidsArray, tag);
                 }
-                pdf_array_push_drop(ctx, kidsArray, elemRef);
-                pdf_drop_obj(ctx, elem);
             }
-
-            // Figure tags
-            for (const auto& fig : options.figures) {
-                pdf_obj* figElem = pdf_new_dict(ctx, doc, 6);
-                pdf_obj* figElemRef = pdf_add_object(ctx, doc, figElem);
-                pdf_dict_put(ctx, figElem, PDF_NAME(Type), PDF_NAME(StructElem));
-                pdf_dict_put(ctx, figElem, PDF_NAME(P), docElemRef);
-                pdf_obj* pageObj = pdf_lookup_page_obj(ctx, doc, fig.pageNo - 1);
-                if (pageObj) pdf_dict_puts(ctx, figElem, "Pg", pageObj);
-                if (fig.isDecorative) {
-                    pdf_dict_puts_drop(ctx, figElem, "S", pdf_new_name(ctx, "Artifact"));
-                } else {
-                    pdf_dict_puts_drop(ctx, figElem, "S", pdf_new_name(ctx, "Figure"));
-                    if (len(fig.altText) > 0) {
-                        pdf_dict_put_text_string(ctx, figElem, PDF_NAME(Alt), CStrTemp(fig.altText));
-                    }
-                }
-                pdf_array_push_drop(ctx, kidsArray, figElemRef);
-                pdf_drop_obj(ctx, figElem);
-            }
-
-            if (pdf_array_len(ctx, kidsArray) == 0) {
-                pdf_obj* pElem = pdf_new_dict(ctx, doc, 4);
-                pdf_obj* pRef = pdf_add_object(ctx, doc, pElem);
-                pdf_dict_put(ctx, pElem, PDF_NAME(Type), PDF_NAME(StructElem));
-                pdf_dict_put(ctx, pElem, PDF_NAME(P), docElemRef);
-                pdf_dict_puts_drop(ctx, pElem, "S", pdf_new_name(ctx, "P"));
-                pdf_array_push_drop(ctx, kidsArray, pRef);
-                pdf_drop_obj(ctx, pElem);
-            }
+            pdf_dict_puts_drop(ctx, structTree, "ParentTreeNextKey", pdf_new_int(ctx, nextKey));
 
             pdf_dict_put_drop(ctx, docElem, PDF_NAME(K), kidsArray);
             pdf_dict_put_drop(ctx, structTree, PDF_NAME(K), docElemRef);
@@ -645,7 +620,6 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
     }
     fz_always(ctx) {
         if (doc) pdf_drop_document(ctx, doc);
-        VecReset(samples);
     }
     fz_catch(ctx) {
         ok = false;
@@ -890,28 +864,17 @@ struct AccessibilityFixesDialog : WindowBase {
         dispDocTitleCheck->Create(cbargs);
         mainBox->AddChild(dispDocTitleCheck);
 
-        cbargs.text = Tr("Auto-tag basic structure (Headings H1/H2, Paragraphs P, Lists L, Figures)");
+        cbargs.text = Tr("Link page content and annotations (manual reading-order review required)");
         cbargs.initialState = Checkbox::State::Checked;
         autoTagCheck = new Checkbox();
         autoTagCheck->Create(cbargs);
         mainBox->AddChild(autoTagCheck);
 
-        // Figures Alt Text
         if (len(figures) > 0) {
-            mainBox->AddChild(NewVirtText({.s = fmt(Tr("Figures found: %d. Set alternate text:").s, len(figures)),
-                                           .font = font,
-                                           .isRtl = IsUIRtl()}));
-
-            eargs.text = StrL("Figure illustration");
-            altEdit = new Edit();
-            altEdit->Create(eargs);
-            mainBox->AddChild(altEdit);
-
-            cbargs.text = Tr("Mark figure as decorative (/Artifact)");
-            cbargs.initialState = Checkbox::State::Unchecked;
-            decorCheck = new Checkbox();
-            decorCheck->Create(cbargs);
-            mainBox->AddChild(decorCheck);
+            mainBox->AddChild(
+                NewVirtText({.s = Tr("Figure descriptions and decorative marking require an occurrence-aware editor."),
+                             .font = font,
+                             .isRtl = IsUIRtl()}));
         }
 
         // Destination Row

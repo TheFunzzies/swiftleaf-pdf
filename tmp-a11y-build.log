@@ -1,0 +1,24 @@
+error: unknown option: SumatraPDF-static
+
+Usage: bun cmd/build.ts <mode> [options]
+
+Windows builds:
+  -dbg | -rel             Build Swiftleaf.exe for x64
+  -profile                Build a function-timing profile variant (out/prf64)
+  -rel -32                Build the 32-bit release
+  -asan [-dbg|-rel]       Build SumatraPDF-static.exe with MSVC ASan
+  -all [-clean]           Build release SwiftLeaf and SumatraPDF-static
+  -smoke                  Rebuild release SwiftLeaf, then run the debug unit tests
+  -ci                     Build CI/pre-release artifacts
+  -daily                  Build daily artifacts
+  -codeql                 Build the static release target for CodeQL
+
+Other:
+  -build-no [number|sha1] List recent build numbers or resolve a number or sha1
+  -h | -help              Print this help
+
+General options:
+  -clean                  Clean the selected output directory first
+  -ninja                  Use Ninja instead of MSBuild
+  -msbuild                Use MSBuild (the default)
+  -32                     Select Win32 (valid only with Windows -rel)
