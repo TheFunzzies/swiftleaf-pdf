@@ -234,6 +234,7 @@ struct ToolsPanelVirt {
     bool categoryExpanded[ToolCategoryCount] = {};
     ScrollBox* scroll = nullptr;
     Edit* searchEdit = nullptr;
+    VirtText* searchHelp = nullptr;
     Padding* contentPadding = nullptr;
     int page = -1;
     bool rail = false;
@@ -350,8 +351,23 @@ static void OnSearchChanged(ToolsPanelVirt* panel) {
             panel->rows[i]->parent->SetVisibility(vis);
         }
     }
+    int matchCount = 0;
+    for (int i = 0; i < len(panel->rows); i++) {
+        const ToolDef* d = panel->rowDefs[i];
+        bool matches = !searching || str::ContainsI(panel->rows[i]->label, query) ||
+                       str::ContainsI(trans::GetTranslation(d->description), query);
+        if (matches) matchCount++;
+    }
     for (int i = 0; i < len(panel->categoryHeaders); i++)
         panel->categoryHeaders[i]->SetVisibility(hasMatches[i] ? Visibility::Visible : Visibility::Collapse);
+    if (panel->searchHelp) {
+        if (searching && matchCount == 0) {
+            panel->searchHelp->SetText(fmt(Tr("No tools match \"%s\"").s, query));
+            panel->searchHelp->SetVisibility(Visibility::Visible);
+        } else {
+            panel->searchHelp->SetVisibility(Visibility::Collapse);
+        }
+    }
     panel->host->Relayout();
 }
 
@@ -582,6 +598,42 @@ static void FocusPanelRow(ToolsPanelVirt* panel) {
     if (len(stops)) root->SetFocus(stops[0].vwnd);
 }
 
+static void OnSearchEditWndProc(ToolsPanelVirt* panel, ControlBase::WndProcEvent* ev) {
+    if (!panel || ev->msg != WM_KEYDOWN) return;
+    int vk = (int)ev->wparam;
+    if (vk == VK_TAB) {
+        if (IsShiftPressed()) {
+            if (panel->header) {
+                Vec<TabStop> stops;
+                CollectTabStops(panel->header, stops);
+                if (len(stops) && stops[0].vwnd) {
+                    panel->host->vroot->SetFocus(stops[0].vwnd);
+                    ev->result = 0;
+                    ev->didHandle = true;
+                    return;
+                }
+            }
+        } else {
+            FocusPanelRow(panel);
+            ev->result = 0;
+            ev->didHandle = true;
+            return;
+        }
+    } else if (vk == VK_DOWN || vk == VK_RETURN) {
+        FocusPanelRow(panel);
+        ev->result = 0;
+        ev->didHandle = true;
+        return;
+    } else if (vk == VK_ESCAPE) {
+        if (panel->searchEdit && len(panel->searchEdit->GetTextTemp()) > 0) {
+            panel->searchEdit->SetText(Str{});
+            ev->result = 0;
+            ev->didHandle = true;
+            return;
+        }
+    }
+}
+
 void ToolsPanelShowPage(MainWindow* win) {
     auto* panel = win->toolsPanel;
     if (!panel || panel->page == win->ribbonPage) return;
@@ -611,6 +663,11 @@ void ToolsPanelShowPage(MainWindow* win) {
     panel->header = header.box;
     col->AddChild(header.box);
     if (page == RibbonPage::Home) {
+        panel->searchHelp = new VirtText({}, GetScaledPlatformFont(GetAppFont(), 90));
+        panel->searchHelp->padding = DpiScaledInsets(8, 12);
+        panel->searchHelp->SetColor(kColText, ThemeWindowTextColor());
+        panel->searchHelp->SetVisibility(Visibility::Collapse);
+        col->AddChild(panel->searchHelp);
         for (int category = 0; category < ToolCategoryCount; category++) {
             bool isRec = (category == ToolCategoryRecommended);
             const ToolDef* catTools = isRec ? recommendedTools : tools;
@@ -769,6 +826,12 @@ static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
         Vec<TabStop> stops;
         CollectTabStops(panel->scroll->child, stops);
         bool back = IsShiftPressed();
+        if (back && panel->searchEdit && IsWindowVisible(panel->searchEdit->hwnd) &&
+            root->focused == (len(stops) ? stops[0].vwnd : nullptr)) {
+            panel->searchEdit->SetFocus();
+            ev->didHandle = true;
+            return;
+        }
         if (len(stops) && root->focused == stops[back ? 0 : len(stops) - 1].vwnd) {
             AdvanceFocus(win);
             ev->didHandle = true;
@@ -815,11 +878,13 @@ void CreateToolsPanel(MainWindow* win) {
     searchArgs.parent = panel->host->native;
     searchArgs.font = GetAppFont();
     searchArgs.withBorder = true;
+    searchArgs.accessibleName = Tr("Search tools");
     searchArgs.cueText = Tr("Search tools by name or description");
     searchArgs.isRtl = IsUIRtl();
     panel->searchEdit->Create(searchArgs);
     SetWindowLongPtrW(panel->searchEdit->hwnd, GWL_STYLE,
                       GetWindowLongPtrW(panel->searchEdit->hwnd, GWL_STYLE) | WS_TABSTOP);
+    panel->searchEdit->onWndProc = MkFunc1(OnSearchEditWndProc, panel);
     panel->searchEdit->onTextChanged = MkFunc0(OnSearchChanged, panel);
     ShowWindow(panel->searchEdit->hwnd, SW_HIDE);
     ToolsPanelShowPage(win);

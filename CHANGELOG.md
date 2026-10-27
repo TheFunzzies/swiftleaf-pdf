@@ -6,6 +6,10 @@
   bounds preview/cache memory, and preserves existing output on failure.
 - Find and replace runs in a cancellable worker with page progress, bounds memory
   with per-page scratch cleanup, and preserves existing output on cancellation or failure.
+- Accessibility: name dialog and tools search controls, fit monitor work areas, and connect tools search with list focus. Ribbon collapses to overflow and compacts separators to prevent clipping at 800x600/high-DPI, exposes search shortcut/role in MSAA, and respects reduce-motion.
+
+- Accessibility: link draft page tags through MCIDs/ParentTree and annotation OBJR; list source tag order and table scope warnings. Disable unsupported figure/decorative edits; preserve source tags.
+
 - PDF compression honesty: distinct Archive preset from ISO PDF/A, separate Print and Archive backends, detailed image/font/object byte contributions in audit and dialog, honest preset descriptions, and keep-original guarantee when output would grow.
 - Release size and footprint gate: automated CI check against recorded baselines with warning on growth and strict >10% growth prevention gate.
 - Search redaction: review page boxes, choose match IDs, email/SSN patterns and replacement labels. Saved copies remove metadata, attachments, scripts, comments and tags.

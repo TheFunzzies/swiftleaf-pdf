@@ -1447,6 +1447,13 @@ void ScrollBox::SetBounds(Rect r) {
     UpdateScrollbar();
 }
 
+void ScrollBox::EnsureVisible(Rect r) {
+    if (r.y < bounds.y)
+        ScrollBy(r.y - bounds.y);
+    else if (r.Bottom() > bounds.Bottom())
+        ScrollBy(r.Bottom() - bounds.Bottom());
+}
+
 Point ScrollBox::ScrollOffset() {
     return {0, scrollY};
 }

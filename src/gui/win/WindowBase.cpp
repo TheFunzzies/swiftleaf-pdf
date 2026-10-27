@@ -594,6 +594,19 @@ void WindowBase::SetFocusTo(VirtCtrl* w) {
     vroot->SetFocus(w);
 }
 
+// Reveal the next tab stop through every enclosing viewport.
+static bool RevealTabStop(ILayout* layout, ILayout* target) {
+    if (!layout) return false;
+    if (layout == target) return true;
+    for (int i = 0; i < layout->LayoutChildCount(); i++) {
+        if (RevealTabStop(layout->LayoutChildAt(i), target)) {
+            layout->EnsureVisible(target->lastBounds);
+            return true;
+        }
+    }
+    return false;
+}
+
 bool WindowBase::TabNavigate(bool backwards) {
     if (!layout) {
         return false;
@@ -634,6 +647,7 @@ bool WindowBase::TabNavigate(bool backwards) {
         idx = (idx + (backwards ? -1 : 1) + n) % n;
     }
     TabStop& ts = stops[idx];
+    RevealTabStop(layout, ts.vwnd ? (ILayout*)ts.vwnd : (ILayout*)ts.ctrl);
     if (ts.vwnd) {
         SetFocusTo(ts.vwnd);
     } else {
