@@ -213,7 +213,8 @@ struct PdfWorkProgress {
     bool IsCancelled() { return AtomicIntGet(&cancelled) != 0; }
 };
 
-bool EngineMupdfReplaceAllText(EngineBase*, Str destination, Str find, Str replacement, int* countOut, Str* errorOut, PdfWorkProgress* progress = nullptr);
+bool EngineMupdfReplaceAllText(EngineBase*, Str destination, Str find, Str replacement, int* countOut, Str* errorOut,
+                               PdfWorkProgress* progress = nullptr);
 TempStr EngineMupdfObjectList(EngineBase*, int pageNo);
 bool EngineMupdfEditObjectCopy(EngineBase*, Str destination, int pageNo, Str name, Str imagePath, float scaleX,
                                float scaleY, float rotation, Str* errorOut);

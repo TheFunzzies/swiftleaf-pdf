@@ -9,6 +9,7 @@
 #include <shlwapi.h>
 #include <mupdf/pdf.h>
 #include "MarkdownToc.h"
+#include "Ocr.h"
 #include "ExportFormats.h"
 
 static const Str kRelStart = StrL(
@@ -120,20 +121,45 @@ static bool PageRange(Str spec, int count, Vec<int>& pages) {
     return len(pages) > 0;
 }
 
+struct ExportCell {
+    int row = 0;
+    int col = 0;
+    int rowSpan = 1;
+    int colSpan = 1;
+};
+
+struct ExportTable {
+    Vec<float> xs, ys;
+    Vec<fz_rect> rulings;
+    Vec<ExportCell> cells;
+    fz_rect bounds{};
+    bool bordered = false;
+};
+
+struct ExportItem {
+    fz_stext_block* block = nullptr;
+    ExportTable* table = nullptr;
+    fz_rect bounds{};
+};
+
 struct ExportPage {
     fz_context* ctx;
     fz_page* page = nullptr;
     fz_stext_page* text = nullptr;
     fz_link* links = nullptr;
-    Vec<float> xs, ys;
     Vec<fz_stext_block*> blocks;
+    Vec<ExportTable*> tables;
+    Vec<ExportItem> items;
+    Vec<void*> ocrAllocs;
     int number = 0;
     float bodySize = 12;
     explicit ExportPage(fz_context* c) : ctx(c) {}
     ~ExportPage() {
+        for (auto* table : tables) delete table;
         fz_drop_link(ctx, links);
         fz_drop_stext_page(ctx, text);
         fz_drop_page(ctx, page);
+        for (void* allocation : ocrAllocs) free(allocation);
     }
 };
 
@@ -165,29 +191,276 @@ static void CollectBlocks(ExportPage& p, fz_stext_block* block) {
             VecAppend(p.blocks, block);
     }
 }
-static void FindGrid(ExportPage& p) {
+static bool Touches(fz_rect a, fz_rect b) {
+    return a.x0 <= b.x1 + 2 && a.x1 + 2 >= b.x0 && a.y0 <= b.y1 + 2 && a.y1 + 2 >= b.y0;
+}
+static bool VerticalAt(ExportTable& table, int col, int row) {
+    float x = table.xs[col], y = (table.ys[row] + table.ys[row + 1]) / 2;
+    for (fz_rect r : table.rulings) {
+        float w = r.x1 - r.x0, h = r.y1 - r.y0;
+        if (w < 3 && h > 8 && fabsf((r.x0 + r.x1) / 2 - x) < 2 && r.y0 - 2 <= y && r.y1 + 2 >= y) return true;
+    }
+    return false;
+}
+static bool HorizontalAt(ExportTable& table, int row, int col) {
+    float x = (table.xs[col] + table.xs[col + 1]) / 2, y = table.ys[row];
+    for (fz_rect r : table.rulings) {
+        float w = r.x1 - r.x0, h = r.y1 - r.y0;
+        if (h < 3 && w > 8 && fabsf((r.y0 + r.y1) / 2 - y) < 2 && r.x0 - 2 <= x && r.x1 + 2 >= x) return true;
+    }
+    return false;
+}
+static void SpanCells(ExportTable& table) {
+    int rows = len(table.ys) - 1, cols = len(table.xs) - 1;
+    Vec<int> covered;
+    for (int i = 0; i < rows * cols; i++) VecAppend(covered, 0);
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            if (covered[r * cols + c]) continue;
+            ExportCell cell{r, c};
+            while (c + cell.colSpan < cols && !VerticalAt(table, c + cell.colSpan, r)) cell.colSpan++;
+            while (r + cell.rowSpan < rows) {
+                bool divided = false;
+                for (int x = c; x < c + cell.colSpan; x++) divided |= HorizontalAt(table, r + cell.rowSpan, x);
+                if (divided) break;
+                cell.rowSpan++;
+            }
+            VecAppend(table.cells, cell);
+            for (int y = r; y < r + cell.rowSpan; y++)
+                for (int x = c; x < c + cell.colSpan; x++) covered[y * cols + x] = 1;
+        }
+    }
+}
+static void FindRuledTables(ExportPage& p) {
+    Vec<int> groups;
+    for (int i = 0; i < len(p.blocks); i++) VecAppend(groups, -1);
+    for (int i = 0; i < len(p.blocks); i++) {
+        auto* first = p.blocks[i];
+        if (groups[i] >= 0 || first->type != FZ_STEXT_BLOCK_VECTOR) continue;
+        auto* table = new ExportTable();
+        table->bordered = true;
+        Vec<int> pending;
+        VecAppend(pending, i);
+        groups[i] = i;
+        while (len(pending)) {
+            int at = pending[--pending.len];
+            auto* b = p.blocks[at];
+            fz_rect r = b->bbox;
+            float w = r.x1 - r.x0, h = r.y1 - r.y0;
+            VecAppend(table->rulings, r);
+            if (w > 15 && h < 3)
+                Axis(table->ys, (r.y0 + r.y1) / 2);
+            else if (h > 15 && w < 3)
+                Axis(table->xs, (r.x0 + r.x1) / 2);
+            else if (w > 15 && h > 8 && (b->u.v.flags & FZ_STEXT_VECTOR_IS_RECTANGLE)) {
+                Axis(table->xs, r.x0);
+                Axis(table->xs, r.x1);
+                Axis(table->ys, r.y0);
+                Axis(table->ys, r.y1);
+            }
+            for (int j = 0; j < len(p.blocks); j++) {
+                if (groups[j] >= 0 || p.blocks[j]->type != FZ_STEXT_BLOCK_VECTOR || !Touches(r, p.blocks[j]->bbox))
+                    continue;
+                groups[j] = i;
+                VecAppend(pending, j);
+            }
+        }
+        if (len(table->xs) < 3 || len(table->ys) < 3 || len(table->xs) > 128 || len(table->ys) > 512) {
+            delete table;
+            continue;
+        }
+        qsort(table->xs.els, len(table->xs), sizeof(float), FloatCmp);
+        qsort(table->ys.els, len(table->ys), sizeof(float), FloatCmp);
+        table->bounds = {table->xs[0], table->ys[0], table->xs[len(table->xs) - 1], table->ys[len(table->ys) - 1]};
+        SpanCells(*table);
+        VecAppend(p.tables, table);
+    }
+}
+static bool InTable(ExportPage& p, fz_rect r) {
+    float x = (r.x0 + r.x1) / 2, y = (r.y0 + r.y1) / 2;
+    for (auto* table : p.tables)
+        if (x >= table->bounds.x0 && x <= table->bounds.x1 && y >= table->bounds.y0 && y <= table->bounds.y1)
+            return true;
+    return false;
+}
+
+struct TextSegment {
+    fz_rect box{};
+    int row = 0;
+};
+struct TextRow {
+    float y0 = 0, y1 = 0;
+    int first = 0, count = 0;
+    bool used = false;
+};
+static int LineYCmp(const void* a, const void* b) {
+    auto* x = *(fz_stext_line**)a;
+    auto* y = *(fz_stext_line**)b;
+    float ay = (x->bbox.y0 + x->bbox.y1) / 2, by = (y->bbox.y0 + y->bbox.y1) / 2;
+    return ay < by ? -1 : ay > by ? 1 : x->bbox.x0 < y->bbox.x0 ? -1 : x->bbox.x0 > y->bbox.x0;
+}
+static int SegmentCmp(const void* a, const void* b) {
+    auto* x = (const TextSegment*)a;
+    auto* y = (const TextSegment*)b;
+    if (x->row != y->row) return x->row - y->row;
+    return x->box.x0 < y->box.x0 ? -1 : x->box.x0 > y->box.x0;
+}
+static bool SameColumns(Vec<TextSegment>& segments, TextRow& a, TextRow& b, float tolerance) {
+    if (a.count != b.count || a.count < 2) return false;
+    for (int i = 0; i < a.count; i++)
+        if (fabsf(segments[a.first + i].box.x0 - segments[b.first + i].box.x0) > tolerance) return false;
+    return true;
+}
+static void BorderlessTable(ExportPage& p, Vec<TextSegment>& segments, Vec<TextRow>& rows, int first, int last) {
+    if (last - first < 2) return;
+    int cols = rows[first].count;
+    auto* table = new ExportTable();
+    float left = segments[rows[first].first].box.x0, right = left;
+    for (int r = first; r < last; r++) {
+        auto& row = rows[r];
+        left = std::min(left, segments[row.first].box.x0);
+        right = std::max(right, segments[row.first + row.count - 1].box.x1);
+    }
+    Axis(table->xs, left - 2);
+    for (int c = 0; c + 1 < cols; c++) {
+        float boundary = 0;
+        for (int r = first; r < last; r++) {
+            auto& row = rows[r];
+            boundary += (segments[row.first + c].box.x1 + segments[row.first + c + 1].box.x0) / 2;
+        }
+        Axis(table->xs, boundary / (last - first));
+    }
+    Axis(table->xs, right + 2);
+    Axis(table->ys, rows[first].y0 - 2);
+    for (int r = first; r + 1 < last; r++) Axis(table->ys, (rows[r].y1 + rows[r + 1].y0) / 2);
+    Axis(table->ys, rows[last - 1].y1 + 2);
+    if (len(table->xs) != cols + 1 || len(table->ys) != last - first + 1) {
+        delete table;
+        return;
+    }
+    table->bounds = {table->xs[0], table->ys[0], table->xs[len(table->xs) - 1], table->ys[len(table->ys) - 1]};
+    for (int r = 0; r + 1 < len(table->ys); r++)
+        for (int c = 0; c < cols; c++) VecAppend(table->cells, ExportCell{r, c});
+    VecAppend(p.tables, table);
+    for (int r = first; r < last; r++) rows[r].used = true;
+}
+static void FindBorderlessTables(ExportPage& p) {
+    Vec<fz_stext_line*> lines;
+    for (auto* b : p.blocks) {
+        if (b->type != FZ_STEXT_BLOCK_TEXT || InTable(p, b->bbox)) continue;
+        for (auto* line = b->u.t.first_line; line; line = line->next) VecAppend(lines, line);
+    }
+    if (len(lines) < 2) return;
+    qsort(lines.els, len(lines), sizeof(fz_stext_line*), LineYCmp);
+    Vec<int> lineRows;
+    Vec<TextRow> rows;
+    for (auto* line : lines) {
+        float y = (line->bbox.y0 + line->bbox.y1) / 2;
+        if (!len(rows) || fabsf((rows[len(rows) - 1].y0 + rows[len(rows) - 1].y1) / 2 - y) > p.bodySize * 0.6f) {
+            TextRow row{line->bbox.y0, line->bbox.y1};
+            VecAppend(rows, row);
+        } else {
+            auto& row = rows[len(rows) - 1];
+            row.y0 = std::min(row.y0, line->bbox.y0);
+            row.y1 = std::max(row.y1, line->bbox.y1);
+        }
+        VecAppend(lineRows, len(rows) - 1);
+    }
+    Vec<TextSegment> segments;
+    for (int i = 0; i < len(lines); i++) {
+        fz_stext_char* start = lines[i]->first_char;
+        fz_stext_char* previous = nullptr;
+        for (auto* c = start; c; c = c->next) {
+            fz_rect box = fz_rect_from_quad(c->quad);
+            fz_rect prev = previous ? fz_rect_from_quad(previous->quad) : box;
+            bool split = previous && box.x0 - prev.x1 > std::max(12.f, previous->size * 1.5f);
+            if (split || c == start) {
+                TextSegment segment{box, lineRows[i]};
+                VecAppend(segments, segment);
+            } else {
+                auto& segment = segments[len(segments) - 1];
+                segment.box = fz_union_rect(segment.box, box);
+            }
+            previous = c;
+        }
+    }
+    qsort(segments.els, len(segments), sizeof(TextSegment), SegmentCmp);
+    for (int i = 0; i < len(segments); i++) {
+        auto& row = rows[segments[i].row];
+        if (!row.count) row.first = i;
+        row.count++;
+    }
+    int first = 0;
+    for (int i = 1; i <= len(rows); i++) {
+        bool contiguous = i < len(rows) && !rows[i - 1].used && !rows[i].used &&
+                          SameColumns(segments, rows[i - 1], rows[i], p.bodySize) &&
+                          rows[i].y0 - rows[i - 1].y1 < p.bodySize * 3;
+        if (contiguous) continue;
+        if (first < i - 1 && rows[first].count >= 2) BorderlessTable(p, segments, rows, first, i);
+        first = i;
+    }
+}
+static int ItemYCmp(const void* a, const void* b) {
+    auto* x = (const ExportItem*)a;
+    auto* y = (const ExportItem*)b;
+    return x->bounds.y0 < y->bounds.y0   ? -1
+           : x->bounds.y0 > y->bounds.y0 ? 1
+           : x->bounds.x0 < y->bounds.x0 ? -1
+                                         : x->bounds.x0 > y->bounds.x0;
+}
+static int ItemXCmp(const void* a, const void* b) {
+    auto* x = (const ExportItem*)a;
+    auto* y = (const ExportItem*)b;
+    return x->bounds.x0 < y->bounds.x0   ? -1
+           : x->bounds.x0 > y->bounds.x0 ? 1
+           : x->bounds.y0 < y->bounds.y0 ? -1
+                                         : x->bounds.y0 > y->bounds.y0;
+}
+static void ReadingOrder(ExportItem* items, int count, float bodySize, int depth = 0) {
+    if (count < 2 || depth > 12) return;
+    qsort(items, count, sizeof(ExportItem), ItemYCmp);
+    float edge = items[0].bounds.y1, best = bodySize * 0.75f;
+    int split = 0;
+    for (int i = 1; i < count; i++) {
+        float gap = items[i].bounds.y0 - edge;
+        if (gap > best) {
+            best = gap;
+            split = i;
+        }
+        edge = std::max(edge, items[i].bounds.y1);
+    }
+    if (split) {
+        ReadingOrder(items, split, bodySize, depth + 1);
+        ReadingOrder(items + split, count - split, bodySize, depth + 1);
+        return;
+    }
+    qsort(items, count, sizeof(ExportItem), ItemXCmp);
+    edge = items[0].bounds.x1;
+    best = bodySize * 1.5f;
+    for (int i = 1; i < count; i++) {
+        float gap = items[i].bounds.x0 - edge;
+        if (gap > best) {
+            best = gap;
+            split = i;
+        }
+        edge = std::max(edge, items[i].bounds.x1);
+    }
+    if (split) {
+        ReadingOrder(items, split, bodySize, depth + 1);
+        ReadingOrder(items + split, count - split, bodySize, depth + 1);
+        return;
+    }
+    qsort(items, count, sizeof(ExportItem), ItemYCmp);
+}
+static void AnalyzePage(ExportPage& p) {
     int counts[100]{};
     for (auto* b : p.blocks) {
-        if (b->type == FZ_STEXT_BLOCK_TEXT) {
-            for (auto* l = b->u.t.first_line; l; l = l->next)
-                for (auto* c = l->first_char; c; c = c->next) {
-                    int size = (int)c->size;
-                    if (size > 0 && size < 100) counts[size]++;
-                }
-        }
-        if (b->type != FZ_STEXT_BLOCK_VECTOR) continue;
-        fz_rect r = b->bbox;
-        float w = r.x1 - r.x0, h = r.y1 - r.y0;
-        if (w > 15 && h < 3)
-            Axis(p.ys, (r.y0 + r.y1) / 2);
-        else if (h > 15 && w < 3)
-            Axis(p.xs, (r.x0 + r.x1) / 2);
-        else if (w > 15 && h > 8 && (b->u.v.flags & FZ_STEXT_VECTOR_IS_RECTANGLE)) {
-            Axis(p.xs, r.x0);
-            Axis(p.xs, r.x1);
-            Axis(p.ys, r.y0);
-            Axis(p.ys, r.y1);
-        }
+        if (b->type != FZ_STEXT_BLOCK_TEXT) continue;
+        for (auto* l = b->u.t.first_line; l; l = l->next)
+            for (auto* c = l->first_char; c; c = c->next) {
+                int size = (int)c->size;
+                if (size > 0 && size < 100) counts[size]++;
+            }
     }
     int best = 0;
     for (int i = 1; i < 100; i++)
@@ -195,20 +468,16 @@ static void FindGrid(ExportPage& p) {
             best = counts[i];
             p.bodySize = (float)i;
         }
-    if (len(p.xs) < 3 || len(p.ys) < 3 || len(p.xs) > 128 || len(p.ys) > 512) {
-        VecReset(p.xs);
-        VecReset(p.ys);
-        return;
+    FindRuledTables(p);
+    FindBorderlessTables(p);
+    for (auto* table : p.tables) VecAppend(p.items, ExportItem{nullptr, table, table->bounds});
+    for (auto* b : p.blocks) {
+        if (b->type == FZ_STEXT_BLOCK_VECTOR || (b->type == FZ_STEXT_BLOCK_TEXT && InTable(p, b->bbox))) continue;
+        VecAppend(p.items, ExportItem{b, nullptr, b->bbox});
     }
-    qsort(p.xs.els, len(p.xs), sizeof(float), FloatCmp);
-    qsort(p.ys.els, len(p.ys), sizeof(float), FloatCmp);
+    ReadingOrder(p.items.els, len(p.items), p.bodySize);
 }
-static bool InGrid(ExportPage& p, fz_rect r) {
-    if (!len(p.xs)) return false;
-    float x = (r.x0 + r.x1) / 2, y = (r.y0 + r.y1) / 2;
-    return x >= p.xs[0] && x <= p.xs[len(p.xs) - 1] && y >= p.ys[0] && y <= p.ys[len(p.ys) - 1];
-}
-static void CellText(ExportPage& p, int row, int col, str::Builder& text) {
+static void CellText(ExportPage& p, ExportTable& table, ExportCell& cell, str::Builder& text) {
     for (auto* b : p.blocks) {
         if (b->type != FZ_STEXT_BLOCK_TEXT) continue;
         for (auto* l = b->u.t.first_line; l; l = l->next) {
@@ -216,7 +485,9 @@ static void CellText(ExportPage& p, int row, int col, str::Builder& text) {
             for (auto* c = l->first_char; c; c = c->next) {
                 fz_rect r = fz_rect_from_quad(c->quad);
                 float x = (r.x0 + r.x1) / 2, y = (r.y0 + r.y1) / 2;
-                if (x < p.xs[col] || x >= p.xs[col + 1] || y < p.ys[row] || y >= p.ys[row + 1]) continue;
+                if (x < table.xs[cell.col] || x >= table.xs[cell.col + cell.colSpan] || y < table.ys[cell.row] ||
+                    y >= table.ys[cell.row + cell.rowSpan])
+                    continue;
                 if (!started && len(text)) text.AppendChar(' ');
                 started = true;
                 Rune(text, c->c);
@@ -250,7 +521,96 @@ static bool IsList(Str text) {
            (len(text) > 2 && text.s[0] >= '0' && text.s[0] <= '9' && text.s[1] == '.');
 }
 
-static bool LoadExport(ExportDoc& d, Str source, Str range, ConversionProgress& progress) {
+static int OcrWordCmp(const void* a, const void* b) {
+    auto* x = (const OcrExportWord*)a;
+    auto* y = (const OcrExportWord*)b;
+    float ax = x->box.y + x->box.dy / 2, ay = y->box.y + y->box.dy / 2;
+    return ax < ay ? -1 : ax > ay ? 1 : x->box.x < y->box.x ? -1 : x->box.x > y->box.x;
+}
+static void* OcrAlloc(ExportPage& p, size_t size) {
+    void* allocation = calloc(1, size);
+    if (!allocation) fz_throw(p.ctx, FZ_ERROR_GENERIC, "Cannot allocate OCR text.");
+    VecAppend(p.ocrAllocs, allocation);
+    return allocation;
+}
+static fz_stext_char* OcrChar(ExportPage& p, int rune, fz_rect box, float size) {
+    auto* c = (fz_stext_char*)OcrAlloc(p, sizeof(fz_stext_char));
+    c->c = rune;
+    c->flags = FZ_STEXT_FILLED | FZ_STEXT_SYNTHETIC;
+    c->argb = 0xff000000;
+    c->origin = {box.x0, box.y1};
+    c->quad = fz_quad_from_rect(box);
+    c->size = size;
+    return c;
+}
+static void AppendOcrBlock(ExportPage& p, fz_stext_block* b, fz_stext_line* line) {
+    b->type = FZ_STEXT_BLOCK_TEXT;
+    b->bbox = fz_empty_rect;
+    b->u.t.first_line = b->u.t.last_line = line;
+    line->dir = {1, 0};
+    line->bbox = fz_empty_rect;
+    b->prev = p.text->last_block;
+    if (p.text->last_block)
+        p.text->last_block->next = b;
+    else
+        p.text->first_block = b;
+    p.text->last_block = b;
+    VecAppend(p.blocks, b);
+}
+static void AppendOcrText(ExportPage& p, Vec<OcrExportWord>& words) {
+    qsort(words.els, len(words), sizeof(OcrExportWord), OcrWordCmp);
+    fz_stext_block* block = nullptr;
+    fz_stext_line* line = nullptr;
+    float lineY = 0;
+    for (auto& word : words) {
+        fz_rect box{word.box.x, word.box.y, word.box.x + word.box.dx, word.box.y + word.box.dy};
+        float size = std::max(4.f, word.box.dy * 0.8f);
+        if (!block || fabsf(word.box.y + word.box.dy / 2 - lineY) > size * 0.6f) {
+            block = (fz_stext_block*)OcrAlloc(p, sizeof(fz_stext_block));
+            line = (fz_stext_line*)OcrAlloc(p, sizeof(fz_stext_line));
+            AppendOcrBlock(p, block, line);
+            lineY = word.box.y + word.box.dy / 2;
+        } else {
+            fz_rect gap{line->bbox.x1, box.y0, box.x0, box.y1};
+            auto* space = OcrChar(p, ' ', gap, size);
+            line->last_char->next = space;
+            line->last_char = space;
+        }
+        int count = 0, glyphs = 0;
+        for (int i = 0; i < len(word.text);) {
+            int rune, n = fz_chartorune(&rune, word.text.s + i);
+            i += n;
+            glyphs++;
+        }
+        for (int i = 0; i < len(word.text);) {
+            int rune, n = fz_chartorune(&rune, word.text.s + i);
+            i += n;
+            fz_rect glyph{box.x0 + (box.x1 - box.x0) * count / glyphs, box.y0, 0, box.y1};
+            count++;
+            glyph.x1 = box.x0 + (box.x1 - box.x0) * count / glyphs;
+            auto* c = OcrChar(p, rune, glyph, size);
+            if (line->last_char)
+                line->last_char->next = c;
+            else
+                line->first_char = c;
+            line->last_char = c;
+            line->bbox = fz_union_rect(line->bbox, glyph);
+        }
+        block->bbox = fz_union_rect(block->bbox, line->bbox);
+        str::Free(word.text);
+    }
+}
+static bool NeedsOcr(ExportPage& p) {
+    bool image = false;
+    for (auto* b : p.blocks) {
+        image |= b->type == FZ_STEXT_BLOCK_IMAGE;
+        if (b->type != FZ_STEXT_BLOCK_TEXT) continue;
+        for (auto* line = b->u.t.first_line; line; line = line->next)
+            if (line->first_char) return false;
+    }
+    return image;
+}
+static bool LoadExport(ExportDoc& d, Str source, Str range, bool ocrFirst, ConversionProgress& progress) {
     if (!d.ctx) return Fail(progress, StrL("Cannot allocate PDF context."));
     bool ok = false;
     Vec<int> selected;
@@ -276,7 +636,14 @@ static bool LoadExport(ExportDoc& d, Str source, Str range, ConversionProgress& 
             p->text = fz_new_stext_page_from_page(d.ctx, p->page, &opts);
             p->links = fz_load_links(d.ctx, p->page);
             CollectBlocks(*p, p->text->first_block);
-            FindGrid(*p);
+            if (ocrFirst && NeedsOcr(*p)) {
+                Vec<OcrExportWord> words;
+                if (!OcrExportPage(d.ctx, p->page, words))
+                    fz_throw(d.ctx, FZ_ERROR_GENERIC,
+                             "OCR is required for this scanned page. Install a Windows OCR language pack and retry.");
+                AppendOcrText(*p, words);
+            }
+            AnalyzePage(*p);
         }
         ok = true;
     }
@@ -347,6 +714,130 @@ static void WordParagraph(str::Builder& xml, Str text, int heading = 0, int link
     if (link) xml.Append(StrL("</w:hyperlink>"));
     xml.Append(StrL("</w:p>"));
 }
+static Str FontName(fz_context* ctx, fz_stext_char* c) {
+    if (!c->font) return {};
+    Str name(fz_font_name(ctx, c->font));
+    for (int i = 0; i < len(name); i++) {
+        if (name.s[i] != '+') continue;
+        name = Str(name.s + i + 1, len(name) - i - 1);
+        break;
+    }
+    return name;
+}
+static bool SameStyle(fz_context* ctx, fz_stext_char* a, fz_stext_char* b) {
+    if (!a || !b) return false;
+    return a->size == b->size && a->argb == b->argb && a->flags == b->flags &&
+           str::Eq(FontName(ctx, a), FontName(ctx, b));
+}
+static void WordStyle(str::Builder& xml, fz_context* ctx, fz_stext_char* c, int heading) {
+    Str font = FontName(ctx, c);
+    bool bold = heading || (c->flags & FZ_STEXT_BOLD) || (c->font && fz_font_is_bold(ctx, c->font));
+    bool italic = c->font && fz_font_is_italic(ctx, c->font);
+    int size = (int)(c->size * 2 + 0.5f);
+    xml.Append(StrL("<w:rPr>"));
+    if (len(font)) {
+        xml.Append(StrL("<w:rFonts w:ascii=\""));
+        Xml(xml, font);
+        xml.Append(StrL("\" w:hAnsi=\""));
+        Xml(xml, font);
+        xml.Append(StrL("\" w:cs=\""));
+        Xml(xml, font);
+        xml.Append(StrL("\"/>"));
+    }
+    if (bold) xml.Append(StrL("<w:b/>"));
+    if (italic) xml.Append(StrL("<w:i/>"));
+    if (c->flags & FZ_STEXT_UNDERLINE) xml.Append(StrL("<w:u w:val=\"single\"/>"));
+    if (c->flags & FZ_STEXT_STRIKEOUT) xml.Append(StrL("<w:strike/>"));
+    xml.Append(fmt("<w:color w:val=\"%06X\"/><w:sz w:val=\"%d\"/><w:szCs w:val=\"%d\"/></w:rPr>", c->argb & 0xffffff,
+                   size, size));
+}
+static void WordRun(str::Builder& xml, fz_context* ctx, fz_stext_char* style, Str text, int heading) {
+    if (!len(text)) return;
+    xml.Append(StrL("<w:r>"));
+    WordStyle(xml, ctx, style, heading);
+    xml.Append(StrL("<w:t xml:space=\"preserve\">"));
+    Xml(xml, text);
+    xml.Append(StrL("</w:t></w:r>"));
+}
+static void WordBlockParagraph(str::Builder& xml, fz_context* ctx, fz_stext_block* b, Str plain, int heading,
+                               int link) {
+    xml.Append(StrL("<w:p>"));
+    if (heading)
+        xml.Append(fmt("<w:pPr><w:outlineLvl w:val=\"%d\"/></w:pPr>", heading - 1));
+    else if (IsList(plain))
+        xml.Append(StrL("<w:pPr><w:ind w:left=\"360\" w:hanging=\"180\"/></w:pPr>"));
+    if (link) xml.Append(fmt("<w:hyperlink r:id=\"rId%d\">", link));
+    str::Builder run;
+    fz_stext_char* style = nullptr;
+    for (auto* line = b->u.t.first_line; line; line = line->next) {
+        if (line != b->u.t.first_line) {
+            WordRun(xml, ctx, style, ToStr(run), heading);
+            VecReset(run);
+            style = nullptr;
+            xml.Append(StrL("<w:r><w:br/></w:r>"));
+        }
+        for (auto* c = line->first_char; c; c = c->next) {
+            if (!SameStyle(ctx, style, c)) {
+                WordRun(xml, ctx, style, ToStr(run), heading);
+                VecReset(run);
+                style = c;
+            }
+            Rune(run, c->c);
+        }
+    }
+    WordRun(xml, ctx, style, ToStr(run), heading);
+    if (link) xml.Append(StrL("</w:hyperlink>"));
+    xml.Append(StrL("</w:p>"));
+}
+static ExportCell* CellAt(ExportTable& table, int row, int col) {
+    for (auto& cell : table.cells)
+        if (cell.row == row && cell.col == col) return &cell;
+    return nullptr;
+}
+static ExportCell* VerticalMergeAt(ExportTable& table, int row, int col) {
+    for (auto& cell : table.cells)
+        if (cell.col == col && cell.row < row && cell.row + cell.rowSpan > row) return &cell;
+    return nullptr;
+}
+static void WordCellProperties(str::Builder& xml, ExportCell& cell, bool continuation) {
+    xml.Append(StrL("<w:tcPr>"));
+    if (cell.colSpan > 1) xml.Append(fmt("<w:gridSpan w:val=\"%d\"/>", cell.colSpan));
+    if (cell.rowSpan > 1) xml.Append(continuation ? StrL("<w:vMerge/>") : StrL("<w:vMerge w:val=\"restart\"/>"));
+    xml.Append(StrL("</w:tcPr>"));
+}
+static void WordTable(str::Builder& xml, ExportPage& page, ExportTable& table) {
+    xml.Append(StrL("<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/>"));
+    if (table.bordered)
+        xml.Append(
+            StrL("<w:tblBorders><w:top w:val=\"single\"/><w:left w:val=\"single\"/><w:bottom "
+                 "w:val=\"single\"/><w:right w:val=\"single\"/><w:insideH w:val=\"single\"/><w:insideV "
+                 "w:val=\"single\"/></w:tblBorders>"));
+    xml.Append(StrL("</w:tblPr><w:tblGrid>"));
+    for (int c = 0; c + 1 < len(table.xs); c++)
+        xml.Append(fmt("<w:gridCol w:w=\"%d\"/>", (int)((table.xs[c + 1] - table.xs[c]) * 20)));
+    xml.Append(StrL("</w:tblGrid>"));
+    for (int r = 0; r + 1 < len(table.ys); r++) {
+        xml.Append(StrL("<w:tr>"));
+        for (int c = 0; c + 1 < len(table.xs); c++) {
+            ExportCell* cell = CellAt(table, r, c);
+            ExportCell* continuation = cell ? nullptr : VerticalMergeAt(table, r, c);
+            if (!cell && !continuation) continue;
+            ExportCell& current = cell ? *cell : *continuation;
+            xml.Append(StrL("<w:tc>"));
+            WordCellProperties(xml, current, continuation != nullptr);
+            if (cell) {
+                str::Builder text;
+                CellText(page, table, *cell, text);
+                WordParagraph(xml, ToStr(text));
+            } else
+                xml.Append(StrL("<w:p/>"));
+            xml.Append(StrL("</w:tc>"));
+            c += current.colSpan - 1;
+        }
+        xml.Append(StrL("</w:tr>"));
+    }
+    xml.Append(StrL("</w:tbl>"));
+}
 static bool WriteDocx(ExportDoc& d, ZipCreator& zip, ConversionProgress& p) {
     str::Builder xml, rels, types, root;
     xml.Append(fmt("<?xml version=\"1.0\" encoding=\"UTF-8\"?><w:document %s><w:body>", kWordNs));
@@ -358,14 +849,19 @@ static bool WriteDocx(ExportDoc& d, ZipCreator& zip, ConversionProgress& p) {
     for (auto* page : d.pages) {
         if (Cancelled(p)) return false;
         if (page != d.pages[0]) xml.Append(StrL("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>"));
-        for (auto* b : page->blocks) {
-            if (b->type == FZ_STEXT_BLOCK_TEXT && !InGrid(*page, b->bbox)) {
+        for (auto& item : page->items) {
+            if (item.table) {
+                WordTable(xml, *page, *item.table);
+                continue;
+            }
+            auto* b = item.block;
+            if (b->type == FZ_STEXT_BLOCK_TEXT) {
                 str::Builder text;
                 BlockText(b, text);
                 Str link = LinkFor(*page, b->bbox);
                 int linkId = len(link) ? id++ : 0;
                 if (linkId) Relationship(rels, linkId, StrL("hyperlink"), link, true);
-                WordParagraph(xml, ToStr(text), Heading(*page, b), linkId);
+                WordBlockParagraph(xml, d.ctx, b, ToStr(text), Heading(*page, b), linkId);
             } else if (b->type == FZ_STEXT_BLOCK_IMAGE) {
                 Str data = ImagePng(d.ctx, b->u.i.image);
                 if (!len(data)) return false;
@@ -394,27 +890,6 @@ static bool WriteDocx(ExportDoc& d, ZipCreator& zip, ConversionProgress& p) {
                 imageId++;
             }
         }
-        if (len(page->xs)) {
-            xml.Append(StrL(
-                "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders><w:top w:val=\"single\"/><w:left "
-                "w:val=\"single\"/><w:bottom w:val=\"single\"/><w:right w:val=\"single\"/><w:insideH "
-                "w:val=\"single\"/><w:insideV w:val=\"single\"/></w:tblBorders></w:tblPr><w:tblGrid>"));
-            for (int c = 0; c + 1 < len(page->xs); c++)
-                xml.Append(fmt("<w:gridCol w:w=\"%d\"/>", (int)((page->xs[c + 1] - page->xs[c]) * 20)));
-            xml.Append(StrL("</w:tblGrid>"));
-            for (int r = 0; r + 1 < len(page->ys); r++) {
-                xml.Append(StrL("<w:tr>"));
-                for (int c = 0; c + 1 < len(page->xs); c++) {
-                    str::Builder text;
-                    CellText(*page, r, c, text);
-                    xml.Append(StrL("<w:tc>"));
-                    WordParagraph(xml, ToStr(text));
-                    xml.Append(StrL("</w:tc>"));
-                }
-                xml.Append(StrL("</w:tr>"));
-            }
-            xml.Append(StrL("</w:tbl>"));
-        }
         InterlockedIncrement(&p.completed);
     }
     xml.Append(
@@ -429,16 +904,34 @@ static bool WriteDocx(ExportDoc& d, ZipCreator& zip, ConversionProgress& p) {
            Part(zip, StrL("_rels/.rels"), root) && Part(zip, StrL("[Content_Types].xml"), types) && ok;
 }
 
-static void SheetCell(str::Builder& xml, int row, int col, Str text) {
+static void SheetRef(str::Builder& xml, int row, int col) {
     char name[10];
     int n = 0;
     do {
         name[n++] = 'A' + col % 26;
         col = col / 26 - 1;
     } while (col >= 0);
-    xml.Append(StrL("<c r=\""));
     while (n) xml.AppendChar(name[--n]);
-    xml.Append(fmt("%d\" t=\"inlineStr\"><is><t xml:space=\"preserve\">", row));
+    xml.Append(fmt("%d", row));
+}
+static bool Number(Str text, double& value) {
+    const char* start = CStrTemp(text);
+    if (!*start) return false;
+    char* end = nullptr;
+    value = strtod(start, &end);
+    if (end == start || !_finite(value)) return false;
+    while (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n') end++;
+    return !*end;
+}
+static void SheetCell(str::Builder& xml, int row, int col, Str text) {
+    xml.Append(StrL("<c r=\""));
+    SheetRef(xml, row, col);
+    double number;
+    if (Number(text, number)) {
+        xml.Append(fmt("\"><v>%g</v></c>", number));
+        return;
+    }
+    xml.Append(StrL("\" t=\"inlineStr\"><is><t xml:space=\"preserve\">"));
     Xml(xml, text);
     xml.Append(StrL("</t></is></c>"));
 }
@@ -456,22 +949,36 @@ static bool WriteXlsx(ExportDoc& d, ZipCreator& zip, ConversionProgress& p) {
         book.Append(fmt("<sheet name=\"Page %d\" sheetId=\"%d\" r:id=\"rId%d\"/>", page->number, sheet, sheet));
         Relationship(rels, sheet, StrL("worksheet"), fmt("worksheets/sheet%d.xml", sheet));
         ContentType(types, fmt("xl/worksheets/sheet%d.xml", sheet), StrL("spreadsheetml.worksheet"));
-        str::Builder xml;
+        str::Builder xml, merges;
         xml.Append(fmt("<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet %s><sheetData>", kSheetNs));
-        int row = 0;
-        if (len(page->xs)) {
-            for (int r = 0; r + 1 < len(page->ys); r++) {
-                xml.Append(fmt("<row r=\"%d\">", ++row));
-                for (int c = 0; c + 1 < len(page->xs); c++) {
-                    str::Builder text;
-                    CellText(*page, r, c, text);
-                    SheetCell(xml, row, c, ToStr(text));
+        int row = 0, mergeCount = 0;
+        for (auto& item : page->items) {
+            if (item.table) {
+                auto& table = *item.table;
+                int firstRow = row + 1;
+                for (int r = 0; r + 1 < len(table.ys); r++) {
+                    xml.Append(fmt("<row r=\"%d\">", ++row));
+                    for (auto& cell : table.cells) {
+                        if (cell.row != r) continue;
+                        str::Builder text;
+                        CellText(*page, table, cell, text);
+                        SheetCell(xml, row, cell.col, ToStr(text));
+                        if (cell.rowSpan > 1 || cell.colSpan > 1) {
+                            merges.Append(StrL("<mergeCell ref=\""));
+                            SheetRef(merges, firstRow + cell.row, cell.col);
+                            merges.AppendChar(':');
+                            SheetRef(merges, firstRow + cell.row + cell.rowSpan - 1, cell.col + cell.colSpan - 1);
+                            merges.Append(StrL("\"/>"));
+                            mergeCount++;
+                        }
+                    }
+                    xml.Append(StrL("</row>"));
                 }
-                xml.Append(StrL("</row>"));
+                row++;
+                continue;
             }
-        }
-        for (auto* b : page->blocks) {
-            if (b->type != FZ_STEXT_BLOCK_TEXT || InGrid(*page, b->bbox)) continue;
+            auto* b = item.block;
+            if (b->type != FZ_STEXT_BLOCK_TEXT) continue;
             for (auto* l = b->u.t.first_line; l; l = l->next) {
                 str::Builder text;
                 for (auto* c = l->first_char; c; c = c->next) Rune(text, c->c);
@@ -480,7 +987,13 @@ static bool WriteXlsx(ExportDoc& d, ZipCreator& zip, ConversionProgress& p) {
                 xml.Append(StrL("</row>"));
             }
         }
-        xml.Append(StrL("</sheetData></worksheet>"));
+        xml.Append(StrL("</sheetData>"));
+        if (mergeCount) {
+            xml.Append(fmt("<mergeCells count=\"%d\">", mergeCount));
+            xml.Append(ToStr(merges));
+            xml.Append(StrL("</mergeCells>"));
+        }
+        xml.Append(StrL("</worksheet>"));
         ok = Part(zip, fmt("xl/worksheets/sheet%d.xml", sheet), xml) && ok;
         InterlockedIncrement(&p.completed);
     }
@@ -530,6 +1043,27 @@ static void SlideTheme(str::Builder& theme) {
     theme.Append(StrL("</a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>"));
 }
 
+static void SlideRun(str::Builder& xml, fz_context* ctx, fz_stext_char* c, Str text, float sy, int link) {
+    if (!len(text)) return;
+    int size = (int)(c->size * sy / 127);
+    size = size < 100 ? 100 : size > 400000 ? 400000 : size;
+    bool bold = (c->flags & FZ_STEXT_BOLD) || (c->font && fz_font_is_bold(ctx, c->font));
+    bool italic = c->font && fz_font_is_italic(ctx, c->font);
+    xml.Append(fmt("<a:r><a:rPr lang=\"en-US\" sz=\"%d\" b=\"%d\" i=\"%d\"", size, bold, italic));
+    if (c->flags & FZ_STEXT_UNDERLINE) xml.Append(StrL(" u=\"sng\""));
+    if (c->flags & FZ_STEXT_STRIKEOUT) xml.Append(StrL(" strike=\"sngStrike\""));
+    xml.Append(fmt("><a:solidFill><a:srgbClr val=\"%06X\"/></a:solidFill>", c->argb & 0xffffff));
+    Str font = FontName(ctx, c);
+    if (len(font)) {
+        xml.Append(StrL("<a:latin typeface=\""));
+        Xml(xml, font);
+        xml.Append(StrL("\"/>"));
+    }
+    if (link) xml.Append(fmt("<a:hlinkClick r:id=\"rId%d\"/>", link));
+    xml.Append(StrL("</a:rPr><a:t>"));
+    Xml(xml, text);
+    xml.Append(StrL("</a:t></a:r>"));
+}
 static bool WritePptx(ExportDoc& d, ZipCreator& zip, ConversionProgress& p) {
     str::Builder pres, rels, root, types;
     pres.Append(
@@ -570,15 +1104,19 @@ static bool WritePptx(ExportDoc& d, ZipCreator& zip, ConversionProgress& p) {
                          "wrap=\"none\" lIns=\"0\" tIns=\"0\" rIns=\"0\" "
                          "bIns=\"0\"><a:spAutoFit/></a:bodyPr><a:lstStyle/>"));
                 for (auto* l = b->u.t.first_line; l; l = l->next) {
-                    str::Builder text;
-                    for (auto* c = l->first_char; c; c = c->next) Rune(text, c->c);
-                    int size = (int)((l->first_char ? l->first_char->size : 12) * sy / 127);
-                    size = size < 100 ? 100 : size > 400000 ? 400000 : size;
-                    xml.Append(fmt("<a:p><a:r><a:rPr lang=\"en-US\" sz=\"%d\">", size));
-                    if (len(link)) xml.Append(fmt("<a:hlinkClick r:id=\"rId%d\"/>", id));
-                    xml.Append(StrL("</a:rPr><a:t>"));
-                    Xml(xml, ToStr(text));
-                    xml.Append(StrL("</a:t></a:r></a:p>"));
+                    xml.Append(StrL("<a:p>"));
+                    str::Builder run;
+                    fz_stext_char* style = nullptr;
+                    for (auto* c = l->first_char; c; c = c->next) {
+                        if (!SameStyle(d.ctx, style, c)) {
+                            SlideRun(xml, d.ctx, style, ToStr(run), sy, len(link) ? id : 0);
+                            VecReset(run);
+                            style = c;
+                        }
+                        Rune(run, c->c);
+                    }
+                    SlideRun(xml, d.ctx, style, ToStr(run), sy, len(link) ? id : 0);
+                    xml.Append(StrL("</a:p>"));
                 }
                 xml.Append(StrL("</p:txBody></p:sp>"));
                 id++;
@@ -720,7 +1258,7 @@ static bool WriteTextFormats(ExportDoc& d, ExportFormat format, str::Builder& ou
                 continue;
             }
             if (b->type != FZ_STEXT_BLOCK_TEXT) continue;
-            if ((html || md) && InGrid(*page, b->bbox)) continue;
+            if ((html || md) && InTable(*page, b->bbox)) continue;
             str::Builder text;
             BlockText(b, text);
             Str s = ToStr(text), link = LinkFor(*page, b->bbox);
@@ -807,30 +1345,36 @@ static bool WriteTextFormats(ExportDoc& d, ExportFormat format, str::Builder& ou
                 out.AppendChar('\n');
             }
         }
-        if ((html || md) && len(page->xs)) {
-            if (html) out.Append(StrL("<table>"));
-            for (int r = 0; r + 1 < len(page->ys); r++) {
-                out.Append(html ? StrL("<tr>") : StrL("|"));
-                for (int c = 0; c + 1 < len(page->xs); c++) {
-                    str::Builder cell;
-                    CellText(*page, r, c, cell);
-                    if (html) {
-                        out.Append(StrL("<td>"));
-                        Xml(out, ToStr(cell));
-                        out.Append(StrL("</td>"));
-                    } else {
-                        MarkdownText(out, ToStr(cell));
+        if (html || md) {
+            for (auto* table : page->tables) {
+                if (html) out.Append(StrL("<table>"));
+                for (int r = 0; r + 1 < len(table->ys); r++) {
+                    out.Append(html ? StrL("<tr>") : StrL("|"));
+                    for (auto& cell : table->cells) {
+                        if (cell.row != r) continue;
+                        str::Builder text;
+                        CellText(*page, *table, cell, text);
+                        if (html) {
+                            out.Append(StrL("<td"));
+                            if (cell.colSpan > 1) out.Append(fmt(" colspan=\"%d\"", cell.colSpan));
+                            if (cell.rowSpan > 1) out.Append(fmt(" rowspan=\"%d\"", cell.rowSpan));
+                            out.AppendChar('>');
+                            Xml(out, ToStr(text));
+                            out.Append(StrL("</td>"));
+                        } else {
+                            MarkdownText(out, ToStr(text));
+                            out.AppendChar('|');
+                        }
+                    }
+                    out.Append(html ? StrL("</tr>") : StrL("\n"));
+                    if (md && r == 0) {
                         out.AppendChar('|');
+                        for (int c = 0; c + 1 < len(table->xs); c++) out.Append(StrL("---|"));
+                        out.AppendChar('\n');
                     }
                 }
-                out.Append(html ? StrL("</tr>") : StrL("\n"));
-                if (md && r == 0) {
-                    out.AppendChar('|');
-                    for (int c = 0; c + 1 < len(page->xs); c++) out.Append(StrL("---|"));
-                    out.AppendChar('\n');
-                }
+                if (html) out.Append(StrL("</table>"));
             }
-            if (html) out.Append(StrL("</table>"));
         }
         if (json) out.Append(StrL("]}"));
         if (html) out.Append(StrL("</section>"));
@@ -884,7 +1428,7 @@ bool ExportPdf(Str source, Str destination, ExportFormat format, Str pages, Conv
     if (path::IsSame(source, destination))
         return Fail(progress, StrL("Choose a destination different from the source."));
     ExportDoc doc;
-    if (!LoadExport(doc, source, pages, progress)) return false;
+    if (!LoadExport(doc, source, pages, format != ExportFormat::Svg, progress)) return false;
     file::AtomicFile output(destination);
     if (!len(output.tempPath)) return Fail(progress, StrL("Cannot create destination file."));
     bool ok = false;
@@ -1372,6 +1916,38 @@ bool CreateClipboardPdf(HWND, Str destination, ConversionProgress& p) {
 #if IS_DEBUG
 #include "base/tests/UtAssert.h"
 
+static Str ReadExportPart(Str path, Str part) {
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    fz_archive* zip = nullptr;
+    fz_buffer* data = nullptr;
+    Str result;
+    fz_var(zip);
+    fz_var(data);
+    fz_try(ctx) {
+        zip = fz_open_archive(ctx, CStrTemp(path));
+        data = fz_read_archive_entry(ctx, zip, CStrTemp(part));
+        unsigned char* bytes;
+        size_t n = fz_buffer_storage(ctx, data, &bytes);
+        result = str::Dup(Str((char*)bytes, (int)n));
+    }
+    fz_always(ctx) {
+        fz_drop_buffer(ctx, data);
+        fz_drop_archive(ctx, zip);
+    }
+    fz_catch(ctx) {
+    }
+    fz_drop_context(ctx);
+    return result;
+}
+static int CountNeedle(Str text, Str needle) {
+    int count = 0;
+    for (int i = 0; i + len(needle) <= len(text); i++) {
+        if (memcmp(text.s + i, needle.s, len(needle))) continue;
+        count++;
+        i += len(needle) - 1;
+    }
+    return count;
+}
 static bool CheckExportPart(Str path, Str part, Str needle, Str forbidden = {}) {
     fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
     fz_archive* zip = nullptr;
@@ -1454,6 +2030,48 @@ void ExportFormatsUnitTests() {
                 utassert(str::Contains(text, StrL("\"characters\"")));
             }
             str::Free(text);
+        }
+    }
+    Str reconstruction = path::JoinTemp(GetSelfExeDirTemp(), StrL("../../docs/test/export-reconstruction.pdf"));
+    utassert(file::Exists(reconstruction));
+    if (file::Exists(reconstruction)) {
+        const char* office[] = {"docx", "pptx", "xlsx"};
+        for (int i = 0; i < dimof(office); i++) {
+            ConversionProgress p;
+            Str output = path::JoinTemp(tmp.folder, fmt("reconstruction.%s", Str(office[i])));
+            utassert(ExportPdf(reconstruction, output, (ExportFormat)i, StrL("1"), p));
+            if (i == 0) {
+                Str text = ReadExportPart(output, StrL("word/document.xml"));
+                utassert(CountNeedle(text, StrL("<w:tbl>")) == 3);
+                utassert(str::Contains(text, StrL("<w:gridSpan w:val=\"3\"/>")));
+                utassert(str::Contains(text, StrL("<w:gridSpan w:val=\"2\"/>")));
+                utassert(str::Contains(text, StrL("Gamma")));
+                utassert(str::Contains(text, StrL("Helvetica-Bold")));
+                utassert(str::Contains(text, StrL("<w:i/>")));
+                utassert(str::Contains(text, StrL("<w:color w:val=\"FF0000\"/>")));
+                int leftOne = text.Find(StrL("Left one"));
+                int leftTwo = text.Find(StrL("Left two"));
+                int rightOne = text.Find(StrL("Right one"));
+                utassert(leftOne >= 0 && leftOne < leftTwo && leftTwo < rightOne);
+                str::Free(text);
+                utassert(CheckExportPart(output, StrL("[Content_Types].xml"), StrL("wordprocessingml.document.main")));
+                utassert(CheckExportPart(output, StrL("_rels/.rels"), StrL("word/document.xml")));
+            } else if (i == 1) {
+                utassert(CheckExportPart(output, StrL("ppt/slides/slide1.xml"), StrL("Helvetica-Oblique")));
+                utassert(CheckExportPart(output, StrL("ppt/slides/slide1.xml"), StrL("b=\"1\"")));
+                utassert(CheckExportPart(output, StrL("ppt/slides/slide1.xml"), StrL("FF0000")));
+            } else {
+                Str text = ReadExportPart(output, StrL("xl/worksheets/sheet1.xml"));
+                utassert(str::Contains(text, StrL("<v>42</v>")));
+                utassert(str::Contains(text, StrL("<v>12.5</v>")));
+                utassert(str::Contains(text, StrL("=1+1")));
+                utassert(!str::Contains(text, StrL("<f>")));
+                utassert(str::Contains(text, StrL("<mergeCell ref=")));
+                utassert(str::Contains(text, StrL("Gamma")));
+                str::Free(text);
+                utassert(CheckExportPart(output, StrL("[Content_Types].xml"), StrL("spreadsheetml.sheet.main")));
+                utassert(CheckExportPart(output, StrL("_rels/.rels"), StrL("xl/workbook.xml")));
+            }
         }
     }
     Str dest = path::JoinTemp(tmp.folder, StrL("protected.txt"));

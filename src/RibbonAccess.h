@@ -9,7 +9,9 @@ struct RibbonAccessible : IAccessible {
     VirtHost* instance;
     explicit RibbonAccessible(HWND h) : hwnd(h), instance((VirtHost*)GetWindowLongPtrW(h, GWLP_USERDATA)) {}
     VirtHost* Host() {
-        return !hwnd ? instance : (IsWindow(hwnd) && GetWindowLongPtrW(hwnd, GWLP_USERDATA) == (LONG_PTR)instance ? instance : nullptr);
+        return !hwnd ? instance
+                     : (IsWindow(hwnd) && GetWindowLongPtrW(hwnd, GWLP_USERDATA) == (LONG_PTR)instance ? instance
+                                                                                                       : nullptr);
     }
     static void Collect(ILayout* layout, Vec<VirtCtrl*>& out) {
         if (!layout || IsCollapsed(layout)) return;

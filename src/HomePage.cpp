@@ -158,7 +158,9 @@ static void CollectTipsFromString(Str src, StrVec* out) {
 // the markup of the tip currently on show, {} when there is none
 static Str SelectedTipLine() {
     if (gSettings && !gSettings->quickTourDismissed) {
-        return Tr("Quick tour: 1. Open a document. 2. Search recent files. 3. Browse tools by category. 4. Star your favorites. Double-click this card to dismiss.");
+        return Tr(
+            "Quick tour: 1. Open a document. 2. Search recent files. 3. Browse tools by category. 4. Star your "
+            "favorites. Double-click this card to dismiss.");
     }
     if (!gSettings->showTips || gSelectedTipIdx < 0) {
         return {};

@@ -2,23 +2,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlCommand } from "./control.ts";
 import { assemblePdf, pollUntil, runStandalone, SETTINGS_FILE_NAME, tmpPath } from "./util.ts";
-import {
-  clickAt,
-  findChildByClass,
-  killAndWait,
-  launchControlled,
-} from "./win-automation.ts";
-import {
-  moveWindow,
-  sendText,
-  setProcessDpiAware,
-} from "./winapi.ts";
-import {
-  TOOLS_PANEL_CLASS,
-  panelRows,
-  selectToolTab,
-  toolsDump,
-} from "./contextual-panel.ts";
+import { clickAt, findChildByClass, killAndWait, launchControlled } from "./win-automation.ts";
+import { moveWindow, sendText, setProcessDpiAware } from "./winapi.ts";
+import { TOOLS_PANEL_CLASS, panelRows, selectToolTab, toolsDump } from "./contextual-panel.ts";
 
 export * from "./contextual-panel.ts";
 
@@ -56,7 +42,11 @@ export async function testit(): Promise<void> {
     const raw = await selectToolTab(client, frame, 0);
     const rows = panelRows(raw);
     want(rows.length > 0, "Tools panel must have rows", raw);
-    want(rows.every((r) => r.tip.length > 0), "Every tool row must have a tooltip", raw);
+    want(
+      rows.every((r) => r.tip.length > 0),
+      "Every tool row must have a tooltip",
+      raw,
+    );
     const categories = new Set(rows.map((r) => r.category));
     want(categories.has("Recommended"), "Tools panel must include Recommended category", raw);
     want(categories.has("Export"), "Tools panel must include Export category", raw);

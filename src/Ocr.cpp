@@ -12,6 +12,7 @@
 #include <robuffer.h>
 #include <windows.media.ocr.h>
 #include <shlobj.h>
+#include <mupdf/pdf.h>
 #include "gui/Dpi.h"
 #include "gui/UIModels.h"
 #include "gui/Layout.h"
@@ -219,6 +220,56 @@ struct OcrReader {
         return S_OK;
     }
 };
+
+bool OcrExportPage(fz_context* ctx, fz_page* page, Vec<OcrExportWord>& words) {
+    OcrReader reader;
+    if (FAILED(reader.Open())) return false;
+    fz_rect bounds = fz_bound_page(ctx, page);
+    float scale = std::min(2.5f, (reader.maxDimension - 1) / std::max(bounds.x1 - bounds.x0, bounds.y1 - bounds.y0));
+    if (scale <= 0) return false;
+    fz_pixmap* rendered = nullptr;
+    Pixmap* pixels = nullptr;
+    bool ok = false;
+    fz_var(rendered);
+    fz_var(pixels);
+    fz_try(ctx) {
+        rendered = fz_new_pixmap_from_page(ctx, page, fz_scale(scale, scale), fz_device_rgb(ctx), 0);
+        pixels = AllocPixmap(rendered->w, rendered->h);
+        if (!pixels) fz_throw(ctx, FZ_ERROR_GENERIC, "Cannot allocate OCR pixels.");
+        const u8* source = fz_pixmap_samples(ctx, rendered);
+        for (int y = 0; y < pixels->height; y++) {
+            const u8* src = source + (size_t)y * rendered->stride;
+            u8* dst = pixels->data + (size_t)y * pixels->stride;
+            for (int x = 0; x < pixels->width; x++) {
+                dst[x * 4] = src[x * 3];
+                dst[x * 4 + 1] = src[x * 3 + 1];
+                dst[x * 4 + 2] = src[x * 3 + 2];
+                dst[x * 4 + 3] = 255;
+            }
+        }
+        str::Builder text;
+        Vec<PdfOcrWord> recognized;
+        HRESULT hr = reader.Recognize(pixels, nullptr, text, recognized);
+        if (FAILED(hr)) {
+            for (auto& word : recognized) str::Free(word.text);
+            fz_throw(ctx, FZ_ERROR_GENERIC, "OCR recognition failed.");
+        }
+        for (auto& word : recognized) {
+            RectF box = word.box;
+            OcrExportWord item{word.text, {box.x / scale, box.y / scale, box.dx / scale, box.dy / scale}};
+            VecAppend(words, item);
+        }
+        ok = true;
+    }
+    fz_always(ctx) {
+        FreePixmap(pixels);
+        fz_drop_pixmap(ctx, rendered);
+    }
+    fz_catch(ctx) {
+        ok = false;
+    }
+    return ok;
+}
 
 static float OcrZoom(RectF page, float dpi, UINT32 maxDimension) {
     float side = std::max(page.dx, page.dy);

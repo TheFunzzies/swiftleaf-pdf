@@ -11063,7 +11063,8 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
             Str error;
             ok = EngineMupdfReplaceText(copy, pageNo, runs[n], replacements[n], removed, &error);
             for (Annotation* a : removed) delete a;
-            if (!ok && errorOut && (!progress || !progress->IsCancelled())) *errorOut = fmt("Page %d: %s", pageNo, error);
+            if (!ok && errorOut && (!progress || !progress->IsCancelled()))
+                *errorOut = fmt("Page %d: %s", pageNo, error);
         }
         for (PdfTextRun& run : runs) str::Free(run.text);
         if (!ok) break;

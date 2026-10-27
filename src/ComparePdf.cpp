@@ -743,8 +743,9 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
                 section.Append(fmt("<section class=\"page\" id=\"match-%d\"><a id=\"page-%d\"></a><h2>Page %d",
                                    m.left + 1, m.left + 1, m.left + 1));
             } else {
-                section.Append(fmt("<section class=\"page\" id=\"match-%d\"><a id=\"page-%d\"></a><h2>Left page %d, right page %d",
-                                   m.left + 1, m.left + 1, m.left + 1, m.right + 1));
+                section.Append(
+                    fmt("<section class=\"page\" id=\"match-%d\"><a id=\"page-%d\"></a><h2>Left page %d, right page %d",
+                        m.left + 1, m.left + 1, m.left + 1, m.right + 1));
             }
             if (m.moved) section.Append(StrL(" (moved)"));
             section.Append(StrL("</h2><p>"));
@@ -797,8 +798,10 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
                 pixelPages++;
             }
 
-            section.Append(fmt("<section class=\"page\" id=\"left-%d\"><a id=\"page-%d\"></a><h2>Page %d (Only in Left / Removed)</h2><p>",
-                               m.left + 1, m.left + 1, m.left + 1));
+            section.Append(
+                fmt("<section class=\"page\" id=\"left-%d\"><a id=\"page-%d\"></a><h2>Page %d (Only in Left / "
+                    "Removed)</h2><p>",
+                    m.left + 1, m.left + 1, m.left + 1));
             if (okA) {
                 section.Append(fmt("%d words in removed page; %d changed words; 100.00%% changed pixels</p>", aw, wc));
             } else {
@@ -833,8 +836,10 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
                 pixelPages++;
             }
 
-            section.Append(fmt("<section class=\"page\" id=\"right-%d\"><a id=\"page-%d\"></a><h2>Page %d (Only in Right / Added)</h2><p>",
-                               m.right + 1, m.right + 1, m.right + 1));
+            section.Append(
+                fmt("<section class=\"page\" id=\"right-%d\"><a id=\"page-%d\"></a><h2>Page %d (Only in Right / "
+                    "Added)</h2><p>",
+                    m.right + 1, m.right + 1, m.right + 1));
             if (okB) {
                 section.Append(fmt("%d words in added page; %d changed words; 100.00%% changed pixels</p>", bw, wc));
             } else {
@@ -853,7 +858,8 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
                 section.Append(rightPng);
                 section.Append(StrL("\"></figure>"));
             } else {
-                section.Append(StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
+                section.Append(
+                    StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
             }
             section.Append(StrL("</div></section>"));
         }
@@ -870,15 +876,16 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
                 if (m.left == m.right) {
                     summary.Append(fmt("<li><a href=\"#match-%d\">Page %d</a></li>", m.left + 1, m.left + 1));
                 } else {
-                    summary.Append(
-                        fmt("<li><a href=\"#match-%d\">Left page %d, right page %d", m.left + 1, m.left + 1, m.right + 1));
+                    summary.Append(fmt("<li><a href=\"#match-%d\">Left page %d, right page %d", m.left + 1, m.left + 1,
+                                       m.right + 1));
                     if (m.moved) summary.Append(StrL(" (moved)"));
                     summary.Append(StrL("</a></li>"));
                 }
             } else if (m.left >= 0) {
                 summary.Append(fmt("<li><a href=\"#left-%d\">Page %d (Left only)</a></li>", m.left + 1, m.left + 1));
             } else {
-                summary.Append(fmt("<li><a href=\"#right-%d\">Page %d (Right only)</a></li>", m.right + 1, m.right + 1));
+                summary.Append(
+                    fmt("<li><a href=\"#right-%d\">Page %d (Right only)</a></li>", m.right + 1, m.right + 1));
             }
         }
         summary.Append(StrL("</ul>"));
@@ -907,16 +914,17 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
         if (ok) {
             *resultJsonOut = str::DupTemp(
                 fmt("{\"ok\":true,\"pages\":%d,\"sections\":%d,\"wordChanges\":%d,\"editRuns\":%d,\"movedPages\":%d,"
-                    "\"addedPages\":%d,\"removedPages\":%d,\"coarsePages\":%d,\"pixelChangePercent\":%.2f,\"report\":\"\"%s\"\"}",
+                    "\"addedPages\":%d,\"removedPages\":%d,\"coarsePages\":%d,\"pixelChangePercent\":%.2f,\"report\":"
+                    "\"\"%s\"\"}",
                     totalPages, len(matches), wordChanges, editRuns, movedPages, addedPages, removedPages, coarsePages,
                     avgPixelPct, json::EscapeStrTemp(reportPath)));
         } else {
-            Str errStr = progress && progress->IsCancelled() ? StrL("Cancelled")
-                                                             : StrL("Failed to generate comparison report");
-            *resultJsonOut = str::DupTemp(
-                fmt("{\"ok\":false,\"error\":\"%s\",\"pages\":%d,\"wordChanges\":%d,"
-                    "\"pixelChangePercent\":%.2f}",
-                    errStr, totalPages, wordChanges, avgPixelPct));
+            Str errStr =
+                progress && progress->IsCancelled() ? StrL("Cancelled") : StrL("Failed to generate comparison report");
+            *resultJsonOut =
+                str::DupTemp(fmt("{\"ok\":false,\"error\":\"%s\",\"pages\":%d,\"wordChanges\":%d,"
+                                 "\"pixelChangePercent\":%.2f}",
+                                 errStr, totalPages, wordChanges, avgPixelPct));
         }
     }
     if (left) fz_drop_document(ctx, left);

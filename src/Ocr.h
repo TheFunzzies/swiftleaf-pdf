@@ -6,6 +6,15 @@
 
 struct MainWindow;
 struct Pixmap;
+struct fz_context;
+struct fz_page;
+
+struct OcrExportWord {
+    Str text;
+    RectF box;
+};
+
+bool OcrExportPage(fz_context* ctx, fz_page* page, Vec<OcrExportWord>& words);
 
 void ShowOcrDialog(MainWindow*);
 void ShowBatchOcrDialog(MainWindow*);
@@ -17,7 +26,8 @@ void PreprocessOcrPixmap(Pixmap* px);
 double DetectDeskewAngle(const Pixmap* px);
 
 typedef bool (*BatchOcrProgressFn)(int curFile, int totalFiles, int curPage, int totalPages, void* user);
-bool BatchOcrPdf(Str inputPdfPath, Str outputPdfPath, Str language = {}, BatchOcrProgressFn progress = nullptr, void* user = nullptr, Str* errOut = nullptr);
+bool BatchOcrPdf(Str inputPdfPath, Str outputPdfPath, Str language = {}, BatchOcrProgressFn progress = nullptr,
+                 void* user = nullptr, Str* errOut = nullptr);
 
 #if IS_DEBUG
 bool Ocr_UnitTests();

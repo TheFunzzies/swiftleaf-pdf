@@ -644,7 +644,8 @@ bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOp
         destDir = path::GetDirTemp(srcPath);
     }
     static u32 gOptCounter = 0;
-    TempStr tempOutput = path::JoinTemp(destDir, fmt("opt-%u-%u-%u.pdf", (u32)GetCurrentProcessId(), (u32)GetTickCount(), ++gOptCounter));
+    TempStr tempOutput = path::JoinTemp(
+        destDir, fmt("opt-%u-%u-%u.pdf", (u32)GetCurrentProcessId(), (u32)GetTickCount(), ++gOptCounter));
 
     Vec<char*> argv;
     VecAppend(argv, (char*)"clean");
@@ -4565,8 +4566,8 @@ struct ReplaceJob {
 };
 
 static void RunReplace(ReplaceJob* job) {
-    job->ok = EngineMupdfReplaceAllText(job->engine, job->destination, job->find, job->replacement,
-                                        &job->count, &job->error, &job->progress);
+    job->ok = EngineMupdfReplaceAllText(job->engine, job->destination, job->find, job->replacement, &job->count,
+                                        &job->error, &job->progress);
     AtomicIntSet(&job->done, 1);
     job->Release();
 }
@@ -4609,8 +4610,8 @@ bool PdfReplaceDialog::Create(MainWindow* w, WindowTab* tab) {
     replacement = AddLabeledEdit(Tr("Replace with:"), {});
     AddRow()->AddChild(NewVirtText(
         {.s = Tr("Matches within paragraphs on all pages. Empty replacement deletes matches."), .font = font}));
-    AddRow()->AddChild(NewVirtText(
-        {.s = Tr("Unsupported blocks stop the operation. The original document is kept."), .font = font}));
+    AddRow()->AddChild(
+        NewVirtText({.s = Tr("Unsupported blocks stop the operation. The original document is kept."), .font = font}));
     status = NewVirtText({.s = Tr("Ready"), .font = font});
     AddRow()->AddChild(status, 1);
     AddButtonsRow(Tr("Replace All in Copy"));

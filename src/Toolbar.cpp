@@ -3727,7 +3727,8 @@ static void ShowTopBarOverflowMenu(MainWindow* win, Rect anchor) {
     appendItem(CmdSaveAnnotations, Tr("Save changes to the PDF"));
     appendItem(CmdPrint, Tr("Print"));
 
-    int cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_LEFTALIGN, anchor.x, anchor.Bottom(), 0, win->hwndFrame, nullptr);
+    int cmd =
+        TrackPopupMenu(menu, TPM_RETURNCMD | TPM_LEFTALIGN, anchor.x, anchor.Bottom(), 0, win->hwndFrame, nullptr);
     DestroyMenu(menu);
     if (cmd) {
         ToolbarPostCommand(win, cmd);

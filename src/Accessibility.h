@@ -4,7 +4,6 @@
 #ifndef ACCESSIBILITY_H
 #define ACCESSIBILITY_H
 
-
 struct MainWindow;
 struct fz_context;
 struct pdf_document;
