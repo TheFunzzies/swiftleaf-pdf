@@ -25,7 +25,7 @@ pdf_pkcs7_verifier* pkcs7_windows_new_verifier(fz_context* ctx);
 pdf_pkcs7_signer* pkcs7_windows_read_pfx(fz_context* ctx, const char* pfile, const char* pw);
 pdf_pkcs7_signer* pkcs7_windows_read_pfx_from_buffer(fz_context* ctx, fz_buffer* buf, const char* pw);
 pdf_pkcs7_signer* pkcs7_windows_read_store(fz_context* ctx, const char* thumbprint_hex);
-void pkcs7_windows_set_tsa_url(pdf_pkcs7_signer* signer, const char* tsa_url);
+void pkcs7_windows_set_tsa_url(fz_context* ctx, pdf_pkcs7_signer* signer, const char* tsa_url);
 
 typedef struct {
     char* signer_cn;
@@ -50,6 +50,14 @@ typedef struct {
     int64_t gen_time_unix;
     int64_t not_after_unix;
     int has_qc_statement;
+    int64_t signing_time_unix;
+    int64_t verified_time_unix;
+    int timestamp_checked;
+    int timestamp_valid;
+    int timestamp_trusted;
+    uint32_t timestamp_chain_errors;
+    int chain_checked;
+    uint32_t chain_errors;
     int has_cades_attr;
     int has_sig_policy_attr;
     unsigned char* cert_der;

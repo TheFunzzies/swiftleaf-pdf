@@ -165,10 +165,17 @@ enum class PdfSearchMode {
     Regex
 };
 
+struct PdfRedactMatch {
+    int pageNo;
+    RectF box;
+};
+
+bool EngineMupdfPreviewRedactions(const PdfMergeSource& src, Str term, PdfSearchMode mode, Vec<PdfRedactMatch>& matches,
+                                  Str* errorOut);
 TempStr EngineMupdfMergeWarningTemp(u32 warnings);
 bool EngineMupdfSanitizePdf(const PdfMergeSource& src, Str destPath, const PdfSanitizeOptions& options, Str* errorOut);
 bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode, int* countOut,
-                              Str* errorOut);
+                              Str* errorOut, const Vec<int>* selected = nullptr, Str overlay = {}, Str reason = {});
 bool EngineMupdfMergePdfs(const Vec<PdfMergeSource>& srcs, const Vec<PdfMergePage>& pages, Str destPath,
                           u32* warningsOut = nullptr);
 
