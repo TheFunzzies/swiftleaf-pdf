@@ -974,7 +974,16 @@ static void TextReplaceToolsTest() {
     TempStr output = GetTempFilePathTemp(StrL("replace-all"));
     Str error;
     int count = -1;
-    utassert(EngineMupdfReplaceAllText(e, output, StrL("Original"), StrL("\xe4\xb8\xad\xe6\x96\x87"), &count, &error));
+    PdfWorkProgress progress;
+    progress.cancelled = 1;
+    utassert(file::WriteFile(output, StrL("keep existing copy")));
+    utassert(!EngineMupdfReplaceAllText(e, output, StrL("Original"), {}, &count, &error, &progress));
+    utassert(count == 0 && len(error));
+    utassert(str::Eq(file::ReadFileWithArena(output, GetTempArena()), StrL("keep existing copy")));
+    progress.cancelled = 0;
+    utassert(EngineMupdfReplaceAllText(e, output, StrL("Original"), StrL("\xe4\xb8\xad\xe6\x96\x87"), &count, &error,
+                                       &progress));
+    utassert(progress.completed == 2 && progress.total == 2);
     utassert(count == 4);
     EngineBase* reopened = CreateEngineMupdfFromFile(output, FileType::PDF, 96);
     utassert(reopened != nullptr);
@@ -988,6 +997,22 @@ static void TextReplaceToolsTest() {
     }
     SafeEngineRelease(&reopened);
     Str saved = file::ReadFile(output);
+    str::Builder hugeReplacement;
+    for (int i = 0; i < 1024 * 1024; i++) hugeReplacement.AppendChar('x');
+    TempStr crowded = TextEditFixture(
+        {},
+        StrL("BT /F1 12 Tf 72 700 Td (Original Original Original Original Original Original Original Original Original "
+             "Original Original Original Original Original Original Original Original) Tj ET\n"),
+        1);
+    EngineBase* limited = CreateEngineMupdfFromData(crowded, StrL("replace-limit.pdf"), nullptr);
+    utassert(limited != nullptr);
+    if (limited) {
+        utassert(!EngineMupdfReplaceAllText(limited, output, StrL("Original"), ToStr(hugeReplacement), &count, &error));
+        utassert(count == 0 && len(error));
+        utassert(str::Eq(saved, file::ReadFileWithArena(output, GetTempArena())));
+    }
+    SafeEngineRelease(&limited);
+
     utassert(!EngineMupdfReplaceAllText(e, output, StrL("missing"), {}, &count, &error));
     utassert(count == 0 && len(error));
     Str after = file::ReadFile(output);

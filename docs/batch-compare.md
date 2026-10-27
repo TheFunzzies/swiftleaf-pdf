@@ -62,3 +62,22 @@ decode a single source image. Pixel ratios use the capped preview resolution.
 Alignment retains at most 4,096 word hashes per page and 32 MiB of hashes
 across both inputs. Compare rejects more than 100,000 pages per input or
 exhausted signature storage. Long-page alignment uses the leading words.
+
+Find/Replace runs on a worker with page progress and Cancel. It edits a private
+snapshot including current edits. Closing the dialog requests cancellation;
+only a complete saved copy is published. Existing destination files survive
+failure or cancellation. Cancellation is checked between pages, blocks, text
+matches and before publication; an active MuPDF parse, edit or save must finish.
+
+Replace limits: 100,000 pages, 4,096 blocks per page, 1 MiB text per block,
+256 MiB scanned text, 16 MiB retained replacement text per page and 100,000
+matches. Search strings are limited to 4,096 bytes, replacements to 1 MiB.
+Exceeding a limit fails the whole operation. Visited-page caches are released;
+undo storage spills above 8 MiB. These bound operation overhead, not the source
+PDF object graph, decoded images or a single native engine call.
+
+Local release check (2026-10-27, x64): identical synthetic scanned PDFs with
+100 and 1,000 pages sharing one 256x256 grayscale image produced 10.60 and
+105.95 MiB HTML reports. Private bytes sampled every 100 ms peaked at 53.93
+and 55.39 MiB; elapsed time was 5.52 and 33.84 seconds. This checks streamed
+report growth, not worst-case image decoding or arbitrary PDF memory use.

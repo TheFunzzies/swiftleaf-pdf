@@ -10906,7 +10906,16 @@ bool EngineMupdfEditObjectCopy(EngineBase* engine, Str destination, int pageNo, 
     return ok;
 }
 
-static bool CollectEditBlocks(EngineMupdf* e, int pageNo, Vec<RectF>& boxes) {
+static constexpr int kMaxReplaceBlocks = 4096;
+static constexpr int kMaxReplacePages = 100000;
+static constexpr int kMaxReplaceMatches = 100000;
+static constexpr int kMaxReplaceFind = 4096;
+static constexpr size_t kReplaceUndoBudget = 8 * 1024 * 1024;
+static constexpr int kMaxReplaceText = 1024 * 1024;
+static constexpr int kMaxReplaceOutput = 16 * 1024 * 1024;
+static constexpr i64 kMaxReplaceScan = 256 * 1024 * 1024;
+
+static bool CollectEditBlocks(EngineMupdf* e, int pageNo, Vec<RectF>& boxes, PdfWorkProgress* progress) {
     auto* ctx = e->Ctx();
     ScopedRecursiveMutex pagesScope(&e->pagesLock);
     ScopedMutex renderScope(&e->renderLock);
@@ -10922,6 +10931,8 @@ static bool CollectEditBlocks(EngineMupdf* e, int pageNo, Vec<RectF>& boxes) {
         text = fz_new_stext_page_from_page(ctx, pi->page, &opts);
         auto walk = [&](auto& self, fz_stext_block* block) -> void {
             for (; block; block = block->next) {
+                if (progress && progress->IsCancelled()) fz_throw(ctx, FZ_ERROR_ABORT, "Cancelled");
+                if (len(boxes) >= kMaxReplaceBlocks) fz_throw(ctx, FZ_ERROR_LIMIT, "Too many text blocks");
                 if (block->type == FZ_STEXT_BLOCK_STRUCT && block->u.s.down) self(self, block->u.s.down->first_block);
                 if (block->type == FZ_STEXT_BLOCK_TEXT) {
                     fz_rect b = block->bbox;
@@ -10941,9 +10952,13 @@ static bool CollectEditBlocks(EngineMupdf* e, int pageNo, Vec<RectF>& boxes) {
     return ok;
 }
 
-static Str ReplaceEditMatches(Str text, Str find, Str replacement, int& count) {
+static Str ReplaceEditMatches(Str text, Str find, Str replacement, int& count, PdfWorkProgress* progress, bool& ok) {
     str::Builder result;
     for (int pos = 0; pos < len(text);) {
+        if ((progress && progress->IsCancelled()) || len(ToStr(result)) > kMaxReplaceOutput - len(replacement) - 1) {
+            ok = false;
+            return {};
+        }
         if (pos + len(find) <= len(text) && memcmp(text.s + pos, find.s, len(find)) == 0) {
             result.Append(replacement);
             pos += len(find);
@@ -10957,12 +10972,20 @@ static Str ReplaceEditMatches(Str text, Str find, Str replacement, int& count) {
 
 // Edit a private snapshot, then atomically publish only after every match succeeds.
 bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, Str replacement, int* countOut,
-                               Str* errorOut) {
+                               Str* errorOut, PdfWorkProgress* progress) {
     if (countOut) *countOut = 0;
     if (errorOut) *errorOut = {};
+    if (progress) {
+        AtomicIntSet(&progress->completed, 0);
+        AtomicIntSet(&progress->total, 0);
+        if (progress->IsCancelled()) {
+            if (errorOut) *errorOut = StrL("Cancelled. No copy was written.");
+            return false;
+        }
+    }
     EngineMupdf* original = AsEngineMupdf(engine);
     if (!original || !original->pdfdoc || !len(find) || !len(destination) || !EngineMupdfCanEditText(find) ||
-        !EngineMupdfCanEditText(replacement)) {
+        !EngineMupdfCanEditText(replacement) || len(find) > kMaxReplaceFind || len(replacement) > kMaxReplaceText) {
         if (errorOut) *errorOut = StrL("Enter a nonempty search, a destination and supported Unicode text.");
         return false;
     }
@@ -10991,12 +11014,26 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
     auto* e = AsEngineMupdf(copy);
     bool ok = e != nullptr;
     int count = 0;
+    i64 scanned = 0;
+    if (ok && copy->PageCount() > kMaxReplacePages) ok = false;
+    if (ok) EngineMupdfSetUndoStorage(copy, snapshot, kReplaceUndoBudget);
+    if (ok && progress) AtomicIntSet(&progress->total, copy->PageCount());
     for (int pageNo = 1; ok && pageNo <= copy->PageCount(); pageNo++) {
+        AutoArenaSavepoint scratch;
+        if (progress && progress->IsCancelled()) {
+            ok = false;
+            break;
+        }
         Vec<RectF> boxes;
-        ok = CollectEditBlocks(e, pageNo, boxes);
+        ok = CollectEditBlocks(e, pageNo, boxes, progress);
+        int pageBytes = 0;
         Vec<PdfTextRun> runs;
         StrVec replacements;
         for (int b = 0; ok && b < len(boxes); b++) {
+            if (progress && progress->IsCancelled()) {
+                ok = false;
+                break;
+            }
             PdfTextRun run;
             if (!EngineMupdfGetTextRun(copy, pageNo, boxes[b], TextRunScope::Paragraph, &run)) {
                 str::Free(run.text);
@@ -11004,8 +11041,21 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
                 ok = false;
                 break;
             }
+            scanned += len(run.text);
+            if (len(run.text) > kMaxReplaceText || scanned > kMaxReplaceScan) {
+                str::Free(run.text);
+                ok = false;
+                break;
+            }
             int matches = 0;
-            Str changed = ReplaceEditMatches(run.text, find, replacement, matches);
+            Str changed = ReplaceEditMatches(run.text, find, replacement, matches, progress, ok);
+            pageBytes += len(changed) + len(run.text);
+            if (!ok || pageBytes > kMaxReplaceOutput || count > kMaxReplaceMatches - matches) {
+                str::Free(run.text);
+                str::Free(changed);
+                ok = false;
+                break;
+            }
             if (matches) {
                 for (int n = 0; n < len(boxes); n++) {
                     if (n != b && RectsTouch(ToFzRect(boxes[b]), ToFzRect(boxes[n]))) ok = false;
@@ -11019,22 +11069,45 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
             }
             str::Free(changed);
         }
-        if (!ok && errorOut)
-            *errorOut = fmt("Page %d has unsupported or overlapping text blocks. No copy was written.", pageNo);
+
         for (int n = len(runs) - 1; ok && n >= 0; n--) {
+            if (progress && progress->IsCancelled()) {
+                ok = false;
+                break;
+            }
             Vec<Annotation*> removed;
             Str error;
             ok = EngineMupdfReplaceText(copy, pageNo, runs[n], replacements[n], removed, &error);
             for (Annotation* a : removed) delete a;
-            if (!ok && errorOut) *errorOut = fmt("Page %d: %s", pageNo, error);
         }
         for (PdfTextRun& run : runs) str::Free(run.text);
+        // The private copy needs no visited-page display lists or annotations.
+        {
+            ScopedRecursiveMutex pagesScope(&e->pagesLock);
+            ScopedMutex renderScope(&e->renderLock);
+            ScopedRecursiveMutex docScope(&e->docLock);
+            FzPageInfo* pi = GetFzPageInfoLocked(e, e->LocationFromPageNo(pageNo), false, nullptr);
+            if (pi) FreePageInfo(e->Ctx(), pi);
+        }
+        if (ok && progress) AtomicIntSet(&progress->completed, pageNo);
     }
+    if (progress && progress->IsCancelled()) ok = false;
+    if (!ok && errorOut)
+        *errorOut = progress && progress->IsCancelled()
+                        ? StrL("Cancelled. No copy was written.")
+                        : StrL("Unsupported text or replacement limit exceeded. No copy was written.");
     if (ok && count == 0) {
         ok = false;
         if (errorOut) *errorOut = StrL("No matching text was found. No copy was written.");
     }
-    if (ok) ok = EngineMupdfSaveUpdated(copy, destination, {});
+    // Save privately so cancellation during serialization cannot publish a partial operation.
+    file::AtomicFile output(destination);
+    if (ok) ok = len(output.tempPath) && EngineMupdfSaveUpdated(copy, output.tempPath, {});
+    if (progress && progress->IsCancelled()) ok = false;
+    if (ok) ok = output.Commit();
+    if (!ok && errorOut && !len(*errorOut))
+        *errorOut = progress && progress->IsCancelled() ? StrL("Cancelled. No copy was written.")
+                                                        : StrL("Could not save the replacement copy.");
     SafeEngineRelease(&copy);
     file::Delete(snapshot);
     if (ok && countOut) *countOut = count;

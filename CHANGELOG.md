@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Find/Replace: worker progress and cancellation, bounded text scans, and atomic publication of completed copies.
+
 - Compare PDFs runs in a cancellable worker with page progress, streams reports,
   bounds preview/cache memory, and preserves existing output on failure.
 
