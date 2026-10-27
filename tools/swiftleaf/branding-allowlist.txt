@@ -20,6 +20,8 @@ ext/**
 src/**
 vs2022/**
 premake*.lua
+cmd/build.ts
+cmd/run-unit-tests.ts
 
 # --- TEMP: tooling that must keep upstream build/target/file names until src is renamed ---
 .clangd

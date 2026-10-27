@@ -213,7 +213,7 @@ export async function testit(): Promise<void> {
 
     for (const [command, title, checkboxes] of [
       ["CmdPdfSanitize", "Sanitize Document", 7],
-      ["CmdPdfRedactSearch", "Redact All Search Matches", 1],
+      ["CmdPdfRedactSearch", "Search and Redact", 1],
       ["CmdPdfReplaceText", "Find and Replace Text", 0],
       ["CmdPdfFontManager", "Font Manager", 0],
       ["CmdPdfEditObject", "Edit Images and Objects", 0],

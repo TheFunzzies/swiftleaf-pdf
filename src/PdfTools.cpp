@@ -4161,6 +4161,19 @@ struct PdfPrivacyDialog : PdfToolDialog {
     Checkbox* options[7]{};
     Checkbox* regex = nullptr;
     Edit* term = nullptr;
+    Edit* preview = nullptr;
+    Edit* selection = nullptr;
+    Edit* overlay = nullptr;
+    Edit* reason = nullptr;
+    Str reviewPath;
+    Vec<PdfRedactMatch> matches;
+
+    ~PdfPrivacyDialog() {
+        if (len(reviewPath)) file::Delete(reviewPath);
+        str::Free(reviewPath);
+    }
+    void ReviewRedactions(WindowTab* tab);
+    void OnPattern(VirtMouseEvent* ev);
 
     bool Create(MainWindow* w, WindowTab* tab, bool isRedact);
     Checkbox* AddCheck(Str label, bool checked);
@@ -4183,7 +4196,7 @@ Checkbox* PdfPrivacyDialog::AddCheck(Str label, bool checked) {
 
 bool PdfPrivacyDialog::Create(MainWindow* w, WindowTab* tab, bool isRedact) {
     redact = isRedact;
-    if (!CreateToolDialog(w, tab, redact ? Tr("Redact All Search Matches") : Tr("Sanitize Document"))) return false;
+    if (!CreateToolDialog(w, tab, redact ? Tr("Search and Redact") : Tr("Sanitize Document"))) return false;
     AddPathRow();
     Str stem = srcPath;
     if (str::EndsWithI(stem, StrL(".pdf"))) stem.len -= 4;
@@ -4192,6 +4205,28 @@ bool PdfPrivacyDialog::Create(MainWindow* w, WindowTab* tab, bool isRedact) {
     if (redact) {
         term = AddLabeledEdit(Tr("Find:"), {});
         regex = AddCheck(Tr("Regular expression (case sensitive)"), false);
+        HBox* presets = AddRow();
+        for (int i = 0; i < 2; i++) {
+            auto* button = NewButton(i ? Tr("SSN pattern") : Tr("Email pattern"), false);
+            button->id = i;
+            button->onClick = MkMethod1<PdfPrivacyDialog, VirtMouseEvent*, &PdfPrivacyDialog::OnPattern>(this);
+            presets->AddChild(button);
+        }
+        Edit::CreateArgs args;
+        args.parent = hwnd;
+        args.font = font;
+        args.isMultiLine = true;
+        args.withBorder = true;
+        args.idealSizeLines = 6;
+        preview = new Edit();
+        preview->Create(args);
+        SendMessageW(preview->hwnd, EM_SETREADONLY, TRUE, 0);
+        AddRow()->AddChild(preview, 1);
+        selection = AddLabeledEdit(Tr("Match IDs (comma separated):"), {});
+        reason = AddLabeledEdit(Tr("Reason (used as label if overlay is empty):"), {});
+        overlay = AddLabeledEdit(Tr("Overlay text (optional):"), {});
+        AddRow()->AddChild(
+            NewVirtText({.s = Tr("Apply removes metadata, attachments, scripts, comments and tags."), .font = font}));
         AddRow()->AddChild(NewVirtText(
             {.s = Tr("Searches all pages, including invisible text. Images are not OCR searched."), .font = font}));
         AddRow()->AddChild(NewVirtText(
@@ -4206,7 +4241,7 @@ bool PdfPrivacyDialog::Create(MainWindow* w, WindowTab* tab, bool isRedact) {
         options[5] = AddCheck(Tr("Form data and fields"), true);
         options[6] = AddCheck(Tr("Thumbnails"), true);
     }
-    AddButtonsRow(redact ? Tr("Redact All Matches") : Tr("Sanitize"));
+    AddButtonsRow(redact ? Tr("Preview Matches") : Tr("Sanitize"));
     FinishDialog(redact ? term : destEdit, 760);
     return true;
 }
@@ -4220,6 +4255,10 @@ void PdfPrivacyDialog::DoIt(VirtMouseEvent*) {
     }
     WindowTab* tab = win ? win->CurrentTab() : nullptr;
     if (!tab || !path::IsSame(tab->filePath, srcPath)) return;
+    if (redact) {
+        ReviewRedactions(tab);
+        return;
+    }
     EngineBase* engine = tab->GetEngine();
     TempStr snapshot;
     Str input = srcPath;
@@ -4253,7 +4292,7 @@ void PdfPrivacyDialog::DoIt(VirtMouseEvent*) {
     if (len(snapshot)) file::Delete(snapshot);
     if (!ok) {
         MessageBoxWarning(hwnd, len(error) ? error : Tr("Failed to save PDF copy."),
-                          redact ? Tr("Redact All Search Matches") : Tr("Sanitize Document"));
+                          redact ? Tr("Search and Redact") : Tr("Sanitize Document"));
         return;
     }
     MainWindow* w = win;
@@ -4264,6 +4303,81 @@ void PdfPrivacyDialog::DoIt(VirtMouseEvent*) {
     StartLoadDocument(&args);
     if (wasRedact)
         ShowTemporaryNotification(w->hwndCanvas, fmt(Tr("Redacted %d matches. Saved a separate copy.").s, count));
+}
+
+void PdfPrivacyDialog::OnPattern(VirtMouseEvent* ev) {
+    if (len(reviewPath)) return;
+    term->SetText(ev->target->id ? StrL("[0-9]{3}-[0-9]{2}-[0-9]{4}")
+                                 : StrL("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"));
+    regex->SetState(Checkbox::State::Checked);
+}
+
+void PdfPrivacyDialog::ReviewRedactions(WindowTab* tab) {
+    Str error;
+    if (!len(reviewPath)) {
+        TempStr snapshot = GetTempFilePathTemp(StrL("redact-review"));
+        if (!EngineMupdfSaveCopy(tab->GetEngine(), snapshot)) {
+            file::Delete(snapshot);
+            MessageBoxWarning(hwnd, Tr("Failed to save copy of PDF file."), Tr("Redaction"));
+            return;
+        }
+        PdfMergeSource source{snapshot, EngineMupdfGetPassword(tab->GetEngine())};
+        if (!EngineMupdfPreviewRedactions(source, term->GetTextTemp(),
+                                          regex->IsChecked() ? PdfSearchMode::Regex : PdfSearchMode::Text, matches,
+                                          &error)) {
+            file::Delete(snapshot);
+            MessageBoxWarning(hwnd, error, Tr("Redaction"));
+            return;
+        }
+        if (!len(matches)) {
+            file::Delete(snapshot);
+            preview->SetText(Tr("No matches. Try another search."));
+            return;
+        }
+        reviewPath = str::Dup(snapshot);
+        str::Builder rows, ids;
+        for (int i = 0; i < len(matches); i++) {
+            const auto& m = matches[i];
+            rows.Append(fmt("%d: page %d  box [%.2f, %.2f, %.2f, %.2f]\r\n", i + 1, m.pageNo, m.box.x, m.box.y,
+                            m.box.x + m.box.dx, m.box.y + m.box.dy));
+            if (i) ids.AppendChar(',');
+            ids.Append(fmt("%d", i + 1));
+        }
+        preview->SetText(ToStr(rows));
+        selection->SetText(ToStr(ids));
+        term->SetIsEnabled(false);
+        regex->SetIsEnabled(false);
+        actionBtn->SetText(Tr("Apply Selected Matches"));
+        return;
+    }
+    Vec<int> selected;
+    const char* cursor = CStrTemp(selection->GetTextTemp());
+    while (*cursor) {
+        char* end;
+        long id = strtol(cursor, &end, 10);
+        if (end == cursor || id < 1 || id > len(matches) || (*end && *end != ',')) {
+            MessageBoxWarning(hwnd, Tr("Enter match IDs from the preview, separated by commas."), Tr("Redaction"));
+            return;
+        }
+        if (VecFind(selected, (int)id) < 0) VecAppend(selected, (int)id);
+        cursor = *end ? end + 1 : end;
+        if (*end && !*cursor) return;
+    }
+    PdfMergeSource source{reviewPath, EngineMupdfGetPassword(tab->GetEngine())};
+    int count = 0;
+    TempStr dest = destEdit->GetTextTemp();
+    if (!EngineMupdfRedactMatches(source, dest, term->GetTextTemp(),
+                                  regex->IsChecked() ? PdfSearchMode::Regex : PdfSearchMode::Text, &count, &error,
+                                  &selected, overlay->GetTextTemp(), reason->GetTextTemp())) {
+        MessageBoxWarning(hwnd, error, Tr("Redaction"));
+        return;
+    }
+    MainWindow* w = win;
+    TempStr saved = str::DupTemp(dest);
+    Close();
+    LoadArgs args(saved, w);
+    StartLoadDocument(&args);
+    ShowTemporaryNotification(w->hwndCanvas, fmt(Tr("Redacted %d matches. Saved a separate copy.").s, count));
 }
 
 void ShowPdfSanitizeDialog(MainWindow* win) {
