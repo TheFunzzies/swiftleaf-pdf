@@ -23,9 +23,14 @@ Use an independent PDF/UA validator and an actual screen reader before delivery.
 Accessibility dialogs fit the monitor work area and scroll their content.
 Tab and Shift+Tab follow layout order and reveal controls in scroll containers.
 Language, title, destination and tools-search edits expose stable MSAA names,
-independent of their values. Ribbon and tools already expose virtual controls
-through MSAA and use system high-contrast colors and reduced-motion settings.
+independent of their values. Tools search provides search result help and connects
+with panel tools via Tab, Shift+Tab, and Down/Enter.
+Ribbon collapses into an overflow menu and compacts tabs/separators when window
+width is constrained, avoiding clipping at 800x600 and high DPI.
+Virtual controls expose MSAA roles and keyboard shortcuts, and animations
+respect Windows reduce-motion settings.
 
-Regression checks cover scroll visibility and native MSAA names after value edits.
+Regression checks cover scroll visibility and native MSAA names after value edits,
+ribbon overflow collapse and separator compaction, and search edit focus flow.
 800x600, 200% DPI, high contrast, IME composition and real screen-reader speech
 still require interactive verification; unit tests do not establish a full audit.

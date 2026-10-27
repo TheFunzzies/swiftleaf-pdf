@@ -9,7 +9,7 @@ struct RibbonAccessible : IAccessible {
     VirtHost* instance;
     explicit RibbonAccessible(HWND h) : hwnd(h), instance((VirtHost*)GetWindowLongPtrW(h, GWLP_USERDATA)) {}
     VirtHost* Host() {
-        return IsWindow(hwnd) && GetWindowLongPtrW(hwnd, GWLP_USERDATA) == (LONG_PTR)instance ? instance : nullptr;
+        return !hwnd ? instance : (IsWindow(hwnd) && GetWindowLongPtrW(hwnd, GWLP_USERDATA) == (LONG_PTR)instance ? instance : nullptr);
     }
     static void Collect(ILayout* layout, Vec<VirtCtrl*>& out) {
         if (!layout || IsCollapsed(layout)) return;
@@ -119,6 +119,7 @@ struct RibbonAccessible : IAccessible {
         if (id && !w) return E_INVALIDARG;
         out->lVal = !id                        ? ROLE_SYSTEM_GROUPING
                     : AsRibbonTab(w)           ? ROLE_SYSTEM_PAGETAB
+                    : AsRibbonSearchBox(w)     ? ROLE_SYSTEM_TEXT
                     : w->HasFlag(vwfFocusable) ? ROLE_SYSTEM_PUSHBUTTON
                                                : ROLE_SYSTEM_STATICTEXT;
         return S_OK;
@@ -154,9 +155,15 @@ struct RibbonAccessible : IAccessible {
         *topic = -1;
         return S_FALSE;
     }
-    HRESULT STDMETHODCALLTYPE get_accKeyboardShortcut(VARIANT, BSTR* out) override {
+    HRESULT STDMETHODCALLTYPE get_accKeyboardShortcut(VARIANT v, BSTR* out) override {
         if (!out) return E_POINTER;
         *out = nullptr;
+        int id = Child(v);
+        if (id <= 0) return S_FALSE;
+        auto* w = Control(id);
+        if (auto* sb = AsRibbonSearchBox(w); sb && len(sb->shortcut) > 0) {
+            return Text(sb->shortcut, out);
+        }
         return S_FALSE;
     }
     HRESULT STDMETHODCALLTYPE get_accFocus(VARIANT* out) override {

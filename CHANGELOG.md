@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Accessibility dialogs: name edit fields, fit monitor work areas, and scroll keyboard focus into view. Tools search has a stable accessible name.
+- Accessibility: name dialog and tools search controls, fit monitor work areas, and connect tools search with list focus. Ribbon collapses to overflow and compacts separators to prevent clipping at 800x600/high-DPI, exposes search shortcut/role in MSAA, and respects reduce-motion.
 
 - Accessibility: link draft page tags through MCIDs/ParentTree and annotation OBJR; list source tag order and table scope warnings. Disable unsupported figure/decorative edits; preserve source tags.
 
