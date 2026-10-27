@@ -9,6 +9,7 @@
 #include "base/DbgHelpDyn.h"
 #include "base/File.h"
 #include "base/GuessFileType.h"
+#include "base/JsonParser.h"
 #include "base/Pixmap.h"
 #include "base/Timer.h"
 
@@ -37,7 +38,9 @@
 #include "PageTools2.h"
 #include "Accessibility.h"
 #include "Preflight.h"
+#include "ComparePdf.h"
 #include <mupdf/pdf.h>
+extern const pdf_write_options gPdfDefaultWriteOptions;
 #include "AppUnitTests.h"
 #include "Ocr.h"
 #include "SignaturePanel.h"
@@ -1848,6 +1851,44 @@ static void PdfDocumentToolsTest() {
             CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, secret), secret);
         }
         pdf_drop_document(ctx, doc);
+        // A removed title must not survive as an earlier incremental revision.
+        doc = pdf_open_document(ctx, CStrTemp(sourcePath));
+        pdf_obj* aliases = pdf_dict_put_dict(ctx, ToolsTestRoot(ctx, doc), pdf_new_name(ctx, "RedactionAliases"), 2);
+        pdf_dict_put_text_string(ctx, aliases, PDF_NAME(ActualText), "ID-123");
+        pdf_dict_put_text_string(ctx, aliases, PDF_NAME(Alt), "ID-456");
+        pdf_obj* revisionInfo = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
+        pdf_dict_put_text_string(ctx, revisionInfo, PDF_NAME(Title), "REVISION-SECRET");
+        pdf_write_options incremental = {};
+        incremental.do_incremental = 1;
+        pdf_save_document(ctx, doc, CStrTemp(cleanPath), &incremental);
+        pdf_drop_document(ctx, doc);
+        doc = pdf_open_document(ctx, CStrTemp(cleanPath));
+        CheckPdfTool(ctx, pdf_count_versions(ctx, doc) > 1, "fixture has incremental history");
+        revisionInfo = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
+        pdf_dict_put_text_string(ctx, revisionInfo, PDF_NAME(Title), "Current title");
+        pdf_save_document(ctx, doc, CStrTemp(sourcePath), &incremental);
+        pdf_drop_document(ctx, doc);
+        Vec<PdfRedactMatch> matches;
+        CheckPdfTool(ctx,
+                     EngineMupdfPreviewRedactions(sources[0], StrL("ID-[0-9]+"), PdfSearchMode::Regex, matches, &error),
+                     "preview regex");
+        CheckPdfTool(ctx, len(matches) == 4 && matches[0].pageNo == 1 && matches[2].pageNo == 2,
+                     "preview lists repeated matches by page");
+        CheckPdfTool(ctx, matches[0].box.dx > 0 && matches[0].box.dy > 0, "preview has page boxes");
+        Vec<int> selected;
+        VecAppend(selected, 1);
+        int chosen = 0;
+        CheckPdfTool(ctx,
+                     EngineMupdfRedactMatches(sources[0], redactedPath, StrL("ID-[0-9]+"), PdfSearchMode::Regex,
+                                              &chosen, &error, &selected, StrL("PRIVATE"), StrL("Personal data")),
+                     "apply chosen match");
+        CheckPdfTool(ctx, chosen == 1, "only chosen match applied");
+        doc = pdf_open_document(ctx, CStrTemp(redactedPath));
+        CheckPdfTool(ctx, ToolsTestHasText(ctx, doc, "ID-456") && ToolsTestHasText(ctx, doc, "ID-123"),
+                     "unselected matches remain");
+        CheckPdfTool(ctx, ToolsTestHasText(ctx, doc, "PRIVATE"), "overlay survives reopen");
+        CheckPdfTool(ctx, !pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info)), "redaction removes metadata");
+        pdf_drop_document(ctx, doc);
         int count = 0;
         CheckPdfTool(
             ctx,
@@ -1860,6 +1901,15 @@ static void PdfDocumentToolsTest() {
         CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "ID-123") && !ToolsTestObjectText(ctx, doc, "ID-456"),
                      "old text streams removed");
         CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "IMAGE-SECRET"), "touching image removed from saved objects");
+        for (auto* secret : {"AUTHOR-SECRET", "XMP-SECRET", "ATTACHMENT-SECRET", "THUMB-SECRET", "COMMENT-SECRET"})
+            CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, secret), secret);
+        CheckPdfTool(ctx, !pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Prev)), "no prior revision chain");
+        CheckPdfTool(ctx, pdf_count_versions(ctx, doc) == 1, "saved redaction has one revision");
+        CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "REVISION-SECRET"), "prior revision objects absent");
+        Str savedBytes = file::ReadFile(redactedPath);
+        bool oldRevision = str::Contains(savedBytes, StrL("REVISION-SECRET"));
+        str::Free(savedBytes);
+        CheckPdfTool(ctx, !oldRevision, "prior revision bytes absent");
         pdf_drop_document(ctx, doc);
         CheckPdfTool(
             ctx,
@@ -1955,6 +2005,66 @@ static void PdfDocumentToolsTest() {
     utassert(valid);
 }
 
+static bool BatchPlanRejected(Str def, const Vec<Str>& files, Str needle) {
+    BatchPlan plan = BuildBatchPlan(def, files);
+    return !plan.valid && str::Contains(plan.error, needle);
+}
+
+static void BatchPlanTest() {
+    TempStr dir = path::GetDirTemp(GetTempFilePathTemp(StrL("batch-plan")));
+    TempStr aDir = path::JoinTemp(dir, StrL("a"));
+    TempStr bDir = path::JoinTemp(dir, StrL("b"));
+    TempStr outDir = path::JoinTemp(dir, StrL("out"));
+    TempStr a = path::JoinTemp(aDir, StrL("same.pdf"));
+    TempStr b = path::JoinTemp(bDir, StrL("same.pdf"));
+
+    Vec<Str> one;
+    VecAppend(one, a);
+    Vec<Str> two;
+    VecAppend(two, a);
+    VecAppend(two, b);
+
+    BatchPlan plan = BuildBatchPlan(StrL("{\"suffix\":\"_out\",\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"},"
+                                         "{\"type\":\"export-text\"}]}"),
+                                    one);
+    utassert(plan.valid);
+    utassert(plan.actionCount == 2);
+    utassert(plan.fileCount == 1);
+    utassert(str::Contains(plan.preview, StrL("optimize (web)")));
+    utassert(str::Contains(plan.preview, StrL("export-text")));
+    utassert(str::Contains(plan.preview, a));
+    utassert(str::Contains(plan.preview, StrL("same_out.txt")));
+
+    utassert(BatchPlanRejected(StrL("{\"actions\":[]}"), one, StrL("no actions")));
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"text\":\"x\"}]}"), one, StrL("no type")));
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"bogus\"}]}"), one, StrL("unknown type")));
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"bogus\"}]}"), one,
+                               StrL("invalid preset")));
+    utassert(
+        BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"export-text\"},{\"type\":\"watermark\",\"text\":\"X\"}]}"),
+                          one, StrL("must be last")));
+
+    Str collisionDef = fmt("{\"outputFolder\":\"%s\",\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}",
+                           json::EscapeStrTemp(outDir));
+    utassert(BatchPlanRejected(collisionDef, two, StrL("collision")));
+
+    Vec<Str> duplicate;
+    VecAppend(duplicate, a);
+    VecAppend(duplicate, a);
+    utassert(BatchPlanRejected(StrL("{\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}"), duplicate,
+                               StrL("collision")));
+
+    Str overwriteDef =
+        fmt("{\"suffix\":\"\",\"outputFolder\":\"%s\","
+            "\"actions\":[{\"type\":\"optimize\",\"text\":\"web\"}]}",
+            json::EscapeStrTemp(aDir));
+    utassert(BatchPlanRejected(overwriteDef, one, StrL("overwrite input")));
+
+    Str rejected = RunBatchActionsJson(StrL("{\"actions\":[{\"type\":\"bogus\"}]}"), one);
+    utassert(str::Contains(rejected, StrL("unknown type")));
+    utassert(!str::Contains(rejected, StrL("\"ok\":true")));
+}
+
 static void PageStampsTest() {
     const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>",
                              "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
@@ -2001,6 +2111,23 @@ static void PageStampsTest() {
         utassert(e != nullptr && e->PageCount() == 2);
         SafeEngineRelease(&e);
         file::Delete(output);
+    }
+    {
+        // A planned intermediate must not overwrite another input.
+        TempStr colliding = path::JoinTemp(path::GetDirTemp(basePdf), StrL("base-stamps_batch_1_1.pdf"));
+        file::Delete(colliding);
+        utassert(file::Copy(colliding, basePdf, true));
+        Vec<Str> inputs;
+        VecAppend(inputs, basePdf);
+        VecAppend(inputs, colliding);
+        Str result =
+            RunBatchActionsJson(StrL("{\"suffix\":\"_batch\",\"actions\":[{\"type\":\"watermark\",\"text\":\"A\"},"
+                                     "{\"type\":\"rotate\",\"value\":90}]}"),
+                                inputs);
+        utassert(str::Contains(result, StrL("overwrite input")));
+        utassert(file::Exists(basePdf));
+        utassert(file::Exists(colliding));
+        file::Delete(colliding);
     }
 
     // 1. Watermark test (apply to page 1 only)
@@ -2107,6 +2234,85 @@ static void PageStampsTest() {
     }
 
     file::Delete(basePdf);
+}
+
+static void PdfCompressionHonestyTest() {
+    // Honest preset descriptions
+    Str descArchive = PdfOptimizerPresetDescription(PdfOptimizerPreset::Archive);
+    Str descPrint = PdfOptimizerPresetDescription(PdfOptimizerPreset::Print);
+    Str descWeb = PdfOptimizerPresetDescription(PdfOptimizerPreset::Web);
+    Str descMinSize = PdfOptimizerPresetDescription(PdfOptimizerPreset::MinSize);
+
+    utassert(str::Contains(descArchive, StrL("ISO PDF/A")));
+    utassert(str::Contains(descPrint, StrL("300 DPI")));
+    utassert(str::Contains(descWeb, StrL("150 DPI")));
+    utassert(str::Contains(descMinSize, StrL("96 DPI")));
+
+    // Create a test PDF with an uncompressed text stream
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    const char* o1 = "<< /Type /Catalog /Pages 2 0 R >>";
+    const char* o2 = "<< /Type /Pages /Count 1 /Kids [3 0 R] >>";
+    const char* o3 = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>";
+    const char* streamContent = "BT /F1 12 Tf 72 712 Td (SwiftLeaf Compression Honesty Test) Tj ET\n";
+    TempStr o4 = fmt("<< /Length %d >>\nstream\n%sendstream", (int)strlen(streamContent), Str(streamContent));
+    int offsets[4];
+    offsets[0] = len(pdf);
+    pdf.Append(fmt("1 0 obj\n%s\nendobj\n", Str(o1)));
+    offsets[1] = len(pdf);
+    pdf.Append(fmt("2 0 obj\n%s\nendobj\n", Str(o2)));
+    offsets[2] = len(pdf);
+    pdf.Append(fmt("3 0 obj\n%s\nendobj\n", Str(o3)));
+    offsets[3] = len(pdf);
+    pdf.Append(fmt("4 0 obj\n%s\nendobj\n", o4));
+    int xref = len(pdf);
+    pdf.Append(StrL("xref\n0 5\n0000000000 65535 f \n"));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+
+    TempStr basePdf = str::JoinTemp(GetTempFilePathTemp(StrL("cbase")), StrL(".pdf"));
+    utassert(file::WriteFile(basePdf, ToStrTemp(pdf)));
+    i64 basePdfSize = file::GetSize(basePdf);
+
+    // Audit initial breakdown
+    PdfOptimizationAudit auditInit{};
+    bool audited = PdfAuditBreakdown(basePdf, &auditInit);
+    utassert(audited);
+    utassert(auditInit.beforeBytes > 0);
+    utassert(auditInit.imageBytes + auditInit.fontBytes + auditInit.objectBytes == auditInit.beforeBytes);
+
+    // Test Archive preset: distinct from PDF/A, keeps structure, losslessly deflates
+    TempStr archivePdf = str::JoinTemp(GetTempFilePathTemp(StrL("carch")), StrL(".pdf"));
+    PdfOptimizationAudit auditArchive{};
+    bool okArchive = PdfOptimizeFile(basePdf, archivePdf, PdfOptimizerPreset::Archive, &auditArchive);
+    utassert(okArchive);
+    utassert(file::Exists(archivePdf));
+    utassert(auditArchive.beforeBytes == basePdfSize);
+    utassert(auditArchive.imageBytes + auditArchive.fontBytes + auditArchive.objectBytes == auditArchive.afterBytes);
+
+    // Test Print preset: distinct backend from Archive
+    TempStr printPdf = str::JoinTemp(GetTempFilePathTemp(StrL("cprt")), StrL(".pdf"));
+    PdfOptimizationAudit auditPrint{};
+    bool okPrint = PdfOptimizeFile(basePdf, printPdf, PdfOptimizerPreset::Print, &auditPrint);
+    utassert(okPrint);
+    utassert(file::Exists(printPdf));
+
+    // Test "keep original if output would grow":
+    // Attempting to compress an already compressed/compact file where overhead would grow:
+    // Output size must never exceed source size!
+    TempStr recompactPdf = str::JoinTemp(GetTempFilePathTemp(StrL("crec")), StrL(".pdf"));
+    PdfOptimizationAudit auditRecompact{};
+    bool okRecompact = PdfOptimizeFile(archivePdf, recompactPdf, PdfOptimizerPreset::Archive, &auditRecompact);
+    utassert(okRecompact);
+    i64 origArchiveSize = file::GetSize(archivePdf);
+    i64 recompactSize = file::GetSize(recompactPdf);
+    utassert(recompactSize <= origArchiveSize);
+    utassert(auditRecompact.afterBytes <= auditRecompact.beforeBytes);
+
+    file::Delete(basePdf);
+    file::Delete(archivePdf);
+    file::Delete(printPdf);
+    file::Delete(recompactPdf);
 }
 
 static void PageTools2Test() {
@@ -2389,10 +2595,22 @@ static void PageTools2Test() {
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(Type)) == PDF_NAME(StructTreeRoot));
         utassert(pdf_dict_get(ctx, strRoot, PDF_NAME(K)) != nullptr);
 
+        // Nonempty malformed K and Marked=true must not establish accessibility.
+        pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_TRUE);
+        pdf_dict_put_int(ctx, strRoot, PDF_NAME(K), 42);
+        AccessReport taggedReport = RunAccessibilityCheck(ctx, doc);
+        for (const auto& item : taggedReport.items) {
+            if (str::Eq(item.title, StrL("Logical Reading Order")) || str::Eq(item.title, StrL("Tagged PDF"))) {
+                utassert(item.status != AccessCheckStatus::Pass);
+            }
+        }
+        FreeAccessReport(taggedReport);
+        pdf_dict_puts(ctx, pdf_dict_gets(ctx, root, "MarkInfo"), "Marked", PDF_FALSE);
+
         // Assert MarkInfo
         pdf_obj* minfo = pdf_dict_gets(ctx, root, "MarkInfo");
         utassert(minfo != nullptr);
-        utassert(pdf_to_bool(ctx, pdf_dict_gets(ctx, minfo, "Marked")) == 1);
+        utassert(pdf_to_bool(ctx, pdf_dict_gets(ctx, minfo, "Marked")) == 0);
 
         // Assert Lang
         pdf_obj* lang = pdf_dict_get(ctx, root, PDF_NAME(Lang));
@@ -2441,12 +2659,29 @@ static void PageTools2Test() {
         utassert(pdf_dict_get(ctx, oi, PDF_NAME(Type)) == PDF_NAME(OutputIntent));
         utassert(pdf_dict_get(ctx, oi, PDF_NAME(DestOutputProfile)) != nullptr);
 
+        TempStr badProfilePdf = GetTempFilePathTemp(StrL("pdfa-bad-profile.pdf"));
+        fz_buffer* badProfile = fz_new_buffer(ctx, 32);
+        fz_append_string(ctx, badProfile, "sRGB Profile");
+        pdf_update_stream(ctx, doc, pdf_dict_get(ctx, oi, PDF_NAME(DestOutputProfile)), badProfile, 0);
+        fz_drop_buffer(ctx, badProfile);
+        pdf_write_options badOpts = gPdfDefaultWriteOptions;
+        pdf_save_document(ctx, doc, CStrTemp(badProfilePdf), &badOpts);
         pdf_drop_document(ctx, doc);
         fz_drop_context(ctx);
 
         StrVec violations;
         bool valid = ValidatePdfA(pdfaPdf, 1, violations);
+        utassert(!valid);
+        utassert(len(violations) > 0);
         file::Delete(pdfaPdf);
+        StrVec badViolations;
+        utassert(!ValidatePdfA(badProfilePdf, 1, badViolations));
+        bool rejectedProfile = false;
+        for (const auto finding : badViolations) {
+            if (str::Eq(finding, StrL("Invalid OutputIntent ICC profile bytes"))) rejectedProfile = true;
+        }
+        utassert(rejectedProfile);
+        file::Delete(badProfilePdf);
 
         // (d) Preflight & Report Export & Color Conversion
         PreflightReport prep = RunPreflightFile(basePdf);
@@ -2470,9 +2705,166 @@ static void PageTools2Test() {
         utassert(e->PageCount() == 2);
         SafeEngineRelease(&e);
         file::Delete(rgbPdf);
+
+        // (f) PDF Compare error honesty, atomic write, and extra-page details
+        {
+            Str dummyJson;
+            ok = ComparePdfReport(StrL("missing-left.pdf"), StrL("missing-right.pdf"), StrL("report.html"), &dummyJson);
+            utassert(!ok);
+            utassert(str::Contains(dummyJson, StrL("\"ok\":false")));
+
+            TempStr insPdf = GetTempFilePathTemp(StrL("ins-compare.pdf"));
+            ok = PdfInsertBlankPages(basePdf, insPdf, 1, 1);
+            utassert(ok);
+
+            TempStr cmpReport = GetTempFilePathTemp(StrL("compare-extra.html"));
+            Str cmpJson;
+            ok = ComparePdfReport(basePdf, insPdf, cmpReport, &cmpJson);
+            utassert(ok);
+            utassert(str::Contains(cmpJson, StrL("\"ok\":true")));
+            utassert(str::Contains(cmpJson, StrL("\"pages\":3")));
+            Str reportHtml = file::ReadFile(cmpReport);
+            utassert(str::Contains(reportHtml, StrL("Only in Right / Added")));
+            str::Free(reportHtml);
+            file::Delete(cmpReport);
+            file::Delete(insPdf);
+        }
     }
 
     file::Delete(basePdf);
+}
+
+// Writes a PDF whose pages each hold one line of text, for compare fixtures.
+static TempStr CompareTextPdf(const Str* pageTexts, int pageCount) {
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    int objCount = 3 + pageCount * 2;
+    int* offsets = AllocArray<int>(objCount);
+
+    auto addObject = [&](int no, Str body) {
+        offsets[no - 1] = len(pdf);
+        pdf.Append(fmt("%d 0 obj\n", no));
+        pdf.Append(body);
+        pdf.Append(StrL("\nendobj\n"));
+    };
+
+    addObject(1, StrL("<< /Type /Catalog /Pages 2 0 R >>"));
+    str::Builder kids;
+    kids.Append(StrL("<< /Type /Pages /Count "));
+    kids.Append(fmt("%d", pageCount));
+    kids.Append(StrL(" /Kids ["));
+    for (int i = 0; i < pageCount; i++) {
+        if (i) kids.AppendChar(' ');
+        kids.Append(fmt("%d 0 R", 4 + i * 2));
+    }
+    kids.Append(StrL("] >>"));
+    addObject(2, ToStr(kids));
+    addObject(3, StrL("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"));
+
+    for (int i = 0; i < pageCount; i++) {
+        addObject(4 + i * 2, fmt("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                                 "/Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>",
+                                 5 + i * 2));
+        Str stream = fmt("BT /F1 12 Tf 72 700 Td (%s) Tj ET\n", pageTexts[i]);
+        addObject(5 + i * 2, fmt("<< /Length %d >>\nstream\n%sendstream", len(stream), stream));
+    }
+
+    int xref = len(pdf);
+    pdf.Append(fmt("xref\n0 %d\n0000000000 65535 f \n", objCount + 1));
+    for (int i = 0; i < objCount; i++) pdf.Append(fmt("%010d 00000 n \n", offsets[i]));
+    pdf.Append(fmt("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", objCount + 1, xref));
+    free(offsets);
+    TempStr path = GetTempFilePathTemp(StrL("compare-text.pdf"));
+    utassert(file::WriteFile(path, ToStr(pdf)));
+    return path;
+}
+
+static void ComparePdfTest() {
+    // Two separated edits are reported as two runs, keeping the unchanged
+    // words between them.
+    PdfWordDiff d = ComparePdfWordDiff(StrL("alpha beta gamma delta epsilon"), StrL("alpha X gamma delta Y"));
+    utassert(d.editRuns == 2);
+    utassert(d.changedWords == 2);
+    utassert(!d.coarse);
+    utassert(str::Contains(d.html, StrL("<del>beta</del> <ins>X</ins>")));
+    utassert(str::Contains(d.html, StrL("<del>epsilon</del> <ins>Y</ins>")));
+
+    // Above the LCS cell cap the diff degrades to one coarse run, not a wrong
+    // fine-grained script.
+    str::Builder leftLong, rightLong;
+    for (int i = 0; i < 1200; i++) {
+        if (i) {
+            leftLong.AppendChar(' ');
+            rightLong.AppendChar(' ');
+        }
+        leftLong.Append(fmt("w%d", i));
+        rightLong.Append(fmt("x%d", i));
+    }
+    PdfWordDiff coarse = ComparePdfWordDiff(ToStr(leftLong), ToStr(rightLong));
+    utassert(coarse.coarse);
+    utassert(coarse.editRuns == 1);
+    utassert(coarse.changedWords == 1200);
+
+    // Inserted page: the pages after it still match their original partner.
+    Vec<Str> left, right;
+    VecAppend(left, StrL("alpha beta gamma"));
+    VecAppend(left, StrL("delta epsilon zeta eta"));
+    VecAppend(right, StrL("alpha beta gamma"));
+    VecAppend(right, StrL("inserted brand new page"));
+    VecAppend(right, StrL("delta epsilon zeta eta"));
+    Vec<PdfPageMatch> matches;
+    ComparePdfAlignPages(left, right, matches);
+    utassert(len(matches) == 3);
+    utassert(matches[0].left == 0 && matches[0].right == 0 && !matches[0].moved);
+    utassert(matches[1].left == 1 && matches[1].right == 2 && !matches[1].moved);
+    utassert(matches[2].left == -1 && matches[2].right == 1);
+
+    // Moved page: paired by similarity, out of index order, and flagged.
+    Vec<Str> movedLeft, movedRight;
+    VecAppend(movedLeft, StrL("alpha beta"));
+    VecAppend(movedLeft, StrL("gamma delta"));
+    VecAppend(movedLeft, StrL("epsilon zeta"));
+    VecAppend(movedRight, StrL("epsilon zeta"));
+    VecAppend(movedRight, StrL("alpha beta"));
+    VecAppend(movedRight, StrL("gamma delta"));
+    Vec<PdfPageMatch> moved;
+    ComparePdfAlignPages(movedLeft, movedRight, moved);
+    utassert(len(moved) == 3);
+    utassert(moved[2].left == 2 && moved[2].right == 0 && moved[2].moved);
+
+    // End-to-end: the report pairs the surrounding pages across an insertion.
+    Str leftPages[] = {StrL("alpha beta gamma"), StrL("delta epsilon zeta")};
+    Str rightPages[] = {StrL("alpha beta gamma"), StrL("inserted brand new page"), StrL("delta epsilon zeta")};
+    TempStr leftPdf = CompareTextPdf(leftPages, 2);
+    TempStr rightPdf = CompareTextPdf(rightPages, 3);
+    TempStr alignReport = GetTempFilePathTemp(StrL("compare-align.html"));
+    Str alignJson;
+    utassert(ComparePdfReport(leftPdf, rightPdf, alignReport, &alignJson));
+    utassert(str::Contains(alignJson, StrL("\"addedPages\":1")));
+    Str alignHtml = file::ReadFile(alignReport);
+    utassert(str::Contains(alignHtml, StrL("Left page 2, right page 3")));
+    utassert(str::Contains(alignHtml, StrL("Only in Right / Added")));
+    str::Free(alignHtml);
+    file::Delete(alignReport);
+    file::Delete(leftPdf);
+    file::Delete(rightPdf);
+
+    // Same report path renders two edits instead of one swallowed span.
+    Str editLeftPages[] = {StrL("alpha beta gamma delta epsilon")};
+    Str editRightPages[] = {StrL("alpha X gamma delta Y")};
+    leftPdf = CompareTextPdf(editLeftPages, 1);
+    rightPdf = CompareTextPdf(editRightPages, 1);
+    TempStr editReport = GetTempFilePathTemp(StrL("compare-edits.html"));
+    Str editJson;
+    utassert(ComparePdfReport(leftPdf, rightPdf, editReport, &editJson));
+    utassert(str::Contains(editJson, StrL("\"editRuns\":2")));
+    Str editHtml = file::ReadFile(editReport);
+    utassert(str::Contains(editHtml, StrL("<del>beta</del> <ins>X</ins>")));
+    utassert(str::Contains(editHtml, StrL("<del>epsilon</del> <ins>Y</ins>")));
+    str::Free(editHtml);
+    file::Delete(editReport);
+    file::Delete(leftPdf);
+    file::Delete(rightPdf);
 }
 
 static LONG WINAPI ForAiCrashHandler(EXCEPTION_POINTERS* ei) {
@@ -2501,6 +2893,10 @@ int RunAppUnitTests(bool forAi) {
         SetupForAi();
     }
     printf("Running unit tests\n");
+    if (getenv("SWIFTLEAF_SIGNATURE_TEST_ONLY")) {
+        utassert(Signature_UnitTests());
+        return utassert_print_results();
+    }
     utassert(Ocr_UnitTests());
     utassert(Signature_UnitTests());
     DocumentPanel_UnitTests();
@@ -2522,12 +2918,15 @@ int RunAppUnitTests(bool forAi) {
     ObjectEditTest();
     FormAuthoringTest();
     AdvancedFormsTest();
+    BatchPlanTest();
     PageStampsTest();
+    PdfCompressionHonestyTest();
 #if !defined(SUMATRA_NG)
     ExportFormatsUnitTests();
     CompareWorkerTest();
 #endif
     PageTools2Test();
+    ComparePdfTest();
     PdfDocumentToolsTest();
     ReviewToolsTest();
 

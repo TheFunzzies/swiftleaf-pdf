@@ -40,3 +40,8 @@ test("build docs load without optional CDN dependencies", async () => {
   if (code !== 0) throw new Error(stdout + stderr);
   expect(code).toBe(0);
 });
+
+test("release binary size gate", async () => {
+  const { testit } = await import("./release-size-gate.ts");
+  await testit();
+});

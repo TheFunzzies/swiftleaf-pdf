@@ -2,9 +2,32 @@
 
 ## Unreleased
 
+<<<<<<< HEAD
 - Compare PDFs runs in a cancellable worker with page progress, streams reports,
   bounds preview/cache memory, and preserves existing output on failure.
 
+=======
+- PDF compression honesty: distinct Archive preset from ISO PDF/A, separate Print and Archive backends, detailed image/font/object byte contributions in audit and dialog, honest preset descriptions, and keep-original guarantee when output would grow.
+- Release size and footprint gate: automated CI check against recorded baselines with warning on growth and strict >10% growth prevention gate.
+- Search redaction: review page boxes, choose match IDs, email/SSN patterns and replacement labels. Saved copies remove metadata, attachments, scripts, comments and tags.
+- PDF signatures: check permitted revisions and signing-time certificate validity; report TSA trust and unknown/offline revocation explicitly.
+
+- PDF signatures: embed verified RFC 3161 tokens over the signature value; fail saving when a requested TSA fails.
+
+- Use WIA 2.0 feeder flags so strict drivers accept simplex and duplex acquisition.
+- Map deskewed OCR word corners back to the original scan, preserving orientation
+  through page rotation, crop offsets and UserUnit, matching search and redaction.
+  Fail batch OCR on incomplete pages.
+- Acquire real WIA 2.0 scanner pixels with feeder/duplex settings, cancellation and
+  atomic output. Report unsupported settings and transfer errors; never fabricate scans.
+- Replace camera import's fixed inset with explicit corners and projective correction.
+  Preserve full image by default; reject invalid corners and fix image ownership.
+- Accessibility: warn about unverified reading order and figure links; preserve existing tags and mark generated roles as drafts.
+- PDF/A: reject invalid ICC profiles, preserve transparency, and report unverified conformance.
+- PDF compare: report load, render, and text extraction failures honestly without false 0% diffs, include extra-page details, and ensure atomic report writes.
+- PDF compare: report separate word edits with a bounded diff and coarse fallback, and align inserted, removed or moved pages by text similarity instead of page index.
+- Tools search: enable Tab navigation and prevent minimum-width clipping on resize.
+>>>>>>> origin/main
 - Recommended section at top of the All tools panel for quick access to primary workflows.
 - Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
 - Command palette lists all commands with description and ribbon tab destination.
@@ -13,6 +36,12 @@
 - First-run dismissible Quick tour card on the start page, persisted in settings (QuickTourDismissed).
 
 ### Added
+
+- Batch plans are validated before the first write: empty or unknown actions,
+  invalid optimizer presets, exports that are not last, duplicate outputs and
+  source overwrites are rejected. The Action Wizard previews the actions and
+  each input's final output before running, and intermediate cleanup never
+  deletes an input file. See `docs/batch-compare.md`.
 
 - Edit Images and Objects replaces page images and scales, rotates or flips
   named images and grouped objects in a separate copy. Shared resources on
@@ -210,7 +239,7 @@
   release as the payload: it detects corruption or local tampering, not a
   compromised release. There is no automatic rollback.
 
-## 0.3.3 — 2026-10-15
+## 0.3.3 â€” 2026-10-15
 
 ### Improved
 
@@ -240,7 +269,7 @@
   saved text follows the PDF page axes. Full Unicode replacement of existing PDF
   text remains unfinished. No performance improvement has been measured.
 
-## 0.3.2 — 2026-10-15
+## 0.3.2 â€” 2026-10-15
 
 ### Improved
 
@@ -262,7 +291,7 @@
 - Edit Text rejects unsupported characters before removing the original text,
   instead of silently substituting question marks. Rejected drafts remain
   available for correction or copying.
-- Windows-1252 characters such as Œ, š, Ÿ and € use MuPDF's complete mapping.
+- Windows-1252 characters such as Å’, Å¡, Å¸ and â‚¬ use MuPDF's complete mapping.
 
 ### Validation and limitations
 
