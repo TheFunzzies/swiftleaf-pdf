@@ -1,0 +1,49 @@
+
+  base.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\base.lib
+  a-zlib.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-zlib.lib
+  cmark-gfm.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj\cmark-gfm.lib
+  a-mujs.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-mujs.lib
+  a-extract.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-extract.lib
+  a-freetype.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-freetype.lib
+  a-harfbuzz.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-harfbuzz.lib
+  a-brotli.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-brotli.lib
+  a-lcms2.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-lcms2.lib
+  a-openjpeg.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-openjpeg.lib
+  a-jbig2dec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-jbig2dec.lib
+  libjpeg-turbo.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\libjpeg-turbo.lib
+  a-gumbo.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-gumbo.lib
+  a-libarchive.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-libarchive.lib
+  djvudec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\djvudec.lib
+  jxldec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\jxldec.lib
+  a-libwebp.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-libwebp.lib
+  heicdec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\heicdec.lib
+  a-unrar.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\a-unrar.lib
+  chmdec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\chmdec.lib
+  msdes.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\msdes.lib
+  1>..\ext\dav1d\src\x86\ipred16_avx2.asm
+  Microsoft (R) Library Manager Version 14.44.35229.0
+  Copyright (C) Microsoft Corporation.  All rights reserved.
+  
+  "/OUT:C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\vs2022\..\out\dbg64\obj-s\dav1d.lib" /NOLOGO /MACHINE:X64 "../out/dbg64/obj-s/dav1d/cdef16_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/cdef_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/cpuid_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/filmgrain16_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/filmgrain_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/ipred16_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/ipred_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/itx16_avx2_asm.obj" 
+  LINK : the 32-bit linker (C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\HostX86\x64\link.exe) failed to do memory mapped file I/O on `..\out\dbg64\obj-s\dav1d\itx16_avx2_asm.obj' and is going to restart linking with a 64-bit linker for better throughput
+  LINK : restarting link with 64-bit linker `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\link.exe'
+  Microsoft (R) Library Manager Version 14.44.35229.0
+  Copyright (C) Microsoft Corporation.  All rights reserved.
+  
+  "/OUT:C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\vs2022\..\out\dbg64\obj-s\dav1d.lib" /NOLOGO /MACHINE:X64 "../out/dbg64/obj-s/dav1d/cdef16_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/cdef_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/cpuid_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/filmgrain16_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/filmgrain_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/ipred16_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/ipred_avx2_asm.obj" 
+  "../out/dbg64/obj-s/dav1d/itx16_avx2_asm.obj" 
+..\out\dbg64\obj-s\dav1d\itx16_avx2_asm.obj : fatal error LNK1136: invalid or corrupt file [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\vs2022\dav1d.vcxproj]
+  mupdf.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-54d69250\out\dbg64\obj-s\mupdf.lib

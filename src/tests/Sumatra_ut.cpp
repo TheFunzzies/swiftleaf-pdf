@@ -1817,6 +1817,51 @@ static void PdfDocumentToolsTest() {
             CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, secret), secret);
         }
         pdf_drop_document(ctx, doc);
+        Vec<PdfRedactMatch> reviewed;
+        CheckPdfTool(ctx,
+                     EngineMupdfReviewRedact(sources[0], {}, StrL("ID-[0-9]+"), PdfSearchMode::Regex, reviewed,
+                                             PdfRedactPass::Preview, {}, &error),
+                     "preview redaction");
+        CheckPdfTool(ctx, len(reviewed) == 4, "preview repeated matches");
+        for (int i = 0; i < len(reviewed); i++) {
+            CheckPdfTool(ctx, reviewed[i].page == i / 2 + 1 && reviewed[i].box.dx > 0 && reviewed[i].box.dy > 0,
+                         "preview page and box");
+            reviewed[i].selected = i % 2 == 0;
+        }
+        CheckPdfTool(ctx,
+                     EngineMupdfReviewRedact(sources[0], redactedPath, StrL("ID-[0-9]+"), PdfSearchMode::Regex,
+                                             reviewed, PdfRedactPass::Apply, StrL("Private"), &error),
+                     "apply selected redactions");
+        doc = pdf_open_document(ctx, CStrTemp(redactedPath));
+        CheckPdfTool(ctx, !ToolsTestHasText(ctx, doc, "ID-123") && ToolsTestHasText(ctx, doc, "ID-456"),
+                     "selected identifiers removed; unchecked identifiers kept after reopen");
+        CheckPdfTool(ctx, ToolsTestHasText(ctx, doc, "Private"), "reason overlay survives reopen");
+        CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, "ID-123"), "selected ActualText / Alt and old streams absent");
+        for (auto* secret : {"AUTHOR-SECRET", "XMP-SECRET", "ATTACHMENT-SECRET", "JS-SECRET", "THUMB-SECRET"})
+            CheckPdfTool(ctx, !ToolsTestObjectText(ctx, doc, secret), "redaction ancillary copies removed");
+        pdf_drop_document(ctx, doc);
+        reviewed[0].start++;
+        CheckPdfTool(ctx,
+                     !EngineMupdfReviewRedact(sources[0], redactedPath, StrL("ID-[0-9]+"), PdfSearchMode::Regex,
+                                              reviewed, PdfRedactPass::Apply, {}, &error),
+                     "stale review rejected");
+        doc = pdf_open_document(ctx, CStrTemp(redactedPath));
+        CheckPdfTool(ctx, ToolsTestHasText(ctx, doc, "Private"), "stale review preserves saved output");
+        pdf_drop_document(ctx, doc);
+        PdfOptimizationAudit audit;
+        CheckPdfTool(ctx, PdfOptimizeFile(sourcePath, cleanPath, PdfOptimizerPreset::Archive, &audit),
+                     "archive cleanup");
+        CheckPdfTool(ctx,
+                     audit.contributionsAvailable && audit.imageBytes == 12 &&
+                         audit.imageBytes + audit.fontBytes + audit.otherBytes == audit.beforeBytes,
+                     "stored byte contributions account for input");
+        CheckPdfTool(
+            ctx,
+            audit.afterBytes <= audit.beforeBytes && audit.keptOriginal == (audit.candidateBytes > audit.beforeBytes),
+            "optimizer never saves a larger copy");
+        CheckPdfTool(ctx, !PdfOptimizeFile(sourcePath, sourcePath, PdfOptimizerPreset::Web),
+                     "optimizer protects input");
+        CheckPdfTool(ctx, !PdfOptimizeFile(sourcePath, cleanPath, (PdfOptimizerPreset)99), "unknown preset rejected");
         int count = 0;
         CheckPdfTool(
             ctx,

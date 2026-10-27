@@ -12179,12 +12179,20 @@ bool EngineMupdfSanitizePdf(const PdfMergeSource& src, Str destPath, const PdfSa
     return ok;
 }
 
+static void CleanRedactObject(fz_context* ctx, pdf_document* doc, pdf_obj* obj, void*) {
+    PdfSanitizeOptions clean;
+    SanitizePdfObject(ctx, doc, obj, &clean);
+    pdf_dict_dels(ctx, obj, "ActualText");
+    pdf_dict_dels(ctx, obj, "Alt");
+}
+
 struct RedactChar {
     int offset;
     fz_quad quad;
 };
 
-static void MarkSearchMatch(fz_context* ctx, pdf_page* page, const Vec<RedactChar>& chars, int start, int end) {
+static void MarkSearchMatch(fz_context* ctx, pdf_page* page, const Vec<RedactChar>& chars, int start, int end,
+                            Str overlay) {
     // One quad per glyph avoids erasing the gap between separate lines/columns.
     pdf_annot* annot = pdf_create_annot(ctx, page, PDF_ANNOT_REDACT);
     fz_try(ctx) {
@@ -12193,6 +12201,33 @@ static void MarkSearchMatch(fz_context* ctx, pdf_page* page, const Vec<RedactCha
         }
         float black = 0;
         pdf_set_annot_color(ctx, annot, 1, &black);
+        if (len(overlay)) {
+            fz_rect box = fz_empty_rect;
+            for (int i = 0; i < len(chars); i++) {
+                if (chars[i].offset >= start && chars[i].offset < end)
+                    box = fz_union_rect(box, fz_rect_from_quad(chars[i].quad));
+            }
+            fz_rect media;
+            fz_matrix ctm;
+            pdf_page_transform(ctx, page, &media, &ctm);
+            box = fz_transform_rect(box, fz_invert_matrix(ctm));
+            str::Builder hex;
+            for (int i = 0; i < len(overlay); i++) hex.Append(fmt("%02x", (unsigned char)overlay[i]));
+            float size = fz_min(10.0f, fz_min((box.y1 - box.y0) * .7f, (box.x1 - box.x0) / (float)len(overlay)));
+            TempStr commands = fmt("0 g %g %g %g %g re f BT /F %g Tf 1 g 1 0 0 1 %g %g Tm <%s> Tj ET", box.x0, box.y0,
+                                   box.x1 - box.x0, box.y1 - box.y0, size, box.x0, box.y0 + size * .3f, ToStr(hex));
+            fz_buffer* buffer = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)commands.s, len(commands));
+            pdf_obj* resources = pdf_new_dict(ctx, page->doc, 1);
+            pdf_obj* font =
+                pdf_dict_put_dict(ctx, pdf_dict_put_dict(ctx, resources, PDF_NAME(Font), 1), pdf_new_name(ctx, "F"), 3);
+            pdf_dict_put(ctx, font, PDF_NAME(Type), PDF_NAME(Font));
+            pdf_dict_put(ctx, font, PDF_NAME(Subtype), PDF_NAME(Type1));
+            pdf_dict_put_name(ctx, font, PDF_NAME(BaseFont), "Helvetica");
+            pdf_dict_put_drop(ctx, pdf_annot_obj(ctx, annot), PDF_NAME(RO),
+                              pdf_new_xobject(ctx, page->doc, box, fz_identity, resources, buffer));
+            pdf_drop_obj(ctx, resources);
+            fz_drop_buffer(ctx, buffer);
+        }
     }
     fz_always(ctx) {
         pdf_drop_annot(ctx, annot);
@@ -12202,7 +12237,8 @@ static void MarkSearchMatch(fz_context* ctx, pdf_page* page, const Vec<RedactCha
     }
 }
 
-static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str term, fz_regex* regex) {
+static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str term, fz_regex* regex,
+                            Vec<PdfRedactMatch>* matches, PdfRedactPass pass, Str overlay, int* seen) {
     pdf_page* page = nullptr;
     fz_stext_page* text = nullptr;
     fz_var(page);
@@ -12252,8 +12288,31 @@ static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str 
                 cursor = end + fz_chartorune(&rune, end);
                 continue;
             }
-            MarkSearchMatch(ctx, page, chars, (int)(start - begin), (int)(end - begin));
-            count++;
+            PdfRedactMatch match;
+            match.page = number + 1;
+            match.start = (int)(start - begin);
+            match.end = (int)(end - begin);
+            fz_rect box = fz_empty_rect;
+            for (const RedactChar& c : chars) {
+                if (c.offset >= match.start && c.offset < match.end)
+                    box = fz_union_rect(box, fz_rect_from_quad(c.quad));
+            }
+            match.box = RectF(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
+            bool selected = true;
+            if (matches && pass == PdfRedactPass::Preview) VecAppend(*matches, match);
+            if (matches && pass == PdfRedactPass::Apply) {
+                if (*seen >= len(*matches)) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Search changed; preview again");
+                const PdfRedactMatch& reviewed = (*matches)[*seen];
+                if (reviewed.page != match.page || reviewed.start != match.start || reviewed.end != match.end ||
+                    memcmp(&reviewed.box, &match.box, sizeof(RectF)))
+                    fz_throw(ctx, FZ_ERROR_ARGUMENT, "Search changed; preview again");
+                selected = reviewed.selected;
+            }
+            (*seen)++;
+            if (selected && pass == PdfRedactPass::Apply) {
+                MarkSearchMatch(ctx, page, chars, match.start, match.end, overlay);
+                count++;
+            }
             cursor = end;
         }
         if (count) {
@@ -12275,10 +12334,17 @@ static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str 
     return count;
 }
 
-bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode, int* countOut,
-                              Str* errorOut) {
+static bool ReviewRedact(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode, int* countOut,
+                         Str* errorOut, Vec<PdfRedactMatch>* matches, PdfRedactPass pass, Str overlay) {
     if (countOut) *countOut = 0;
     if (errorOut) *errorOut = {};
+    if (pass == PdfRedactPass::Preview && matches) VecReset(*matches);
+    for (int i = 0; i < len(overlay); i++) {
+        if (overlay[i] < 32 || overlay[i] > 126) {
+            if (errorOut) *errorOut = StrL("Overlay must contain printable ASCII text.");
+            return false;
+        }
+    }
     if (!len(term)) {
         if (errorOut) *errorOut = StrL("Enter a search term or regular expression.");
         return false;
@@ -12304,16 +12370,20 @@ bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term,
             VecAppend(layerStates, pdf_layer_is_enabled(ctx, doc, i));
             pdf_enable_layer(ctx, doc, i, 1);
         }
-        for (int i = 0; i < pdf_count_pages(ctx, doc); i++) count += RedactSearchPage(ctx, doc, i, term, regex);
+        int seen = 0;
+        for (int i = 0; i < pdf_count_pages(ctx, doc); i++)
+            count += RedactSearchPage(ctx, doc, i, term, regex, matches, pass, overlay, &seen);
+        if (matches && pass == PdfRedactPass::Apply && seen != len(*matches))
+            fz_throw(ctx, FZ_ERROR_ARGUMENT, "Search changed; preview again");
         for (int i = 0; i < len(layerStates); i++) pdf_enable_layer(ctx, doc, i, layerStates[i]);
         if (count) {
             // Tags and thumbnails can hold copies of removed content.
             pdf_dict_del(ctx, MergeRoot(ctx, doc), PDF_NAME(StructTreeRoot));
-            PdfSanitizeOptions clean = {};
-            clean.metadata = clean.javascript = clean.attachments = clean.comments = clean.forms = false;
-            VisitPdfObjects(ctx, doc, SanitizePdfObject, &clean);
+            VisitPdfObjects(ctx, doc, CleanRedactObject, nullptr);
+            pdf_dict_del(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
+            pdf_dict_del(ctx, pdf_trailer(ctx, doc), PDF_NAME(ID));
         }
-        ok = SaveCleanPdf(ctx, doc, output);
+        ok = pass == PdfRedactPass::Preview || SaveCleanPdf(ctx, doc, output);
     }
     fz_always(ctx) {
         fz_regfree(ctx, regex);
@@ -12326,6 +12396,16 @@ bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term,
     fz_drop_context(ctx);
     if (ok && countOut) *countOut = count;
     return ok;
+}
+
+bool EngineMupdfReviewRedact(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode,
+                             Vec<PdfRedactMatch>& matches, PdfRedactPass pass, Str overlay, Str* errorOut) {
+    return ReviewRedact(src, destPath, term, mode, nullptr, errorOut, &matches, pass, overlay);
+}
+
+bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode, int* countOut,
+                              Str* errorOut) {
+    return ReviewRedact(src, destPath, term, mode, countOut, errorOut, nullptr, PdfRedactPass::Apply, {});
 }
 
 // Step one operation back (or forward with redo). Returns false if there was

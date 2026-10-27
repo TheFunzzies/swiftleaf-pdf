@@ -364,7 +364,7 @@ const CommandInfo gCommands[] = {
     {CmdAddHeaderFooter, "CmdAddHeaderFooter\0", StrL("Add Header/Footer...")},
     {CmdBatesNumbering, "CmdBatesNumbering\0", StrL("Bates Numbering...")},
     {CmdPdfSanitize, "CmdPdfSanitize\0", StrL("Sanitize Document...")},
-    {CmdPdfRedactSearch, "CmdPdfRedactSearch\0", StrL("Redact All Search Matches...")},
+    {CmdPdfRedactSearch, "CmdPdfRedactSearch\0", StrL("Search and Redact...")},
     {CmdMeasureDistance, "CmdMeasureDistance\0", StrL("Distance Tool")},
     {CmdMeasurePerimeter, "CmdMeasurePerimeter\0", StrL("Perimeter Tool")},
     {CmdMeasureArea, "CmdMeasureArea\0", StrL("Area Tool")},
