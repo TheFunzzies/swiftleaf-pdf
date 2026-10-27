@@ -4541,48 +4541,158 @@ void ShowPdfFontManager(MainWindow* win) {
     if (!dialog->Create(win, tab)) delete dialog;
 }
 
+struct ReplaceJob {
+    AtomicInt refs = 1;
+    AtomicInt done = 0;
+    PdfWorkProgress progress;
+    EngineBase* engine = nullptr;
+    Str destination;
+    Str find;
+    Str replacement;
+    int count = 0;
+    Str error;
+    bool ok = false;
+
+    ~ReplaceJob() {
+        str::Free(destination);
+        str::Free(find);
+        str::Free(replacement);
+        str::Free(error);
+    }
+    void Release() {
+        if (AtomicIntDec(&refs) == 0) delete this;
+    }
+};
+
+static void RunReplace(ReplaceJob* job) {
+    job->ok = EngineMupdfReplaceAllText(job->engine, job->destination, job->find, job->replacement,
+                                        &job->count, &job->error, &job->progress);
+    AtomicIntSet(&job->done, 1);
+    job->Release();
+}
+
 struct PdfReplaceDialog : PdfToolDialog {
     Edit* find = nullptr;
     Edit* replacement = nullptr;
+    VirtText* status = nullptr;
+    ReplaceJob* job = nullptr;
 
-    bool Create(MainWindow* w, WindowTab* tab) {
-        if (!CreateToolDialog(w, tab, Tr("Find and Replace Text"))) return false;
-        AddPathRow();
-        Str stem = srcPath;
-        if (str::EndsWithI(stem, StrL(".pdf"))) stem.len -= 4;
-        AddDestRow(MakeUniqueFilePathTemp(fmt("%s_replaced.pdf", stem)), WStrL(L"PDF Files\0*.pdf\0All Files\0*.*\0"),
-                   WStrL(L"pdf"));
-        find = AddLabeledEdit(Tr("Find (case sensitive):"), {});
-        replacement = AddLabeledEdit(Tr("Replace with:"), {});
-        AddRow()->AddChild(NewVirtText(
-            {.s = Tr("Matches within paragraphs on all pages. Empty replacement deletes matches."), .font = font}));
-        AddRow()->AddChild(NewVirtText(
-            {.s = Tr("Unsupported blocks stop the operation. The original document is kept."), .font = font}));
-        AddButtonsRow(Tr("Replace All in Copy"));
-        FinishDialog(find, 740);
-        return true;
+    ~PdfReplaceDialog() override {
+        if (job) {
+            AtomicIntSet(&job->progress.cancelled, 1);
+            job->Release();
+        }
     }
 
-    void DoIt(VirtMouseEvent*) override {
-        WindowTab* tab = win ? win->CurrentTab() : nullptr;
-        if (!tab || !path::IsSame(tab->filePath, srcPath)) return;
-        Str error;
-        int count = 0;
-        Str destination = destEdit->GetTextTemp();
-        if (!EngineMupdfReplaceAllText(tab->GetEngine(), destination, find->GetTextTemp(), replacement->GetTextTemp(),
-                                       &count, &error)) {
-            MessageBoxWarning(hwnd, len(error) ? error : Tr("Could not save the replacement copy."),
-                              Tr("Find and Replace Text"));
+    void OnCancel(VirtMouseEvent*) {
+        if (job && !AtomicIntGet(&job->done)) {
+            AtomicIntSet(&job->progress.cancelled, 1);
+            status->SetText(Tr("Cancelling..."));
             return;
         }
-        MainWindow* w = win;
-        TempStr saved = str::DupTemp(destination);
         Close();
-        LoadArgs args(saved, w);
-        StartLoadDocument(&args);
-        ShowTemporaryNotification(w->hwndCanvas, fmt(Tr("Replaced %d matches. Saved a separate copy.").s, count));
     }
+
+    void Poll(WindowBase::TimerEvent*);
+    bool Create(MainWindow* w, WindowTab* tab);
+    void DoIt(VirtMouseEvent*) override;
 };
+
+bool PdfReplaceDialog::Create(MainWindow* w, WindowTab* tab) {
+    if (!CreateToolDialog(w, tab, Tr("Find and Replace Text"))) return false;
+    AddPathRow();
+    Str stem = srcPath;
+    if (str::EndsWithI(stem, StrL(".pdf"))) stem.len -= 4;
+    AddDestRow(MakeUniqueFilePathTemp(fmt("%s_replaced.pdf", stem)), WStrL(L"PDF Files\0*.pdf\0All Files\0*.*\0"),
+               WStrL(L"pdf"));
+    find = AddLabeledEdit(Tr("Find (case sensitive):"), {});
+    replacement = AddLabeledEdit(Tr("Replace with:"), {});
+    AddRow()->AddChild(NewVirtText(
+        {.s = Tr("Matches within paragraphs on all pages. Empty replacement deletes matches."), .font = font}));
+    AddRow()->AddChild(NewVirtText(
+        {.s = Tr("Unsupported blocks stop the operation. The original document is kept."), .font = font}));
+    status = NewVirtText({.s = Tr("Ready"), .font = font});
+    AddRow()->AddChild(status, 1);
+    AddButtonsRow(Tr("Replace All in Copy"));
+    cancelBtn->onClick = MkMethod1<PdfReplaceDialog, VirtMouseEvent*, &PdfReplaceDialog::OnCancel>(this);
+    onTimer = MkMethod1<PdfReplaceDialog, WindowBase::TimerEvent*, &PdfReplaceDialog::Poll>(this);
+    FinishDialog(find, 740);
+    return true;
+}
+
+void PdfReplaceDialog::DoIt(VirtMouseEvent*) {
+    WindowTab* tab = win ? win->CurrentTab() : nullptr;
+    if (!tab || !path::IsSame(tab->filePath, srcPath)) return;
+    if (job && !AtomicIntGet(&job->done)) return;
+    if (job) {
+        job->Release();
+        job = nullptr;
+    }
+    Str destination = destEdit->GetTextTemp();
+    Str findText = find->GetTextTemp();
+    Str replaceText = replacement->GetTextTemp();
+    if (!len(findText) || !len(destination)) {
+        status->SetText(Tr("Enter a search term and destination."));
+        return;
+    }
+    if (path::IsSame(destination, srcPath)) {
+        status->SetText(Tr("Choose a different file name for the saved copy."));
+        return;
+    }
+    job = new ReplaceJob();
+    job->engine = tab->GetEngine();
+    job->destination = str::Dup(destination);
+    job->find = str::Dup(findText);
+    job->replacement = str::Dup(replaceText);
+    actionBtn->SetIsEnabled(false);
+    cancelBtn->SetText(Tr("Cancel"));
+    status->SetText(Tr("Scanning document..."));
+    AtomicIntInc(&job->refs);
+    ThreadHandle thread = StartThread(MkFunc0(RunReplace, job), StrL("Find & Replace"));
+    if (!thread) {
+        job->error = str::Dup(Tr("Could not start replacement worker."));
+        AtomicIntSet(&job->done, 1);
+        job->Release();
+    }
+    SafeCloseThreadHandle(&thread);
+    SetTimer(hwnd, 1, 150, nullptr);
+}
+
+void PdfReplaceDialog::Poll(WindowBase::TimerEvent*) {
+    if (!job) return;
+    if (!AtomicIntGet(&job->done)) {
+        if (!job->progress.IsCancelled()) {
+            int comp = AtomicIntGet(&job->progress.completed);
+            int total = AtomicIntGet(&job->progress.total);
+            if (total > 0) {
+                status->SetText(fmt(Tr("Replacing: page %d of %d").s, comp, total));
+            }
+        }
+        return;
+    }
+    KillTimer(hwnd, 1);
+    actionBtn->SetIsEnabled(true);
+    cancelBtn->SetText(Tr("Close"));
+    if (job->ok) {
+        MainWindow* w = win;
+        TempStr saved = str::DupTemp(job->destination);
+        int count = job->count;
+        Close();
+        if (w) {
+            LoadArgs args(saved, w);
+            StartLoadDocument(&args);
+            ShowTemporaryNotification(w->hwndCanvas, fmt(Tr("Replaced %d matches. Saved a separate copy.").s, count));
+        }
+    } else {
+        if (job->progress.IsCancelled()) {
+            status->SetText(Tr("Cancelled. No copy was written."));
+        } else {
+            status->SetText(len(job->error) ? job->error : Tr("Could not save the replacement copy."));
+            MessageBoxWarning(hwnd, len(job->error) ? job->error : Tr("Could not save the replacement copy."),
+                              Tr("Find and Replace Text"));
+        }
+    }
+}
 
 void ShowPdfReplaceTextDialog(MainWindow* win) {
     WindowTab* tab = win ? win->CurrentTab() : nullptr;
