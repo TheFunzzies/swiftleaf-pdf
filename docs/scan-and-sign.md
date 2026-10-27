@@ -48,8 +48,11 @@ interactive and batch OCR use this path. Batch rendering, recognition or inserti
 failure aborts output instead of reporting a partially searchable file as success.
 
 Regression tests save/reopen searchable PDFs with crop offsets, UserUnit, all page
-and view quarter-turns and positive/negative deskew. Pixel tests cover identity
-camera corners, a trapezoid and crossed corners.
+and view quarter-turns and positive/negative deskew. Search selections drive saved
+redactions; tests check their pixel position, removed text and retained neighboring
+text. WIA callback tests save/reopen two transferred pages, verify their pixels,
+and reject empty streams, cancellation and paper jams. Physical scanner validation
+is still required. Pixel tests cover identity camera corners, a trapezoid and crossed corners.
 
 Run `bun test tests/scan-geometry.test.ts` for source guards and
 `bun tests/ad-hoc-scan-geometry.ts --no-build` after a debug build for native tests.
@@ -57,7 +60,9 @@ Run `bun test tests/scan-geometry.test.ts` for source guards and
 ## 3. Digital Signatures & Certificates (Certificates / Signatures)
 
 ### Digital Signature Panel (`CmdSignaturePanel`)
+
 Lists all PKCS#7 / CMS signatures embedded in the document with real-time verification and inspection:
+
 - **Integrity Status**:
   - `Valid`: Cryptographically sound; document unaltered since signed.
   - `ModifiedAfterSigning`: Cryptographic digest mismatch or unauthorized incremental changes detected.
@@ -69,28 +74,33 @@ Lists all PKCS#7 / CMS signatures embedded in the document with real-time verifi
 - **Clear Signature**: Clears signature contents and AP dictionary, resetting the form field to unsigned state.
 
 ### Document Certification (`CmdCertifyDocument` / DocMDP)
+
 Allows document owners to certify the PDF with DocMDP permissions (`TransformMethod /DocMDP`):
+
 - **Permission 1 (P=1)**: No changes permitted (strict lock down).
 - **Permission 2 (P=2)**: Form fill-in and subsequent digital signatures permitted.
 - **Permission 3 (P=3)**: Annotations, form fill-in, and digital signatures permitted.
 
 ### RFC 3161 Timestamp Authority (TSA)
+
 - Configurable via `TsaUrl` in Settings.
 - When configured, queries the RFC 3161 timestamp authority server via `CryptRetrieveTimeStamp` (CryptoAPI) and embeds the authenticated timestamp token in the signature `signer_info` unauthenticated attributes.
 
 ### Signing Providers
+
 - **Windows Certificate Store**: Signs using user/machine certificates via CryptoAPI / CNG (`MY` Personal store).
 - **PKCS#12 / PFX Files**: Supports software certificate files (`.pfx` / `.p12`) protected with a password.
 
 ### Certificate-based Encryption
-- *Note:* Certificate-based encryption (public-key envelope / CMS recipient encryption) was evaluated and skipped due to scope/binary size constraints per project architecture guidance.
+
+- _Note:_ Certificate-based encryption (public-key envelope / CMS recipient encryption) was evaluated and skipped due to scope/binary size constraints per project architecture guidance.
 
 ---
 
 ## 4. UI Integration
 
 - **Ribbon**:
-  - **Convert Tab**: *Scan to PDF* (`CmdScanAcquire`), *Import Photo/Camera* (`CmdImportCameraImage`), *Batch OCR* (`CmdBatchOcr`).
-  - **E-Sign Tab**: *Digital Signatures Panel* (`CmdSignaturePanel`), *Certify Document* (`CmdCertifyDocument`), *Clear Signature* (`CmdClearSignature`), *Sign Document* (`CmdSignDocument`).
+  - **Convert Tab**: _Scan to PDF_ (`CmdScanAcquire`), _Import Photo/Camera_ (`CmdImportCameraImage`), _Batch OCR_ (`CmdBatchOcr`).
+  - **E-Sign Tab**: _Digital Signatures Panel_ (`CmdSignaturePanel`), _Certify Document_ (`CmdCertifyDocument`), _Clear Signature_ (`CmdClearSignature`), _Sign Document_ (`CmdSignDocument`).
 - **All Tools Panel**: Contextual panel entries for all scanning and signature tools.
 - **Command Palette**: Searchable by command name or keyword.

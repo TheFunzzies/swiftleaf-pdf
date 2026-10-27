@@ -238,7 +238,8 @@ static HRESULT AcquireWia(ScanJob* job, PdfCreator& pdf) {
     hr = item->QueryInterface(IID_PPV_ARGS(&props));
     if (FAILED(hr)) return hr;
     if (job->source != 0) {
-        hr = SetWiaLong(props, WIA_IPS_DOCUMENT_HANDLING_SELECT, FEEDER | (job->source == 2 ? DUPLEX : FRONT_ONLY));
+        // WIA 2.0 selects the feeder by item; FEEDER is a legacy root flag.
+        hr = SetWiaLong(props, WIA_IPS_DOCUMENT_HANDLING_SELECT, job->source == 2 ? DUPLEX : FRONT_ONLY);
         if (FAILED(hr)) return hr;
         hr = SetWiaLong(props, WIA_IPS_PAGES, ALL_PAGES);
         if (FAILED(hr)) return hr;
@@ -1012,11 +1013,41 @@ bool ScannerWia_UnitTests() {
     ok = ok && transfer.TransferCallback(0, &params) == S_OK && job.pages == 1;
     stream = nullptr;
     ok = ok && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_OK;
+    ok = ok && bitmap.Save(stream, &encoder) == Gdiplus::Ok;
+    ok = ok && transfer.TransferCallback(0, &params) == S_OK && job.pages == 2;
+    Str saved = str::Dup(GetTempFilePathTemp(StrL("wia")));
+    ok = ok && pdf.SaveToFile(saved);
+    EngineBase* scanned = ok ? CreateEngineMupdfFromFile(saved, FileType::PDF, 96) : nullptr;
+    if (scanned) {
+        ok = ok && scanned->PageCount() == 2;
+        RenderPageArgs args(2, 1, 0, nullptr, RenderTarget::Export);
+        Pixmap* pixels = scanned->RenderPage(args);
+        if (!pixels || pixels->width < 1 || pixels->height < 1) {
+            ok = false;
+        } else {
+            // Saved PDF must retain the driver's colored pixels, not white placeholders.
+            ok = ok && abs(pixels->data[0] - 60) < 5 && abs(pixels->data[1] - 40) < 5 && abs(pixels->data[2] - 20) < 5;
+        }
+        FreePixmap(pixels);
+        scanned->Release();
+    } else {
+        ok = false;
+    }
+    file::Delete(saved);
+    str::Free(saved);
+    stream = nullptr;
+    ok = ok && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_OK;
     // An empty driver stream must fail, without appending another page.
-    ok = ok && FAILED(transfer.TransferCallback(0, &params)) && job.pages == 1;
+    ok = ok && FAILED(transfer.TransferCallback(0, &params)) && job.pages == 2;
     SetEvent(job.cancel);
     stream = nullptr;
     ok = ok && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_FALSE && !stream.Get();
+    ScanJob failedJob;
+    ScanTransfer failedTransfer(&failedJob, &pdf);
+    params.lMessage = WIA_TRANSFER_MSG_DEVICE_STATUS;
+    params.hrErrorStatus = WIA_ERROR_PAPER_JAM;
+    ok = ok && failedTransfer.TransferCallback(0, &params) == WIA_ERROR_PAPER_JAM;
+    ok = ok && failedTransfer.GetNextStream(0, nullptr, nullptr, &stream) == WIA_ERROR_PAPER_JAM && !stream.Get();
     printf("WIA pixel stream / empty transfer / cancellation: %s\n", ok ? "PASS" : "FAIL");
     return ok;
 }

@@ -1400,12 +1400,39 @@ static bool OcrRoundTrip(int pageRotation, int viewRotation, float skew = 0) {
         FreePixmap(after);
     }
     if (engine) engine->Release();
+    // Redact the extracted selection, then verify the saved mark in raster space.
+    Str redacted = str::Dup(GetTempFilePathTemp(StrL("ocr-redact")));
+    int count = 0;
+    Str error;
+    ok = ok && EngineMupdfRedactMatches({dest, {}}, redacted, word.text, PdfSearchMode::Text, &count, &error) &&
+         count == 1;
+    engine = ok ? CreateEngineMupdfFromFile(redacted, FileType::PDF, 96) : nullptr;
+    if (engine) {
+        {
+            TextSearch search(engine);
+            ok = !search.FindFirst(1, word.text) && search.FindFirst(1, StrL("caf\xc3\xa9"));
+        }
+        Pixmap* marked = PixmapToBgra(engine->RenderPage(args));
+        int cx = (int)roundf(expectedX), cy = (int)roundf(expectedY);
+        if (!marked || cx < 0 || cy < 0 || cx >= marked->width || cy >= marked->height) {
+            ok = false;
+        } else {
+            const u8* pixel = marked->data + cy * marked->stride + cx * 4;
+            ok = ok && pixel[0] < 10 && pixel[1] < 10 && pixel[2] < 10;
+        }
+        FreePixmap(marked);
+        engine->Release();
+    } else {
+        ok = false;
+    }
+    file::Delete(redacted);
+    str::Free(redacted);
     FreePixmap(before);
     file::Delete(dest);
     str::Free(dest);
     str::Free(fixture);
-    printf("OCR save/reopen/search: page rotation %d, view rotation %d, skew %.1f: %s\n", pageRotation, viewRotation,
-           skew, ok ? "PASS" : "FAIL");
+    printf("OCR save/reopen/search/redact: page rotation %d, view rotation %d, skew %.1f: %s\n", pageRotation,
+           viewRotation, skew, ok ? "PASS" : "FAIL");
     return ok;
 }
 

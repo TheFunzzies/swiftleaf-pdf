@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Use WIA 2.0 feeder mode flags; verify saved scan pixels and OCR redaction alignment.
+
 - Map deskewed OCR word corners back to the original scan, preserving orientation
   through page rotation, crop offsets and UserUnit. Fail batch OCR on incomplete pages.
 - Acquire real WIA 2.0 scanner pixels with feeder/duplex settings, cancellation and
