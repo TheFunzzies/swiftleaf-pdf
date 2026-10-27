@@ -8,6 +8,7 @@
 template <typename T>
 struct Vec;
 struct MainWindow;
+struct PdfWorkProgress;
 
 // One word-level diff. html is the del/ins markup of the whole text; edits are
 // maximal runs of changed words, so two separated edits are reported as two runs.
@@ -32,7 +33,8 @@ struct PdfPageMatch {
 PdfWordDiff ComparePdfWordDiff(Str leftText, Str rightText);
 void ComparePdfAlignPages(const Vec<Str>& leftTexts, const Vec<Str>& rightTexts, Vec<PdfPageMatch>& out);
 
-bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJsonOut = nullptr);
+bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJsonOut = nullptr,
+                      PdfWorkProgress* progress = nullptr);
 void ShowComparePdfDialog(MainWindow* win);
 
 #endif

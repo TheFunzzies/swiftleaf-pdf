@@ -45,3 +45,20 @@ an alias for the optimizer:
 - `min-size`: Aggressive compression (subsamples photos above 144 DPI to 96 DPI, JPEG 50).
 
 Optimization audits report `beforeBytes`, `afterBytes`, `imageBytes`, `fontBytes`, and `objectBytes`. If optimization would cause the output file size to grow compared to the original, SwiftLeaf keeps the original document rather than producing a larger file.
+
+Compare runs in a worker with page progress and Cancel. Closing the dialog
+requests cancellation without waiting for the worker. Cancellation is checked
+between pages and PDF report layout steps; a running MuPDF call must finish.
+HTML is streamed page by page to a temporary file. PDF reports lay out one
+section at a time. Only a completed report replaces the destination.
+Extraction, rendering, layout and write failures return failure, without a
+misleading zero-change result.
+
+Compare uses a 32 MiB MuPDF cache and previews at most 1,024 pixels per side.
+Page text over 16 MiB is rejected. Scratch text/images are released per page;
+these limits bound report overhead, not all memory used to parse a PDF or
+decode a single source image. Pixel ratios use the capped preview resolution.
+
+Alignment retains at most 4,096 word hashes per page and 32 MiB of hashes
+across both inputs. Compare rejects more than 100,000 pages per input or
+exhausted signature storage. Long-page alignment uses the leading words.

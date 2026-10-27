@@ -46,6 +46,7 @@ extern const pdf_write_options gPdfDefaultWriteOptions;
 #include "SignaturePanel.h"
 #if !defined(SUMATRA_NG)
 #include "ExportFormats.h"
+#include "ComparePdf.h"
 #endif
 
 // must be last to over-write assert()
@@ -934,6 +935,36 @@ static void ObjectEditTest() {
     file::Delete(output);
     file::Delete(image);
 }
+
+#if !defined(SUMATRA_NG)
+static void CompareWorkerTest() {
+    TempStr source = GetTempFilePathTemp(StrL("compare-worker"));
+    TempStr output = GetTempFilePathTemp(StrL("compare-report"));
+    utassert(file::WriteFile(source, TextEditFixture({}, StrL("BT /F1 12 Tf 72 700 Td (Same text) Tj ET\n"), 2)));
+    utassert(file::WriteFile(output, StrL("keep existing report")));
+    PdfWorkProgress progress;
+    progress.cancelled = 1;
+    Str result;
+    utassert(!ComparePdfReport(source, source, output, &result, &progress));
+    utassert(str::Eq(file::ReadFileWithArena(output, GetTempArena()), StrL("keep existing report")));
+    progress.cancelled = 0;
+    utassert(ComparePdfReport(source, source, output, &result, &progress));
+    utassert(progress.completed == 6 && progress.total == 6);
+    utassert(str::ContainsI(result, StrL("\"ok\":true")));
+    utassert(str::ContainsI(file::ReadFileWithArena(output, GetTempArena()), StrL("id=\"match-2\"")));
+    TempStr pdfReport = fmt("%s.pdf", output);
+    utassert(ComparePdfReport(source, source, pdfReport));
+    EngineBase* report = CreateEngineMupdfFromFile(pdfReport, FileType::PDF, 96);
+    utassert(report && report->PageCount() >= 2);
+    SafeEngineRelease(&report);
+    file::Delete(pdfReport);
+    utassert(file::WriteFile(source, StrL("not a PDF")));
+    utassert(!ComparePdfReport(source, source, output, &result, &progress));
+    utassert(!str::ContainsI(result, StrL("pixelChangePercent")));
+    file::Delete(source);
+    file::Delete(output);
+}
+#endif
 
 static void TextReplaceToolsTest() {
     TempStr pdf = TextEditFixture({}, StrL("BT /F1 12 Tf 72 700 Td (Original text Original) Tj ET\n"), 2);
@@ -2892,6 +2923,7 @@ int RunAppUnitTests(bool forAi) {
     PdfCompressionHonestyTest();
 #if !defined(SUMATRA_NG)
     ExportFormatsUnitTests();
+    CompareWorkerTest();
 #endif
     PageTools2Test();
     ComparePdfTest();
