@@ -206,7 +206,14 @@ bool EngineMupdfGetTextRun(EngineBase*, int pageNo, RectF area, TextRunScope, Pd
 bool EngineMupdfCanEditText(Str text);
 bool EngineMupdfReplaceText(EngineBase*, int pageNo, const PdfTextRun& run, Str newText, Vec<Annotation*>& deletedOut,
                             Str* errorOut = nullptr);
-bool EngineMupdfReplaceAllText(EngineBase*, Str destination, Str find, Str replacement, int* countOut, Str* errorOut);
+struct PdfWorkProgress {
+    AtomicInt cancelled = 0;
+    AtomicInt completed = 0;
+    AtomicInt total = 0;
+    bool IsCancelled() { return AtomicIntGet(&cancelled) != 0; }
+};
+
+bool EngineMupdfReplaceAllText(EngineBase*, Str destination, Str find, Str replacement, int* countOut, Str* errorOut, PdfWorkProgress* progress = nullptr);
 TempStr EngineMupdfObjectList(EngineBase*, int pageNo);
 bool EngineMupdfEditObjectCopy(EngineBase*, Str destination, int pageNo, Str name, Str imagePath, float scaleX,
                                float scaleY, float rotation, Str* errorOut);
@@ -380,5 +387,7 @@ Annotation* EngineGetWidgetAtPos(EngineBase*, int pageNo, PointF pos);
 struct PdfOcrWord {
     Str text; // borrowed for the duration of AddOcrText
     RectF box;
+    PointF corners[4]{};
+    bool mapped = false;
 };
 bool EngineMupdfAddOcrText(EngineBase*, int pageNo, float zoom, int rotation, const Vec<PdfOcrWord>&);

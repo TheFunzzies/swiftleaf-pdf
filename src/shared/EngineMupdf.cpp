@@ -10361,6 +10361,17 @@ bool EngineMupdfAddOcrText(EngineBase* engine, int pageNo, float zoom, int rotat
                 float sx = word.box.dx / width;
                 float sy = word.box.dy / height;
                 fz_matrix fit = {sx, 0, 0, sy, word.box.x - bounds.x0 * sx, word.box.y - bounds.y0 * sy};
+                if (word.mapped) {
+                    const PointF* q = word.corners;
+                    fit = {(q[1].x - q[0].x) / width,
+                           (q[1].y - q[0].y) / width,
+                           (q[3].x - q[0].x) / height,
+                           (q[3].y - q[0].y) / height,
+                           0,
+                           0};
+                    fit.e = q[0].x - bounds.x0 * fit.a - bounds.y0 * fit.c;
+                    fit.f = q[0].y - bounds.x0 * fit.b - bounds.y0 * fit.d;
+                }
                 fz_ignore_text(ctx, dev, text, fz_concat(fit, toPdf));
             }
             fz_drop_text(ctx, text);
@@ -10957,9 +10968,17 @@ static Str ReplaceEditMatches(Str text, Str find, Str replacement, int& count) {
 
 // Edit a private snapshot, then atomically publish only after every match succeeds.
 bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, Str replacement, int* countOut,
-                               Str* errorOut) {
+                               Str* errorOut, PdfWorkProgress* progress) {
     if (countOut) *countOut = 0;
     if (errorOut) *errorOut = {};
+    if (progress) {
+        AtomicIntSet(&progress->completed, 0);
+        AtomicIntSet(&progress->total, 0);
+        if (progress->IsCancelled()) {
+            if (errorOut) *errorOut = StrL("Operation cancelled.");
+            return false;
+        }
+    }
     EngineMupdf* original = AsEngineMupdf(engine);
     if (!original || !original->pdfdoc || !len(find) || !len(destination) || !EngineMupdfCanEditText(find) ||
         !EngineMupdfCanEditText(replacement)) {
@@ -10991,12 +11010,25 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
     auto* e = AsEngineMupdf(copy);
     bool ok = e != nullptr;
     int count = 0;
-    for (int pageNo = 1; ok && pageNo <= copy->PageCount(); pageNo++) {
+    int pageCount = copy ? copy->PageCount() : 0;
+    if (progress) AtomicIntSet(&progress->total, pageCount);
+    for (int pageNo = 1; ok && pageNo <= pageCount; pageNo++) {
+        AutoArenaSavepoint scratch;
+        if (progress && progress->IsCancelled()) {
+            ok = false;
+            if (errorOut) *errorOut = StrL("Operation cancelled.");
+            break;
+        }
         Vec<RectF> boxes;
         ok = CollectEditBlocks(e, pageNo, boxes);
         Vec<PdfTextRun> runs;
         StrVec replacements;
         for (int b = 0; ok && b < len(boxes); b++) {
+            if (progress && progress->IsCancelled()) {
+                ok = false;
+                if (errorOut) *errorOut = StrL("Operation cancelled.");
+                break;
+            }
             PdfTextRun run;
             if (!EngineMupdfGetTextRun(copy, pageNo, boxes[b], TextRunScope::Paragraph, &run)) {
                 str::Free(run.text);
@@ -11019,16 +11051,27 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
             }
             str::Free(changed);
         }
-        if (!ok && errorOut)
+        if (!ok && errorOut && (!progress || !progress->IsCancelled()))
             *errorOut = fmt("Page %d has unsupported or overlapping text blocks. No copy was written.", pageNo);
         for (int n = len(runs) - 1; ok && n >= 0; n--) {
+            if (progress && progress->IsCancelled()) {
+                ok = false;
+                if (errorOut) *errorOut = StrL("Operation cancelled.");
+                break;
+            }
             Vec<Annotation*> removed;
             Str error;
             ok = EngineMupdfReplaceText(copy, pageNo, runs[n], replacements[n], removed, &error);
             for (Annotation* a : removed) delete a;
-            if (!ok && errorOut) *errorOut = fmt("Page %d: %s", pageNo, error);
+            if (!ok && errorOut && (!progress || !progress->IsCancelled())) *errorOut = fmt("Page %d: %s", pageNo, error);
         }
         for (PdfTextRun& run : runs) str::Free(run.text);
+        if (!ok) break;
+        if (progress) AtomicIntSet(&progress->completed, pageNo);
+    }
+    if (progress && progress->IsCancelled()) {
+        ok = false;
+        if (errorOut) *errorOut = StrL("Operation cancelled.");
     }
     if (ok && count == 0) {
         ok = false;

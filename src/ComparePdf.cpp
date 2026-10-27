@@ -29,6 +29,20 @@
 #include <mupdf/pdf.h>
 #include "ComparePdf.h"
 
+#include <algorithm>
+
+// Bounded LCS table: at most ~1.5 million cells (e.g. 1200x1200 words). If a
+// single page's changed span exceeds this, we fall back to a coarse diff
+// instead of allocating unbounded O(N*M) memory.
+static constexpr int kMaxDiffCells = 1 << 20;
+
+// Maximum page pairs to compare with text similarity. 200x200 pages is 40,000
+// comparisons; above that we keep index alignment.
+static constexpr int kMaxAlignPairs = 20000;
+
+// Similarity threshold (percent, 0..100) to consider two pages a match.
+static constexpr int kPageMatchPercent = 40;
+
 static void AppendHtml(str::Builder& out, Str s) {
     for (int i = 0; i < len(s); i++) {
         switch (s.s[i]) {
@@ -51,16 +65,20 @@ static void AppendHtml(str::Builder& out, Str s) {
     }
 }
 
-static void AppendBase64(str::Builder& out, Str data) {
-    static constexpr char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    for (int i = 0; i < len(data); i += 3) {
-        unsigned value = (u8)data.s[i] << 16;
-        if (i + 1 < len(data)) value |= (u8)data.s[i + 1] << 8;
-        if (i + 2 < len(data)) value |= (u8)data.s[i + 2];
-        out.AppendChar(chars[(value >> 18) & 63]);
-        out.AppendChar(chars[(value >> 12) & 63]);
-        out.AppendChar(i + 1 < len(data) ? chars[(value >> 6) & 63] : '=');
-        out.AppendChar(i + 2 < len(data) ? chars[value & 63] : '=');
+static void AppendBase64(str::Builder& out, const u8* data, size_t size) {
+    static constexpr char table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    for (size_t i = 0; i < size; i += 3) {
+        u32 value = (u32)data[i] << 16;
+        if (i + 1 < size) {
+            value |= (u32)data[i + 1] << 8;
+        }
+        if (i + 2 < size) {
+            value |= data[i + 2];
+        }
+        out.AppendChar(table[(value >> 18) & 63]);
+        out.AppendChar(table[(value >> 12) & 63]);
+        out.AppendChar(i + 1 < size ? table[(value >> 6) & 63] : '=');
+        out.AppendChar(i + 2 < size ? table[value & 63] : '=');
     }
 }
 
@@ -70,7 +88,7 @@ static TempStr PixmapPngUri(fz_context* ctx, fz_pixmap* pixmap) {
     size_t size = fz_buffer_storage(ctx, buffer, &data);
     str::Builder uri;
     uri.Append(StrL("data:image/png;base64,"));
-    AppendBase64(uri, Str((char*)data, (int)size));
+    AppendBase64(uri, (const u8*)data, size);
     fz_drop_buffer(ctx, buffer);
     return ToStrTemp(uri);
 }
@@ -80,6 +98,10 @@ static bool PageText(fz_context* ctx, fz_document* doc, int pageNo, TempStr& out
     fz_stext_page* text = nullptr;
     fz_page* page = nullptr;
     bool ok = false;
+    fz_var(buf);
+    fz_var(text);
+    fz_var(page);
+    fz_var(ok);
     fz_stext_options opts{};
     fz_try(ctx) {
         page = fz_load_page(ctx, doc, pageNo);
@@ -87,6 +109,7 @@ static bool PageText(fz_context* ctx, fz_document* doc, int pageNo, TempStr& out
         buf = fz_new_buffer_from_stext_page(ctx, text);
         unsigned char* data = nullptr;
         size_t size = fz_buffer_storage(ctx, buf, &data);
+        if (size > 16 * 1024 * 1024) fz_throw(ctx, FZ_ERROR_LIMIT, "Page text exceeds comparison limit");
         outText = str::DupTemp(Str((char*)data, (int)size));
         ok = true;
     }
@@ -104,9 +127,16 @@ static bool RenderPagePng(fz_context* ctx, fz_document* doc, int pageNo, TempStr
     fz_page* page = nullptr;
     fz_pixmap* pix = nullptr;
     bool ok = false;
+    fz_var(page);
+    fz_var(pix);
+    fz_var(ok);
     fz_try(ctx) {
         page = fz_load_page(ctx, doc, pageNo);
-        pix = fz_new_pixmap_from_page(ctx, page, fz_scale(0.25f, 0.25f), fz_device_rgb(ctx), 0);
+        fz_rect r = fz_bound_page(ctx, page);
+        float side = std::max(r.x1 - r.x0, r.y1 - r.y0);
+        if (!isfinite(side) || side <= 0) fz_throw(ctx, FZ_ERROR_FORMAT, "Invalid page dimensions");
+        float zoom = std::min(0.25f, 1024.0f / side);
+        pix = fz_new_pixmap_from_page(ctx, page, fz_scale(zoom, zoom), fz_device_rgb(ctx), 0);
         outPng = PixmapPngUri(ctx, pix);
         ok = true;
     }
@@ -133,22 +163,15 @@ static int CountWords(Str s) {
 static void SplitWords(Str s, Vec<Str>& words) {
     int start = -1;
     for (int i = 0; i <= len(s); i++) {
-        bool ws = i == len(s) || str::IsWs(s.s[i]);
-        if (!ws && start < 0) start = i;
-        if (ws && start >= 0) {
+        bool end = (i == len(s)) || str::IsWs(s.s[i]);
+        if (!end && start < 0) {
+            start = i;
+        } else if (end && start >= 0) {
             VecAppend(words, Str(s.s + start, i - start));
             start = -1;
         }
     }
 }
-
-// Exact word LCS needs (n+1)*(m+1) table cells. Cap at 1M cells (4 MB) and
-// report one coarse changed span above it. Page alignment compares every pair;
-// above 20k pairs (about 141x141 pages) fall back to index alignment.
-static constexpr int kMaxDiffCells = 1 << 20;
-static constexpr int kMaxAlignPairs = 20000;
-// A page pair counts as the same page at 40% bag-of-words overlap.
-static constexpr int kPageMatchPercent = 40;
 
 enum WordOp : u8 {
     WordSame,
@@ -453,11 +476,20 @@ static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int aPa
     fz_pixmap* xa = nullptr;
     fz_pixmap* xb = nullptr;
     bool ok = false;
+    fz_var(pa);
+    fz_var(pb);
+    fz_var(xa);
+    fz_var(xb);
+    fz_var(ok);
     fz_try(ctx) {
         pa = fz_load_page(ctx, a, aPageNo);
         pb = fz_load_page(ctx, b, bPageNo);
-        xa = fz_new_pixmap_from_page(ctx, pa, fz_scale(0.25f, 0.25f), fz_device_rgb(ctx), 0);
-        xb = fz_new_pixmap_from_page(ctx, pb, fz_scale(0.25f, 0.25f), fz_device_rgb(ctx), 0);
+        fz_rect ra = fz_bound_page(ctx, pa), rb = fz_bound_page(ctx, pb);
+        float side = std::max(std::max(ra.x1 - ra.x0, ra.y1 - ra.y0), std::max(rb.x1 - rb.x0, rb.y1 - rb.y0));
+        if (!isfinite(side) || side <= 0) fz_throw(ctx, FZ_ERROR_FORMAT, "Invalid page dimensions");
+        float zoom = std::min(0.25f, 1024.0f / side);
+        xa = fz_new_pixmap_from_page(ctx, pa, fz_scale(zoom, zoom), fz_device_rgb(ctx), 0);
+        xb = fz_new_pixmap_from_page(ctx, pb, fz_scale(zoom, zoom), fz_device_rgb(ctx), 0);
         *leftPngOut = PixmapPngUri(ctx, xa);
         *rightPngOut = PixmapPngUri(ctx, xb);
         int aw = xa->w, ah = xa->h, bw = xb->w, bh = xb->h;
@@ -490,10 +522,59 @@ static bool PixelChange(fz_context* ctx, fz_document* a, fz_document* b, int aPa
     return ok;
 }
 
-bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJsonOut) {
+static bool WriteReportPart(fz_context* ctx, file::FileHandle file, fz_document_writer* writer, Str html,
+                            PdfWorkProgress* progress) {
+    if (!writer) return file::WriteAll(file, html);
+    fz_buffer* buffer = nullptr;
+    fz_story* story = nullptr;
+    bool ok = false;
+    fz_var(buffer);
+    fz_var(story);
+    fz_var(ok);
+    fz_try(ctx) {
+        buffer = fz_new_buffer_from_copied_data(ctx, (const unsigned char*)html.s, len(html));
+        story = fz_new_story(ctx, buffer, "body { font-size: 11pt; } img { max-width: 100%; }", 11, nullptr);
+        int more = 1, pages = 0;
+        while (more) {
+            if (progress && progress->IsCancelled()) fz_throw(ctx, FZ_ERROR_ABORT, "Cancelled");
+            if (++pages > 1000) fz_throw(ctx, FZ_ERROR_LIMIT, "Report section is too long");
+            fz_rect filled;
+            more = fz_place_story_flags(ctx, story, fz_make_rect(36, 36, 576, 756), &filled,
+                                        FZ_PLACE_STORY_FLAG_NO_OVERFLOW);
+            if (more == FZ_PLACE_STORY_RETURN_OVERFLOW_WIDTH)
+                fz_throw(ctx, FZ_ERROR_LIMIT, "Report section does not fit");
+            fz_device* dev = fz_begin_page(ctx, writer, fz_make_rect(0, 0, 612, 792));
+            fz_draw_story(ctx, story, dev, fz_identity);
+            fz_end_page(ctx, writer);
+        }
+        ok = true;
+    }
+    fz_always(ctx) {
+        fz_drop_story(ctx, story);
+        fz_drop_buffer(ctx, buffer);
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+    }
+    return ok;
+}
+
+bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJsonOut, PdfWorkProgress* progress) {
+    if (resultJsonOut) *resultJsonOut = StrL("{\"ok\":false}");
+    if (progress) {
+        AtomicIntSet(&progress->completed, 0);
+        AtomicIntSet(&progress->total, 0);
+        if (progress->IsCancelled()) return false;
+    }
     if (len(leftPath) == 0 || len(rightPath) == 0 || len(reportPath) == 0) {
         if (resultJsonOut) {
             *resultJsonOut = str::DupTemp(StrL("{\"ok\":false,\"error\":\"Invalid input or report path\"}"));
+        }
+        return false;
+    }
+    if (path::IsSame(leftPath, reportPath) || path::IsSame(rightPath, reportPath)) {
+        if (resultJsonOut) {
+            *resultJsonOut = str::DupTemp(StrL("{\"ok\":false,\"error\":\"Report path collides with input\"}"));
         }
         return false;
     }
@@ -506,7 +587,8 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
         return false;
     }
 
-    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_UNLIMITED);
+    constexpr size_t kCompareCacheBytes = 32 * 1024 * 1024;
+    fz_context* ctx = fz_new_context(nullptr, nullptr, kCompareCacheBytes);
     if (!ctx) {
         if (resultJsonOut) {
             *resultJsonOut = str::DupTemp(StrL("{\"ok\":false,\"error\":\"Failed to initialize engine context\"}"));
@@ -516,13 +598,25 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     fz_register_document_handlers(ctx);
     fz_document* left = nullptr;
     fz_document* right = nullptr;
+    fz_document_writer* writer = nullptr;
+    file::FileHandle file = file::kInvalidFileHandle;
     int leftPages = 0, rightPages = 0;
-    str::Builder html;
+    bool ok = false;
+    fz_var(left);
+    fz_var(right);
+    fz_var(writer);
+    fz_var(leftPages);
+    fz_var(rightPages);
+    fz_var(ok);
     fz_try(ctx) {
         left = fz_open_document(ctx, CStrTemp(leftPath));
         right = fz_open_document(ctx, CStrTemp(rightPath));
+        if (!left || !right) fz_throw(ctx, FZ_ERROR_GENERIC, "Failed to open document");
         leftPages = fz_count_pages(ctx, left);
         rightPages = fz_count_pages(ctx, right);
+        if (str::EndsWithI(reportPath, StrL(".pdf")))
+            writer = fz_new_pdf_writer(ctx, CStrTemp(output.tempPath), "compress");
+        ok = true;
     }
     fz_catch(ctx) {
         fz_report_error(ctx);
@@ -535,6 +629,47 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
         return false;
     }
 
+    PageSigs leftSigs, rightSigs;
+    StartSigs(leftSigs);
+    StartSigs(rightSigs);
+    for (int i = 0; i < leftPages; i++) {
+        if (progress && progress->IsCancelled()) {
+            ok = false;
+            break;
+        }
+        TempStr t;
+        AddPageSig(leftSigs, PageText(ctx, left, i, t) ? t : Str());
+    }
+    for (int i = 0; ok && i < rightPages; i++) {
+        if (progress && progress->IsCancelled()) {
+            ok = false;
+            break;
+        }
+        TempStr t;
+        AddPageSig(rightSigs, PageText(ctx, right, i, t) ? t : Str());
+    }
+    if (!ok) {
+        if (writer) fz_drop_document_writer(ctx, writer);
+        if (left) fz_drop_document(ctx, left);
+        if (right) fz_drop_document(ctx, right);
+        fz_drop_context(ctx);
+        if (resultJsonOut) {
+            *resultJsonOut = str::DupTemp(StrL("{\"ok\":false,\"error\":\"Cancelled\"}"));
+        }
+        return false;
+    }
+
+    Vec<PdfPageMatch> matches;
+    AlignPageSigs(leftSigs, rightSigs, matches);
+
+    if (progress) AtomicIntSet(&progress->total, len(matches));
+
+    if (ok && !writer) {
+        file = file::OpenReadWrite(output.tempPath, true);
+        ok = file != file::kInvalidFileHandle;
+    }
+
+    str::Builder html;
     html.Append(StrL("<!doctype html><meta charset=\"utf-8\"><title>PDF comparison</title>"));
     html.Append(
         StrL("<style>body{font:15px "
@@ -548,6 +683,7 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     html.Append(StrL(" compared with "));
     AppendHtml(html, rightPath);
     html.Append(fmt("</p><p>%d pages vs %d pages</p>", leftPages, rightPages));
+    if (ok) ok = WriteReportPart(ctx, file, writer, ToStr(html), progress);
 
     int wordChanges = 0;
     int editRuns = 0;
@@ -559,29 +695,20 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
     int pixelPages = 0;
     int totalPages = std::max(leftPages, rightPages);
 
-    // Text similarity alignment: inserted, removed and moved pages no longer
-    // shift every later page comparison.
-    PageSigs leftSigs, rightSigs;
-    StartSigs(leftSigs);
-    StartSigs(rightSigs);
-    for (int i = 0; i < leftPages; i++) {
-        TempStr t;
-        AddPageSig(leftSigs, PageText(ctx, left, i, t) ? t : Str());
-    }
-    for (int i = 0; i < rightPages; i++) {
-        TempStr t;
-        AddPageSig(rightSigs, PageText(ctx, right, i, t) ? t : Str());
-    }
-    Vec<PdfPageMatch> matches;
-    AlignPageSigs(leftSigs, rightSigs, matches);
-
-    for (const PdfPageMatch& m : matches) {
+    for (int matchIdx = 0; ok && matchIdx < len(matches); matchIdx++) {
+        AutoArenaSavepoint scratch;
+        if (progress && progress->IsCancelled()) {
+            ok = false;
+            break;
+        }
+        const PdfPageMatch& m = matches[matchIdx];
         TempStr a, b;
         bool okA = m.left >= 0 && PageText(ctx, left, m.left, a);
         bool okB = m.right >= 0 && PageText(ctx, right, m.right, b);
         int aw = okA ? CountWords(a) : 0;
         int bw = okB ? CountWords(b) : 0;
 
+        str::Builder section;
         if (m.left >= 0 && m.right >= 0) {
             str::Builder diff;
             int wc = 0, runs = 0;
@@ -613,54 +740,52 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
             }
 
             if (m.left == m.right) {
-                html.Append(fmt("<section class=\"page\" id=\"match-%d\"><h2>Page %d", m.left + 1, m.left + 1));
+                section.Append(fmt("<section class=\"page\" id=\"match-%d\"><a id=\"page-%d\"></a><h2>Page %d",
+                                   m.left + 1, m.left + 1, m.left + 1));
             } else {
-                html.Append(fmt("<section class=\"page\" id=\"match-%d\"><h2>Left page %d, right page %d", m.left + 1,
-                                m.left + 1, m.right + 1));
+                section.Append(fmt("<section class=\"page\" id=\"match-%d\"><a id=\"page-%d\"></a><h2>Left page %d, right page %d",
+                                   m.left + 1, m.left + 1, m.left + 1, m.right + 1));
             }
-            if (m.moved) html.Append(StrL(" (moved)"));
-            html.Append(StrL("</h2><p>"));
+            if (m.moved) section.Append(StrL(" (moved)"));
+            section.Append(StrL("</h2><p>"));
 
             if (okA && okB) {
-                html.Append(fmt("%d vs %d words; %d changed words in %d edits", aw, bw, wc, runs));
-                if (coarse) html.Append(StrL(" (coarse: too many changed words)"));
-                html.Append(StrL("; "));
+                section.Append(fmt("%d vs %d words; %d changed words in %d edits", aw, bw, wc, runs));
+                if (coarse) section.Append(StrL(" (coarse: too many changed words)"));
+                section.Append(StrL("; "));
             } else {
-                html.Append(StrL("<span class=\"error\">[Text extraction failed]</span> "));
+                section.Append(StrL("<span class=\"error\">[Text extraction failed]</span> "));
             }
             if (pixelOk) {
-                html.Append(fmt("%.2f%% changed pixels</p>", pixelRatio * 100.0));
+                section.Append(fmt("%.2f%% changed pixels</p>", pixelRatio * 100.0));
             } else {
-                html.Append(StrL("<span class=\"error\">[Pixel comparison failed: render error]</span></p>"));
+                section.Append(StrL("<span class=\"error\">[Pixel comparison failed: render error]</span></p>"));
             }
 
-            html.Append(StrL("<h3>Word diff</h3><pre>"));
-            html.Append(ToStrTemp(diff));
-            html.Append(StrL("</pre><div class=\"images\">"));
+            section.Append(StrL("<h3>Word diff</h3><pre>"));
+            section.Append(ToStrTemp(diff));
+            section.Append(StrL("</pre><div class=\"images\">"));
 
             if (len(leftPng) > 0) {
-                html.Append(StrL("<figure><figcaption>Left</figcaption><img src=\""));
-                html.Append(leftPng);
-                html.Append(StrL("\"></figure>"));
+                section.Append(StrL("<figure><figcaption>Left</figcaption><img src=\""));
+                section.Append(leftPng);
+                section.Append(StrL("\"></figure>"));
             } else {
-                html.Append(
+                section.Append(
                     StrL("<figure><figcaption>Left</figcaption><p class=\"error\">[Render failed]</p></figure>"));
             }
 
             if (len(rightPng) > 0) {
-                html.Append(StrL("<figure><figcaption>Right</figcaption><img src=\""));
-                html.Append(rightPng);
-                html.Append(StrL("\"></figure>"));
+                section.Append(StrL("<figure><figcaption>Right</figcaption><img src=\""));
+                section.Append(rightPng);
+                section.Append(StrL("\"></figure>"));
             } else {
-                html.Append(
+                section.Append(
                     StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
             }
 
-            html.Append(StrL("</div></section>"));
-            continue;
-        }
-
-        if (m.left >= 0) {
+            section.Append(StrL("</div></section>"));
+        } else if (m.left >= 0) {
             removedPages++;
             int wc = std::max(1, aw);
             wordChanges += wc;
@@ -672,145 +797,154 @@ bool ComparePdfReport(Str leftPath, Str rightPath, Str reportPath, Str* resultJs
                 pixelPages++;
             }
 
-            html.Append(fmt("<section class=\"page\" id=\"left-%d\"><h2>Page %d (Only in Left / Removed)</h2><p>",
-                            m.left + 1, m.left + 1));
+            section.Append(fmt("<section class=\"page\" id=\"left-%d\"><a id=\"page-%d\"></a><h2>Page %d (Only in Left / Removed)</h2><p>",
+                               m.left + 1, m.left + 1, m.left + 1));
             if (okA) {
-                html.Append(fmt("%d words in removed page; %d changed words; 100.00%% changed pixels</p>", aw, wc));
+                section.Append(fmt("%d words in removed page; %d changed words; 100.00%% changed pixels</p>", aw, wc));
             } else {
-                html.Append(StrL("<span class=\"error\">[Text extraction failed]</span> removed page</p>"));
+                section.Append(StrL("<span class=\"error\">[Text extraction failed]</span> removed page</p>"));
             }
-            html.Append(StrL("<h3>Word diff</h3><pre><del>"));
+            section.Append(StrL("<h3>Word diff</h3><pre><del>"));
             if (okA) {
-                AppendHtml(html, a);
+                AppendHtml(section, a);
             } else {
-                html.Append(StrL("[Text extraction failed]"));
+                section.Append(StrL("[Text extraction failed]"));
             }
-            html.Append(StrL("</del></pre><div class=\"images\">"));
+            section.Append(StrL("</del></pre><div class=\"images\">"));
             if (len(leftPng) > 0) {
-                html.Append(StrL("<figure><figcaption>Left (Removed)</figcaption><img src=\""));
-                html.Append(leftPng);
-                html.Append(StrL("\"></figure>"));
+                section.Append(StrL("<figure><figcaption>Left (Removed)</figcaption><img src=\""));
+                section.Append(leftPng);
+                section.Append(StrL("\"></figure>"));
             } else {
-                html.Append(
+                section.Append(
                     StrL("<figure><figcaption>Left</figcaption><p class=\"error\">[Render failed]</p></figure>"));
             }
-            html.Append(StrL("<figure><figcaption>Right</figcaption><p><em>(Page absent)</em></p></figure>"));
-            html.Append(StrL("</div></section>"));
-            continue;
-        }
-
-        addedPages++;
-        int wc = std::max(1, bw);
-        wordChanges += wc;
-
-        TempStr rightPng;
-        bool renderOk = RenderPagePng(ctx, right, m.right, rightPng);
-        if (renderOk) {
-            pixelChanges += 1.0;
-            pixelPages++;
-        }
-
-        html.Append(fmt("<section class=\"page\" id=\"right-%d\"><h2>Page %d (Only in Right / Added)</h2><p>",
-                        m.right + 1, m.right + 1));
-        if (okB) {
-            html.Append(fmt("%d words in added page; %d changed words; 100.00%% changed pixels</p>", bw, wc));
+            section.Append(StrL("<figure><figcaption>Right</figcaption><p><em>(Page absent)</em></p></figure>"));
+            section.Append(StrL("</div></section>"));
         } else {
-            html.Append(StrL("<span class=\"error\">[Text extraction failed]</span> added page</p>"));
-        }
-        html.Append(StrL("<h3>Word diff</h3><pre><ins>"));
-        if (okB) {
-            AppendHtml(html, b);
-        } else {
-            html.Append(StrL("[Text extraction failed]"));
-        }
-        html.Append(StrL("</ins></pre><div class=\"images\">"));
-        html.Append(StrL("<figure><figcaption>Left</figcaption><p><em>(Page absent)</em></p></figure>"));
-        if (len(rightPng) > 0) {
-            html.Append(StrL("<figure><figcaption>Right (Added)</figcaption><img src=\""));
-            html.Append(rightPng);
-            html.Append(StrL("\"></figure>"));
-        } else {
-            html.Append(StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
-        }
-        html.Append(StrL("</div></section>"));
-    }
+            addedPages++;
+            int wc = std::max(1, bw);
+            wordChanges += wc;
 
-    html.Append(StrL("<h2>Summary</h2><ul>"));
-    for (const PdfPageMatch& m : matches) {
-        if (m.left >= 0 && m.right >= 0) {
-            if (m.left == m.right) {
-                html.Append(fmt("<li><a href=\"#match-%d\">Page %d</a></li>", m.left + 1, m.left + 1));
+            TempStr rightPng;
+            bool renderOk = RenderPagePng(ctx, right, m.right, rightPng);
+            if (renderOk) {
+                pixelChanges += 1.0;
+                pixelPages++;
+            }
+
+            section.Append(fmt("<section class=\"page\" id=\"right-%d\"><a id=\"page-%d\"></a><h2>Page %d (Only in Right / Added)</h2><p>",
+                               m.right + 1, m.right + 1, m.right + 1));
+            if (okB) {
+                section.Append(fmt("%d words in added page; %d changed words; 100.00%% changed pixels</p>", bw, wc));
             } else {
-                html.Append(
-                    fmt("<li><a href=\"#match-%d\">Left page %d, right page %d", m.left + 1, m.left + 1, m.right + 1));
-                if (m.moved) html.Append(StrL(" (moved)"));
-                html.Append(StrL("</a></li>"));
+                section.Append(StrL("<span class=\"error\">[Text extraction failed]</span> added page</p>"));
             }
-        } else if (m.left >= 0) {
-            html.Append(fmt("<li><a href=\"#left-%d\">Page %d (Left only)</a></li>", m.left + 1, m.left + 1));
-        } else {
-            html.Append(fmt("<li><a href=\"#right-%d\">Page %d (Right only)</a></li>", m.right + 1, m.right + 1));
+            section.Append(StrL("<h3>Word diff</h3><pre><ins>"));
+            if (okB) {
+                AppendHtml(section, b);
+            } else {
+                section.Append(StrL("[Text extraction failed]"));
+            }
+            section.Append(StrL("</ins></pre><div class=\"images\">"));
+            section.Append(StrL("<figure><figcaption>Left</figcaption><p><em>(Page absent)</em></p></figure>"));
+            if (len(rightPng) > 0) {
+                section.Append(StrL("<figure><figcaption>Right (Added)</figcaption><img src=\""));
+                section.Append(rightPng);
+                section.Append(StrL("\"></figure>"));
+            } else {
+                section.Append(StrL("<figure><figcaption>Right</figcaption><p class=\"error\">[Render failed]</p></figure>"));
+            }
+            section.Append(StrL("</div></section>"));
         }
-    }
-    html.Append(StrL("</ul>"));
 
-    bool isPdf = str::EndsWithI(reportPath, StrL(".pdf"));
-    bool ok = false;
-    if (isPdf) {
-        fz_buffer* buffer = fz_new_buffer_from_copied_data(ctx, (unsigned char*)ToStr(html).s, len(ToStr(html)));
-        fz_archive* archive = fz_open_directory(ctx, CStrTemp(path::GetDirTemp(reportPath)));
-        fz_story* story = fz_new_story(ctx, buffer,
-                                       "body { font-family: sans-serif; font-size: 11pt; } img { max-width: 100%; } "
-                                       "pre { white-space: pre-wrap; }",
-                                       11, archive);
-        fz_document_writer* writer = fz_new_pdf_writer(ctx, CStrTemp(output.tempPath), "compress");
-        if (writer && story) {
-            int more = 1, count = 0;
-            while (more) {
-                if (++count > 1000) break;
-                fz_rect filled;
-                more = fz_place_story_flags(ctx, story, fz_make_rect(36, 36, 576, 756), &filled,
-                                            FZ_PLACE_STORY_FLAG_NO_OVERFLOW);
-                if (more == FZ_PLACE_STORY_RETURN_OVERFLOW_WIDTH) break;
-                fz_device* dev = fz_begin_page(ctx, writer, fz_make_rect(0, 0, 612, 792));
-                fz_draw_story(ctx, story, dev, fz_identity);
-                fz_end_page(ctx, writer);
-            }
-            fz_close_document_writer(ctx, writer);
-            if (more == 0 && file::Exists(output.tempPath)) {
-                ok = output.Commit();
+        ok = WriteReportPart(ctx, file, writer, ToStr(section), progress);
+        if (ok && progress) AtomicIntSet(&progress->completed, matchIdx + 1);
+    }
+
+    if (ok) {
+        str::Builder summary;
+        summary.Append(StrL("<h2>Summary</h2><ul>"));
+        for (const PdfPageMatch& m : matches) {
+            if (m.left >= 0 && m.right >= 0) {
+                if (m.left == m.right) {
+                    summary.Append(fmt("<li><a href=\"#match-%d\">Page %d</a></li>", m.left + 1, m.left + 1));
+                } else {
+                    summary.Append(
+                        fmt("<li><a href=\"#match-%d\">Left page %d, right page %d", m.left + 1, m.left + 1, m.right + 1));
+                    if (m.moved) summary.Append(StrL(" (moved)"));
+                    summary.Append(StrL("</a></li>"));
+                }
+            } else if (m.left >= 0) {
+                summary.Append(fmt("<li><a href=\"#left-%d\">Page %d (Left only)</a></li>", m.left + 1, m.left + 1));
+            } else {
+                summary.Append(fmt("<li><a href=\"#right-%d\">Page %d (Right only)</a></li>", m.right + 1, m.right + 1));
             }
         }
-        fz_drop_document_writer(ctx, writer);
-        fz_drop_story(ctx, story);
-        fz_drop_archive(ctx, archive);
-        fz_drop_buffer(ctx, buffer);
-    } else {
-        if (file::WriteFile(output.tempPath, ToStrTemp(html))) {
-            ok = output.Commit();
+        summary.Append(StrL("</ul>"));
+        ok = WriteReportPart(ctx, file, writer, ToStr(summary), progress);
+    }
+
+    if (writer && ok) {
+        fz_try(ctx) {
+            fz_close_document_writer(ctx, writer);
+        }
+        fz_catch(ctx) {
+            fz_report_error(ctx);
+            ok = false;
         }
     }
+    fz_drop_document_writer(ctx, writer);
+    if (file != file::kInvalidFileHandle) {
+        if (ok) ok = file::Flush(file);
+        file::Close(file);
+    }
+    if (progress && progress->IsCancelled()) ok = false;
+    if (ok) ok = output.Commit();
 
     double avgPixelPct = pixelPages > 0 ? (pixelChanges * 100.0 / pixelPages) : 0.0;
     if (resultJsonOut) {
         if (ok) {
             *resultJsonOut = str::DupTemp(
                 fmt("{\"ok\":true,\"pages\":%d,\"sections\":%d,\"wordChanges\":%d,\"editRuns\":%d,\"movedPages\":%d,"
-                    "\"addedPages\":%d,\"removedPages\":%d,\"coarsePages\":%d,\"pixelChangePercent\":%.2f,\"report\":"
-                    "\"%s\"}",
+                    "\"addedPages\":%d,\"removedPages\":%d,\"coarsePages\":%d,\"pixelChangePercent\":%.2f,\"report\":\"\"%s\"\"}",
                     totalPages, len(matches), wordChanges, editRuns, movedPages, addedPages, removedPages, coarsePages,
                     avgPixelPct, json::EscapeStrTemp(reportPath)));
         } else {
+            Str errStr = progress && progress->IsCancelled() ? StrL("Cancelled")
+                                                             : StrL("Failed to generate comparison report");
             *resultJsonOut = str::DupTemp(
-                fmt("{\"ok\":false,\"error\":\"Failed to generate comparison report\",\"pages\":%d,\"wordChanges\":%d,"
+                fmt("{\"ok\":false,\"error\":\"%s\",\"pages\":%d,\"wordChanges\":%d,"
                     "\"pixelChangePercent\":%.2f}",
-                    totalPages, wordChanges, avgPixelPct));
+                    errStr, totalPages, wordChanges, avgPixelPct));
         }
     }
     if (left) fz_drop_document(ctx, left);
     if (right) fz_drop_document(ctx, right);
     fz_drop_context(ctx);
     return ok;
+}
+
+struct CompareJob {
+    AtomicInt refs = 1;
+    AtomicInt done = 0;
+    PdfWorkProgress progress;
+    Str left, right, report;
+    bool ok = false;
+    ~CompareJob() {
+        str::Free(left);
+        str::Free(right);
+        str::Free(report);
+    }
+    void Release() {
+        if (AtomicIntDec(&refs) == 0) delete this;
+    }
+};
+
+static void RunCompare(CompareJob* job) {
+    job->ok = ComparePdfReport(job->left, job->right, job->report, nullptr, &job->progress);
+    AtomicIntSet(&job->done, 1);
+    job->Release();
 }
 
 struct ComparePdfDialog : WindowBase {
@@ -825,13 +959,27 @@ struct ComparePdfDialog : WindowBase {
     VirtButton* btnCompare = nullptr;
     VirtButton* btnClose = nullptr;
 
+    CompareJob* job = nullptr;
+    ~ComparePdfDialog() override {
+        if (job) {
+            AtomicIntSet(&job->progress.cancelled, 1);
+            job->Release();
+        }
+    }
+    void Poll(WindowBase::TimerEvent*);
     bool Create(MainWindow* win);
     void OnBrowseLeft(VirtMouseEvent*);
     void OnBrowseRight(VirtMouseEvent*);
     void OnBrowseReport(VirtMouseEvent*);
     void OnCompare(VirtMouseEvent*);
-    void OnClose(VirtMouseEvent*) { Close(); }
-    void Closed(WindowBase::CloseEvent*) { Close(); }
+    void OnClose(VirtMouseEvent*) {
+        if (job && !AtomicIntGet(&job->done)) {
+            AtomicIntSet(&job->progress.cancelled, 1);
+            status->SetText(Tr("Cancelling..."));
+        } else
+            Close();
+    }
+    void Closed(WindowBase::CloseEvent*) { ScheduleDelete(); }
 };
 
 static TempStr PickPdfFileTemp(HWND hwnd) {
@@ -841,56 +989,98 @@ static TempStr PickPdfFileTemp(HWND hwnd) {
     ofn.hwndOwner = hwnd;
     ofn.lpstrFile = buf;
     ofn.nMaxFile = dimof(buf);
-    ofn.lpstrFilter = L"PDF Files\0*.pdf\0All Files\0*.*\0";
-    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-    if (!GetOpenFileNameW(&ofn)) return {};
-    return ToUtf8Temp(WStr(buf));
+    ofn.lpstrFilter = L"PDF Documents (*.pdf)\0*.pdf\0All Files (*.*)\0*.*\0";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if (GetOpenFileNameW(&ofn)) {
+        return ToUtf8Temp(buf);
+    }
+    return {};
 }
 
-void ComparePdfDialog::OnBrowseLeft(VirtMouseEvent*) {
-    TempStr path = PickPdfFileTemp(hwnd);
-    if (len(path) > 0) leftEdit->SetText(path);
-}
-
-void ComparePdfDialog::OnBrowseRight(VirtMouseEvent*) {
-    TempStr path = PickPdfFileTemp(hwnd);
-    if (len(path) > 0) rightEdit->SetText(path);
-}
-
-void ComparePdfDialog::OnBrowseReport(VirtMouseEvent*) {
+static TempStr PickSaveReportFileTemp(HWND hwnd) {
     WCHAR buf[MAX_PATH]{};
     OPENFILENAMEW ofn{};
     ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = hwnd;
     ofn.lpstrFile = buf;
     ofn.nMaxFile = dimof(buf);
-    ofn.lpstrFilter = L"HTML Report\0*.html\0PDF Report\0*.pdf\0All Files\0*.*\0";
-    ofn.Flags = OFN_PATHMUSTEXIST;
-    if (!GetSaveFileNameW(&ofn)) return;
-    reportEdit->SetText(ToUtf8Temp(WStr(buf)));
+    ofn.lpstrFilter = L"HTML Document (*.html)\0*.html\0PDF Document (*.pdf)\0*.pdf\0All Files (*.*)\0*.*\0";
+    ofn.lpstrDefExt = L"html";
+    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if (GetSaveFileNameW(&ofn)) {
+        return ToUtf8Temp(buf);
+    }
+    return {};
+}
+
+void ComparePdfDialog::OnBrowseLeft(VirtMouseEvent*) {
+    TempStr p = PickPdfFileTemp(hwnd);
+    if (!len(p)) return;
+    leftEdit->SetText(p);
+}
+
+void ComparePdfDialog::OnBrowseRight(VirtMouseEvent*) {
+    TempStr p = PickPdfFileTemp(hwnd);
+    if (!len(p)) return;
+    rightEdit->SetText(p);
+}
+
+void ComparePdfDialog::OnBrowseReport(VirtMouseEvent*) {
+    TempStr p = PickSaveReportFileTemp(hwnd);
+    if (!len(p)) return;
+    reportEdit->SetText(p);
 }
 
 void ComparePdfDialog::OnCompare(VirtMouseEvent*) {
-    TempStr left = leftEdit->GetTextTemp();
-    TempStr right = rightEdit->GetTextTemp();
-    TempStr report = reportEdit->GetTextTemp();
-    if (len(left) == 0 || len(right) == 0 || len(report) == 0) {
+    Str left = leftEdit->GetTextTemp();
+    Str right = rightEdit->GetTextTemp();
+    Str report = reportEdit->GetTextTemp();
+    if (!len(left) || !len(right) || !len(report)) {
         status->SetText(Tr("Please select two PDF documents and a report path."));
         return;
     }
+    if (job && !AtomicIntGet(&job->done)) return;
+    if (job) job->Release();
+    job = new CompareJob();
+    job->left = str::Dup(left);
+    job->right = str::Dup(right);
+    job->report = str::Dup(report);
+    btnCompare->SetIsEnabled(false);
+    btnClose->SetText(Tr("Cancel"));
     status->SetText(Tr("Comparing documents..."));
-    Str resultJson;
-    bool ok = ComparePdfReport(left, right, report, &resultJson);
-    if (ok) {
-        OpenPathInDefaultFileManager(report);
+    AtomicIntInc(&job->refs);
+    ThreadHandle thread = StartThread(MkFunc0(RunCompare, job), StrL("PDF compare"));
+    if (!thread) {
+        AtomicIntSet(&job->done, 1);
+        job->Release();
+    }
+    SafeCloseThreadHandle(&thread);
+    SetTimer(hwnd, 1, 150, nullptr);
+}
+
+void ComparePdfDialog::Poll(WindowBase::TimerEvent*) {
+    if (!job) return;
+    if (!AtomicIntGet(&job->done)) {
+        if (!job->progress.IsCancelled())
+            status->SetText(fmt(Tr("Comparing: %d of %d pages").s, AtomicIntGet(&job->progress.completed),
+                                AtomicIntGet(&job->progress.total)));
+        return;
+    }
+    KillTimer(hwnd, 1);
+    btnCompare->SetIsEnabled(true);
+    btnClose->SetText(Tr("Close"));
+    if (job->ok) {
+        OpenPathInDefaultFileManager(job->report);
         Close();
     } else {
-        status->SetText(Tr("Comparison failed. Could not open files or write report."));
+        status->SetText(job->progress.IsCancelled() ? Tr("Cancelled. No report written.")
+                                                    : Tr("Comparison failed. No report written."));
     }
 }
 
 bool ComparePdfDialog::Create(MainWindow* w) {
     win = w;
+    onTimer = MkMethod1<ComparePdfDialog, WindowBase::TimerEvent*, &ComparePdfDialog::Poll>(this);
     closeOnEsc = true;
     onClose = MkMethod1<ComparePdfDialog, WindowBase::CloseEvent*, &ComparePdfDialog::Closed>(this);
 

@@ -62,7 +62,12 @@ unsaved edits. All changes run on a private snapshot; a missing glyph, unsupport
 matching block, overlapping block or save failure leaves the open document and
 any existing output file intact. Vertical-only blocks currently stop the scan,
 even when they contain no match. No-match searches write nothing. Successful
-copies open for inspection. Large documents can pause the UI during this operation.
+copies open for inspection.
+
+Find and replace runs on a background worker thread with page-by-page progress
+and cancellation support. Memory is bounded with per-page scratch arena cleanup.
+Closing the dialog or clicking Cancel cancels the background job without blocking
+the UI, leaving source and existing files intact.
 
 ## Images and grouped objects
 

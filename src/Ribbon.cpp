@@ -937,9 +937,17 @@ static void CollectRibbonButtons(ILayout* l, Vec<RibbonButton*>& buttons) {
 }
 
 Size RibbonPanelFit::Layout(Constraints bc) {
+    if (child) {
+        for (int i = 0; i < child->LayoutChildCount(); i++) {
+            ILayout* item = child->LayoutChildAt(i);
+            if (item && !AsRibbonButton(item) && IsCollapsed(item)) {
+                item->SetVisibility(Visibility::Visible);
+            }
+        }
+    }
     Vec<RibbonButton*> buttons;
     CollectRibbonButtons(child, buttons);
-    int width = child->MinIntrinsicWidth(bc.max.dy);
+    int width = child ? child->MinIntrinsicWidth(bc.max.dy) : 0;
     // Keep as many labels as possible; compact the widest labels first.
     while (bc.HasBoundedWidth() && width > bc.max.dx) {
         RibbonButton* candidate = nullptr;
@@ -962,6 +970,16 @@ Size RibbonPanelFit::Layout(Constraints bc) {
         }
         candidate->compact = true;
         width -= saving;
+    }
+    if (child && bc.HasBoundedWidth() && width > bc.max.dx) {
+        for (int i = 0; i < child->LayoutChildCount(); i++) {
+            ILayout* item = child->LayoutChildAt(i);
+            if (!item || IsCollapsed(item) || AsRibbonButton(item)) continue;
+            int sepW = item->MinIntrinsicWidth(bc.max.dy);
+            item->SetVisibility(Visibility::Collapse);
+            width -= sepW;
+            if (width <= bc.max.dx) break;
+        }
     }
     return Padding::Layout(bc);
 }
@@ -1059,7 +1077,7 @@ void RibbonTabRow::PaintUnderline(Gfx* gfx, HWND hwnd) {
         int width = std::max(PlatformFontMeasureText(tab->font, tab->label).dx, DpiScale(24));
         int x = r.x + (r.dx - width) / 2;
         Size size{lastBounds.dx, lastBounds.dy};
-        if (!(size == paintedSize)) {
+        if (!(size == paintedSize) || !AnimationAllowed(hwnd)) {
             underlineX->Snap((float)x);
             underlineWidth->Snap((float)width);
             paintedSize = size;
@@ -1077,11 +1095,15 @@ void RibbonTabRow::PaintUnderline(Gfx* gfx, HWND hwnd) {
 
 Size RibbonTabRow::Layout(Constraints bc) {
     bool collapse = bc.HasBoundedWidth() && bc.max.dx <= DpiScale(800);
-    if (overflowBtn) overflowBtn->SetVisibility(collapse ? Visibility::Visible : Visibility::Collapse);
-    if (searchBox) searchBox->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
-    if (propsBtn) propsBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
-    if (saveBtn) saveBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
-    if (printBtn) printBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
+    auto applyCollapse = [&](bool c) {
+        collapse = c;
+        if (overflowBtn) overflowBtn->SetVisibility(collapse ? Visibility::Visible : Visibility::Collapse);
+        if (searchBox) searchBox->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
+        if (propsBtn) propsBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
+        if (saveBtn) saveBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
+        if (printBtn) printBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
+    };
+    applyCollapse(collapse);
 
     int nTabs = 0;
     int pad = DpiScale(kRibbonTabPadX);
@@ -1102,6 +1124,28 @@ Size RibbonTabRow::Layout(Constraints bc) {
         for (auto& item : children) {
             if (auto* tab = AsRibbonTab(item.layout)) {
                 tab->paddingDx = pad;
+            }
+        }
+        width = MinIntrinsicWidth(bc.max.dy);
+    }
+    // If controls still overflow the available width, collapse into the overflow menu
+    if (!collapse && bc.HasBoundedWidth() && width > bc.max.dx) {
+        applyCollapse(true);
+        pad = DpiScale(kRibbonTabPadX);
+        for (auto& item : children) {
+            if (auto* tab = AsRibbonTab(item.layout)) {
+                tab->paddingDx = pad;
+            }
+        }
+        width = MinIntrinsicWidth(bc.max.dy);
+        if (nTabs > 0 && width > bc.max.dx) {
+            int sides = nTabs * 2;
+            int reduction = (width - bc.max.dx + sides - 1) / sides;
+            pad = std::max(DpiScale(kRibbonTabMinPadX), pad - reduction);
+            for (auto& item : children) {
+                if (auto* tab = AsRibbonTab(item.layout)) {
+                    tab->paddingDx = pad;
+                }
             }
         }
     }
@@ -1153,7 +1197,7 @@ void RibbonSearchBox::Paint(VirtPaintCtx& ctx) {
     }
     bool hot = HasFlag(vwfHovered) || HasFlag(vwfPressed);
     Color bg = m3.surfaceContainerLowest;
-    Color border = hot ? m3.primary : m3.outline;
+    Color border = HasFlag(vwfFocused) ? RibbonFocusColor() : (hot ? m3.primary : m3.outline);
     ctx.gfx->FillRoundedRect(r, r.dy, bg, border);
 
     int padX = DpiScale(kSearchBoxPadX);

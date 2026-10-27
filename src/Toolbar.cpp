@@ -4353,6 +4353,79 @@ void RibbonAccess_UnitTests() {
     utassert(inactive->GetVisibility() == Visibility::Visible);
     utassert(navigation->GetVisibility() == Visibility::Visible);
     delete row;
+    {
+        auto* sbox = new RibbonSearchBox(StrL("Find tools and commands"), StrL("Ctrl+K"), nullptr);
+        sbox->SetFlag(vwfFocusable, true);
+        auto* rbox = new VBox();
+        rbox->AddChild(sbox);
+        int sid = 1;
+        utassert(RibbonAccessible::Find(rbox, sid) == sbox);
+
+        RibbonAccessible acc(nullptr);
+        VirtHost* fakeHost = (VirtHost*)calloc(1, sizeof(VirtHost));
+        fakeHost->layout = rbox;
+        acc.instance = fakeHost;
+
+        VARIANT v;
+        VariantInit(&v);
+        v.vt = VT_I4;
+        v.lVal = 1;
+
+        VARIANT role;
+        VariantInit(&role);
+        utassert(SUCCEEDED(acc.get_accRole(v, &role)));
+        utassert(role.lVal == ROLE_SYSTEM_TEXT);
+
+        BSTR shortcut = nullptr;
+        utassert(SUCCEEDED(acc.get_accKeyboardShortcut(v, &shortcut)));
+        utassert(shortcut && wcscmp(shortcut, L"Ctrl+K") == 0);
+        SysFreeString(shortcut);
+
+        BSTR name = nullptr;
+        utassert(SUCCEEDED(acc.get_accName(v, &name)));
+        utassert(name && wcscmp(name, L"Find tools and commands") == 0);
+        SysFreeString(name);
+
+        free(fakeHost);
+        delete rbox;
+    }
+    {
+        RibbonTabRow row;
+        auto* tab1 = new RibbonTab(StrL("Home"), nullptr);
+        auto* tab2 = new RibbonTab(StrL("View"), nullptr);
+        auto* over = new VirtCtrl();
+        over->SetFlag(vwfFocusable, true);
+        auto* sbox = new RibbonSearchBox(StrL("Search"), StrL("Ctrl+K"), nullptr);
+        row.AddChild(tab1);
+        row.AddChild(tab2);
+        row.overflowBtn = over;
+        row.searchBox = sbox;
+        row.AddChild(over);
+        row.AddChild(sbox);
+
+        row.Layout(Tight({DpiScale(600), 40}));
+        utassert(over->GetVisibility() == Visibility::Visible);
+        utassert(sbox->GetVisibility() == Visibility::Collapse);
+
+        row.Layout(Tight({DpiScale(1600), 40}));
+        utassert(over->GetVisibility() == Visibility::Collapse);
+        utassert(sbox->GetVisibility() == Visibility::Visible);
+    }
+    {
+        auto* panel = new HBox();
+        auto* b1 = new RibbonButton();
+        b1->SetLabel(StrL("Very long label text that exceeds available bounds"));
+        auto* sep = new VirtSpacer(10, 20);
+        auto* b2 = new RibbonButton();
+        b2->SetLabel(StrL("Another long label text exceeding bounds"));
+        panel->AddChild(b1);
+        panel->AddChild(sep);
+        panel->AddChild(b2);
+        RibbonPanelFit fit(panel);
+        fit.Layout(Tight({40, 30}));
+        utassert(b1->compact && b2->compact);
+        utassert(sep->GetVisibility() == Visibility::Collapse);
+    }
 }
 #endif
 
