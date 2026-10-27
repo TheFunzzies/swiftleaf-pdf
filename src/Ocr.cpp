@@ -1313,6 +1313,43 @@ void ShowBatchOcrDialog(MainWindow* win) {
 }
 
 #if IS_DEBUG
+static bool OcrDeskewPixelsTest(float skew) {
+    Pixmap* px = AllocPixmapDIB(400, 300);
+    if (!px) return false;
+    memset(px->data, 255, (size_t)px->stride * px->height);
+    double slope = tan(skew * 3.14159265358979323846 / 180);
+    // Parallel ink bands provide a deterministic positive/negative skew fixture.
+    for (int line = 60; line <= 240; line += 30) {
+        for (int x = 40; x < 360; x++) {
+            int y = line + (int)round((x - 200) * slope);
+            for (int dy = -2; dy <= 2; dy++) {
+                u8* p = px->data + (y + dy) * px->stride + x * 4;
+                p[0] = p[1] = p[2] = 0;
+            }
+        }
+    }
+    Gdiplus::Matrix preprocessing;
+    DeskewPixmapMapped(px, &preprocessing);
+    bool ok = !preprocessing.IsIdentity() && fabs(DetectDeskewAngle(px)) <= 0.5;
+    Vec<PdfOcrWord> words;
+    VecAppend(words, PdfOcrWord{StrL("band"), {100, 118, 200, 4}});
+    Gdiplus::PointF expected[4] = {{100, 118}, {300, 118}, {300, 122}, {100, 122}};
+    Gdiplus::Matrix forward;
+    Gdiplus::REAL elements[6];
+    preprocessing.GetElements(elements);
+    forward.SetElements(elements[0], elements[1], elements[2], elements[3], elements[4], elements[5]);
+    ok = MapOcrWords(words, preprocessing) && ok;
+    Gdiplus::PointF restored[4];
+    for (int i = 0; i < 4; i++) restored[i] = {words[0].corners[i].x, words[0].corners[i].y};
+    ok = forward.TransformPoints(restored, 4) == Gdiplus::Ok && ok;
+    for (int i = 0; i < 4; i++) {
+        ok = fabsf(restored[i].X - expected[i].X) < 0.01f && fabsf(restored[i].Y - expected[i].Y) < 0.01f && ok;
+    }
+    FreePixmap(px);
+    printf("OCR deskew pixels and inverse corners %.1f: %s\n", skew, ok ? "PASS" : "FAIL");
+    return ok;
+}
+
 // A real xref table keeps this regression independent of PDF repair heuristics.
 static Str OcrFixture(int rotation) {
     StrVec objects;
@@ -1499,6 +1536,7 @@ static void OcrSmokeTest(bool* ok) {
 
 bool Ocr_UnitTests() {
     if (!ScannerWia_UnitTests()) return false;
+    if (!OcrDeskewPixelsTest(-6) || !OcrDeskewPixelsTest(6)) return false;
     if (OcrZoom({0, 0, 0, 0}, 72, 4096) != 0) return false;
     float zoom = OcrZoom({0, 0, 72000, 36000}, 72, 4096);
     if (zoom <= 0 || ceilf(zoom * 72000) > 4096) return false;

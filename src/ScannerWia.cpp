@@ -1012,9 +1012,38 @@ bool ScannerWia_UnitTests() {
     params.lMessage = WIA_TRANSFER_MSG_END_OF_STREAM;
     ok = ok && transfer.TransferCallback(0, &params) == S_OK && job.pages == 1;
     stream = nullptr;
+    // A second completed stream represents another feeder page (or duplex back).
+    ok = ok && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_OK;
+    ok = ok && bitmap.Save(stream, &encoder) == Gdiplus::Ok;
+    ok = ok && transfer.TransferCallback(0, &params) == S_OK && job.pages == 2;
+    stream = nullptr;
+    Str output = str::Dup(GetTempFilePathTemp(StrL("wia")));
+    bool saved = pdf.SaveToFile(output);
+    EngineBase* engine = saved ? CreateEngineMupdfFromFile(output, FileType::PDF, 96) : nullptr;
+    ok = ok && engine && engine->PageCount() == 2;
+    if (engine) {
+        RectF page = engine->PageMediabox(1);
+        ok = ok && fabsf(page.dx - 32.f * engine->fileDPI / job.dpi) < 0.01f;
+        for (int n = 1; n <= engine->PageCount(); n++) {
+            RenderPageArgs args(n, 4, 0, nullptr, RenderTarget::Export);
+            Pixmap* pixels = engine->RenderPage(args);
+            bool valid = pixels && pixels->width > 0 && pixels->height > 0 &&
+                         (pixels->format == PixmapFormat::BGRA8 || pixels->format == PixmapFormat::BGR8);
+            ok = valid && ok;
+            if (valid) {
+                int bytes = pixels->format == PixmapFormat::BGRA8 ? 4 : 3;
+                const u8* center = pixels->data + (pixels->height / 2) * pixels->stride + (pixels->width / 2) * bytes;
+                ok = abs(center[0] - 60) <= 2 && abs(center[1] - 40) <= 2 && abs(center[2] - 20) <= 2 && ok;
+            }
+            FreePixmap(pixels);
+        }
+        engine->Release();
+    }
+    file::Delete(output);
+    str::Free(output);
     ok = ok && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_OK;
     // An empty driver stream must fail, without appending another page.
-    ok = ok && FAILED(transfer.TransferCallback(0, &params)) && job.pages == 1;
+    ok = ok && FAILED(transfer.TransferCallback(0, &params)) && job.pages == 2;
     SetEvent(job.cancel);
     stream = nullptr;
     ok = ok && transfer.GetNextStream(0, nullptr, nullptr, &stream) == S_FALSE && !stream.Get();
