@@ -380,5 +380,7 @@ Annotation* EngineGetWidgetAtPos(EngineBase*, int pageNo, PointF pos);
 struct PdfOcrWord {
     Str text; // borrowed for the duration of AddOcrText
     RectF box;
+    PointF corners[4]{};
+    bool mapped = false;
 };
 bool EngineMupdfAddOcrText(EngineBase*, int pageNo, float zoom, int rotation, const Vec<PdfOcrWord>&);

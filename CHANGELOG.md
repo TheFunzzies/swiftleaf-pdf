@@ -9,6 +9,14 @@
 
 - PDF signatures: embed verified RFC 3161 tokens over the signature value; fail saving when a requested TSA fails.
 
+- Use WIA 2.0 feeder flags so strict drivers accept simplex and duplex acquisition.
+- Map deskewed OCR word corners back to the original scan, preserving orientation
+  through page rotation, crop offsets and UserUnit, matching search and redaction.
+  Fail batch OCR on incomplete pages.
+- Acquire real WIA 2.0 scanner pixels with feeder/duplex settings, cancellation and
+  atomic output. Report unsupported settings and transfer errors; never fabricate scans.
+- Replace camera import's fixed inset with explicit corners and projective correction.
+  Preserve full image by default; reject invalid corners and fix image ownership.
 - Accessibility: warn about unverified reading order and figure links; preserve existing tags and mark generated roles as drafts.
 - PDF/A: reject invalid ICC profiles, preserve transparency, and report unverified conformance.
 - PDF compare: report load, render, and text extraction failures honestly without false 0% diffs, include extra-page details, and ensure atomic report writes.
@@ -225,7 +233,7 @@
   release as the payload: it detects corruption or local tampering, not a
   compromised release. There is no automatic rollback.
 
-## 0.3.3 — 2026-10-15
+## 0.3.3 â€” 2026-10-15
 
 ### Improved
 
@@ -255,7 +263,7 @@
   saved text follows the PDF page axes. Full Unicode replacement of existing PDF
   text remains unfinished. No performance improvement has been measured.
 
-## 0.3.2 — 2026-10-15
+## 0.3.2 â€” 2026-10-15
 
 ### Improved
 
@@ -277,7 +285,7 @@
 - Edit Text rejects unsupported characters before removing the original text,
   instead of silently substituting question marks. Rejected drafts remain
   available for correction or copying.
-- Windows-1252 characters such as Œ, š, Ÿ and € use MuPDF's complete mapping.
+- Windows-1252 characters such as Å’, Å¡, Å¸ and â‚¬ use MuPDF's complete mapping.
 
 ### Validation and limitations
 
