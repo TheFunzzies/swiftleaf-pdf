@@ -7,7 +7,7 @@ Orphan page StructParents reject conversion rather than overwrite source links.
 
 This is a draft grouping, not semantic tagging or PDF/UA conversion. Page streams
 retain their original paint order. The checker lists source roles in tree order,
-page object references, MCID/child reference kinds and TH scope warnings.
+inherited page references, MCID and OBJR identities, and TH scope warnings.
 It never certifies reading order or table header associations from tag presence.
 
 The fixes dialog accepts decorative **whole page** ranges, such as `2,4-5`.

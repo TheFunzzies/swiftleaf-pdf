@@ -129,22 +129,44 @@ static void WalkTreeForTables(fz_context* ctx, pdf_obj* node, int& tableCount, i
 }
 
 // Show source order and content references without claiming semantic correctness.
-static void ReportTagTree(fz_context* ctx, pdf_obj* node, AccessReport& report, int depth = 0) {
+static void ReportTagTree(fz_context* ctx, pdf_obj* node, AccessReport& report, int depth = 0, int pageObject = 0) {
     if (!node || depth > 64) return;
+    if (pdf_is_int(ctx, node)) {
+        AddReportItem(report, StrL("Tag order"), StrL("Marked content reference"),
+                      fmt("Page object %d; MCID %d. Verify painted content and ParentTree owner.", pageObject,
+                          pdf_to_int(ctx, node)),
+                      AccessCheckStatus::Warning);
+        return;
+    }
     if (pdf_is_array(ctx, node)) {
         for (int i = 0; i < pdf_array_len(ctx, node); i++)
-            ReportTagTree(ctx, pdf_array_get(ctx, node, i), report, depth + 1);
+            ReportTagTree(ctx, pdf_array_get(ctx, node, i), report, depth + 1, pageObject);
         return;
     }
     if (!pdf_is_dict(ctx, node)) return;
+    if (pdf_obj* page = pdf_dict_gets(ctx, node, "Pg")) pageObject = pdf_to_num(ctx, page);
+    pdf_obj* type = pdf_dict_get(ctx, node, PDF_NAME(Type));
+    if (type == PDF_NAME(OBJR)) {
+        pdf_obj* object = pdf_dict_gets(ctx, node, "Obj");
+        AddReportItem(report, StrL("Tag order"), StrL("Object reference"),
+                      fmt("Page object %d; OBJR object %d; StructParent %d. Verify ParentTree owner.", pageObject,
+                          pdf_to_num(ctx, object), pdf_to_int(ctx, pdf_dict_gets(ctx, object, "StructParent"))),
+                      AccessCheckStatus::Warning);
+    } else if (str::Eq(Str(pdf_to_name(ctx, type)), StrL("MCR"))) {
+        AddReportItem(
+            report, StrL("Tag order"), StrL("Marked content reference"),
+            fmt("Page object %d; stream object %d; MCID %d. Verify stream and ParentTree owner.", pageObject,
+                pdf_to_num(ctx, pdf_dict_gets(ctx, node, "Stm")), pdf_to_int(ctx, pdf_dict_gets(ctx, node, "MCID"))),
+            AccessCheckStatus::Warning);
+    }
     pdf_obj* role = pdf_dict_get(ctx, node, PDF_NAME(S));
     pdf_obj* kids = pdf_dict_get(ctx, node, PDF_NAME(K));
     if (role) {
-        AddReportItem(report, StrL("Tag order"), Str(pdf_to_name(ctx, role)),
-                      fmt("Object %d; depth %d; page object %d; %s. Verify against visible content.",
-                          pdf_to_num(ctx, node), depth, pdf_to_num(ctx, pdf_dict_gets(ctx, node, "Pg")),
-                          pdf_is_int(ctx, kids) ? StrL("MCID reference") : StrL("child references")),
-                      AccessCheckStatus::Warning);
+        AddReportItem(
+            report, StrL("Tag order"), Str(pdf_to_name(ctx, role)),
+            fmt("Object %d; depth %d; page object %d; %s. Verify against visible content.", pdf_to_num(ctx, node),
+                depth, pageObject, pdf_is_int(ctx, kids) ? StrL("MCID reference") : StrL("child references")),
+            AccessCheckStatus::Warning);
         if (role == PDF_NAME(TH)) {
             pdf_obj* attrs = pdf_dict_get(ctx, node, PDF_NAME(A));
             int count = pdf_is_array(ctx, attrs) ? pdf_array_len(ctx, attrs) : 1;
@@ -163,7 +185,7 @@ static void ReportTagTree(fz_context* ctx, pdf_obj* node, AccessReport& report, 
                           AccessCheckStatus::Warning);
         }
     }
-    ReportTagTree(ctx, kids, report, depth + 1);
+    ReportTagTree(ctx, kids, report, depth + 1, pageObject);
 }
 
 static void WalkAcroFields(fz_context* ctx, pdf_obj* fields, int& fieldCount, int& missingTooltipCount,

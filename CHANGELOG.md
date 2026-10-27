@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Accessibility report: show inherited page, MCID and OBJR identities in tag order; retain warnings for unverified content associations.
+
 - Accessibility remediation: mark explicitly selected untagged whole pages as stream artifacts; edit source TH scope by report object number without changing shared attributes. Reject invalid targets and preserve source tagging.
 
 - Accessibility dialogs: name edit fields, fit monitor work areas, and scroll keyboard focus into view. Tools search has a stable accessible name.

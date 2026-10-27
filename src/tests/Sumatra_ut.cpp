@@ -2769,6 +2769,21 @@ static void PageTools2Test() {
                 linked = true;
             }
             utassert(linked);
+            AccessReport links = RunAccessibilityCheck(ctx, doc);
+            bool sawObject = false;
+            bool sawContent = false;
+            for (const auto& item : links.items) {
+                if (str::Eq(item.title, StrL("Object reference"))) {
+                    sawObject = str::Contains(item.detail, fmt("OBJR object %d", pdf_to_num(ctx, link)));
+                    utassert(item.status == AccessCheckStatus::Warning);
+                }
+                if (str::Eq(item.title, StrL("Marked content reference"))) {
+                    sawContent |= str::Contains(item.detail, StrL("MCID 0"));
+                    utassert(item.status == AccessCheckStatus::Warning);
+                }
+            }
+            utassert(sawObject && sawContent);
+            FreeAccessReport(links);
             pdf_drop_document(ctx, doc);
             fz_drop_context(ctx);
             file::Delete(source);
