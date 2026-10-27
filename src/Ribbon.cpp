@@ -753,7 +753,7 @@ const char* RibbonIconForCmd(int cmdId, const char* fallback) {
 ///--- colors: Material 3 roles (Material.h)
 
 Color RibbonAccentColor() {
-    return M3().primary;
+    return ThemeUsesHighContrastColors() ? SysHighlightBgColor() : M3().primary;
 }
 
 static Color RibbonFocusColor() {
@@ -762,24 +762,25 @@ static Color RibbonFocusColor() {
 
 // Separate the tab strip from the tools without tinting the document chrome.
 Color RibbonTabRowBgColor() {
-    return M3().surfaceContainerLow;
+    return ThemeUsesHighContrastColors() ? ThemeWindowBackgroundColor() : M3().surfaceContainerLow;
 }
 
 Color RibbonPanelBgColor() {
+    if (ThemeUsesHighContrastColors()) return ThemeWindowBackgroundColor();
     return M3IsDark() ? M3().surfaceContainerLow : M3().surfaceContainerLowest;
 }
 
 Color RibbonEdgeColor() {
-    return M3().outlineVariant;
+    return ThemeUsesHighContrastColors() ? ThemeWindowTextColor() : M3().outlineVariant;
 }
 
 Color RibbonSelectedBgColor() {
-    return M3().secondaryContainer;
+    return ThemeUsesHighContrastColors() ? SysHighlightBgColor() : M3().secondaryContainer;
 }
 
 // Material icons are monochrome, in on-surface-variant
 Color RibbonIconColor(int) {
-    return M3().onSurfaceVariant;
+    return ThemeUsesHighContrastColors() ? ThemeWindowTextColor() : M3().onSurfaceVariant;
 }
 
 int RibbonLargeIconSize() {
@@ -852,7 +853,13 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
     } else if (enabled && HasFlag(vwfHovered)) {
         container = isSelected ? M3StateLayer(container, m3.onSurface, kM3HoverOpacity) : m3.surfaceContainerHigh;
     }
-    container = animatedBg->Get(GetHwnd(), container);
+    if (ThemeUsesHighContrastColors()) {
+        // Keep system text/icon contrast; use an outline for selection and hover.
+        container = RibbonPanelBgColor();
+        if (enabled && (isSelected || HasFlag(vwfHovered) || HasFlag(vwfPressed)))
+            ctx.gfx->DrawRect(r, ThemeWindowTextColor(), DpiScale(1));
+    }
+    if (!ThemeUsesHighContrastColors()) container = animatedBg->Get(GetHwnd(), container);
     if (container != RibbonPanelBgColor()) {
         ctx.gfx->FillRoundedRect(r, diameter, container);
     }
@@ -893,6 +900,7 @@ void RibbonButton::Paint(VirtPaintCtx& ctx) {
         place(gap);
         Color col = enabled ? (isSelected ? m3.onSecondaryContainer : m3.onSurface)
                             : M3StateLayer(RibbonPanelBgColor(), m3.onSurface, 38);
+        if (ThemeUsesHighContrastColors()) col = enabled ? ThemeWindowTextColor() : ThemeWindowTextDisabledColor();
         Rect rText{place(textDx), r.y + (r.dy - lineDy) / 2, textDx, lineDy};
         ctx.gfx->DrawText(label, rText, gfxTextLeft | gfxTextSingleLine | gfxTextEllipsis, font, col);
     }
@@ -1017,10 +1025,15 @@ void RibbonTab::Paint(VirtPaintCtx& ctx) {
     Rect hi = r;
     hi.y += DpiScale(4);
     hi.dy -= DpiScale(4) + DpiScale(kRibbonTabUnderlineDy);
-    ctx.gfx->FillRoundedRect(hi, DpiScale(6), animatedBg->Get(GetHwnd(), hover));
+    if (ThemeUsesHighContrastColors()) {
+        if (HasFlag(vwfHovered) || HasFlag(vwfPressed)) ctx.gfx->DrawRect(hi, ThemeWindowTextColor(), DpiScale(1));
+    } else {
+        ctx.gfx->FillRoundedRect(hi, DpiScale(6), animatedBg->Get(GetHwnd(), hover));
+    }
     if (HasFlag(vwfFocused)) ctx.gfx->DrawRect(r, RibbonFocusColor(), DpiScale(1));
     // PDFCraft: neutral active text for underlined mode bar
     Color col = isActive ? m3.onSurface : m3.onSurfaceVariant;
+    if (ThemeUsesHighContrastColors()) col = ThemeWindowTextColor();
     Rect rText = r;
     rText.dy -= DpiScale(kRibbonTabUnderlineDy);
     ctx.gfx->DrawText(label, rText, gfxTextCenter | gfxTextVCenter | gfxTextSingleLine, font, col);
@@ -1076,7 +1089,16 @@ void RibbonTabRow::PaintUnderline(Gfx* gfx, HWND hwnd) {
 }
 
 Size RibbonTabRow::Layout(Constraints bc) {
-    bool collapse = bc.HasBoundedWidth() && bc.max.dx <= DpiScale(800);
+    // Measure expanded controls on every layout, including after growing the window.
+    if (overflowBtn) overflowBtn->SetVisibility(Visibility::Collapse);
+    if (searchBox) searchBox->SetVisibility(Visibility::Visible);
+    if (propsBtn) propsBtn->SetVisibility(Visibility::Visible);
+    if (saveBtn) saveBtn->SetVisibility(Visibility::Visible);
+    if (printBtn) printBtn->SetVisibility(Visibility::Visible);
+    for (auto& item : children) {
+        if (auto* tab = AsRibbonTab(item.layout)) tab->paddingDx = DpiScale(kRibbonTabPadX);
+    }
+    bool collapse = bc.HasBoundedWidth() && (bc.max.dx <= DpiScale(800) || MinIntrinsicWidth(bc.max.dy) > bc.max.dx);
     if (overflowBtn) overflowBtn->SetVisibility(collapse ? Visibility::Visible : Visibility::Collapse);
     if (searchBox) searchBox->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
     if (propsBtn) propsBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);

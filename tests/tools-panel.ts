@@ -2,23 +2,18 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ControlCommand } from "./control.ts";
 import { assemblePdf, pollUntil, runStandalone, SETTINGS_FILE_NAME, tmpPath } from "./util.ts";
-import {
-  clickAt,
-  findChildByClass,
-  killAndWait,
-  launchControlled,
-} from "./win-automation.ts";
+import { clickAt, findChildByClass, killAndWait, launchControlled } from "./win-automation.ts";
 import {
   moveWindow,
+  getClientRect,
+  getWindowRect,
+  postMessage,
+  VK_DOWN,
+  WM_KEYDOWN,
   sendText,
   setProcessDpiAware,
 } from "./winapi.ts";
-import {
-  TOOLS_PANEL_CLASS,
-  panelRows,
-  selectToolTab,
-  toolsDump,
-} from "./contextual-panel.ts";
+import { TOOLS_PANEL_CLASS, panelRows, selectToolTab, toolsDump } from "./contextual-panel.ts";
 
 export * from "./contextual-panel.ts";
 
@@ -56,7 +51,17 @@ export async function testit(): Promise<void> {
     const raw = await selectToolTab(client, frame, 0);
     const rows = panelRows(raw);
     want(rows.length > 0, "Tools panel must have rows", raw);
-    want(rows.every((r) => r.tip.length > 0), "Every tool row must have a tooltip", raw);
+    want(
+      rows.every((r) => r.tip.length > 0),
+      "Every tool row must have a tooltip",
+      raw,
+    );
+    const names = [...raw.matchAll(/^panel-favorite cmd=\d+ active=\d rect=.*? name=(.*)$/gm)];
+    want(
+      names.length > 0 && names.every((m) => /^Add to favorites: .+/.test(m[1]!)),
+      "Favorites need action and tool names",
+      raw,
+    );
     const categories = new Set(rows.map((r) => r.category));
     want(categories.has("Recommended"), "Tools panel must include Recommended category", raw);
     want(categories.has("Export"), "Tools panel must include Export category", raw);
@@ -64,6 +69,27 @@ export async function testit(): Promise<void> {
 
     // 2. Search by tool name and description
     const search = findChildByClass(panel, "Edit");
+    // Search remains inside the panel at the minimum supported window size.
+    moveWindow(frame, 30, 30, 800, 600);
+    await client.waitForRenderIdle();
+    const searchRect = getWindowRect(search);
+    const panelRect = getWindowRect(panel);
+    want(searchRect.left >= panelRect.left && searchRect.right <= panelRect.right, "Search clips at 800x600");
+    sendText(search, "compress");
+    await pollUntil(
+      () => toolsDump(client),
+      (s) => panelRows(s).length > 0 && panelRows(s).every((r) => r.text === "Compress a PDF"),
+    );
+    postMessage(search, WM_KEYDOWN, VK_DOWN, 0);
+    await pollUntil(
+      () => toolsDump(client),
+      (s) => /panel-focus text=Compress a PDF/.test(s),
+      { error: (s) => `Down from search must focus a matching tool: ${s}` },
+    );
+    const bounds = getClientRect(panel);
+    const focused = panelRows(await toolsDump(client)).find((r) => r.text === "Compress a PDF");
+    want(!!focused && focused.y >= 0 && focused.y + focused.dy <= bounds.bottom, "Focused tool must be visible");
+    moveWindow(frame, 30, 30, 1200, 800);
     sendText(search, "compress");
     let state = await pollUntil(
       () => toolsDump(client),

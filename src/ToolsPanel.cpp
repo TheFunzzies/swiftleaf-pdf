@@ -296,6 +296,16 @@ static bool IsToolFavorite(int cmd) {
     return false;
 }
 
+static void SetFavoriteName(ToolsPanelVirt* panel, RibbonButton* button) {
+    for (auto* row : panel->rows) {
+        if (row->id != button->id) continue;
+        button->SetLabel(
+            fmt("%s: %s", Tr(IsToolFavorite(button->id) ? "Remove from favorites" : "Add to favorites"), row->label));
+        button->SetTooltip(button->label);
+        return;
+    }
+}
+
 static void OnFavorite(MainWindow* win, VirtMouseEvent* ev) {
     int cmd = ev->target->id;
     bool remove = IsToolFavorite(cmd);
@@ -327,7 +337,7 @@ static void OnFavorite(MainWindow* win, VirtMouseEvent* ev) {
     for (auto* button : panel->favoriteButtons) {
         if (button->id != cmd) continue;
         button->isSelected = !remove;
-        button->SetTooltip(Tr(remove ? "Add to favorites" : "Remove from favorites"));
+        SetFavoriteName(panel, button);
         button->Invalidate();
     }
     ev->didHandle = true;
@@ -403,7 +413,7 @@ void ToolsPanelAfterThemeChange(MainWindow* win) {
     for (auto* b : panel->favoriteButtons) {
         b->textColor = ThemeWindowTextColor();
         b->pixmap = RibbonIconPixmap(Str(gLucideStar), DpiScale(18), ThemeWindowTextColor(), RibbonPanelBgColor());
-        b->SetTooltip(Tr(IsToolFavorite(b->id) ? "Remove from favorites" : "Add to favorites"));
+        SetFavoriteName(panel, b);
     }
     for (int i = 0; i < len(panel->rows); i++) {
         auto* b = panel->rows[i];
@@ -465,6 +475,7 @@ static void OnRowFocus(MainWindow* win, VirtFocusEvent* ev) {
     auto* scroll = panel->scroll;
     Rect r = ev->w->BoundsInWindow();
     int top = scroll->bounds.y;
+    if (panel->page == (int)RibbonPage::Home && !panel->rail) top += DpiScale(46);
     int bottom = scroll->bounds.Bottom();
     if (r.y < top)
         scroll->ScrollBy(r.y - top);
@@ -582,6 +593,28 @@ static void FocusPanelRow(ToolsPanelVirt* panel) {
     if (len(stops)) root->SetFocus(stops[0].vwnd);
 }
 
+static LRESULT CALLBACK SearchKeyProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR data) {
+    auto* win = (MainWindow*)data;
+    auto* panel = win->toolsPanel;
+    if (msg == WM_KEYDOWN && panel) {
+        if (wp == VK_DOWN || wp == VK_RETURN || (wp == VK_TAB && !IsShiftPressed())) {
+            HwndSetFocus(panel->host->native);
+            FocusPanelRow(panel);
+            return 0;
+        }
+        if (wp == VK_ESCAPE) {
+            if (len(panel->searchEdit->GetTextTemp()))
+                panel->searchEdit->SetText({});
+            else
+                HwndSetFocus(win->hwndFrame);
+            return 0;
+        }
+    }
+    if (msg == WM_CHAR && (wp == VK_TAB || wp == VK_RETURN || wp == VK_ESCAPE)) return 0;
+    if (msg == WM_NCDESTROY) RemoveWindowSubclass(hwnd, SearchKeyProc, id);
+    return DefSubclassProc(hwnd, msg, wp, lp);
+}
+
 void ToolsPanelShowPage(MainWindow* win) {
     auto* panel = win->toolsPanel;
     if (!panel || panel->page == win->ribbonPage) return;
@@ -650,7 +683,6 @@ void ToolsPanelShowPage(MainWindow* win) {
                 favorite->isSelected = IsToolFavorite(d.cmd);
                 favorite->pixmap =
                     RibbonIconPixmap(Str(gLucideStar), DpiScale(18), ThemeWindowTextColor(), RibbonPanelBgColor());
-                favorite->SetTooltip(Tr(favorite->isSelected ? "Remove from favorites" : "Add to favorites"));
                 favorite->onClick = MkFunc1(OnFavorite, win);
                 SetupRow(win, favorite);
                 VecAppend(panel->favoriteButtons, favorite);
@@ -770,7 +802,10 @@ static void PanelNativeMsg(MainWindow* win, VirtHostNativeMsg* ev) {
         CollectTabStops(panel->scroll->child, stops);
         bool back = IsShiftPressed();
         if (len(stops) && root->focused == stops[back ? 0 : len(stops) - 1].vwnd) {
-            AdvanceFocus(win);
+            if (back && panel->page == (int)RibbonPage::Home && !panel->rail)
+                HwndSetFocus(panel->searchEdit->hwnd);
+            else
+                AdvanceFocus(win);
             ev->didHandle = true;
         }
     } else if (ev->msg == WM_VSCROLL && panel->scroll) {
@@ -818,6 +853,7 @@ void CreateToolsPanel(MainWindow* win) {
     searchArgs.cueText = Tr("Search tools by name or description");
     searchArgs.isRtl = IsUIRtl();
     panel->searchEdit->Create(searchArgs);
+    SetWindowSubclass(panel->searchEdit->hwnd, SearchKeyProc, NextSubclassId(), (DWORD_PTR)win);
     SetWindowLongPtrW(panel->searchEdit->hwnd, GWL_STYLE,
                       GetWindowLongPtrW(panel->searchEdit->hwnd, GWL_STYLE) | WS_TABSTOP);
     panel->searchEdit->onTextChanged = MkFunc0(OnSearchChanged, panel);
@@ -947,6 +983,8 @@ TempStr ToolsPanelStateTemp(MainWindow* win) {
                    AnimationAllowed(win->hwndFrame), win->toolsWidthAnimation->running,
                    win->commentsWidthAnimation->running, panel->pageFade.running, AnimationCount(win->hwndFrame)));
     out.Append(fmt("ribbon height=%d stripVisible=0\n", win->toolbarVirt->ribbonDy));
+    auto* focused = panel->host->vroot ? AsRibbonButton(panel->host->vroot->focused) : nullptr;
+    if (focused) out.Append(fmt("panel-focus text=%s\n", focused->label));
     for (int i = 0; i < len(win->toolbarVirt->ribbonTabs); i++) {
         auto* tab = win->toolbarVirt->ribbonTabs[i];
         Rect r = tab->BoundsInWindow();
@@ -973,8 +1011,8 @@ TempStr ToolsPanelStateTemp(MainWindow* win) {
     for (auto* b : panel->favoriteButtons) {
         if (b->GetVisibility() != Visibility::Visible) continue;
         Rect r = b->BoundsInWindow();
-        out.Append(fmt("panel-favorite cmd=%d active=%d rect=%d,%d,%d,%d\n", b->id, b->isSelected ? 1 : 0, r.x, r.y,
-                       r.Right(), r.Bottom()));
+        out.Append(fmt("panel-favorite cmd=%d active=%d rect=%d,%d,%d,%d name=%s\n", b->id, b->isSelected ? 1 : 0, r.x,
+                       r.y, r.Right(), r.Bottom(), b->label));
     }
     return ToStrTemp(out);
 }
