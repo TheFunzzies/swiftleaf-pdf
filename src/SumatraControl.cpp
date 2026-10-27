@@ -775,7 +775,19 @@ static TempStr DocumentSignaturesResultTemp(int* exitCodeOut) {
     if (len(sigs) == 0) {
         return finish(StrL("ERROR no-signatures"), 1);
     }
-    return finish(str::DupTemp(sigs), 0);
+    str::Builder result;
+    result.Append(sigs);
+    Vec<SignatureItemInfo> validation;
+    if (!EngineMupdfGetSignaturesInfo(engine, validation)) {
+        FreeSignatures(validation);
+        return finish(StrL("ERROR signature-validation"), 1);
+    }
+    for (const auto& sig : validation) {
+        result.Append(fmt("\nvalidation status=%d certified=%d permission=%d: %s\n", (int)sig.status,
+                          (int)sig.isCertified, sig.mdpPerm, sig.statusDesc));
+    }
+    FreeSignatures(validation);
+    return finish(ToStrTemp(result), 0);
 }
 
 static TempStr DocumentFontListResultTemp(int* exitCodeOut) {
@@ -1596,6 +1608,9 @@ static void ExecuteControlRequest(ControlRequest* req) {
             Str certPath = StringArg(req, 3);
             Str certPassword = StringArg(req, 4);
             Str imagePath = StringArg(req, 5);
+            Str tsaUrl = StringArg(req, 7);
+            i32 mdpPerm = 0;
+            IntArg(req, 8, mdpPerm);
             i32 appearanceFlags = -1;
             IntArg(req, 6, appearanceFlags);
             if (len(pdfPath) == 0 || len(destPath) == 0) {
@@ -1606,7 +1621,7 @@ static void ExecuteControlRequest(ControlRequest* req) {
             }
             int exitCode = 0;
             Str res = SignDocumentResultTemp(pdfPath, destPath, thumbprint, certPath, certPassword, imagePath,
-                                             appearanceFlags, &exitCode);
+                                             appearanceFlags, &exitCode, tsaUrl, mdpPerm);
             AppendTestResult(req, exitCode, res);
             break;
         }

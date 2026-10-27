@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Embed RFC 3161 TSA tokens over CMS signature values; fail signing saves
+  when a requested timestamp fails.
+- Distinguish permitted DocMDP revisions from tampering; evaluate certificate
+  dates at signing time and report timestamp/revocation uncertainty.
+
 - Recommended section at top of the All tools panel for quick access to primary workflows.
 - Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
 - Command palette lists all commands with description and ribbon tab destination.
