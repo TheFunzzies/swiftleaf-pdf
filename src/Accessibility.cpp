@@ -24,6 +24,7 @@
 #include "DarkMode.h"
 #include "Theme.h"
 #include "Commands.h"
+#include "Flags.h"
 #include <mupdf/pdf.h>
 #include "Accessibility.h"
 
@@ -140,8 +141,8 @@ static void ReportTagTree(fz_context* ctx, pdf_obj* node, AccessReport& report, 
     pdf_obj* kids = pdf_dict_get(ctx, node, PDF_NAME(K));
     if (role) {
         AddReportItem(report, StrL("Tag order"), Str(pdf_to_name(ctx, role)),
-                      fmt("Depth %d; page object %d; %s. Verify against visible content.", depth,
-                          pdf_to_num(ctx, pdf_dict_gets(ctx, node, "Pg")),
+                      fmt("Object %d; depth %d; page object %d; %s. Verify against visible content.",
+                          pdf_to_num(ctx, node), depth, pdf_to_num(ctx, pdf_dict_gets(ctx, node, "Pg")),
                           pdf_is_int(ctx, kids) ? StrL("MCID reference") : StrL("child references")),
                       AccessCheckStatus::Warning);
         if (role == PDF_NAME(TH)) {
@@ -529,6 +530,82 @@ static pdf_obj* NewTag(fz_context* ctx, pdf_document* doc, pdf_obj* parent, pdf_
     return ref;
 }
 
+static void WrapPageContent(fz_context* ctx, pdf_document* doc, pdf_obj* page, Str prefix) {
+    pdf_obj* contents = pdf_dict_get(ctx, page, PDF_NAME(Contents));
+    pdf_obj* streams = pdf_new_array(ctx, doc, 4);
+    fz_try(ctx) {
+        pdf_array_push_drop(ctx, streams, TagStream(ctx, doc, prefix));
+        if (pdf_is_array(ctx, contents)) {
+            for (int i = 0; i < pdf_array_len(ctx, contents); i++)
+                pdf_array_push(ctx, streams, pdf_array_get(ctx, contents, i));
+        } else if (contents) {
+            pdf_array_push(ctx, streams, contents);
+        }
+        pdf_array_push_drop(ctx, streams, TagStream(ctx, doc, StrL("\nEMC\n")));
+        pdf_dict_put(ctx, page, PDF_NAME(Contents), streams);
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, streams);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+}
+
+static pdf_obj* FindHeader(fz_context* ctx, pdf_obj* node, int object, int& budget, int depth = 0) {
+    if (!node || depth > 64 || --budget < 0) return nullptr;
+    if (pdf_is_array(ctx, node)) {
+        for (int i = 0; i < pdf_array_len(ctx, node); i++) {
+            if (auto* found = FindHeader(ctx, pdf_array_get(ctx, node, i), object, budget, depth + 1)) return found;
+        }
+        return nullptr;
+    }
+    if (!pdf_is_dict(ctx, node)) return nullptr;
+    if (pdf_to_num(ctx, node) == object && pdf_dict_get(ctx, node, PDF_NAME(S)) == PDF_NAME(TH)) return node;
+    return FindHeader(ctx, pdf_dict_get(ctx, node, PDF_NAME(K)), object, budget, depth + 1);
+}
+
+static void SetHeaderScope(fz_context* ctx, pdf_document* doc, pdf_obj* tree, int object, Str scope) {
+    if (!str::Eq(scope, StrL("Row")) && !str::Eq(scope, StrL("Column")) && !str::Eq(scope, StrL("Both")))
+        fz_throw(ctx, FZ_ERROR_GENERIC, "Scope must be Row, Column or Both");
+    int budget = 100000;
+    pdf_obj* header = FindHeader(ctx, tree, object, budget);
+    if (!header) fz_throw(ctx, FZ_ERROR_GENERIC, "Object must be a TH in the source tag tree");
+    pdf_obj* attrs = pdf_dict_get(ctx, header, PDF_NAME(A));
+    if (attrs && !pdf_is_array(ctx, attrs) && !pdf_is_dict(ctx, attrs))
+        fz_throw(ctx, FZ_ERROR_GENERIC, "Malformed header attributes require manual repair");
+    pdf_obj* updated = pdf_new_array(ctx, doc, 2);
+    fz_try(ctx) {
+        bool found = false;
+        int count = pdf_is_array(ctx, attrs) ? pdf_array_len(ctx, attrs) : (attrs ? 1 : 0);
+        for (int i = 0; i < count; i++) {
+            pdf_obj* attr = pdf_is_array(ctx, attrs) ? pdf_array_get(ctx, attrs, i) : attrs;
+            if (pdf_dict_get(ctx, attr, PDF_NAME(O)) != PDF_NAME(Table)) {
+                pdf_array_push(ctx, updated, attr);
+                continue;
+            }
+            // Attributes may be shared by several headers; change only this TH.
+            pdf_obj* table = pdf_copy_dict(ctx, attr);
+            pdf_array_push_drop(ctx, updated, table);
+            pdf_dict_puts_drop(ctx, table, "Scope", pdf_new_name(ctx, CStrTemp(scope)));
+            found = true;
+        }
+        if (!found) {
+            pdf_obj* table = pdf_new_dict(ctx, doc, 2);
+            pdf_array_push_drop(ctx, updated, table);
+            pdf_dict_put(ctx, table, PDF_NAME(O), PDF_NAME(Table));
+            pdf_dict_puts_drop(ctx, table, "Scope", pdf_new_name(ctx, CStrTemp(scope)));
+        }
+        pdf_dict_put(ctx, header, PDF_NAME(A), updated);
+    }
+    fz_always(ctx) {
+        pdf_drop_obj(ctx, updated);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+}
+
 bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOptions& options) {
     if (len(srcPath) == 0 || len(destPath) == 0) return false;
     file::AtomicFile output(destPath);
@@ -577,6 +654,31 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
 
         if (len(options.figures) > 0) fz_throw(ctx, FZ_ERROR_GENERIC, "Figure occurrence remediation is not supported");
 
+        pdf_obj* sourceTree = pdf_dict_get(ctx, root, PDF_NAME(StructTreeRoot));
+        if (options.headerObject || len(options.headerScope))
+            SetHeaderScope(ctx, doc, sourceTree, options.headerObject, options.headerScope);
+
+        Vec<int> artifacts;
+        if (len(options.artifactPages)) {
+            if (sourceTree) fz_throw(ctx, FZ_ERROR_GENERIC, "Preserve source tags: decorative pages must be untagged");
+            Vec<PageRange> ranges;
+            int count = pdf_count_pages(ctx, doc);
+            if (!ParsePageRanges(options.artifactPages, ranges))
+                fz_throw(ctx, FZ_ERROR_GENERIC, "Invalid decorative page range");
+            for (auto& range : ranges) {
+                if (range.start < 1 || range.end > count || range.end < range.start)
+                    fz_throw(ctx, FZ_ERROR_GENERIC, "Decorative page out of range");
+                for (int pageNo = range.start; pageNo <= range.end; pageNo++) {
+                    if (VecContains(artifacts, pageNo)) continue;
+                    pdf_obj* page = pdf_lookup_page_obj(ctx, doc, pageNo - 1);
+                    if (pdf_dict_gets(ctx, page, "StructParents"))
+                        fz_throw(ctx, FZ_ERROR_GENERIC, "Preserve source marked content");
+                    WrapPageContent(ctx, doc, page, StrL("/Artifact BMC\n"));
+                    VecAppend(artifacts, pageNo);
+                }
+            }
+        }
+
         // 3. Auto-tag structure
         if (options.autoTagBasicStructure && !pdf_dict_get(ctx, root, PDF_NAME(StructTreeRoot))) {
             pdf_obj* markInfo = pdf_dict_gets(ctx, root, "MarkInfo");
@@ -606,31 +708,26 @@ bool ApplyAccessibilityFixes(Str srcPath, Str destPath, const AccessibilityFixOp
                 pdf_obj* page = pdf_lookup_page_obj(ctx, doc, p);
                 if (pdf_dict_gets(ctx, page, "StructParents"))
                     fz_throw(ctx, FZ_ERROR_GENERIC, "Orphaned source tagging requires manual repair");
-                pdf_obj* tag = NewTag(ctx, doc, docElemRef, page, "P");
-                pdf_dict_put_int(ctx, tag, PDF_NAME(K), 0);
-                pdf_array_push(ctx, kidsArray, tag);
-                pdf_dict_puts_drop(ctx, page, "StructParents", pdf_new_int(ctx, nextKey));
-                pdf_array_push_int(ctx, nums, nextKey++);
-                pdf_obj* owners = pdf_new_array(ctx, doc, 1);
-                pdf_array_push(ctx, owners, tag);
-                pdf_array_push_drop(ctx, nums, owners);
-                pdf_drop_obj(ctx, tag);
+                pdf_obj* tag = nullptr;
+                if (!VecContains(artifacts, p + 1)) {
+                    tag = NewTag(ctx, doc, docElemRef, page, "P");
+                    pdf_dict_put_int(ctx, tag, PDF_NAME(K), 0);
+                    pdf_array_push(ctx, kidsArray, tag);
+                    pdf_dict_puts_drop(ctx, page, "StructParents", pdf_new_int(ctx, nextKey));
+                    pdf_array_push_int(ctx, nums, nextKey++);
+                    pdf_obj* owners = pdf_new_array(ctx, doc, 1);
+                    pdf_array_push(ctx, owners, tag);
+                    pdf_array_push_drop(ctx, nums, owners);
+                    pdf_drop_obj(ctx, tag);
 
-                pdf_obj* contents = pdf_dict_get(ctx, page, PDF_NAME(Contents));
-                pdf_obj* streams = pdf_new_array(ctx, doc, 4);
-                pdf_array_push_drop(ctx, streams, TagStream(ctx, doc, StrL("/P <</MCID 0>> BDC\n")));
-                if (pdf_is_array(ctx, contents)) {
-                    for (int i = 0; i < pdf_array_len(ctx, contents); i++)
-                        pdf_array_push(ctx, streams, pdf_array_get(ctx, contents, i));
-                } else if (contents) {
-                    pdf_array_push(ctx, streams, contents);
+                    WrapPageContent(ctx, doc, page, StrL("/P <</MCID 0>> BDC\n"));
                 }
-                pdf_array_push_drop(ctx, streams, TagStream(ctx, doc, StrL("\nEMC\n")));
-                pdf_dict_put_drop(ctx, page, PDF_NAME(Contents), streams);
 
                 pdf_obj* annots = pdf_dict_get(ctx, page, PDF_NAME(Annots));
                 for (int i = 0; i < pdf_array_len(ctx, annots); i++) {
                     pdf_obj* annot = pdf_array_get(ctx, annots, i);
+                    if (pdf_dict_gets(ctx, annot, "StructParent"))
+                        fz_throw(ctx, FZ_ERROR_GENERIC, "Preserve source annotation tagging");
                     tag = NewTag(ctx, doc, docElemRef, page,
                                  pdf_dict_get(ctx, annot, PDF_NAME(Subtype)) == PDF_NAME(Link) ? "Link" : "Annot");
                     pdf_obj* objr = pdf_dict_put_dict(ctx, tag, PDF_NAME(K), 3);
@@ -823,6 +920,9 @@ struct AccessibilityFixesDialog : WindowBase {
     Edit* titleEdit = nullptr;
     Checkbox* dispDocTitleCheck = nullptr;
     Checkbox* autoTagCheck = nullptr;
+    Edit* artifactEdit = nullptr;
+    Edit* headerEdit = nullptr;
+    Edit* scopeEdit = nullptr;
     Edit* destEdit = nullptr;
     Edit* altEdit = nullptr;
     Checkbox* decorCheck = nullptr;
@@ -921,6 +1021,31 @@ struct AccessibilityFixesDialog : WindowBase {
         autoTagCheck->Create(cbargs);
         mainBox->AddChild(autoTagCheck);
 
+        mainBox->AddChild(
+            NewVirtText({.s = Tr("Decorative whole pages (e.g. 2,4-5; untagged PDFs only; blank keeps content):"),
+                         .font = font,
+                         .isRtl = IsUIRtl()}));
+        eargs.text = {};
+        eargs.accessibleName = Tr("Decorative whole pages");
+        artifactEdit = new Edit();
+        artifactEdit->Create(eargs);
+        mainBox->AddChild(artifactEdit);
+
+        mainBox->AddChild(NewVirtText({.s = Tr("Table header object number from tag report (blank keeps scope):"),
+                                       .font = font,
+                                       .isRtl = IsUIRtl()}));
+        eargs.accessibleName = Tr("Table header object number");
+        headerEdit = new Edit();
+        headerEdit->Create(eargs);
+        mainBox->AddChild(headerEdit);
+        mainBox->AddChild(NewVirtText(
+            {.s = Tr("Header scope: Row, Column or Both (verify associations):"), .font = font, .isRtl = IsUIRtl()}));
+        eargs.accessibleName = Tr("Table header scope");
+        eargs.text = StrL("Column");
+        scopeEdit = new Edit();
+        scopeEdit->Create(eargs);
+        mainBox->AddChild(scopeEdit);
+
         if (len(figures) > 0) {
             mainBox->AddChild(
                 NewVirtText({.s = Tr("Figure descriptions and decorative marking require an occurrence-aware editor."),
@@ -1017,6 +1142,16 @@ struct AccessibilityFixesDialog : WindowBase {
         }
 
         AccessibilityFixOptions opts;
+        TempStr header = headerEdit->GetTextTemp();
+        if (len(header)) {
+            if (str::IsNull(str::Parse(header, "%d%$", &opts.headerObject)) || opts.headerObject <= 0) {
+                MessageBoxWarning(hwnd, Tr("Enter a positive TH object number from the tag report."),
+                                  Tr("Header scope"));
+                return;
+            }
+            opts.headerScope = scopeEdit->GetTextTemp();
+        }
+        opts.artifactPages = artifactEdit->GetTextTemp();
         TempStr lang = langEdit->GetTextTemp();
         opts.language = str::Dup(lang);
         TempStr title = titleEdit->GetTextTemp();

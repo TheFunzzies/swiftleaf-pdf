@@ -138,6 +138,7 @@ struct RibbonTabRow : HBox {
     Size paintedSize;
     VirtCtrl* overflowBtn = nullptr;
     ILayout* searchBox = nullptr;
+    ILayout* navigationBox = nullptr;
     VirtCtrl* propsBtn = nullptr;
     VirtCtrl* saveBtn = nullptr;
     VirtCtrl* printBtn = nullptr;

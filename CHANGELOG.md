@@ -2,9 +2,11 @@
 
 ## Unreleased
 
+- Accessibility remediation: mark explicitly selected untagged whole pages as stream artifacts; edit source TH scope by report object number without changing shared attributes. Reject invalid targets and preserve source tagging.
+
 - Accessibility dialogs: name edit fields, fit monitor work areas, and scroll keyboard focus into view. Tools search has a stable accessible name.
 
-- Accessibility: link draft page tags through MCIDs/ParentTree and annotation OBJR; list source tag order and table scope warnings. Disable unsupported figure/decorative edits; preserve source tags.
+- Accessibility: link draft page tags through MCIDs/ParentTree and annotation OBJR; list source tag order and table scope warnings. Preserve source tags; unsupported figure occurrence edits remain disabled.
 
 - PDF compression honesty: distinct Archive preset from ISO PDF/A, separate Print and Archive backends, detailed image/font/object byte contributions in audit and dialog, honest preset descriptions, and keep-original guarantee when output would grow.
 - Release size and footprint gate: automated CI check against recorded baselines with warning on growth and strict >10% growth prevention gate.

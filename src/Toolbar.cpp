@@ -3726,11 +3726,24 @@ static void ShowTopBarOverflowMenu(MainWindow* win, Rect anchor) {
     appendItem(CmdProperties, Tr("Document properties"));
     appendItem(CmdSaveAnnotations, Tr("Save changes to the PDF"));
     appendItem(CmdPrint, Tr("Print"));
+    appendItem(CmdGoToPage, Tr("Go to page"));
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    for (int i = 0; i < RibbonModeCount(); i++) {
+        UINT flags = MF_STRING | (i == RibbonModeForPage((RibbonPage)win->ribbonPage) ? MF_CHECKED : 0);
+        AppendMenuW(menu, flags, kRibbonTabIdBase + i, CWStrTemp(RibbonModeName((RibbonMode)i)));
+    }
 
-    int cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_LEFTALIGN, anchor.x, anchor.Bottom(), 0, win->hwndFrame, nullptr);
+    int cmd =
+        TrackPopupMenu(menu, TPM_RETURNCMD | TPM_LEFTALIGN, anchor.x, anchor.Bottom(), 0, win->hwndFrame, nullptr);
     DestroyMenu(menu);
     if (cmd) {
-        ToolbarPostCommand(win, cmd);
+        if (cmd >= kRibbonTabIdBase && cmd < kRibbonTabIdBase + RibbonModeCount()) {
+            int mode = cmd - kRibbonTabIdBase;
+            SetRibbonPage(win, (int)RibbonModePage((RibbonMode)mode), true);
+            if (!ShouldShowToolsPanel(win) || !HwndIsVisible(win->hwndToolsPanel)) ShowToolsPanelMenu(win, anchor);
+        } else {
+            ToolbarPostCommand(win, cmd);
+        }
     }
 }
 
@@ -3989,6 +4002,7 @@ static void BuildToolbarLayout(MainWindow* win) {
     }
     tabRow->AddChild(new VirtSpacer(0, 0), 1);
     auto* nav = new HBox();
+    tabRow->navigationBox = nav;
     nav->alignCross = CrossAxisAlign::CrossCenter;
     nav->rtl = rtl;
     tabRow->AddChild(nav);
@@ -4312,6 +4326,33 @@ void RibbonAccess_UnitTests() {
     id = 2;
     utassert(RibbonAccessible::Find(box, id) == last);
     delete box;
+
+    auto* row = new RibbonTabRow();
+    auto* font = GetDefaultGuiFont();
+    auto* active = new RibbonTab(StrL("Read"), font);
+    active->isActive = true;
+    row->AddChild(active);
+    auto* inactive = new RibbonTab(StrL("Long translated editing tools"), font);
+    row->AddChild(inactive);
+    auto* navigation = new VirtSpacer(DpiScale(600), DpiScale(32));
+    row->navigationBox = navigation;
+    row->AddChild(navigation);
+    auto* overflow = new VirtButton(StrL("More"), font);
+    row->overflowBtn = overflow;
+    row->AddChild(overflow);
+    for (int width : {DpiScale(400), DpiScale(800)}) {
+        row->Layout(Tight({width, DpiScale(44)}));
+        row->SetBounds({0, 0, width, DpiScale(44)});
+        utassert(active->GetVisibility() == Visibility::Visible);
+        utassert(overflow->GetVisibility() == Visibility::Visible);
+        utassert(row->MinIntrinsicWidth(DpiScale(44)) <= width);
+        utassert(active->lastBounds.Right() <= width);
+        utassert(overflow->lastBounds.Right() <= width);
+    }
+    row->Layout(Tight({DpiScale(2400), DpiScale(44)}));
+    utassert(inactive->GetVisibility() == Visibility::Visible);
+    utassert(navigation->GetVisibility() == Visibility::Visible);
+    delete row;
 }
 #endif
 

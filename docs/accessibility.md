@@ -10,11 +10,22 @@ retain their original paint order. The checker lists source roles in tree order,
 page object references, MCID/child reference kinds and TH scope warnings.
 It never certifies reading order or table header associations from tag presence.
 
+The fixes dialog accepts decorative **whole page** ranges, such as `2,4-5`.
+Only select pages with no meaningful content. Their streams are enclosed in
+`/Artifact BMC` and `EMC`, and excluded from draft P tags. Annotations remain
+separately tagged. This operation rejects source structure trees and orphan
+StructParents rather than damage their links; invalid ranges publish no output.
+
+For a source TH, use its object number from the tag report and choose `Row`,
+`Column` or `Both` in the fixes dialog. Only that reachable TH's Table Scope
+attribute changes; other attributes and source tag order remain. This does not
+infer headers or validate cell associations. Leave the object number blank to
+preserve scope.
+
 Limits: no paragraph, heading or table reconstruction; no tag reorder editor.
-Figure descriptions and decorative marking are disabled: resource objects can
-occur repeatedly, and rewriting a resource alone cannot tag individual uses.
-No synthetic Artifact structure roles are emitted. Existing stream artifacts
-are preserved. New artifacts require an occurrence-aware content editor.
+Individual figure descriptions and decorative occurrences remain unsupported:
+resources can occur repeatedly. No synthetic Artifact structure roles are
+emitted. Existing stream artifacts are preserved.
 Inline/nested images, role maps and complete MCID coverage need manual review.
 Use an independent PDF/UA validator and an actual screen reader before delivery.
 

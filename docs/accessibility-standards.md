@@ -15,12 +15,13 @@ inline images, nested forms and vector figures are not fully verified. Unverifie
 associations produce a warning, never an Alt-text pass. Review Alt quality,
 decorative content, table header scope and reading order with assistive technology.
 
-Auto-tagging creates draft roles inferred from extracted text. It does not
-rewrite content streams with MCIDs or create a ParentTree. Draft output leaves
-Marked false. Existing source structure trees are preserved. Figure descriptions
-in a draft are not linked to painted content; Artifact roles do not mark stream
-content as decorative. Full remediation needs a content-aware editor and
-independent PDF/UA validation.
+Auto-tagging links each untagged page's content to a draft P through MCID 0
+and ParentTree. Annotation roles use OBJR and StructParent. Draft output leaves
+Marked false. Existing source structure trees are preserved. These links do not
+reconstruct paragraphs, headings, tables or semantic reading order. Figure
+occurrence editing remains unsupported. See [Accessibility](accessibility.md)
+for supported manual repairs and limits. Independent PDF/UA validation remains
+necessary.
 
 ## PDF/A preparation
 

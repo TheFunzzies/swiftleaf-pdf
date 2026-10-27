@@ -4,7 +4,6 @@
 #ifndef ACCESSIBILITY_H
 #define ACCESSIBILITY_H
 
-
 struct MainWindow;
 struct fz_context;
 struct pdf_document;
@@ -49,6 +48,9 @@ struct AccessibilityFixOptions {
     bool setDisplayDocTitle = true;
     bool autoTagBasicStructure = true;
     Vec<FigureAltItem> figures;
+    Str artifactPages;
+    int headerObject = 0;
+    Str headerScope;
 };
 
 AccessReport RunAccessibilityCheck(fz_context* ctx, pdf_document* doc);

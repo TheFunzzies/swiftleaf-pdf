@@ -2584,7 +2584,7 @@ static void PageTools2Test() {
         fz_drop_buffer(ctx, prefix);
 
         // Source TH scope is reported without certifying header associations.
-        pdf_obj* header = pdf_new_dict(ctx, doc, 2);
+        pdf_obj* header = pdf_add_object_drop(ctx, doc, pdf_new_dict(ctx, doc, 4));
         pdf_dict_put(ctx, header, PDF_NAME(S), PDF_NAME(TH));
         pdf_obj* attrs = pdf_dict_put_dict(ctx, header, PDF_NAME(A), 2);
         pdf_dict_put(ctx, attrs, PDF_NAME(O), PDF_NAME(Table));
@@ -2601,6 +2601,46 @@ static void PageTools2Test() {
         }
         utassert(foundScope);
         FreeAccessReport(scopeReport);
+        {
+            TempStr source = GetTempFilePathTemp(StrL("access-scope-source.pdf"));
+            TempStr repaired = GetTempFilePathTemp(StrL("access-scope-fixed.pdf"));
+            pdf_obj* layoutAttr = pdf_new_dict(ctx, doc, 2);
+            pdf_dict_put_name(ctx, layoutAttr, PDF_NAME(O), "Layout");
+            pdf_dict_put_int(ctx, layoutAttr, PDF_NAME(Width), 123);
+            pdf_obj* attributes = pdf_new_array(ctx, doc, 2);
+            pdf_array_push_drop(ctx, attributes, layoutAttr);
+            pdf_array_push(ctx, attributes, attrs);
+            pdf_dict_put_drop(ctx, header, PDF_NAME(A), attributes);
+            pdf_write_options writeOptions{};
+            pdf_save_document(ctx, doc, CStrTemp(source), &writeOptions);
+            AccessibilityFixOptions repair;
+            repair.headerObject = pdf_to_num(ctx, header);
+            repair.headerScope = StrL("Row");
+            utassert(ApplyAccessibilityFixes(source, repaired, repair));
+            pdf_document* output = pdf_open_document(ctx, CStrTemp(repaired));
+            pdf_obj* catalog = pdf_dict_get(ctx, pdf_trailer(ctx, output), PDF_NAME(Root));
+            pdf_obj* tree = pdf_dict_get(ctx, catalog, PDF_NAME(StructTreeRoot));
+            pdf_obj* outputHeader = pdf_dict_get(ctx, tree, PDF_NAME(K));
+            pdf_obj* outputAttrs = pdf_dict_get(ctx, outputHeader, PDF_NAME(A));
+            utassert(pdf_dict_get(ctx, outputHeader, PDF_NAME(S)) == PDF_NAME(TH));
+            utassert(pdf_array_len(ctx, outputAttrs) == 2);
+            utassert(pdf_to_int(ctx, pdf_dict_get(ctx, pdf_array_get(ctx, outputAttrs, 0), PDF_NAME(Width))) == 123);
+            utassert(str::Eq(Str(pdf_to_name(ctx, pdf_dict_gets(ctx, pdf_array_get(ctx, outputAttrs, 1), "Scope"))),
+                             StrL("Row")));
+            utassert(pdf_dict_get(ctx, tree, PDF_NAME(ParentTree)) != nullptr);
+            pdf_drop_document(ctx, output);
+            repair.headerScope = StrL("invalid");
+            utassert(!ApplyAccessibilityFixes(source, repaired, repair));
+            repair.headerScope = StrL("Both");
+            repair.headerObject = pdf_to_num(ctx, firstPage);
+            utassert(!ApplyAccessibilityFixes(source, repaired, repair));
+            repair.headerObject = 0;
+            repair.headerScope = {};
+            repair.artifactPages = StrL("1");
+            utassert(!ApplyAccessibilityFixes(source, repaired, repair));
+            file::Delete(source);
+            file::Delete(repaired);
+        }
         pdf_dict_put_drop(ctx, strRoot, PDF_NAME(K), savedKids);
         pdf_drop_obj(ctx, header);
 
@@ -2634,6 +2674,67 @@ static void PageTools2Test() {
         pdf_drop_document(ctx, doc);
         fz_drop_context(ctx);
         file::Delete(fixPdf);
+
+        // Explicit decorative pages use stream artifacts, not structure roles.
+        aopts.artifactPages = StrL("1");
+        utassert(ApplyAccessibilityFixes(basePdf, fixPdf, aopts));
+        ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+        doc = pdf_open_document(ctx, CStrTemp(fixPdf));
+        firstPage = pdf_lookup_page_obj(ctx, doc, 0);
+        utassert(!pdf_dict_gets(ctx, firstPage, "StructParents"));
+        contents = pdf_dict_get(ctx, firstPage, PDF_NAME(Contents));
+        prefix = pdf_load_stream(ctx, pdf_array_get(ctx, contents, 0));
+        size = fz_buffer_storage(ctx, prefix, &bytes);
+        const char artifact[] = "/Artifact BMC\n";
+        utassert(size == sizeof(artifact) - 1 && memcmp(bytes, artifact, sizeof(artifact) - 1) == 0);
+        fz_drop_buffer(ctx, prefix);
+        pdf_drop_document(ctx, doc);
+        fz_drop_context(ctx);
+        file::Delete(fixPdf);
+        aopts.artifactPages = StrL("999999");
+        utassert(!ApplyAccessibilityFixes(basePdf, fixPdf, aopts));
+        utassert(!file::Exists(fixPdf));
+
+        {
+            TempStr source = GetTempFilePathTemp(StrL("access-link-source.pdf"));
+            ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+            doc = pdf_open_document(ctx, CStrTemp(basePdf));
+            firstPage = pdf_lookup_page_obj(ctx, doc, 0);
+            pdf_obj* annotations = pdf_dict_put_array(ctx, firstPage, PDF_NAME(Annots), 1);
+            pdf_obj* link = pdf_add_object_drop(ctx, doc, pdf_new_dict(ctx, doc, 4));
+            pdf_dict_put(ctx, link, PDF_NAME(Type), PDF_NAME(Annot));
+            pdf_dict_put(ctx, link, PDF_NAME(Subtype), PDF_NAME(Link));
+            pdf_dict_put_rect(ctx, link, PDF_NAME(Rect), fz_make_rect(10, 10, 40, 30));
+            pdf_array_push_drop(ctx, annotations, link);
+            pdf_write_options writeOptions{};
+            pdf_save_document(ctx, doc, CStrTemp(source), &writeOptions);
+            pdf_drop_document(ctx, doc);
+            aopts.artifactPages = {};
+            utassert(ApplyAccessibilityFixes(source, fixPdf, aopts));
+            doc = pdf_open_document(ctx, CStrTemp(fixPdf));
+            firstPage = pdf_lookup_page_obj(ctx, doc, 0);
+            link = pdf_array_get(ctx, pdf_dict_get(ctx, firstPage, PDF_NAME(Annots)), 0);
+            int key = pdf_to_int(ctx, pdf_dict_gets(ctx, link, "StructParent"));
+            root = pdf_dict_get(ctx, pdf_trailer(ctx, doc), PDF_NAME(Root));
+            strRoot = pdf_dict_get(ctx, root, PDF_NAME(StructTreeRoot));
+            nums = pdf_dict_get(ctx, pdf_dict_get(ctx, strRoot, PDF_NAME(ParentTree)), PDF_NAME(Nums));
+            bool linked = false;
+            for (int i = 0; i + 1 < pdf_array_len(ctx, nums); i += 2) {
+                if (pdf_to_int(ctx, pdf_array_get(ctx, nums, i)) != key) continue;
+                pdf_obj* element = pdf_array_get(ctx, nums, i + 1);
+                pdf_obj* reference = pdf_dict_get(ctx, element, PDF_NAME(K));
+                utassert(pdf_dict_get(ctx, element, PDF_NAME(S)) == PDF_NAME(Link));
+                utassert(pdf_dict_get(ctx, reference, PDF_NAME(Type)) == PDF_NAME(OBJR));
+                utassert(pdf_objcmp(ctx, pdf_dict_gets(ctx, reference, "Obj"), link) == 0);
+                utassert(pdf_objcmp(ctx, pdf_dict_gets(ctx, reference, "Pg"), firstPage) == 0);
+                linked = true;
+            }
+            utassert(linked);
+            pdf_drop_document(ctx, doc);
+            fz_drop_context(ctx);
+            file::Delete(source);
+            file::Delete(fixPdf);
+        }
 
         // (c) PDF/A Conversion & Validation
         TempStr pdfaPdf = GetTempFilePathTemp(StrL("pdfa-test.pdf"));
