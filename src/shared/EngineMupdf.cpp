@@ -41,6 +41,7 @@ extern "C" {
 #include "EngineBase.h"
 #include "PdfDarkMode.h"
 #include "EngineAll.h"
+#include "TextReplace.h"
 #include "EbookBase.h"
 #include "EbookDoc.h"
 #include "Settings.h"
@@ -10956,8 +10957,9 @@ static Str ReplaceEditMatches(Str text, Str find, Str replacement, int& count) {
 }
 
 // Edit a private snapshot, then atomically publish only after every match succeeds.
-bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, Str replacement, int* countOut,
-                               Str* errorOut) {
+bool ReplaceTextWithProgress(EngineBase* engine, Str destination, Str find, Str replacement, int* countOut,
+                             Str* errorOut, TextReplaceProgress* progress) {
+    auto cancelled = [&]() { return progress && InterlockedCompareExchange(&progress->cancelled, 0, 0); };
     if (countOut) *countOut = 0;
     if (errorOut) *errorOut = {};
     EngineMupdf* original = AsEngineMupdf(engine);
@@ -10970,6 +10972,7 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
         if (errorOut) *errorOut = StrL("Choose a different file name for the saved copy.");
         return false;
     }
+    if (cancelled()) return false;
     TempStr snapshot = GetTempFilePathTemp(StrL("text-replace"));
     if (!len(snapshot) || !EngineMupdfSaveCopy(engine, snapshot)) {
         file::Delete(snapshot);
@@ -10989,18 +10992,35 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
     PasswordCloner password(key);
     EngineBase* copy = CreateEngineMupdfFromFile(snapshot, FileType::PDF, 96, encrypted ? &password : nullptr);
     auto* e = AsEngineMupdf(copy);
-    bool ok = e != nullptr;
+    bool ok = e != nullptr && copy->PageCount() <= 10000;
+    str::Builder failure;
+    if (progress && copy) InterlockedExchange(&progress->total, copy->PageCount());
     int count = 0;
     for (int pageNo = 1; ok && pageNo <= copy->PageCount(); pageNo++) {
+        AutoArenaSavepoint scratch;
+        if (cancelled()) {
+            ok = false;
+            break;
+        }
         Vec<RectF> boxes;
-        ok = CollectEditBlocks(e, pageNo, boxes);
+        ok = CollectEditBlocks(e, pageNo, boxes) && len(boxes) <= 4096;
         Vec<PdfTextRun> runs;
         StrVec replacements;
         for (int b = 0; ok && b < len(boxes); b++) {
+            if (cancelled()) {
+                ok = false;
+                break;
+            }
             PdfTextRun run;
             if (!EngineMupdfGetTextRun(copy, pageNo, boxes[b], TextRunScope::Paragraph, &run)) {
                 str::Free(run.text);
                 // A vertical-only block cannot be edited or silently skipped.
+                ok = false;
+                break;
+            }
+            if (len(run.text) > 1024 * 1024 || len(replacement) > 65536 ||
+                (u64)len(run.text) * (len(replacement) + 1) > 16 * 1024 * 1024) {
+                str::Free(run.text);
                 ok = false;
                 break;
             }
@@ -11014,31 +11034,49 @@ bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, St
                 VecAppend(runs, run);
                 replacements.Append(changed);
                 count += matches;
+                if (count > 100000) ok = false;
             } else {
                 str::Free(run.text);
             }
             str::Free(changed);
         }
-        if (!ok && errorOut)
-            *errorOut = fmt("Page %d has unsupported or overlapping text blocks. No copy was written.", pageNo);
+        if (!ok) failure.Append(fmt("Page %d: cancelled, unsupported blocks or replacement limit exceeded.", pageNo));
         for (int n = len(runs) - 1; ok && n >= 0; n--) {
+            if (cancelled()) {
+                ok = false;
+                break;
+            }
             Vec<Annotation*> removed;
             Str error;
             ok = EngineMupdfReplaceText(copy, pageNo, runs[n], replacements[n], removed, &error);
             for (Annotation* a : removed) delete a;
-            if (!ok && errorOut) *errorOut = fmt("Page %d: %s", pageNo, error);
+            if (!ok) failure.Append(fmt("Page %d: %s", pageNo, error));
         }
         for (PdfTextRun& run : runs) str::Free(run.text);
+        if (progress) InterlockedExchange(&progress->completed, pageNo);
     }
     if (ok && count == 0) {
         ok = false;
         if (errorOut) *errorOut = StrL("No matching text was found. No copy was written.");
     }
-    if (ok) ok = EngineMupdfSaveUpdated(copy, destination, {});
+    if (cancelled()) ok = false;
+    if (ok) {
+        file::AtomicFile output(destination);
+        ok = len(output.tempPath) && EngineMupdfSaveUpdated(copy, output.tempPath, {}) && !cancelled() &&
+             output.Commit();
+    }
+    if (!ok && errorOut && !len(*errorOut))
+        *errorOut =
+            len(failure) ? ToStrTemp(failure) : StrL("Cancelled or replacement limit exceeded. No copy was written.");
     SafeEngineRelease(&copy);
     file::Delete(snapshot);
     if (ok && countOut) *countOut = count;
     return ok;
+}
+
+bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, Str replacement, int* countOut,
+                               Str* errorOut) {
+    return ReplaceTextWithProgress(engine, destination, find, replacement, countOut, errorOut, nullptr);
 }
 
 //--- Undo / redo, on top of MuPDF's journal (see pdf_enable_journal)

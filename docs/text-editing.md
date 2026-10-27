@@ -125,3 +125,17 @@ Run the Debug build and `bun cmd/run-unit-tests.ts -dbg --no-build`. On a host
 where Device Guard blocks execution, dispatch `.github/workflows/build.yml` for
 the branch; its unit and existing Add Text/Add Image/edit-toolbar smoke suites
 exercise the built application.
+
+## Background replacement
+
+Find and Replace runs on a worker, snapshots the current document (including
+unsaved edits), and reports page progress. Cancel or closing the dialog prevents
+publication; the current extraction/edit/save call may finish first. A retained
+engine reference keeps the source alive if its tab closes. Source edits are
+never applied by the replacement worker.
+
+Limits fail without publishing: 10,000 pages, 4,096 blocks per page, 1 MiB per
+text run, 64 KiB replacement text, a 16 MiB per-run expansion estimate, and
+100,000 matches. Scratch allocations are reclaimed per page. The private PDF
+snapshot and font resources still scale with document complexity. Saved copies
+are published atomically only after the last cancellation check.

@@ -32,6 +32,8 @@
 #include "AdvancedForms.h"
 #include "shared/PdfTools.h"
 #include "BatchActions.h"
+#include "ComparePdf.h"
+#include "shared/TextReplace.h"
 #include "CommentIO.h"
 #include "Measure.h"
 #include "PageTools2.h"
@@ -954,6 +956,12 @@ static void TextReplaceToolsTest() {
     }
     SafeEngineRelease(&reopened);
     Str saved = file::ReadFile(output);
+    TextReplaceProgress cancelled;
+    cancelled.cancelled = 1;
+    utassert(!ReplaceTextWithProgress(e, output, StrL("Original"), StrL("changed"), &count, &error, &cancelled));
+    Str cancelledBytes = file::ReadFile(output);
+    utassert(str::Eq(saved, cancelledBytes));
+    str::Free(cancelledBytes);
     utassert(!EngineMupdfReplaceAllText(e, output, StrL("missing"), {}, &count, &error));
     utassert(count == 0 && len(error));
     Str after = file::ReadFile(output);
@@ -994,6 +1002,41 @@ static void TextReplaceToolsTest() {
     SafeEngineRelease(&e);
     file::Delete(output);
 }
+
+#if !defined(SUMATRA_NG)
+static void CompareReportTest() {
+    TempStr source = GetTempFilePathTemp(StrL("compare-source"));
+    TempStr other = GetTempFilePathTemp(StrL("compare-other"));
+    TempStr report = GetTempFilePathTemp(StrL("compare-report"));
+    utassert(file::WriteFile(source,
+                             TextEditFixture({}, StrL("BT /F1 12 Tf 72 700 Td (one old middle bad end) Tj ET\n"), 2)));
+    utassert(file::WriteFile(other,
+                             TextEditFixture({}, StrL("BT /F1 12 Tf 72 700 Td (one new middle good end) Tj ET\n"), 2)));
+    Str result;
+    utassert(ComparePdfReport(source, other, report, &result));
+    utassert(str::Contains(result, StrL("\"wordChanges\":8")));
+    Str saved = file::ReadFile(report);
+    utassert(str::Contains(saved, StrL("</ins> middle")));
+    CompareProgress cancel;
+    cancel.cancelled = 1;
+    utassert(!ComparePdfReport(source, other, report, &result, &cancel));
+    Str after = file::ReadFile(report);
+    utassert(str::Eq(saved, after));
+    str::Free(after);
+    str::Free(saved);
+    utassert(!ComparePdfReport(source, other, source, &result));
+    utassert(!ComparePdfReport(source, other, path::GetDirTemp(report), &result));
+    TempStr pdfReport = fmt("%s.pdf", report);
+    utassert(ComparePdfReport(source, other, pdfReport, &result));
+    EngineBase* reopened = CreateEngineMupdfFromFile(pdfReport, FileType::PDF, 96);
+    utassert(reopened && reopened->PageCount() >= 2);
+    SafeEngineRelease(&reopened);
+    file::Delete(source);
+    file::Delete(other);
+    file::Delete(report);
+    file::Delete(pdfReport);
+}
+#endif
 
 static Annotation* FirstUndoTestField(EngineBase* e) {
     Vec<Annotation*> widgets;
@@ -2466,9 +2509,20 @@ static void SetupForAi() {
 }
 
 int RunAppUnitTests(bool forAi) {
-    if (forAi) {
-        SetupForAi();
+    if (forAi) SetupForAi();
+#if !defined(SUMATRA_NG)
+    WCHAR focused[2]{};
+    if (GetEnvironmentVariableW(L"SWIFTLEAF_COMPARE_TESTS", focused, dimof(focused))) {
+        extern void ComparePdfUnitTests();
+        extern void BatchActionsUnitTests();
+        ComparePdfUnitTests();
+        BatchActionsUnitTests();
+        CompareReportTest();
+        TextReplaceToolsTest();
+        return utassert_print_results();
     }
+#endif
+
     printf("Running unit tests\n");
     utassert(Ocr_UnitTests());
     utassert(Signature_UnitTests());
@@ -2494,6 +2548,11 @@ int RunAppUnitTests(bool forAi) {
     PageStampsTest();
 #if !defined(SUMATRA_NG)
     ExportFormatsUnitTests();
+    extern void ComparePdfUnitTests();
+    ComparePdfUnitTests();
+    CompareReportTest();
+    extern void BatchActionsUnitTests();
+    BatchActionsUnitTests();
 #endif
     PageTools2Test();
     PdfDocumentToolsTest();

@@ -1,0 +1,161 @@
+MSBuild version 17.14.60+43b635718 for .NET Framework
+
+  a-zlib.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-zlib.lib
+  a-zopfli.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-zopfli.lib
+  a-libwebp.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-libwebp.lib
+  a-brotli.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-brotli.lib
+  jxldec.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\jxldec.lib
+  djvudec.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\djvudec.lib
+  base.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\base.lib
+  dav1d.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\dav1d.lib
+  heicdec.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\heicdec.lib
+  msdes.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\msdes.lib
+  chmdec.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\chmdec.lib
+  a-unrar.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-unrar.lib
+  a-extract.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-extract.lib
+  a-freetype.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-freetype.lib
+  a-openjpeg.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-openjpeg.lib
+  a-mujs.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-mujs.lib
+  a-harfbuzz.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-harfbuzz.lib
+  a-jbig2dec.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-jbig2dec.lib
+  a-lcms2.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-lcms2.lib
+  a-gumbo.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-gumbo.lib
+  cmark-gfm.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj\cmark-gfm.lib
+  a-libarchive.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\a-libarchive.lib
+  libjpeg-turbo.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\libjpeg-turbo.lib
+  mupdf.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj-s\mupdf.lib
+     Creating library ../out/dbg64/obj/libsumatrapdf.lib and object ../out/dbg64/obj/libsumatrapdf.exp
+  libsumatrapdf.vcxproj -> C:\Users\pstei\AI\Projects\swiftleaf-pdf\out\dbg64\obj\libsumatrapdf.dll
+  note: C:\Users\pstei\AI\Projects\swiftleaf-pdf\cmd\..\.work\docs missing, packing without the manual (run: bun cmd\gen-docs.ts)
+  AIChatCommon.cpp
+  LinkFollow.cpp
+  SelectTextKeyboard.cpp
+  AnnotEditToolbar.cpp
+  AnnotFilterToolbar.cpp
+  AnnotPlacement.cpp
+  Canvas.cpp
+  CommandPalette.cpp
+  CommentIO.cpp
+  DocumentPanel.cpp
+  DocumentProperties.cpp
+  EbookSettingsDialog.cpp
+  EditText.cpp
+  FormAuthoring.cpp
+  FormFields.cpp
+  FormOperations.cpp
+  MainWindow.cpp
+  Measure.cpp
+  Menu.cpp
+  MergePdf.cpp
+  NavFilesInFolder.cpp
+  Ocr.cpp
+  PageOrganize.cpp
+  PdfTools.cpp
+  SignDocumentDialog.cpp
+  SumatraControl.cpp
+  SumatraPDF.cpp
+  SumatraTest.cpp
+  TableOfContents.cpp
+  Tabs.cpp
+  Tests.cpp
+  Toolbar.cpp
+  ToolsPanel.cpp
+  Regress.cpp
+  AdvancedForms.cpp
+  Annotation.cpp
+  AppSettings.cpp
+  CommandAvailability.cpp
+  DisplayModel.cpp
+  EngineCreate.cpp
+  EngineDjvuDec.cpp
+  EngineDvi.cpp
+  EngineEbook.cpp
+  EngineImages.cpp
+  EngineMupdf.cpp
+  EnginePs.cpp
+  ExplorerQuickLook.cpp
+  ExternalViewers.cpp
+  GoogleLens.cpp
+  LitDoc.cpp
+  PdfDarkModeProfile.cpp
+  PdfSign.cpp
+  Print.cpp
+  PrintWin11.cpp
+  StressTesting.cpp
+  WindowTab.cpp
+  EngineDjvuDec_ut.cpp
+  Sumatra_ut.cpp
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowCropPagesDialog(struct MainWindow *)" (?ShowCropPagesDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfNUpDialog(struct MainWindow *)" (?ShowPdfNUpDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfBookletDialog(struct MainWindow *)" (?ShowPdfBookletDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfPosterizeDialog(struct MainWindow *)" (?ShowPdfPosterizeDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfDividePagesDialog(struct MainWindow *)" (?ShowPdfDividePagesDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfCombineLongPageDialog(struct MainWindow *)" (?ShowPdfCombineLongPageDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfPageBackgroundDialog(struct MainWindow *)" (?ShowPdfPageBackgroundDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowDuplicatePagesDialog(struct MainWindow *)" (?ShowDuplicatePagesDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowReversePageOrderDialog(struct MainWindow *)" (?ShowReversePageOrderDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowInsertBlankPagesDialog(struct MainWindow *)" (?ShowInsertBlankPagesDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowRemoveBlankPagesDialog(struct MainWindow *)" (?ShowRemoveBlankPagesDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowDeskewPagesDialog(struct MainWindow *)" (?ShowDeskewPagesDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowEditDocumentPropertiesDialog(struct MainWindow *)" (?ShowEditDocumentPropertiesDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowManageAttachmentsDialog(struct MainWindow *)" (?ShowManageAttachmentsDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowEditBookmarksDialog(struct MainWindow *)" (?ShowEditBookmarksDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowEditPageLabelsDialog(struct MainWindow *)" (?ShowEditPageLabelsDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfLinearizeDialog(struct MainWindow *)" (?ShowPdfLinearizeDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfRepairDialog(struct MainWindow *)" (?ShowPdfRepairDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfRasterizeDialog(struct MainWindow *)" (?ShowPdfRasterizeDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfGrayscaleDialog(struct MainWindow *)" (?ShowPdfGrayscaleDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfInvertColorsDialog(struct MainWindow *)" (?ShowPdfInvertColorsDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfRemoveAnnotationsDialog(struct MainWindow *)" (?ShowPdfRemoveAnnotationsDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfRemoveLinksDialog(struct MainWindow *)" (?ShowPdfRemoveLinksDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfManageLayersDialog(struct MainWindow *)" (?ShowPdfManageLayersDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "struct Str __cdecl RunBatchActionsJson(struct Str,struct Vec<struct Str> const &,struct BatchProgress *)" (?RunBatchActionsJson@@YA?AUStr@@U1@AEBU?$Vec@UStr@@@@PEAUBatchProgress@@@Z) referenced in function "bool __cdecl RunBatchCli(int *)" (?RunBatchCli@@YA_NPEAH@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2001: unresolved external symbol "struct Str __cdecl RunBatchActionsJson(struct Str,struct Vec<struct Str> const &,struct BatchProgress *)" (?RunBatchActionsJson@@YA?AUStr@@U1@AEBU?$Vec@UStr@@@@PEAUBatchProgress@@@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowBatchActionsDialog(struct MainWindow *)" (?ShowBatchActionsDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "bool __cdecl ComparePdfReport(struct Str,struct Str,struct Str,struct Str *)" (?ComparePdfReport@@YA_NUStr@@00PEAU1@@Z) referenced in function "bool __cdecl RunBatchCli(int *)" (?RunBatchCli@@YA_NPEAH@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowComparePdfDialog(struct MainWindow *)" (?ShowComparePdfDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowAccessibilityCheckerDialog(struct MainWindow *)" (?ShowAccessibilityCheckerDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowAccessibilityFixesDialog(struct MainWindow *)" (?ShowAccessibilityFixesDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPreflightDialog(struct MainWindow *)" (?ShowPreflightDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfAConvertDialog(struct MainWindow *)" (?ShowPdfAConvertDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfAValidateDialog(struct MainWindow *)" (?ShowPdfAValidateDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowPdfConvertColorsDialog(struct MainWindow *)" (?ShowPdfConvertColorsDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowScanDialog(struct MainWindow *)" (?ShowScanDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowCameraImportDialog(struct MainWindow *)" (?ShowCameraImportDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowSignaturePanel(struct MainWindow *)" (?ShowSignaturePanel@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "void __cdecl ShowCertifyDocumentDialog(struct MainWindow *)" (?ShowCertifyDocumentDialog@@YAXPEAUMainWindow@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+SumatraPDF.obj : error LNK2019: unresolved external symbol "bool __cdecl ClearDocumentSignature(struct MainWindow *,struct Str)" (?ClearDocumentSignature@@YA_NPEAUMainWindow@@UStr@@@Z) referenced in function "__int64 __cdecl FrameOnCommand(struct MainWindow *,struct HWND__ *,unsigned int,unsigned __int64,__int64)" (?FrameOnCommand@@YA_JPEAUMainWindow@@PEAUHWND__@@I_K_J@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfApplyPageBoxes(struct Str,struct Str,struct PdfPageBoxesParams const &)" (?PdfApplyPageBoxes@@YA_NUStr@@0AEBUPdfPageBoxesParams@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfApplyNUp(struct Str,struct Str,struct PdfNUpParams const &)" (?PdfApplyNUp@@YA_NUStr@@0AEBUPdfNUpParams@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfApplyCombineLongPage(struct Str,struct Str)" (?PdfApplyCombineLongPage@@YA_NUStr@@0@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfApplyPageBackground(struct Str,struct Str,struct PdfBackgroundParams const &)" (?PdfApplyPageBackground@@YA_NUStr@@0AEBUPdfBackgroundParams@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfDuplicatePages(struct Str,struct Str,struct Str)" (?PdfDuplicatePages@@YA_NUStr@@00@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfReversePageOrder(struct Str,struct Str)" (?PdfReversePageOrder@@YA_NUStr@@0@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfInsertBlankPages(struct Str,struct Str,int,int)" (?PdfInsertBlankPages@@YA_NUStr@@0HH@Z) referenced in function "void __cdecl LargeRecoveryTest(struct Str)" (?LargeRecoveryTest@@YAXUStr@@@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfGetDocProps(struct Str,struct PdfDocPropsParams &)" (?PdfGetDocProps@@YA_NUStr@@AEAUPdfDocPropsParams@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfSetDocProps(struct Str,struct Str,struct PdfDocPropsParams const &)" (?PdfSetDocProps@@YA_NUStr@@0AEBUPdfDocPropsParams@@@Z) referenced in function "void __cdecl UnifiedUndoTest(struct Str)" (?UnifiedUndoTest@@YAXUStr@@@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfListAttachments(struct Str,struct Vec<struct PdfAttachmentInfo> &)" (?PdfListAttachments@@YA_NUStr@@AEAU?$Vec@UPdfAttachmentInfo@@@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfAddAttachment(struct Str,struct Str,struct Str)" (?PdfAddAttachment@@YA_NUStr@@00@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfDeleteAttachment(struct Str,struct Str,struct Str)" (?PdfDeleteAttachment@@YA_NUStr@@00@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfListBookmarks(struct Str,struct Vec<struct PdfBookmarkItem> &)" (?PdfListBookmarks@@YA_NUStr@@AEAU?$Vec@UPdfBookmarkItem@@@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfSaveBookmarks(struct Str,struct Str,struct Vec<struct PdfBookmarkItem> const &)" (?PdfSaveBookmarks@@YA_NUStr@@0AEBU?$Vec@UPdfBookmarkItem@@@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfSetPageLabelRanges(struct Str,struct Str,struct Vec<struct PdfPageLabelRange> const &)" (?PdfSetPageLabelRanges@@YA_NUStr@@0AEBU?$Vec@UPdfPageLabelRange@@@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfGetPageLabels(struct Str,struct Vec<struct Str> &)" (?PdfGetPageLabels@@YA_NUStr@@AEAU?$Vec@UStr@@@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfLinearize(struct Str,struct Str)" (?PdfLinearize@@YA_NUStr@@0@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfRepair(struct Str,struct Str)" (?PdfRepair@@YA_NUStr@@0@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfConvertToGrayscale(struct Str,struct Str)" (?PdfConvertToGrayscale@@YA_NUStr@@0@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfInvertColors(struct Str,struct Str)" (?PdfInvertColors@@YA_NUStr@@0@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfFlattenLayers(struct Str,struct Str)" (?PdfFlattenLayers@@YA_NUStr@@0@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "struct AccessReport __cdecl RunAccessibilityCheckFile(struct Str)" (?RunAccessibilityCheckFile@@YA?AUAccessReport@@UStr@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "void __cdecl FreeAccessReport(struct AccessReport &)" (?FreeAccessReport@@YAXAEAUAccessReport@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl ApplyAccessibilityFixes(struct Str,struct Str,struct AccessibilityFixOptions const &)" (?ApplyAccessibilityFixes@@YA_NUStr@@0AEBUAccessibilityFixOptions@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "struct PreflightReport __cdecl RunPreflightFile(struct Str)" (?RunPreflightFile@@YA?AUPreflightReport@@UStr@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "void __cdecl FreePreflightReport(struct PreflightReport &)" (?FreePreflightReport@@YAXAEAUPreflightReport@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl ExportPreflightReport(struct PreflightReport const &,struct Str,bool)" (?ExportPreflightReport@@YA_NAEBUPreflightReport@@UStr@@_N@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl ConvertPdfToPdfA(struct Str,struct Str,int)" (?ConvertPdfToPdfA@@YA_NUStr@@0H@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl ValidatePdfA(struct Str,int,struct StrVec &)" (?ValidatePdfA@@YA_NUStr@@HAEAUStrVec@@@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl PdfConvertColors(struct Str,struct Str,int)" (?PdfConvertColors@@YA_NUStr@@0H@Z) referenced in function "void __cdecl PageTools2Test(void)" (?PageTools2Test@@YAXXZ) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "bool __cdecl Signature_UnitTests(void)" (?Signature_UnitTests@@YA_NXZ) referenced in function "int __cdecl RunAppUnitTests(bool)" (?RunAppUnitTests@@YAH_N@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "void __cdecl ComparePdfUnitTests(void)" (?ComparePdfUnitTests@@YAXXZ) referenced in function "int __cdecl RunAppUnitTests(bool)" (?RunAppUnitTests@@YAH_N@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+Sumatra_ut.obj : error LNK2019: unresolved external symbol "void __cdecl BatchActionsUnitTests(void)" (?BatchActionsUnitTests@@YAXXZ) referenced in function "int __cdecl RunAppUnitTests(bool)" (?RunAppUnitTests@@YAH_N@Z) [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]
+C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\..\out\dbg64\Swiftleaf.exe : fatal error LNK1120: 72 unresolved externals [C:\Users\pstei\AI\Projects\swiftleaf-pdf\vs2022\SumatraPDF.vcxproj]

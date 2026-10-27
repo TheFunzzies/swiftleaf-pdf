@@ -1401,6 +1401,7 @@
     <ClInclude Include="..\src\DarkMode.h" />
     <ClInclude Include="..\src\DocumentPanel.h" />
     <ClInclude Include="..\src\EditText.h" />
+    <ClInclude Include="..\src\ExportFormats.h" />
     <ClInclude Include="..\src\FindWindow.h" />
     <ClInclude Include="..\src\FormAuthoring.h" />
     <ClInclude Include="..\src\ImageSaveCropResize.h" />
@@ -1414,8 +1415,6 @@
     <ClInclude Include="..\src\NavRail.h" />
     <ClInclude Include="..\src\Notifications.h" />
     <ClInclude Include="..\src\Ocr.h" />
-    <ClInclude Include="..\src\ScannerWia.h" />
-    <ClInclude Include="..\src\SignaturePanel.h" />
     <ClInclude Include="..\src\OverlayScrollbar.h" />
     <ClInclude Include="..\src\PageOrganize.h" />
     <ClInclude Include="..\src\PageThumbnails.h" />
@@ -1455,6 +1454,7 @@
     <ClInclude Include="..\src\shared\AIChatCommon.h" />
     <ClInclude Include="..\src\shared\AIChatPanel.h" />
     <ClInclude Include="..\src\shared\Accelerators.h" />
+    <ClInclude Include="..\src\shared\AdvancedForms.h" />
     <ClInclude Include="..\src\shared\AnnotEditToolbar.h" />
     <ClInclude Include="..\src\shared\AnnotFilterToolbar.h" />
     <ClInclude Include="..\src\shared\AnnotPlacement.h" />
@@ -1520,12 +1520,6 @@
     <ClInclude Include="..\src\shared\PdfDate.h" />
     <ClInclude Include="..\src\shared\PdfSync.h" />
     <ClInclude Include="..\src\shared\PdfTools.h" />
-    <ClInclude Include="..\src\ExportFormats.h" />
-    <ClInclude Include="..\src\PageTools2.h" />
-    <ClInclude Include="..\src\BatchActions.h" />
-    <ClInclude Include="..\src\ComparePdf.h" />
-    <ClInclude Include="..\src\Accessibility.h" />
-    <ClInclude Include="..\src\Preflight.h" />
     <ClInclude Include="..\src\shared\PngOptimizer.h" />
     <ClInclude Include="..\src\shared\Print.h" />
     <ClInclude Include="..\src\shared\PrintWin11.h" />
@@ -1632,6 +1626,7 @@
     <ClCompile Include="..\src\DocumentProperties.cpp" />
     <ClCompile Include="..\src\EbookSettingsDialog.cpp" />
     <ClCompile Include="..\src\EditText.cpp" />
+    <ClCompile Include="..\src\ExportFormats.cpp" />
     <ClCompile Include="..\src\Favorites.cpp" />
     <ClCompile Include="..\src\FileThumbnails.cpp" />
     <ClCompile Include="..\src\FilterHighlightDraw.cpp" />
@@ -1640,7 +1635,6 @@
     <ClCompile Include="..\src\FormAuthoring.cpp" />
     <ClCompile Include="..\src\FormFields.cpp" />
     <ClCompile Include="..\src\FormOperations.cpp" />
-    <ClInclude Include="..\src\FormAuthoring.h" />
     <ClCompile Include="..\src\GetPasswordDialog.cpp" />
     <ClCompile Include="..\src\GlobalHotkeys.cpp" />
     <ClCompile Include="..\src\GoToPageDialog.cpp" />
@@ -1661,20 +1655,12 @@
     <ClCompile Include="..\src\NavRail.cpp" />
     <ClCompile Include="..\src\Notifications.cpp" />
     <ClCompile Include="..\src\Ocr.cpp" />
-    <ClCompile Include="..\src\ScannerWia.cpp" />
-    <ClCompile Include="..\src\SignaturePanel.cpp" />
     <ClCompile Include="..\src\OverlayScrollbar.cpp" />
     <ClCompile Include="..\src\PageGridDialog.cpp" />
     <ClCompile Include="..\src\PageOrganize.cpp" />
     <ClCompile Include="..\src\PageThumbnails.cpp" />
     <ClCompile Include="..\src\PanelLayout.cpp" />
     <ClCompile Include="..\src\PdfTools.cpp" />
-    <ClCompile Include="..\src\BatchActions.cpp" />
-    <ClCompile Include="..\src\ComparePdf.cpp" />
-    <ClCompile Include="..\src\ExportFormats.cpp" />
-    <ClCompile Include="..\src\PageTools2.cpp" />
-    <ClCompile Include="..\src\Accessibility.cpp" />
-    <ClCompile Include="..\src\Preflight.cpp" />
     <ClCompile Include="..\src\ReadAloud.cpp" />
     <ClCompile Include="..\src\ReadingAutoScroll.cpp" />
     <ClCompile Include="..\src\RefHover.cpp" />
@@ -2120,9 +2106,9 @@
     <ClCompile Include="..\src\shared\AICodexBuild.cpp" />
     <ClCompile Include="..\src\shared\AIGrokBuild.cpp" />
     <ClCompile Include="..\src\shared\Accelerators.cpp" />
+    <ClCompile Include="..\src\shared\AdvancedForms.cpp" />
     <ClCompile Include="..\src\shared\AnnotSearch.cpp" />
     <ClCompile Include="..\src\shared\Annotation.cpp" />
-    <ClCompile Include="..\src\shared\AdvancedForms.cpp" />
     <ClCompile Include="..\src\shared\AppSettings.cpp" />
     <ClCompile Include="..\src\shared\AppTools.cpp" />
     <ClCompile Include="..\src\shared\AvifReader.cpp" />

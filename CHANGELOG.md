@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Compare uses bounded word LCS, aligns unchanged inserted/moved pages, streams
+  HTML/PDF reports, and rejects extraction/render/write failures atomically.
+- Compare and Find and Replace run on workers with progress and cancellation.
+- Batch plans validate types, actions and output collisions before writing;
+  private intermediates, no-overwrite publication and typed previews protect inputs.
+
 - Recommended section at top of the All tools panel for quick access to primary workflows.
 - Grouped All tools into collapsible categories with search by name/description, persisted favorites, and tooltips on every tool row.
 - Command palette lists all commands with description and ribbon tab destination.

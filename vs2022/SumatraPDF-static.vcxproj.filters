@@ -135,6 +135,9 @@
     <ClInclude Include="..\src\EditText.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\ExportFormats.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\FindWindow.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -172,12 +175,6 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\Ocr.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\ScannerWia.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\SignaturePanel.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\OverlayScrollbar.h">
@@ -295,6 +292,9 @@
       <Filter>src\shared</Filter>
     </ClInclude>
     <ClInclude Include="..\src\shared\Accelerators.h">
+      <Filter>src\shared</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\shared\AdvancedForms.h">
       <Filter>src\shared</Filter>
     </ClInclude>
     <ClInclude Include="..\src\shared\AnnotEditToolbar.h">
@@ -489,20 +489,8 @@
     <ClInclude Include="..\src\shared\PdfSync.h">
       <Filter>src\shared</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\PageTools2.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\Accessibility.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\Preflight.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\shared\PdfTools.h">
       <Filter>src\shared</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\ExportFormats.h">
-      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\shared\PngOptimizer.h">
       <Filter>src\shared</Filter>
@@ -734,6 +722,9 @@
     <ClCompile Include="..\src\EditText.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\ExportFormats.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\Favorites.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -753,6 +744,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\FormFields.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\FormOperations.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\GetPasswordDialog.cpp">
@@ -815,12 +809,6 @@
     <ClCompile Include="..\src\Ocr.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\ScannerWia.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\SignaturePanel.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\OverlayScrollbar.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -836,19 +824,7 @@
     <ClCompile Include="..\src\PanelLayout.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\PageTools2.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\Accessibility.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\Preflight.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\PdfTools.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\ExportFormats.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\ReadAloud.cpp">
@@ -1125,6 +1101,9 @@
       <Filter>src\shared</Filter>
     </ClCompile>
     <ClCompile Include="..\src\shared\Accelerators.cpp">
+      <Filter>src\shared</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shared\AdvancedForms.cpp">
       <Filter>src\shared</Filter>
     </ClCompile>
     <ClCompile Include="..\src\shared\AnnotSearch.cpp">
