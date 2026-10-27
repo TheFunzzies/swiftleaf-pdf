@@ -1,0 +1,33 @@
+
+  base.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\base.lib
+  a-zlib.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-zlib.lib
+  djvudec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\djvudec.lib
+  a-libwebp.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-libwebp.lib
+  a-mujs.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-mujs.lib
+  cmark-gfm.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj\cmark-gfm.lib
+  a-extract.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-extract.lib
+  a-freetype.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-freetype.lib
+  a-harfbuzz.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-harfbuzz.lib
+  a-brotli.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-brotli.lib
+  a-lcms2.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-lcms2.lib
+  a-jbig2dec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-jbig2dec.lib
+  a-openjpeg.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-openjpeg.lib
+  a-libarchive.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-libarchive.lib
+  libjpeg-turbo.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\libjpeg-turbo.lib
+  a-gumbo.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-gumbo.lib
+  jxldec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\jxldec.lib
+  heicdec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\heicdec.lib
+  dav1d.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\dav1d.lib
+  chmdec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\chmdec.lib
+  a-unrar.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-unrar.lib
+  msdes.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\msdes.lib
+  mupdf.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\mupdf.lib
+     Creating library ../out/dbg64/obj/libsumatrapdf.lib and object ../out/dbg64/obj/libsumatrapdf.exp
+  libsumatrapdf.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj\libsumatrapdf.dll
+  PdfFilter.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj\PdfFilter.dll
+  PdfPreview.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj\PdfPreview.dll
+  sumatrapdf-tool.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\sumatrapdf-tool.exe
+  a-zopfli.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-zopfli.lib
+  note: C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\cmd\..\.work\docs missing, packing without the manual (run: bun cmd\gen-docs.ts)
+  ComparePdf.cpp
+  SumatraPDF.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\Swiftleaf.exe

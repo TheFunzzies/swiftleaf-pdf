@@ -1,0 +1,25 @@
+
+  base.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\base.lib
+  cmark-gfm.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj\cmark-gfm.lib
+  a-zlib.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-zlib.lib
+  a-mujs.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-mujs.lib
+  a-extract.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-extract.lib
+  a-harfbuzz.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-harfbuzz.lib
+  a-freetype.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-freetype.lib
+  a-lcms2.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-lcms2.lib
+  a-openjpeg.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-openjpeg.lib
+  a-jbig2dec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-jbig2dec.lib
+  libjpeg-turbo.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\libjpeg-turbo.lib
+  a-brotli.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-brotli.lib
+  a-libarchive.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-libarchive.lib
+  a-gumbo.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-gumbo.lib
+  jxldec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\jxldec.lib
+  djvudec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\djvudec.lib
+  a-libwebp.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-libwebp.lib
+  heicdec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\heicdec.lib
+  a-unrar.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\a-unrar.lib
+  chmdec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\chmdec.lib
+  msdes.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\msdes.lib
+  dav1d.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\dav1d.lib
+  mupdf.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\out\dbg64\obj-s\mupdf.lib
+LINK : fatal error LNK1104: cannot open file '..\out\dbg64\libsumatrapdf.dll' [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-36f7e581\vs2022\libsumatrapdf.vcxproj]
