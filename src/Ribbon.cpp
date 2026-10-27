@@ -321,6 +321,7 @@ static const RibbonItemDef gOrganizeItems[] = {
 static const RibbonItemDef gFormsSignItems[] = {
     {gIconForms, CmdDetectFormFields, TrN("Detect Fields"), TrN("Review likely fields before creating them")},
     {gIconForms, CmdFormTabOrder, TrN("Tab Order"), TrN("Order fields by row, column, structure or manually")},
+    {gIconForms, CmdFormCalculationOrder, TrN("Calculation Order"), TrN("Order calculated fields and their dependencies")},
     {gIconForms, CmdImportFormData, TrN("Import Data"), TrN("Import FDF, XFDF, CSV or JSON field values")},
     {gIconForms, CmdExportFormData, TrN("Export Data"), TrN("Export FDF, XFDF, CSV or JSON field values")},
     {gIconForms, CmdClearForm, TrN("Clear Form"), TrN("Clear field values while keeping fields and defaults")},

@@ -95,7 +95,7 @@ IDB_RELOADING_CUE       BITMAP                  "reloading.bmp"
 
 /////////////////////////////////////////////////////////////////////////////
 
-IDD_FORM_FIELD DIALOGEX 0, 0, 500, 310
+IDD_FORM_FIELD DIALOGEX 0, 0, 500, 416
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Field properties"
 FONT 9, "Segoe UI"
@@ -112,7 +112,6 @@ BEGIN
     EDITTEXT IDC_FIELD_OPTIONS, 90, 114, 200, 60, ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_VSCROLL
     CONTROL "&Required", IDC_FIELD_REQUIRED, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 90, 184, 90, 12
     CONTROL "Read-&only", IDC_FIELD_READONLY, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 190, 184, 100, 12
-    LTEXT "RGB colors: 0 to 1. Fonts: Helv / Cour / TiRo. Button action: reset / submit / link. Image: enter a local path in Target. Format is descriptive only (no JavaScript).", IDC_FIELD_HINT, 10, 252, 480, 28
     LTEXT "Tooltip:", -1, 310, 12, 65, 12
     EDITTEXT IDC_FIELD_TOOLTIP, 375, 10, 115, 14, ES_AUTOHSCROLL
     LTEXT "Font:", -1, 310, 38, 65, 12
@@ -135,8 +134,17 @@ BEGIN
     EDITTEXT IDC_FIELD_ACTION, 375, 208, 115, 14, ES_AUTOHSCROLL
     LTEXT "Target:", -1, 10, 234, 78, 12
     EDITTEXT IDC_FIELD_TARGET, 90, 232, 400, 14, ES_AUTOHSCROLL
-    DEFPUSHBUTTON "OK", IDOK, 380, 286, 50, 14
-    PUSHBUTTON "Cancel", IDCANCEL, 440, 286, 50, 14
+    LTEXT "Calculation:", -1, 10, 262, 78, 12
+    COMBOBOX IDC_FIELD_CALC, 90, 260, 200, 100, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT "Source fields:", -1, 10, 288, 78, 24
+    EDITTEXT IDC_FIELD_CALC_FIELDS, 90, 284, 200, 44, ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_VSCROLL
+    LTEXT "Minimum:", -1, 310, 262, 65, 12
+    EDITTEXT IDC_FIELD_MIN, 375, 260, 115, 14, ES_AUTOHSCROLL
+    LTEXT "Maximum:", -1, 310, 288, 65, 12
+    EDITTEXT IDC_FIELD_MAX, 375, 284, 115, 14, ES_AUTOHSCROLL
+    LTEXT "Format: number:2, percent:2, date:yyyy-mm-dd, zip or phone. Calculation sources: one field name per line. Readers must allow form JavaScript. Button action: reset / submit / link. Image target: local path.", IDC_FIELD_HINT, 10, 340, 480, 42
+    DEFPUSHBUTTON "OK", IDOK, 380, 392, 50, 14
+    PUSHBUTTON "Cancel", IDCANCEL, 440, 392, 50, 14
 END
 
 IDD_PROPSHEET_PRINT_ADVANCED DIALOGEX 0, 0, 292, 194

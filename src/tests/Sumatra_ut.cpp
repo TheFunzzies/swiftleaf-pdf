@@ -29,6 +29,8 @@
 #include "Commands.h"
 #include "SvgIcons.h"
 #include "EngineAll.h"
+#include <mupdf/pdf.h>
+#include "EngineMupdf.h"
 #include "Annotation.h"
 #include "AdvancedForms.h"
 #include "shared/PdfTools.h"
@@ -39,7 +41,6 @@
 #include "Accessibility.h"
 #include "Preflight.h"
 #include "ComparePdf.h"
-#include <mupdf/pdf.h>
 extern const pdf_write_options gPdfDefaultWriteOptions;
 #include "AppUnitTests.h"
 #include "Ocr.h"
@@ -693,6 +694,142 @@ static void AdvancedFormsTest() {
     SafeEngineRelease(&e);
     file::Delete(path);
     file::Delete(flattened);
+}
+
+static void FormActionsTest() {
+    const char* objects[] = {"<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+                             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"};
+    str::Builder pdf;
+    pdf.Append(StrL("%PDF-1.7\n"));
+    int offsets[3];
+    for (int i = 0; i < 3; i++) {
+        offsets[i] = len(pdf);
+        pdf.Append(fmt("%d 0 obj\n%s\nendobj\n", i + 1, Str(objects[i])));
+    }
+    int xref = len(pdf);
+    pdf.Append(StrL("xref\n0 4\n0000000000 65535 f \n"));
+    for (int offset : offsets) pdf.Append(fmt("%010d 00000 n \n", offset));
+    pdf.Append(fmt("trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", xref));
+    EngineMupdfSetDisableJavaScript(false);
+    EngineBase* e = CreateEngineMupdfFromData(ToStrTemp(pdf), StrL("form-actions.pdf"), nullptr);
+    utassert(e != nullptr);
+    Str error;
+    FormFieldProperties p;
+    p.name = StrL("A");
+    p.defaultValue = StrL("2");
+    p.validationMin = StrL("0");
+    p.validationMax = StrL("10");
+    Annotation* a = CreateFormField(e, 1, {40, 40, 120, 24}, p, error);
+    utassert(a != nullptr);
+    p = {};
+    p.name = StrL("B");
+    p.defaultValue = StrL("3");
+    Annotation* b = CreateFormField(e, 1, {40, 80, 120, 24}, p, error);
+    utassert(b != nullptr);
+    p = {};
+    p.name = StrL("Total");
+    p.defaultValue = StrL("0");
+    p.readOnly = true;
+    p.format = StrL("number:2");
+    p.calculation = StrL("SUM");
+    p.calculationFields = StrL("A\nB");
+    p.validationMin = StrL("0");
+    p.validationMax = StrL("20");
+    Annotation* total = CreateFormField(e, 1, {40, 120, 120, 24}, p, error);
+    utassert(total != nullptr);
+    p = {};
+    p.name = StrL("Grand");
+    p.defaultValue = StrL("0");
+    p.readOnly = true;
+    p.calculation = StrL("SUM");
+    p.calculationFields = StrL("Total\nB");
+    Annotation* grand = CreateFormField(e, 1, {40, 160, 120, 24}, p, error);
+    utassert(grand != nullptr);
+    p = {};
+    p.kind = FormFieldKind::Date;
+    p.name = StrL("When");
+    p.defaultValue = StrL("2026-10-24");
+    p.format = StrL("date:yyyy-mm-dd");
+    Annotation* date = CreateFormField(e, 1, {40, 200, 120, 24}, p, error);
+    utassert(date != nullptr && EngineMupdfCountFormFields(e) == 5);
+
+    utassert(str::Eq(GetFormCalculationNames(e), StrL("Total\r\nGrand")));
+    utassert(!SetFormCalculationOrder(e, StrL("Grand\nTotal"), error));
+    utassert(SetFormCalculationOrder(e, StrL("Total\nGrand"), error));
+    {
+        auto* mupdf = AsEngineMupdf(e);
+        ScopedRecursiveMutex lock(&mupdf->docLock);
+        pdf_calculate_form(mupdf->BaseCtx(), mupdf->pdfdoc);
+    }
+    utassert(strtod(CStrTemp(GetWidgetValue(total)), nullptr) == 5);
+    utassert(strtod(CStrTemp(GetWidgetValue(grand)), nullptr) == 8);
+    utassert(SetWidgetTextValue(a, StrL("4")));
+    utassert(!SetWidgetTextValue(a, StrL("20")));
+    {
+        auto* mupdf = AsEngineMupdf(e);
+        ScopedRecursiveMutex lock(&mupdf->docLock);
+        pdf_calculate_form(mupdf->BaseCtx(), mupdf->pdfdoc);
+    }
+    utassert(strtod(CStrTemp(GetWidgetValue(total)), nullptr) == 7);
+    utassert(strtod(CStrTemp(GetWidgetValue(grand)), nullptr) == 10);
+
+    utassert(GetFormFieldProperties(a, p));
+    p.calculation = StrL("SUM");
+    p.calculationFields = StrL("Grand");
+    utassert(!SetFormFieldProperties(a, p, error));
+    p = {};
+    p.name = StrL("Bad");
+    p.calculation = StrL("SUM");
+    p.calculationFields = StrL("Missing");
+    utassert(CreateFormField(e, 1, {40, 240, 120, 24}, p, error) == nullptr);
+    p.calculation = {};
+    p.calculationFields = {};
+    p.validationMin = StrL("10");
+    p.validationMax = StrL("0");
+    utassert(CreateFormField(e, 1, {40, 240, 120, 24}, p, error) == nullptr);
+    utassert(EngineMupdfCountFormFields(e) == 5);
+
+    TempStr path = GetTempFilePathTemp(StrL("form-actions"));
+    utassert(EngineMupdfSaveUpdated(e, path, {}));
+    Str saved = file::ReadFile(path);
+    utassert(!str::Contains(saved, StrL("SwiftLeafFormat")));
+    str::Free(saved);
+    SafeEngineRelease(&e);
+    e = CreateEngineMupdfFromFile(path, FileType::PDF, 96);
+    utassert(e != nullptr);
+    Vec<Annotation*> widgets;
+    EngineMupdfGetPageWidgets(e, 1, widgets);
+    utassert(GetFormFieldProperties(widgets[2], p));
+    utassert(str::Eq(p.format, StrL("number:2")) && str::Eq(p.calculation, StrL("SUM")));
+    utassert(str::Eq(p.calculationFields, StrL("A\r\nB")));
+    utassert(str::Eq(p.validationMin, StrL("0")) && str::Eq(p.validationMax, StrL("20")));
+    utassert(GetFormFieldProperties(widgets[4], p));
+    utassert(p.kind == FormFieldKind::Date && str::Eq(p.format, StrL("date:yyyy-mm-dd")));
+
+    auto* mupdf = AsEngineMupdf(e);
+    auto* ctx = mupdf->BaseCtx();
+    ScopedRecursiveMutex lock(&mupdf->docLock);
+    pdf_obj* roots = pdf_dict_getp(ctx, pdf_trailer(ctx, mupdf->pdfdoc), "Root/AcroForm/Fields");
+    pdf_obj* totalObj = pdf_lookup_field(ctx, roots, "Total");
+    pdf_obj* grandObj = pdf_lookup_field(ctx, roots, "Grand");
+    pdf_obj* dateObj = pdf_lookup_field(ctx, roots, "When");
+    utassert(totalObj && grandObj && dateObj);
+    const char* events[] = {"C", "V", "F", "K"};
+    for (const char* event : events) {
+        pdf_obj* action = pdf_dict_getp(ctx, totalObj, fmt("AA/%s", Str(event)).s);
+        utassert(pdf_name_eq(ctx, pdf_dict_get(ctx, action, PDF_NAME(S)), PDF_NAME(JavaScript)));
+        utassert(pdf_dict_get(ctx, action, PDF_NAME(JS)));
+    }
+    TempStr dateFormat = str::DupTemp(Str(pdf_to_text_string(ctx, pdf_dict_getp(ctx, dateObj, "AA/F/JS"))));
+    utassert(str::Contains(dateFormat, StrL("AFDate_FormatEx")));
+    TempStr dateKey = str::DupTemp(Str(pdf_to_text_string(ctx, pdf_dict_getp(ctx, dateObj, "AA/K/JS"))));
+    utassert(str::Contains(dateKey, StrL("AFDate_KeystrokeEx")));
+    pdf_obj* co = pdf_dict_getp(ctx, pdf_trailer(ctx, mupdf->pdfdoc), "Root/AcroForm/CO");
+    utassert(pdf_array_len(ctx, co) == 2);
+    utassert(!pdf_objcmp(ctx, pdf_array_get(ctx, co, 0), totalObj));
+    utassert(!pdf_objcmp(ctx, pdf_array_get(ctx, co, 1), grandObj));
+    SafeEngineRelease(&e);
+    file::Delete(path);
 }
 
 static TempStr TextEditFixture(Str pageExtra = {}, Str content = StrL("BT /F1 12 Tf 72 700 Td (Original text) Tj ET\n"),
@@ -2967,6 +3104,7 @@ int RunAppUnitTests(bool forAi) {
     ObjectEditTest();
     FormAuthoringTest();
     AdvancedFormsTest();
+    FormActionsTest();
     BatchPlanTest();
     PageStampsTest();
     PdfCompressionHonestyTest();

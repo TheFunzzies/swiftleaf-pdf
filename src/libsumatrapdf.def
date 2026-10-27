@@ -1494,6 +1494,12 @@ EXPORTS
 
 	pdf_dict_getp
 
+	pdf_dict_getp_inheritable
+
+	pdf_get_bound_document
+
+	pdf_calculate_form
+
 	pdf_dict_getsa
 
 	pdf_dict_put

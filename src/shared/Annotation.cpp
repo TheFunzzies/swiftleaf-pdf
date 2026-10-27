@@ -24,6 +24,7 @@ extern "C" {
 #include "Commands.h"
 #include "Translations.h"
 #include "Annotation.h"
+#include "AdvancedForms.h"
 
 // spot checks the definitions are the same
 static_assert((int)AnnotationType::Link == (int)PDF_ANNOT_LINK);
@@ -740,7 +741,7 @@ bool GetFormFieldProperties(Annotation* annot, FormFieldProperties& props) {
         // Editing a nested field name needs a hierarchy editor.
         if (pdf_dict_get(ctx, field, PDF_NAME(Parent))) fz_throw(ctx, FZ_ERROR_ARGUMENT, "nested field");
         if (pdf_dict_gets(ctx, field, "SwiftLeafImage")) props.kind = FormFieldKind::Image;
-        props.format = MupdfCStrDupTemp(pdf_to_text_string(ctx, pdf_dict_gets(ctx, field, "SwiftLeafFormat")));
+        ReadFormActions(ctx, field, props);
         if (props.kind == FormFieldKind::Text && str::StartsWith(props.format, StrL("date:")))
             props.kind = FormFieldKind::Date;
         props.tooltip = MupdfCStrDupTemp(pdf_dict_get_text_string(ctx, field, PDF_NAME(TU)));
@@ -907,10 +908,7 @@ static void WriteFieldProps(fz_context* ctx, pdf_document* doc, pdf_obj* field, 
         pdf_dict_put_text_string(ctx, field, PDF_NAME(TU), CStrTemp(p.tooltip));
     else
         pdf_dict_del(ctx, field, PDF_NAME(TU));
-    if (len(p.format))
-        pdf_dict_puts_drop(ctx, field, "SwiftLeafFormat", pdf_new_text_string(ctx, CStrTemp(p.format)));
-    else
-        pdf_dict_dels(ctx, field, "SwiftLeafFormat");
+    WriteFormActions(ctx, doc, field, p);
     if (p.kind == FormFieldKind::PushButton || p.kind == FormFieldKind::Image) {
         if (p.kind == FormFieldKind::Image)
             pdf_dict_puts(ctx, field, "SwiftLeafImage", PDF_TRUE);
@@ -1039,6 +1037,7 @@ bool SetFormFieldProperties(Annotation* annot, const FormFieldProperties& p, Str
                 }
             }
             WriteFieldProps(ctx, e->pdfdoc, field, p, options);
+            SyncFormCalculationOrder(ctx, e);
             StyleFieldWidget(ctx, annot->pdfannot, p);
             UpdateFormFieldPage(ctx, annot->pdfannot);
             pdf_end_operation(ctx, e->pdfdoc);
@@ -1122,6 +1121,7 @@ Annotation* CreateFormField(EngineBase* engine, int pageNo, RectF rect, const Fo
                 StyleFieldWidget(ctx, a, p);
             }
             WriteFieldProps(ctx, e->pdfdoc, field, p, options);
+            SyncFormCalculationOrder(ctx, e);
             for (pdf_annot* a : created) StyleFieldWidget(ctx, a, p);
             pdf_end_operation(ctx, e->pdfdoc);
             ok = true;

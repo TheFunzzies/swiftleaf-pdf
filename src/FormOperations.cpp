@@ -31,6 +31,7 @@ struct FormPreview {
     Str manual;
     FormTabOrder order = FormTabOrder::Row;
     bool tabOrder = false;
+    bool calculationOrder = false;
 };
 
 static INT_PTR CALLBACK FormPreviewProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp) {
@@ -38,22 +39,29 @@ static INT_PTR CALLBACK FormPreviewProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp
     if (msg == WM_INITDIALOG) {
         data = (FormPreview*)lp;
         SetWindowLongPtrW(dlg, DWLP_USER, lp);
-        HwndSetText(dlg, data->tabOrder ? Tr("Tab order") : Tr("Detect fields — preview"));
+        bool ordering = data->tabOrder || data->calculationOrder;
+        HwndSetText(dlg, data->calculationOrder ? Tr("Calculation order")
+                         : data->tabOrder       ? Tr("Tab order")
+                                                : Tr("Detect fields — preview"));
         HWND list = GetDlgItem(dlg, IDC_FORM_CANDIDATES);
-        ShowWindow(list, data->tabOrder ? SW_HIDE : SW_SHOW);
+        ShowWindow(list, ordering ? SW_HIDE : SW_SHOW);
         ShowWindow(GetDlgItem(dlg, IDC_FORM_ORDER), data->tabOrder ? SW_SHOW : SW_HIDE);
-        ShowWindow(GetDlgItem(dlg, IDC_FORM_NAMES), data->tabOrder ? SW_SHOW : SW_HIDE);
+        ShowWindow(GetDlgItem(dlg, IDC_FORM_NAMES), ordering ? SW_SHOW : SW_HIDE);
         HwndSetText(GetDlgItem(dlg, IDC_FORM_SUMMARY),
-                    data->tabOrder ? Tr("Choose order. For manual order, put every field name on its own line. "
-                                        "Structure requires a tagged PDF.")
-                                   : Tr("Review likely fields by page and rectangle (PDF points). Select the fields to "
-                                        "create. Cancel leaves the PDF unchanged."));
-        if (data->tabOrder) {
+                    data->calculationOrder
+                        ? Tr("List every calculated field once, with calculated source fields before their dependents.")
+                    : data->tabOrder ? Tr("Choose order. For manual order, put every field name on its own line. "
+                                          "Structure requires a tagged PDF.")
+                                     : Tr("Review likely fields by page and rectangle (PDF points). Select the "
+                                          "fields to create. Cancel leaves the PDF unchanged."));
+        if (ordering) {
             const Str orders[] = {TrN("By row"), TrN("By column"), TrN("By structure"), TrN("Manual")};
-            for (Str s : orders)
-                SendDlgItemMessageW(dlg, IDC_FORM_ORDER, CB_ADDSTRING, 0,
-                                    (LPARAM)CWStrTemp(ToWStrTemp(trans::GetTranslation(s))));
-            SendDlgItemMessageW(dlg, IDC_FORM_ORDER, CB_SETCURSEL, 0, 0);
+            if (data->tabOrder) {
+                for (Str s : orders)
+                    SendDlgItemMessageW(dlg, IDC_FORM_ORDER, CB_ADDSTRING, 0,
+                                        (LPARAM)CWStrTemp(ToWStrTemp(trans::GetTranslation(s))));
+                SendDlgItemMessageW(dlg, IDC_FORM_ORDER, CB_SETCURSEL, 0, 0);
+            }
             HwndSetText(GetDlgItem(dlg, IDC_FORM_NAMES), data->names);
         } else {
             for (const FormCandidate& c : data->candidates) {
@@ -72,7 +80,7 @@ static INT_PTR CALLBACK FormPreviewProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp
         return TRUE;
     }
     if (LOWORD(wp) != IDOK) return FALSE;
-    if (data->tabOrder) {
+    if (data->tabOrder || data->calculationOrder) {
         data->order = (FormTabOrder)SendDlgItemMessageW(dlg, IDC_FORM_ORDER, CB_GETCURSEL, 0, 0);
         data->manual = str::Dup(HwndGetTextTemp(GetDlgItem(dlg, IDC_FORM_NAMES)));
     } else {
@@ -164,11 +172,12 @@ void RunFormOperation(MainWindow* win, int cmd) {
     CommitFormFieldEdit(true);
     Str error;
     bool ok = true;
-    if (cmd == CmdDetectFormFields || cmd == CmdFormTabOrder) {
+    if (cmd == CmdDetectFormFields || cmd == CmdFormTabOrder || cmd == CmdFormCalculationOrder) {
         FormPreview data;
         data.tabOrder = cmd == CmdFormTabOrder;
-        data.names = str::Dup(GetFormTabNames(engine));
-        if (!data.tabOrder) {
+        data.calculationOrder = cmd == CmdFormCalculationOrder;
+        data.names = str::Dup(data.calculationOrder ? GetFormCalculationNames(engine) : GetFormTabNames(engine));
+        if (!data.tabOrder && !data.calculationOrder) {
             ok = DetectFormFields(engine, data.candidates, error);
             if (ok && !len(data.candidates)) {
                 MessageBoxW(win->hwndFrame, L"No likely fields found. Use Prepare a Form to draw fields.",
@@ -181,6 +190,8 @@ void RunFormOperation(MainWindow* win, int cmd) {
                                   FormPreviewProc, (LPARAM)&data) == IDOK) {
             if (data.tabOrder)
                 ok = SetFormTabOrder(engine, data.order, data.manual, error);
+            else if (data.calculationOrder)
+                ok = SetFormCalculationOrder(engine, data.manual, error);
             else {
                 StrVec names;
                 Split(&names, data.names, StrL("\r\n"), true);

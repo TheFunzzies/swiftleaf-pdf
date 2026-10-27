@@ -26,6 +26,9 @@
 static const Str fieldKinds[] = {TrN("Text field"),  TrN("Checkbox"),           TrN("Radio group"),
                                  TrN("Dropdown"),    TrN("Unsigned signature"), TrN("List box"),
                                  TrN("Push button"), TrN("Image field"),        TrN("Date field")};
+static const Str calculationNames[] = {TrN("None"),    TrN("Sum"),     TrN("Product"),
+                                       TrN("Average"), TrN("Minimum"), TrN("Maximum")};
+static const Str calculationOps[] = {StrL(""), StrL("SUM"), StrL("PRD"), StrL("AVG"), StrL("MIN"), StrL("MAX")};
 
 struct FieldDialog {
     MainWindow* win;
@@ -50,6 +53,12 @@ static void UpdateFieldDialog(HWND dlg, FieldDialog* data) {
     EnableWindow(GetDlgItem(dlg, IDC_FIELD_SIZE),
                  kind == (int)FormFieldKind::Text || kind == (int)FormFieldKind::Date ||
                      kind == (int)FormFieldKind::ListBox || kind == (int)FormFieldKind::Combo);
+    bool text = kind == (int)FormFieldKind::Text || kind == (int)FormFieldKind::Date;
+    EnableWindow(GetDlgItem(dlg, IDC_FIELD_FORMAT), text);
+    EnableWindow(GetDlgItem(dlg, IDC_FIELD_CALC), kind == (int)FormFieldKind::Text);
+    EnableWindow(GetDlgItem(dlg, IDC_FIELD_CALC_FIELDS), kind == (int)FormFieldKind::Text);
+    EnableWindow(GetDlgItem(dlg, IDC_FIELD_MIN), kind == (int)FormFieldKind::Text);
+    EnableWindow(GetDlgItem(dlg, IDC_FIELD_MAX), kind == (int)FormFieldKind::Text);
     if (kind == (int)FormFieldKind::Date && !len(HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_FORMAT))))
         HwndSetText(GetDlgItem(dlg, IDC_FIELD_FORMAT), StrL("date:yyyy-mm-dd"));
     if (!data->widget && choice && !len(HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_OPTIONS)))) {
@@ -102,6 +111,16 @@ static INT_PTR CALLBACK FieldDialogProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp
         HwndSetText(GetDlgItem(dlg, IDC_FIELD_TOOLTIP), data->props.tooltip);
         HwndSetText(GetDlgItem(dlg, IDC_FIELD_FONT), data->props.font);
         HwndSetText(GetDlgItem(dlg, IDC_FIELD_FORMAT), data->props.format);
+        int calculation = 0;
+        for (int i = 0; i < (int)dimofi(calculationNames); i++) {
+            SendDlgItemMessageW(dlg, IDC_FIELD_CALC, CB_ADDSTRING, 0,
+                                (LPARAM)CWStrTemp(ToWStrTemp(trans::GetTranslation(calculationNames[i]))));
+            if (str::Eq(data->props.calculation, calculationOps[i])) calculation = i;
+        }
+        SendDlgItemMessageW(dlg, IDC_FIELD_CALC, CB_SETCURSEL, calculation, 0);
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_CALC_FIELDS), data->props.calculationFields);
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_MIN), data->props.validationMin);
+        HwndSetText(GetDlgItem(dlg, IDC_FIELD_MAX), data->props.validationMax);
         HwndSetText(GetDlgItem(dlg, IDC_FIELD_ACTION), len(data->props.action) ? data->props.action : StrL("reset"));
         HwndSetText(GetDlgItem(dlg, IDC_FIELD_TARGET), data->props.target);
         HwndSetText(GetDlgItem(dlg, IDC_FIELD_MAXLEN), fmt("%d", data->props.maxLength));
@@ -140,6 +159,18 @@ static INT_PTR CALLBACK FieldDialogProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp
     props.tooltip = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_TOOLTIP));
     props.font = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_FONT));
     props.format = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_FORMAT));
+    int calculation = (int)SendDlgItemMessageW(dlg, IDC_FIELD_CALC, CB_GETCURSEL, 0, 0);
+    if (calculation >= 0 && calculation < (int)dimofi(calculationOps)) props.calculation = calculationOps[calculation];
+    props.calculationFields = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_CALC_FIELDS));
+    props.validationMin = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_MIN));
+    props.validationMax = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_MAX));
+    if (props.kind != FormFieldKind::Text) {
+        props.calculation = {};
+        props.calculationFields = {};
+        props.validationMin = {};
+        props.validationMax = {};
+    }
+    if (props.kind != FormFieldKind::Text && props.kind != FormFieldKind::Date) props.format = {};
     props.action = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_ACTION));
     props.target = HwndGetTextTemp(GetDlgItem(dlg, IDC_FIELD_TARGET));
     props.multiline = IsDlgButtonChecked(dlg, IDC_FIELD_MULTILINE) == BST_CHECKED;

@@ -14555,6 +14555,7 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
 
         case CmdDetectFormFields:
         case CmdFormTabOrder:
+        case CmdFormCalculationOrder:
         case CmdImportFormData:
         case CmdExportFormData:
         case CmdClearForm:

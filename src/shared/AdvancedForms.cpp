@@ -348,6 +348,329 @@ bool SetFormTabOrder(EngineBase* engine, FormTabOrder order, Str manualNames, St
     return ok;
 }
 
+static TempStr LoadFieldJs(fz_context* ctx, pdf_obj* field, const char* event) {
+    pdf_obj* aa = pdf_dict_get(ctx, field, PDF_NAME(AA));
+    pdf_obj* action = pdf_dict_gets(ctx, aa, event);
+    pdf_obj* js = pdf_dict_get(ctx, action, PDF_NAME(JS));
+    if (!js || !pdf_name_eq(ctx, pdf_dict_get(ctx, action, PDF_NAME(S)), PDF_NAME(JavaScript))) return {};
+    char* code = pdf_load_stream_or_string_as_utf8(ctx, js);
+    TempStr result = str::DupTemp(Str(code));
+    fz_free(ctx, code);
+    return result;
+}
+
+static bool CalcOpSupported(Str op) {
+    return str::Eq(op, StrL("SUM")) || str::Eq(op, StrL("PRD")) || str::Eq(op, StrL("AVG")) ||
+           str::Eq(op, StrL("MIN")) || str::Eq(op, StrL("MAX"));
+}
+
+static void SplitCalcSources(Str text, StrVec& names) {
+    StrVec lines;
+    Split(&lines, text, StrL("\n"), true);
+    for (Str name : lines) {
+        str::TrimWs(name);
+        if (len(name)) names.Append(name);
+    }
+}
+
+struct CalcSourcesJson {
+    StrVec* names;
+    bool valid = true;
+    void OnValue(json::Value* v) {
+        if (v->type != json::Type::String) {
+            valid = false;
+            return;
+        }
+        names->Append(v->value);
+    }
+};
+
+static void ReadCalcSources(fz_context* ctx, pdf_obj* field, Str& op, StrVec& names) {
+    TempStr code = LoadFieldJs(ctx, field, "C");
+    const char prefix[] = "AFSimple_Calculate(\"";
+    if (!str::StartsWith(code, Str(prefix))) return;
+    const char* z = CStrTemp(code);
+    const char* list = strstr(z + sizeof(prefix) - 1, "\", [");
+    if (!list || !str::EndsWith(code, StrL("]);"))) return;
+    op = Str(z + sizeof(prefix) - 1, (int)(list - z - sizeof(prefix) + 1));
+    if (!CalcOpSupported(op)) {
+        op = {};
+        return;
+    }
+    list += 2;
+    Str json = Str(list, (int)(z + len(code) - 1 - list));
+    CalcSourcesJson state{&names};
+    if (!json::Parse(json, MkMethod1<CalcSourcesJson, json::Value*, &CalcSourcesJson::OnValue>(&state)) ||
+        !state.valid || !len(names)) {
+        op = {};
+        names.Reset();
+    }
+}
+
+static TempStr JoinCalcSources(const StrVec& names) {
+    str::Builder out;
+    for (Str name : names) {
+        if (len(out)) out.Append(StrL("\r\n"));
+        out.Append(name);
+    }
+    return ToStrTemp(out);
+}
+
+static bool ParseDecimals(Str format, Str prefix, int& decimals) {
+    if (!str::StartsWith(format, prefix)) return false;
+    Str value = format;
+    value.s += len(prefix);
+    value.len -= len(prefix);
+    char extra;
+    return sscanf_s(CStrTemp(value), "%d %c", &decimals, &extra, 1u) == 1 && decimals >= 0 && decimals <= 10;
+}
+
+static TempStr FormatAction(fz_context* ctx, Str format, bool keystroke) {
+    if (!len(format)) return {};
+    int decimals = 0;
+    if (ParseDecimals(format, StrL("number:"), decimals))
+        return fmt(
+            keystroke ? "AFNumber_Keystroke(%d, 0, 0, 0, \"\", true);" : "AFNumber_Format(%d, 0, 0, 0, \"\", true);",
+            decimals);
+    if (ParseDecimals(format, StrL("percent:"), decimals))
+        return fmt(keystroke ? "AFPercent_Keystroke(%d, 0);" : "AFPercent_Format(%d, 0);", decimals);
+    if (str::Eq(format, StrL("zip"))) return StrL(keystroke ? "AFSpecial_Keystroke(0);" : "AFSpecial_Format(0);");
+    if (str::Eq(format, StrL("phone"))) return StrL(keystroke ? "AFSpecial_Keystroke(2);" : "AFSpecial_Format(2);");
+    if (str::StartsWith(format, StrL("date:"))) {
+        Str pattern = format;
+        pattern.s += 5;
+        pattern.len -= 5;
+        if (!len(pattern) || len(pattern) > 128)
+            fz_throw(ctx, FZ_ERROR_ARGUMENT, "Enter a date format of 1 to 128 characters");
+        for (int i = 0; i < len(pattern); i++) {
+            u8 c = pattern.s[i];
+            if (c >= 0x80 || (!isalnum(c) && !strchr(" /-.,:", c)))
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "Date formats use ASCII letters, digits, spaces and /-.,:");
+        }
+        return fmt(keystroke ? "AFDate_KeystrokeEx(\"%s\");" : "AFDate_FormatEx(\"%s\");", pattern);
+    }
+    fz_throw(ctx, FZ_ERROR_ARGUMENT, "Format must be number:0-10, percent:0-10, date:PATTERN, zip or phone");
+}
+
+static void PutFieldAction(fz_context* ctx, pdf_obj* field, const char* event, Str code) {
+    pdf_obj* aa = pdf_dict_get(ctx, field, PDF_NAME(AA));
+    if (!len(code)) {
+        if (aa) pdf_dict_dels(ctx, aa, event);
+        if (aa && pdf_dict_len(ctx, aa) == 0) pdf_dict_del(ctx, field, PDF_NAME(AA));
+        return;
+    }
+    if (!aa) aa = pdf_dict_put_dict(ctx, field, PDF_NAME(AA), 1);
+    pdf_obj* action = pdf_new_dict(ctx, pdf_get_bound_document(ctx, field), 2);
+    pdf_dict_puts_drop(ctx, aa, event, action);
+    pdf_dict_put(ctx, action, PDF_NAME(S), PDF_NAME(JavaScript));
+    pdf_dict_put_text_string(ctx, action, PDF_NAME(JS), CStrTemp(code));
+}
+
+static double ReadRangeLimit(fz_context* ctx, Str text, bool& present) {
+    str::TrimWs(text);
+    present = len(text) != 0;
+    if (!present) return 0;
+    char* end = nullptr;
+    double value = strtod(CStrTemp(text), &end);
+    if (!end || *end || !isfinite(value)) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Validation limits must be finite numbers");
+    return value;
+}
+
+static bool HasCalculation(fz_context* ctx, pdf_obj* field) {
+    return pdf_dict_getp_inheritable(ctx, field, "AA/C/JS") != nullptr;
+}
+
+static void CollectCalcOrder(fz_context* ctx, EngineMupdf* e, Vec<pdf_obj*>& out) {
+    pdf_obj* acro = pdf_dict_getp(ctx, pdf_trailer(ctx, e->pdfdoc), "Root/AcroForm");
+    pdf_obj* co = pdf_dict_get(ctx, acro, PDF_NAME(CO));
+    for (int i = 0; i < pdf_array_len(ctx, co); i++) {
+        pdf_obj* field = pdf_array_get(ctx, co, i);
+        if (HasCalculation(ctx, field)) VecAppend(out, field);
+    }
+    Vec<pdf_obj*> fields;
+    CollectFields(ctx, FormRoots(ctx, e), fields);
+    for (pdf_obj* field : fields) {
+        if (!HasCalculation(ctx, field)) continue;
+        bool found = false;
+        for (pdf_obj* existing : out)
+            if (!pdf_objcmp(ctx, existing, field)) found = true;
+        if (!found) VecAppend(out, field);
+    }
+}
+
+static void ValidateCalcOrder(fz_context* ctx, EngineMupdf* e, const Vec<pdf_obj*>& order) {
+    for (int i = 0; i < len(order); i++) {
+        Str op;
+        StrVec sources;
+        ReadCalcSources(ctx, order[i], op, sources);
+        for (Str name : sources) {
+            pdf_obj* source = pdf_lookup_field(ctx, FormRoots(ctx, e), CStrTemp(name));
+            if (!source) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Unknown calculation source: %s", CStrTemp(name));
+            if (!HasCalculation(ctx, source)) continue;
+            int sourceIndex = -1;
+            for (int j = 0; j < len(order); j++)
+                if (!pdf_objcmp(ctx, source, order[j])) sourceIndex = j;
+            if (sourceIndex < 0 || sourceIndex >= i)
+                fz_throw(ctx, FZ_ERROR_ARGUMENT,
+                         "Calculation sources must precede dependent fields in calculation order");
+        }
+    }
+}
+
+static void SyncCalcOrder(fz_context* ctx, EngineMupdf* e) {
+    Vec<pdf_obj*> order;
+    CollectCalcOrder(ctx, e, order);
+    ValidateCalcOrder(ctx, e, order);
+    pdf_obj* acro = pdf_dict_getp(ctx, pdf_trailer(ctx, e->pdfdoc), "Root/AcroForm");
+    if (!len(order)) {
+        pdf_dict_del(ctx, acro, PDF_NAME(CO));
+        return;
+    }
+    pdf_obj* co = pdf_dict_put_array(ctx, acro, PDF_NAME(CO), len(order));
+    for (pdf_obj* field : order) pdf_array_push(ctx, co, field);
+}
+
+void ReadFormActions(fz_context* ctx, pdf_obj* field, FormFieldProperties& props) {
+    props.format = str::DupTemp(Str(pdf_to_text_string(ctx, pdf_dict_gets(ctx, field, "SwiftLeafFormat"))));
+    TempStr format = LoadFieldJs(ctx, field, "F");
+    int decimals = 0;
+    char extra;
+    const char* z = CStrTemp(format);
+    if (sscanf_s(z, "AFNumber_Format(%d, 0, 0, 0, \"\", true); %c", &decimals, &extra, 1u) == 1)
+        props.format = fmt("number:%d", decimals);
+    else if (sscanf_s(z, "AFPercent_Format(%d, 0); %c", &decimals, &extra, 1u) == 1)
+        props.format = fmt("percent:%d", decimals);
+    else if (str::Eq(format, StrL("AFSpecial_Format(0);")))
+        props.format = StrL("zip");
+    else if (str::Eq(format, StrL("AFSpecial_Format(2);")))
+        props.format = StrL("phone");
+    else if (str::StartsWith(format, StrL("AFDate_FormatEx(\"")) && str::EndsWith(format, StrL("\");"))) {
+        const char prefix[] = "AFDate_FormatEx(\"";
+        props.format = fmt("date:%s", Str(z + sizeof(prefix) - 1, len(format) - sizeof(prefix) - 2));
+    }
+
+    TempStr validate = LoadFieldJs(ctx, field, "V");
+    int lowerCheck = 0, upperCheck = 0;
+    double lower = 0, upper = 0;
+    if (sscanf_s(CStrTemp(validate), "AFRange_Validate(%d, %lf, %d, %lf); %c", &lowerCheck, &lower, &upperCheck, &upper,
+                 &extra, 1u) == 4) {
+        if (lowerCheck) props.validationMin = fmt("%g", lower);
+        if (upperCheck) props.validationMax = fmt("%g", upper);
+    }
+    StrVec sources;
+    ReadCalcSources(ctx, field, props.calculation, sources);
+    props.calculationFields = JoinCalcSources(sources);
+}
+
+void WriteFormActions(fz_context* ctx, pdf_document* doc, pdf_obj* field, const FormFieldProperties& props) {
+    pdf_dict_dels(ctx, field, "SwiftLeafFormat");
+    bool text = props.kind == FormFieldKind::Text || props.kind == FormFieldKind::Date;
+    if (!text && (len(props.format) || len(props.calculation) || len(props.calculationFields) ||
+                  len(props.validationMin) || len(props.validationMax)))
+        fz_throw(ctx, FZ_ERROR_ARGUMENT, "Calculations, validation and formats require a text field");
+    if (props.kind == FormFieldKind::Date && !str::StartsWith(props.format, StrL("date:")))
+        fz_throw(ctx, FZ_ERROR_ARGUMENT, "Date fields require date:PATTERN format");
+    if (props.kind == FormFieldKind::Date && (len(props.calculation) || len(props.calculationFields) ||
+                                              len(props.validationMin) || len(props.validationMax)))
+        fz_throw(ctx, FZ_ERROR_ARGUMENT, "Numeric calculations and ranges require a non-date text field");
+    PutFieldAction(ctx, field, "F", FormatAction(ctx, props.format, false));
+    PutFieldAction(ctx, field, "K", FormatAction(ctx, props.format, true));
+
+    bool hasMin = false, hasMax = false;
+    double min = ReadRangeLimit(ctx, props.validationMin, hasMin);
+    double max = ReadRangeLimit(ctx, props.validationMax, hasMax);
+    if (hasMin && hasMax && min > max) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Minimum validation limit exceeds maximum");
+    TempStr range;
+    if (hasMin || hasMax)
+        range = fmt("AFRange_Validate(%s, %.17g, %s, %.17g);", Str(hasMin ? "true" : "false"), min,
+                    Str(hasMax ? "true" : "false"), max);
+    PutFieldAction(ctx, field, "V", range);
+
+    StrVec sources;
+    SplitCalcSources(props.calculationFields, sources);
+    if (!len(props.calculation) && !len(sources)) {
+        PutFieldAction(ctx, field, "C", {});
+    } else {
+        if (!CalcOpSupported(props.calculation) || !len(sources) || len(sources) > 64)
+            fz_throw(ctx, FZ_ERROR_ARGUMENT, "Choose a calculation and enter 1 to 64 source fields");
+        char* targetName = pdf_load_field_name(ctx, field);
+        Str target = str::DupTemp(Str(targetName));
+        fz_free(ctx, targetName);
+        StrVec seen;
+        str::Builder script;
+        script.Append(fmt("AFSimple_Calculate(\"%s\", [", Str(props.calculation)));
+        for (Str source : sources) {
+            if (seen.Contains(source) || str::Eq(source, target))
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "Calculation sources must be unique and exclude the target");
+            seen.Append(source);
+            if (!pdf_lookup_field(ctx, pdf_dict_getp(ctx, pdf_trailer(ctx, doc), "Root/AcroForm/Fields"),
+                                  CStrTemp(source)))
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "Unknown calculation source: %s", CStrTemp(source));
+            if (len(seen) > 1) script.Append(StrL(", "));
+            script.Append(fmt("\"%s\"", json::EscapeStrTemp(source)));
+        }
+        script.Append(StrL("]);"));
+        PutFieldAction(ctx, field, "C", ToStrTemp(script));
+    }
+}
+
+void SyncFormCalculationOrder(fz_context* ctx, EngineMupdf* e) {
+    SyncCalcOrder(ctx, e);
+}
+
+TempStr GetFormCalculationNames(EngineBase* engine) {
+    auto* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc) return {};
+    str::Builder names;
+    auto* ctx = e->BaseCtx();
+    ScopedRecursiveMutex lock(&e->docLock);
+    fz_try(ctx) {
+        Vec<pdf_obj*> fields;
+        CollectCalcOrder(ctx, e, fields);
+        for (pdf_obj* field : fields) {
+            char* raw = pdf_load_field_name(ctx, field);
+            if (len(names)) names.Append(StrL("\r\n"));
+            names.Append(Str(raw));
+            fz_free(ctx, raw);
+        }
+    }
+    fz_catch(ctx) {
+        fz_report_error(ctx);
+        return {};
+    }
+    return ToStrTemp(names);
+}
+
+bool SetFormCalculationOrder(EngineBase* engine, Str manualNames, Str& error) {
+    StrVec names;
+    SplitCalcSources(manualNames, names);
+    auto* e = AsEngineMupdf(engine);
+    if (!e || !e->pdfdoc) return false;
+    return ChangeForm(engine, "Set form calculation order", error, [&](fz_context* ctx, EngineMupdf* e) {
+        Vec<pdf_obj*> existing;
+        CollectCalcOrder(ctx, e, existing);
+        if (len(names) != len(existing)) fz_throw(ctx, FZ_ERROR_ARGUMENT, "List every calculated field name once");
+        StrVec seen;
+        Vec<pdf_obj*> order;
+        for (Str name : names) {
+            if (seen.Contains(name)) fz_throw(ctx, FZ_ERROR_ARGUMENT, "Calculation field names must be unique");
+            seen.Append(name);
+            pdf_obj* field = pdf_lookup_field(ctx, FormRoots(ctx, e), CStrTemp(name));
+            if (!field || !HasCalculation(ctx, field))
+                fz_throw(ctx, FZ_ERROR_ARGUMENT, "Unknown calculated field: %s", CStrTemp(name));
+            VecAppend(order, field);
+        }
+        ValidateCalcOrder(ctx, e, order);
+        pdf_obj* acro = pdf_dict_getp(ctx, pdf_trailer(ctx, e->pdfdoc), "Root/AcroForm");
+        if (!len(order)) {
+            pdf_dict_del(ctx, acro, PDF_NAME(CO));
+            return;
+        }
+        pdf_obj* co = pdf_dict_put_array(ctx, acro, PDF_NAME(CO), len(order));
+        for (pdf_obj* field : order) pdf_array_push(ctx, co, field);
+    });
+}
+
 static void AppendXml(str::Builder& out, Str value) {
     for (int i = 0; i < len(value); i++) {
         switch (value.s[i]) {

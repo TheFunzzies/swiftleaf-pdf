@@ -324,6 +324,7 @@ const CommandInfo gCommands[] = {
     {CmdToggleReadingBarInvert, "CmdToggleReadingBarInvert\0", StrL("Reading Bar Invert")},
     {CmdGoToHomePage, "CmdGoToHomePage\0", StrL("Go To Home Page")},
     {CmdToggleFreePan, "CmdToggleFreePan\0", StrL("Toggle Free Pan")},
+    {CmdFormCalculationOrder, "CmdFormCalculationOrder\0", StrL("Edit Form Calculation Order...")},
     {CmdNone, "CmdNone\0", StrL("Do nothing")},
     {CmdFileHistory, "CmdFileHistory\0", StrL("Open Recent File")},
     {CmdFavorite, "CmdFavorite\0", StrL("Go to Favorite")},

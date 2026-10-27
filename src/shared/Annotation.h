@@ -237,6 +237,10 @@ struct FormFieldProperties {
     Str tooltip;
     Str font = StrL("Helv");
     Str format;
+    Str calculation;
+    Str calculationFields;
+    Str validationMin;
+    Str validationMax;
     Str action;
     Str target;
     float fontSize = 12;
