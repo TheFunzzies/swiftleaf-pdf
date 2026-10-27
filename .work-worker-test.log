@@ -1,0 +1,1003 @@
+
+  BasePch.cpp
+  libwebp.c
+  zlib.c
+  djvu.c
+  unrar.cpp
+  autoheaderid.c
+  autolink.c
+  core-extensions.c
+  ext_scanners.c
+  strikethrough.c
+  table.c
+  tagfilter.c
+  tasklist.c
+  arena.c
+  blocks.c
+  buffer.c
+  cmark.c
+  cmark_ctype.c
+  footnotes.c
+  houdini_href_e.c
+  brotli.c
+  houdini_html_e.c
+  houdini_html_u.c
+  html.c
+  inlines.c
+  iterator.c
+  linked_list.c
+  map.c
+  node.c
+  plugin.c
+  references.c
+  registry.c
+  scanners.c
+  heic.c
+  jxl.c
+  syntax_extension.c
+  utf8.c
+  2>..\ext\dav1d\src\x86\cpuid.asm
+  1>..\ext\dav1d\src\x86\cdef16_avx2.asm
+  3>..\ext\dav1d\src\x86\filmgrain_avx2.asm
+  4>..\ext\dav1d\src\x86\ipred_avx2.asm
+  2>..\ext\dav1d\src\x86\filmgrain16_avx2.asm
+  a-zlib.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-zlib.lib
+  a-libwebp.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-libwebp.lib
+  mujs.c
+  djvudec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\djvudec.lib
+  Bra86.c
+  LzmaDec.c
+  extract.c
+  harfbuzz.cc
+  5>..\ext\dav1d\src\x86\itx_avx2.asm
+  AppendStore.cpp
+  Archive.cpp
+  Arena.cpp
+  Base.cpp
+  ByteReaderWriter.cpp
+  CmdLineArgs.cpp
+  Crypto.cpp
+  CssParser.cpp
+  DbgHelpDyn.cpp
+  1>..\ext\dav1d\src\x86\cdef_avx2.asm
+  Dict.cpp
+  DirScan.cpp
+  Exif.cpp
+  File.cpp
+  FileWatcher.cpp
+  GdiPlusUtil.cpp
+  GuessFileType.cpp
+  HtmlTags.cpp
+  Http.cpp
+  JsonParser.cpp
+  LzmaSimpleArchive.cpp
+  freetype.c
+  Pixmap.cpp
+  SettingsUtil.cpp
+  SquareTreeParser.cpp
+  a-mujs.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-mujs.lib
+  StrQueue.cpp
+  TgaReader.cpp
+  UITask.cpp
+  Win.cpp
+  WinDynCalls.cpp
+  Zip.cpp
+  PerfLog.cpp
+  Dpi.cpp
+  lcms2.c
+  cmark-gfm.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj\cmark-gfm.lib
+  a-extract.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-extract.lib
+  a-brotli.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-brotli.lib
+  openjpeg.c
+  heicdec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\heicdec.lib
+  jbig2dec.c
+  base.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\base.lib
+  2>..\ext\libjpeg-turbo\simd\x86_64\jcgray-sse2.asm
+  4>..\ext\libjpeg-turbo\simd\x86_64\jdcolor-sse2.asm
+  3>..\ext\libjpeg-turbo\simd\x86_64\jcsample-avx2.asm
+  1>..\ext\libjpeg-turbo\simd\x86_64\jccolor-avx2.asm
+  jxldec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\jxldec.lib
+  bzip2.c
+  libarchive.c
+  check.c
+  3>..\ext\libjpeg-turbo\simd\x86_64\jcsample-sse2.asm
+  a-unrar.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-unrar.lib
+  crc32_fast.c
+  3>..\ext\libjpeg-turbo\simd\x86_64\jdcolor-avx2.asm
+  crc64_fast.c
+  alone_decoder.c
+  auto_decoder.c
+  block_decoder.c
+  2>..\ext\libjpeg-turbo\simd\x86_64\jchuff-sse2.asm
+  4>..\ext\libjpeg-turbo\simd\x86_64\jdmerge-avx2.asm
+  gumbo.c
+  1>..\ext\libjpeg-turbo\simd\x86_64\jccolor-sse2.asm
+  6>..\ext\libjpeg-turbo\simd\x86_64\jfdctfst-sse2.asm
+  5>..\ext\libjpeg-turbo\simd\x86_64\jdsample-avx2.asm
+  6>..\ext\libjpeg-turbo\simd\x86_64\jfdctint-avx2.asm
+  5>..\ext\libjpeg-turbo\simd\x86_64\jdsample-sse2.asm
+  6>..\ext\libjpeg-turbo\simd\x86_64\jfdctint-sse2.asm
+  5>..\ext\libjpeg-turbo\simd\x86_64\jfdctflt-sse.asm
+  7>..\ext\libjpeg-turbo\simd\x86_64\jidctflt-sse2.asm
+  7>..\ext\libjpeg-turbo\simd\x86_64\jidctfst-sse2.asm
+  7>..\ext\libjpeg-turbo\simd\x86_64\jidctint-avx2.asm
+  2>..\ext\libjpeg-turbo\simd\x86_64\jcphuff-sse2.asm
+  8>..\ext\libjpeg-turbo\simd\x86_64\jidctint-sse2.asm
+  8>..\ext\libjpeg-turbo\simd\x86_64\jidctred-sse2.asm
+  8>..\ext\libjpeg-turbo\simd\x86_64\jquantf-sse2.asm
+  4>..\ext\libjpeg-turbo\simd\x86_64\jdmerge-sse2.asm
+  block_header_decoder.c
+  6>..\ext\dav1d\src\x86\loopfilter_avx2.asm
+  block_util.c
+  common.c
+  filter_common.c
+  filter_decoder.c
+  filter_flags_decoder.c
+  chm.c
+  6>..\ext\libjpeg-turbo\simd\x86_64\jquanti-avx2.asm
+  1>..\ext\libjpeg-turbo\simd\x86_64\jcgray-avx2.asm
+  index.c
+  index_decoder.c
+  index_hash.c
+  des.c
+  stream_decoder.c
+  stream_flags_common.c
+  stream_flags_decoder.c
+  a-jbig2dec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-jbig2dec.lib
+  6>..\ext\libjpeg-turbo\simd\x86_64\jquanti-sse2.asm
+  vli_decoder.c
+  a-lcms2.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-lcms2.lib
+  vli_size.c
+  6>..\ext\libjpeg-turbo\simd\x86_64\jsimdcpu.asm
+  delta_common.c
+  delta_decoder.c
+  lz_decoder.c
+  lzma2_decoder.c
+  lzma_decoder.c
+  price_table.c
+  simple_coder.c
+  simple_decoder.c
+  x86.c
+  msdes.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\msdes.lib
+  a-freetype.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-freetype.lib
+  a-openjpeg.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-openjpeg.lib
+  chmdec.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\chmdec.lib
+  jsimd.c
+  jaricom.c
+  jcapimin.c
+  jcarith.c
+  jchuff.c
+  jcicc.c
+  jcinit.c
+  jclhuff.c
+  jcmarker.c
+  jcmaster.c
+  jcomapi.c
+  jcparam.c
+  6>..\ext\dav1d\src\x86\looprestoration16_avx2.asm
+  jcphuff.c
+  jctrans.c
+  jdapimin.c
+  jdarith.c
+  jdatadst.c
+  jdatasrc.c
+  jdhuff.c
+  jdicc.c
+  jdinput.c
+  jdlhuff.c
+  jdmarker.c
+  jdmaster.c
+  jdphuff.c
+  jdtrans.c
+  jerror.c
+  jfdctflt.c
+  jmemmgr.c
+  jmemnobs.c
+  jpeg_nbits.c
+  jcapistd-8.c
+  3>..\ext\dav1d\src\x86\ipred16_avx2.asm
+  jccoefct-8.c
+  jccolor-8.c
+  jcdctmgr-8.c
+  jcdiffct-8.c
+  jclossls-8.c
+  jcmainct-8.c
+  jcprepct-8.c
+  jcsample-8.c
+  jdapistd-8.c
+  jdcoefct-8.c
+  jdcolor-8.c
+  jddctmgr-8.c
+  jddiffct-8.c
+  jdlossls-8.c
+  jdmainct-8.c
+  jdmerge-8.c
+  jdpostct-8.c
+  jdsample-8.c
+  jfdctfst-8.c
+  jfdctint-8.c
+  jidctflt-8.c
+  jidctfst-8.c
+  jidctint-8.c
+  jidctred-8.c
+  jquant1-8.c
+  jquant2-8.c
+  jutils-8.c
+  a-gumbo.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-gumbo.lib
+  a-libarchive.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-libarchive.lib
+  7>..\ext\dav1d\src\x86\looprestoration_avx2.asm
+  7>..\ext\dav1d\src\x86\mc16_avx2.asm
+  5>..\ext\dav1d\src\x86\loopfilter16_avx2.asm
+  libjpeg-turbo.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\libjpeg-turbo.lib
+  8>..\ext\dav1d\src\x86\mc_avx2.asm
+  2>..\ext\dav1d\src\x86\msac.asm
+  2>..\ext\dav1d\src\x86\pal.asm
+  2>..\ext\dav1d\src\x86\refmvs.asm
+  4>..\ext\dav1d\src\x86\itx16_avx2.asm
+  8>..\ext\dav1d\src\x86\mc_sse.asm
+  a-harfbuzz.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-harfbuzz.lib
+  mucbz.c
+  muimg.c
+  archive.c
+  barcode.c
+  bbox-device.c
+  bidi-std.c
+  bidi.c
+  bitmap.c
+  brotli.c
+  buffer.c
+  color-fast.c
+  color-icc-create.c
+  color-lcms.c
+  colorspace.c
+  compress.c
+  compressed-buffer.c
+  context.c
+  crypt-aes.c
+  crypt-arc4.c
+  crypt-chacha20.c
+  crypt-md5.c
+  crypt-sha2.c
+  cull-device.c
+  deskew.c
+  device.c
+  directory.c
+  document-all.c
+  document.c
+  draw-affine.c
+  draw-blend.c
+  draw-device.c
+  draw-edge.c
+  draw-edgebuffer.c
+  draw-glyph.c
+  draw-mesh.c
+  draw-paint.c
+  draw-path.c
+  draw-rasterize.c
+  draw-scale-simple.c
+  draw-unpack.c
+  encode-basic.c
+  encode-fax.c
+  encode-jpx.c
+  encodings.c
+  error.c
+  filter-basic.c
+  filter-brotli.c
+  filter-dct.c
+  filter-fax.c
+  filter-flate.c
+  filter-jbig2.c
+  filter-leech.c
+  filter-lzw.c
+  filter-predict.c
+  filter-sgi.c
+  filter-thunder.c
+  font.c
+  ftoa.c
+  geometry.c
+  getopt.c
+  glyph.c
+  glyphbox.c
+  gz-doc.c
+  halftone.c
+  harfbuzz.c
+  hash.c
+  heap.c
+  hyphen.c
+  image.c
+  jmemcust.c
+  json.c
+  link.c
+  list-device.c
+  load-bmp.c
+  load-gif.c
+  load-jbig2.c
+  load-jpeg.c
+  load-jpx.c
+  load-jxr-win.c
+  load-png.c
+  load-pnm.c
+  load-psd.c
+  load-tiff.c
+  load-webp.c
+  log.c
+  memento.c
+  memory.c
+  ocr-device.c
+  options.c
+  outline.c
+  output-cbz.c
+  output-csv.c
+  output-docx.c
+  output-jpeg.c
+  output-pcl.c
+  output-pclm.c
+  output-pdfocr.c
+  output-png.c
+  output-pnm.c
+  output-ps.c
+  output-psd.c
+  output-pwg.c
+  output-svg.c
+  output.c
+  path.c
+  pixmap.c
+  pool.c
+  printf.c
+  random.c
+  regexp.c
+  separation.c
+  shade.c
+  skew.c
+  stext-boxer.c
+  stext-classify.c
+  stext-device.c
+  stext-iterator.c
+  stext-output.c
+  stext-para.c
+  stext-raft.c
+  stext-search.c
+  stext-table.c
+  store.c
+  stream-open.c
+  stream-read.c
+  string.c
+  strtof.c
+  subset-cff.c
+  subset-ttf.c
+  svg-device.c
+  test-device.c
+  text-decoder.c
+  text.c
+  time.c
+  trace-device.c
+  track-usage.c
+  transition.c
+  tree.c
+  ucdn.c
+  uncfb.c
+  unlibarchive.c
+  untar.c
+  unzip.c
+  util.c
+  warp.c
+  writer.c
+  xml-write.c
+  xml.c
+  xmltext-device.c
+  zip.c
+  mu-threads.c
+  css-apply.c
+  css-parse.c
+  epub-doc.c
+  html-doc.c
+  html-font.c
+  html-layout.c
+  html-outline.c
+  html-parse.c
+  md.c
+  mobi.c
+  office.c
+  story-writer.c
+  txt.c
+  xml-dom.c
+  pdf-af.c
+  pdf-annot.c
+  pdf-appearance.c
+  pdf-clean-file.c
+  pdf-clean.c
+  pdf-cmap-load.c
+  pdf-cmap-parse.c
+  pdf-cmap.c
+  pdf-colorspace.c
+  pdf-crypt.c
+  pdf-device.c
+  pdf-event.c
+  pdf-font-add.c
+  pdf-font.c
+  pdf-form.c
+  pdf-function.c
+  pdf-graft.c
+  pdf-image-rewriter.c
+  pdf-image.c
+  pdf-interpret.c
+  pdf-js.c
+  pdf-label.c
+  pdf-layer.c
+  pdf-layout.c
+  pdf-lex.c
+  pdf-link.c
+  pdf-metrics.c
+  pdf-nametree.c
+  pdf-object.c
+  pdf-op-buffer.c
+  pdf-op-color.c
+  pdf-op-filter.c
+  pdf-op-run.c
+  pdf-op-vectorize.c
+  pdf-outline.c
+  pdf-page.c
+  pdf-parse.c
+  pdf-pattern.c
+  pdf-recolor.c
+  pdf-repair.c
+  pdf-resources.c
+  pdf-run.c
+  pdf-shade-recolor.c
+  pdf-shade.c
+  pdf-signature.c
+  pdf-store.c
+  pdf-stream.c
+  pdf-struct.c
+  pdf-subset.c
+  pdf-type3.c
+  pdf-unicode.c
+  pdf-util.c
+  pdf-write.c
+  pdf-xobject.c
+  pdf-xref.c
+  pdf-zugferd.c
+  reflow-doc.c
+  svg-color.c
+  svg-doc.c
+  svg-parse.c
+  svg-run.c
+  muconvert.c
+  mudraw.c
+  mugrep.c
+  muraster.c
+  murun.c
+  mutrace.c
+  pdfaudit.c
+  pdfbake.c
+  pdfclean.c
+  pdfcreate.c
+  pdfextract.c
+  pdfinfo.c
+  pdfmerge.c
+  pdfpages.c
+  pdfposter.c
+  pdfrecolor.c
+  pdfshow.c
+  pdfsign.c
+  pdftrim.c
+  xps-common.c
+  xps-doc.c
+  xps-glyphs.c
+  xps-gradient.c
+  xps-image.c
+  xps-link.c
+  xps-outline.c
+  xps-path.c
+  xps-resource.c
+  xps-tile.c
+  xps-util.c
+  xps-zip.c
+  mupdf_load_system_font.c
+  noto_sumatra.c
+  pkcs7-windows.c
+  load-jxl.cpp
+  cdf.c
+  cpu.c
+  ctx.c
+  data.c
+  decode.c
+  dequant_tables.c
+  getbits.c
+  intra_edge.c
+  itx_1d.c
+  lf_mask.c
+  lib.c
+  log.c
+  mem.c
+  msac.c
+  obu.c
+  pal.c
+  picture.c
+  qm.c
+  ref.c
+  refmvs.c
+  scan.c
+  sumatra_bitdepth_16.c
+  sumatra_bitdepth_16_2.c
+  sumatra_bitdepth_8.c
+  sumatra_bitdepth_8_2.c
+  tables.c
+  thread_task.c
+  warpmv.c
+  wedge.c
+  thread.c
+  mupdf.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\mupdf.lib
+  cpu.c
+  dav1d.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\dav1d.lib
+  no_op_for_premake.cpp
+     Creating library ../out/dbg64/obj/libsumatrapdf.lib and object ../out/dbg64/obj/libsumatrapdf.exp
+  libsumatrapdf.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj\libsumatrapdf.dll
+  MUPDF_Exports.cpp
+  PdfDarkModeNoOp.cpp
+  RegistrySearchFilter.cpp
+  Archive.cpp
+  EpubFilter.cpp
+  PdfFilter.cpp
+  CrashHandlerNoOp.cpp
+  EmbeddedResources.cpp
+  SumatraLog.cpp
+  SearchFilterDll.cpp
+  TeXFilter.cpp
+  sumatrapdf-tool.cpp
+  MUPDF_Exports.cpp
+  PdfDarkModeNoOp.cpp
+  RegistryPreview.cpp
+  Archive.cpp
+  PdfPreview.cpp
+  PdfPreviewDll.cpp
+  AvifReader.cpp
+  CachedObjects.cpp
+  ChapterTable.cpp
+  ChapterTable.cpp
+  CrashHandlerNoOp.cpp
+  DocProperties.cpp
+  ChmFile.cpp
+  EbookDoc.cpp
+  EmbeddedResources.cpp
+  EngineBase.cpp
+  CrashHandlerNoOp.cpp
+  DocProperties.cpp
+  EngineMupdf.cpp
+  EbookDoc.cpp
+  GumboHtmlParser.cpp
+  EbookFormatter.cpp
+  EmbeddedResources.cpp
+  EngineBase.cpp
+  MobiDoc.cpp
+  EngineDjvuDec.cpp
+  PalmDbReader.cpp
+  EngineEbook.cpp
+  PdfCad.cpp
+  SumatraLog.cpp
+  EngineImages.cpp
+  EngineMupdf.cpp
+  GumboHtmlParser.cpp
+  HtmlFormatter.cpp
+  ImageReader.cpp
+  JxlReader.cpp
+  MobiDoc.cpp
+  PalmDbReader.cpp
+  PdfCad.cpp
+  PdfCreator.cpp
+  SumatraConfig.cpp
+  SumatraLog.cpp
+  WebpReader.cpp
+  PlatformFont.cpp
+     Creating library ../out/dbg64/obj/PdfFilter.lib and object ../out/dbg64/obj/PdfFilter.exp
+  PlatformText.cpp
+  sumatrapdf-tool.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\sumatrapdf-tool.exe
+  PdfFilter.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj\PdfFilter.dll
+     Creating library ../out/dbg64/obj/PdfPreview.lib and object ../out/dbg64/obj/PdfPreview.exp
+  PdfPreview.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj\PdfPreview.dll
+  zopfli.cpp
+  a-zopfli.vcxproj -> C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\out\dbg64\obj-s\a-zopfli.lib
+  note: C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\cmd\..\.work\docs missing, packing without the manual (run: bun cmd\gen-docs.ts)
+  BasePch.cpp
+  Darkmodelib.cpp
+  DmlibColor.cpp
+  DmlibDpi.cpp
+  DmlibHook.cpp
+  DmlibPaintHelper.cpp
+  DmlibSubclass.cpp
+  DmlibSubclassControl.cpp
+  DmlibSubclassWindow.cpp
+  DmlibWinApi.cpp
+  WebView2Loader.cpp
+  AIChatCommon.cpp
+  LinkFollow.cpp
+  ReadingBar.cpp
+  SelectTextKeyboard.cpp
+  Selection.cpp
+  SelectionHandlers.cpp
+  synctex_parser.c
+  synctex_parser_utils.c
+  AIChatPanel.cpp
+  AddFavoriteDialog.cpp
+  AdvancedSettingsDialog.cpp
+  Animation.cpp
+  AnnotEditToolbar.cpp
+  AnnotFilterToolbar.cpp
+  AnnotPlacement.cpp
+  AnnotTextPopup.cpp
+  Canvas.cpp
+  CanvasAboutUI.cpp
+  ChangeColorDialog.cpp
+  ChangeLanguageDialog.cpp
+  ChangeScrollbarDialog.cpp
+  ChangeThemeDialog.cpp
+  CommandPalette.cpp
+  CommentIO.cpp
+  CustomZoomDialog.cpp
+  DarkMode.cpp
+  DocumentPanel.cpp
+  DocumentProperties.cpp
+  EbookSettingsDialog.cpp
+  EditText.cpp
+  Favorites.cpp
+  FileThumbnails.cpp
+  FilterHighlightDraw.cpp
+  FindBar.cpp
+  FindWindow.cpp
+  FormAuthoring.cpp
+  FormFields.cpp
+  FormOperations.cpp
+  GetPasswordDialog.cpp
+  GlobalHotkeys.cpp
+  GoToPageDialog.cpp
+  HomePage.cpp
+  ImageEditHostSumatra.cpp
+  ImageSaveCropResize.cpp
+  Installer.cpp
+  InstallerCommon.cpp
+  InverseSearchDialog.cpp
+  KeyboardHelp.cpp
+  LucideIcons.cpp
+  MainWindow.cpp
+  Material.cpp
+  Measure.cpp
+  Menu.cpp
+  MergePdf.cpp
+  MuPDF_Exports.cpp
+  NavFilesInFolder.cpp
+  NavRail.cpp
+  Notifications.cpp
+  Ocr.cpp
+  ScannerWia.cpp
+  SignaturePanel.cpp
+  OverlayScrollbar.cpp
+  PageGridDialog.cpp
+  PageOrganize.cpp
+  PageThumbnails.cpp
+  PanelLayout.cpp
+  PdfTools.cpp
+  BatchActions.cpp
+  ComparePdf.cpp
+  ExportFormats.cpp
+  PageTools2.cpp
+  Accessibility.cpp
+  Preflight.cpp
+  ReadAloud.cpp
+  ReadingAutoScroll.cpp
+  RefHover.cpp
+  RefHoverCanvas.cpp
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(222,46): error C2061: syntax error: identifier 'FileHandle' [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(224,10): error C2065: 'writer': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(224,40): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(224,46): error C2065: 'html': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(232,76): error C2065: 'html': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(232,88): error C2065: 'html': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(232,18): error C2660: 'fz_new_buffer_from_copied_data': function does not take 1 arguments [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+      C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\ext\mupdf\include\mupdf\fitz\buffer.h(105,12):
+      see declaration of 'fz_new_buffer_from_copied_data'
+      C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(232,18):
+      while trying to match the argument list '(fz_context *)'
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(236,17): error C2065: 'progress': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(236,29): error C2065: 'progress': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(243,49): error C2065: 'writer': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(245,30): error C2065: 'writer': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(224,5): warning C4390: ';': empty controlled statement found; is this the intent? [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(276,5): error C2065: 'FileHandle': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(276,16): error C2146: syntax error: missing ';' before identifier 'file' [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(276,16): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(276,23): error C2065: 'kInvalidFileHandle': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(298,9): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(299,14): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(299,22): error C2065: 'kInvalidFileHandle': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(314,39): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(314,18): error C2660: 'WriteReportPart': function does not take 4 arguments [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+      C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(222,13):
+      see declaration of 'WriteReportPart'
+      C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(314,18):
+      while trying to match the argument list '(fz_context *, fz_document_writer *, Str, PdfWorkProgress *)'
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(348,35): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(348,14): error C2660: 'WriteReportPart': function does not take 4 arguments [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+      C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(222,13):
+      see declaration of 'WriteReportPart'
+      C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(348,14):
+      while trying to match the argument list '(fz_context *, fz_document_writer *, Str, PdfWorkProgress *)'
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(355,39): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(355,18): error C2660: 'WriteReportPart': function does not take 4 arguments [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+      C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(222,13):
+      see declaration of 'WriteReportPart'
+      C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(355,18):
+      while trying to match the argument list '(fz_context *, fz_document_writer *, Str, PdfWorkProgress *)'
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(363,29): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(375,9): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(375,17): error C2065: 'kInvalidFileHandle': undeclared identifier [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(376,34): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\ComparePdf.cpp(377,21): error C2882: 'file': illegal use of namespace identifier in expression [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/ComparePdf.cpp')
+  
+  RefHoverPopup.cpp
+  RegistryPreview.cpp
+  RegistrySearchFilter.cpp
+  Ribbon.cpp
+  Screenshot.cpp
+  ScreenshotCapture.cpp
+  SearchAndDDE.cpp
+  SelectionToolbar.cpp
+  SelectionTranslate.cpp
+  Settings.cpp
+  SettingsDialog.cpp
+  SidebarPanel.cpp
+  SignDocumentDialog.cpp
+  SignatureCreate.cpp
+  SimpleBrowserWindow.cpp
+  StatusBar.cpp
+  SumatraControl.cpp
+  SumatraDialogs.cpp
+  SumatraPDF.cpp
+  SumatraTest.cpp
+  TabGroupsManage.cpp
+  TableOfContents.cpp
+  Tabs.cpp
+  TestPlugin.cpp
+  TestPreview.cpp
+  Tester.cpp
+  Tests.cpp
+  TextViewWnd.cpp
+  Toolbar.cpp
+  ToolsPanel.cpp
+  Uninstaller.cpp
+  UpdateCheck.cpp
+  Archive.cpp
+  CrashHandler.cpp
+  AppendStore_ut.cpp
+  Archive_ut.cpp
+  Base_ut.cpp
+  ByteReaderWriter_ut.cpp
+  ClipboardImage_ut.cpp
+  Crypto_ut.cpp
+  CssParser_ut.cpp
+  Dict_ut.cpp
+  File_ut.cpp
+  FileWatcher_posix_ut.cpp
+  GuessFileType_ut.cpp
+  JsonParser_ut.cpp
+  RefHover_ut.cpp
+  SettingsUtil_ut.cpp
+  SquareTreeParser_ut.cpp
+  StrFormat_ut.cpp
+  StrVec_ut.cpp
+  Str_ut.cpp
+  UtAssert.cpp
+  Vec_ut.cpp
+  Win_ut.cpp
+  Gfx.cpp
+  GfxDirect2D.cpp
+  GfxGdiplus.cpp
+  GuiColors.cpp
+  Layout.cpp
+  PasswordDialog.cpp
+  UiPlatform.cpp
+  VirtCtrl.cpp
+  VirtHost.cpp
+  Layout_ut.cpp
+  VirtCtrl_ut.cpp
+  BrowserDocView.cpp
+  Button.cpp
+  Checkbox.cpp
+  DropDown.cpp
+  Edit.cpp
+  FrameRateWnd.cpp
+  HtmlWindow.cpp
+  PlatformWindowWin.cpp
+  Progress.cpp
+  TabsCtrl.cpp
+  Tooltip.cpp
+  Trackbar.cpp
+  TreeView.cpp
+  WebView.cpp
+  WindowBase.cpp
+  Regress.cpp
+  AIAntiGravity.cpp
+  AIClaudeCode.cpp
+  AICodexBuild.cpp
+  AIGrokBuild.cpp
+  Accelerators.cpp
+  AnnotSearch.cpp
+  Annotation.cpp
+  AdvancedForms.cpp
+  AppSettings.cpp
+  AppTools.cpp
+  AvifReader.cpp
+  CachedObjects.cpp
+  ChapterTable.cpp
+  ChmDump.cpp
+  ChmFile.cpp
+  ChmModel.cpp
+  CommandAvailability.cpp
+  Commands.cpp
+  DisplayMode.cpp
+  DisplayModel.cpp
+  DocController.cpp
+  DocProperties.cpp
+  DocumentLayout.cpp
+  EbookDoc.cpp
+  EbookFormatter.cpp
+  EmbeddedResources.cpp
+  EngineBase.cpp
+  EngineCreate.cpp
+  EngineDjvuDec.cpp
+  EngineDvi.cpp
+  EngineEbook.cpp
+  EngineImages.cpp
+  EngineMupdf.cpp
+  EnginePs.cpp
+  EutlTrust.cpp
+  ExifDump.cpp
+  ExplorerQuickLook.cpp
+  ExternalViewers.cpp
+  FileHistory.cpp
+  FilterUtil.cpp
+  Flags.cpp
+  GoogleLens.cpp
+  GumboHtmlParser.cpp
+  HangDetector.cpp
+  HtmlFormatter.cpp
+  ImageReader.cpp
+  JxlReader.cpp
+  LitDoc.cpp
+  MarkdownModel.cpp
+  MarkdownToc.cpp
+  MobiDoc.cpp
+  PagePosition.cpp
+  PalmDbReader.cpp
+  PdfCad.cpp
+  PdfCreator.cpp
+  PdfDarkModeColor.cpp
+  PdfDarkModeImageStats.cpp
+  PdfDarkModeProfile.cpp
+  PdfDate.cpp
+  PdfSign.cpp
+  PdfSync.cpp
+  PngOptimizer.cpp
+  Print.cpp
+  PrintWin11.cpp
+  RefHoverDetect.cpp
+  RefHoverInternal.cpp
+  RefHoverRender.cpp
+  RefHoverShow.cpp
+  RefHoverText.cpp
+  RefHoverTextDetect.cpp
+  RegistryInstaller.cpp
+  RenderCache.cpp
+  ShortcutParse.cpp
+  StressTesting.cpp
+  SumatraConfig.cpp
+  SumatraLog.cpp
+  SvgIcons.cpp
+  TextSearch.cpp
+  TextSelection.cpp
+  Theme.cpp
+  TranslationLangs.cpp
+  Translations.cpp
+  UpdateTemp.cpp
+  WebpReader.cpp
+  WindowTab.cpp
+  PlatformFont.cpp
+  PlatformText.cpp
+  UIModels.cpp
+  AnnotSearch_ut.cpp
+  CachedObjects_ut.cpp
+  ChapterTable_ut.cpp
+  CommandPalette_ut.cpp
+  EngineDjvuDec_ut.cpp
+  LitDoc_ut.cpp
+  MobiDoc_ut.cpp
+  PagePosition_ut.cpp
+  PdfSync_ut.cpp
+  ReadAloudHighlight_ut.cpp
+  RenderCache_ut.cpp
+  SimpleLog_ut.cpp
+  TextSelection_ut.cpp
+  TestApp.cpp
+  TestLayout.cpp
+  TestTab.cpp
+  ShortcutParse_ut.cpp
+  Sumatra_ut.cpp
+  DocumentProvider.cpp
+  PageProvider.cpp
+  Provider.cpp
+  StartPageProvider.cpp
+  TextRange.cpp
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\tests\Sumatra_ut.cpp(946,5): error C2039: 'ReadFileTemp': is not a member of 'file' [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/tests/Sumatra_ut.cpp')
+      C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\base\File.h(90,11):
+      see declaration of 'file'
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\tests\Sumatra_ut.cpp(946,5): error C3861: 'ReadFileTemp': identifier not found [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/tests/Sumatra_ut.cpp')
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\tests\Sumatra_ut.cpp(951,5): error C2039: 'ReadFileTemp': is not a member of 'file' [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/tests/Sumatra_ut.cpp')
+      C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\base\File.h(90,11):
+      see declaration of 'file'
+  
+C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\src\tests\Sumatra_ut.cpp(951,5): error C3861: 'ReadFileTemp': identifier not found [C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-fc6d9790\vs2022\SumatraPDF.vcxproj]
+  (compiling source file '/src/tests/Sumatra_ut.cpp')
+  
