@@ -53,6 +53,10 @@ jobs:
           Copy-Item out\rel64\Swiftleaf.exe dist\Swiftleaf-install.exe
           Get-ChildItem dist | Format-Table Name, Length
 
+      - name: Release size and performance report
+        shell: pwsh
+        run: ./tools/release-report.ps1
+
       - name: Check signing secrets
         id: signing
         shell: pwsh
@@ -104,6 +108,13 @@ jobs:
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
+
+      - name: Upload release report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-report
+          path: dist/release-report.json
 
       - name: Upload build
         uses: actions/upload-artifact@v4

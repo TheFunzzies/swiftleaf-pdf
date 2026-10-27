@@ -352,6 +352,7 @@ TempStr RunBatchActionsJson(Str definition, const Vec<Str>& files, BatchProgress
             out.AppendChar('"');
             if (audit.beforeBytes > 0) {
                 out.Append(fmt(",\"beforeBytes\":%lld,\"afterBytes\":%lld", audit.beforeBytes, audit.afterBytes));
+                out.Append(fmt(",\"keptOriginal\":%s,\"imageBytes\":%lld,\"fontBytes\":%lld,\"otherStreamBytes\":%lld", audit.keptOriginal ? StrL("true") : StrL("false"), audit.streamsAfter[0], audit.streamsAfter[1], audit.streamsAfter[2]));
             }
         } else {
             out.Append(StrL(",\"error\":\"action failed: "));

@@ -25,6 +25,9 @@ enum class PdfOptimizerPreset {
 struct PdfOptimizationAudit {
     i64 beforeBytes = 0;
     i64 afterBytes = 0;
+    i64 streamsBefore[3]{};
+    i64 streamsAfter[3]{};
+    bool keptOriginal = false;
 };
 bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOptimizationAudit* auditOut = nullptr);
 void ShowPdfDecompressDialog(MainWindow* win);

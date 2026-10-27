@@ -10957,7 +10957,8 @@ static Str ReplaceEditMatches(Str text, Str find, Str replacement, int& count) {
 
 // Edit a private snapshot, then atomically publish only after every match succeeds.
 bool EngineMupdfReplaceAllText(EngineBase* engine, Str destination, Str find, Str replacement, int* countOut,
-                               Str* errorOut) {
+                               Str* errorOut, PdfRedactReview* review) {
+    if (review && review->preview) VecReset(review->matches);
     if (countOut) *countOut = 0;
     if (errorOut) *errorOut = {};
     EngineMupdf* original = AsEngineMupdf(engine);
@@ -12202,7 +12203,7 @@ static void MarkSearchMatch(fz_context* ctx, pdf_page* page, const Vec<RedactCha
     }
 }
 
-static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str term, fz_regex* regex) {
+static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str term, fz_regex* regex, PdfRedactReview* review, int* matchId) {
     pdf_page* page = nullptr;
     fz_stext_page* text = nullptr;
     fz_var(page);
@@ -12252,17 +12253,32 @@ static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str 
                 cursor = end + fz_chartorune(&rune, end);
                 continue;
             }
-            MarkSearchMatch(ctx, page, chars, (int)(start - begin), (int)(end - begin));
-            count++;
+            fz_rect box = fz_empty_rect;
+            for (const RedactChar& c : chars) {
+                if (c.offset >= start - begin && c.offset < end - begin)
+                    box = fz_union_rect(box, fz_rect_from_quad(c.quad));
+            }
+            int id = ++*matchId;
+            if (review && review->preview) {
+                VecAppend(review->matches, PdfRedactMatch{number + 1, RectF(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0)});
+            } else if (!review || VecContains(review->selected, id)) {
+                MarkSearchMatch(ctx, page, chars, (int)(start - begin), (int)(end - begin));
+                count++;
+            }
             cursor = end;
         }
         if (count) {
             pdf_redact_options redaction = {};
-            redaction.black_boxes = 1;
+            redaction.black_boxes = !review || review->blackBoxes;
             redaction.image_method = PDF_REDACT_IMAGE_REMOVE;
             redaction.line_art = PDF_REDACT_LINE_ART_REMOVE_IF_TOUCHED;
             redaction.text = PDF_REDACT_TEXT_REMOVE;
             pdf_redact_page(ctx, doc, page, &redaction);
+            if (review && len(review->reason)) {
+                pdf_annot* note = pdf_create_annot(ctx, page, PDF_ANNOT_TEXT);
+                pdf_set_annot_contents(ctx, note, CStrTemp(review->reason));
+                pdf_drop_annot(ctx, note);
+            }
         }
     }
     fz_always(ctx) {
@@ -12276,7 +12292,8 @@ static int RedactSearchPage(fz_context* ctx, pdf_document* doc, int number, Str 
 }
 
 bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term, PdfSearchMode mode, int* countOut,
-                              Str* errorOut) {
+                              Str* errorOut, PdfRedactReview* review) {
+    if (review && review->preview) VecReset(review->matches);
     if (countOut) *countOut = 0;
     if (errorOut) *errorOut = {};
     if (!len(term)) {
@@ -12304,16 +12321,19 @@ bool EngineMupdfRedactMatches(const PdfMergeSource& src, Str destPath, Str term,
             VecAppend(layerStates, pdf_layer_is_enabled(ctx, doc, i));
             pdf_enable_layer(ctx, doc, i, 1);
         }
-        for (int i = 0; i < pdf_count_pages(ctx, doc); i++) count += RedactSearchPage(ctx, doc, i, term, regex);
+        int matchId = 0;
+        for (int i = 0; i < pdf_count_pages(ctx, doc); i++)
+            count += RedactSearchPage(ctx, doc, i, term, regex, review, &matchId);
         for (int i = 0; i < len(layerStates); i++) pdf_enable_layer(ctx, doc, i, layerStates[i]);
         if (count) {
             // Tags and thumbnails can hold copies of removed content.
             pdf_dict_del(ctx, MergeRoot(ctx, doc), PDF_NAME(StructTreeRoot));
             PdfSanitizeOptions clean = {};
-            clean.metadata = clean.javascript = clean.attachments = clean.comments = clean.forms = false;
+            clean.javascript = clean.attachments = clean.comments = clean.forms = false;
+            pdf_dict_del(ctx, pdf_trailer(ctx, doc), PDF_NAME(Info));
             VisitPdfObjects(ctx, doc, SanitizePdfObject, &clean);
         }
-        ok = SaveCleanPdf(ctx, doc, output);
+        ok = (review && review->preview) || SaveCleanPdf(ctx, doc, output);
     }
     fz_always(ctx) {
         fz_regfree(ctx, regex);
