@@ -76,7 +76,7 @@ function configFor(kind: BuildKind): UnitTestConfig {
   if (kind === "dbg32") {
     return {
       platform: "Win32",
-      target: "SwiftLeaf",
+      target: "SumatraPDF",
       exeName: "Swiftleaf.exe",
       outDir: join("out", "dbg32"),
       logName: "unit-tests-dbg32.txt",
@@ -93,7 +93,7 @@ function configFor(kind: BuildKind): UnitTestConfig {
   }
   return {
     platform: "x64",
-    target: "SwiftLeaf",
+    target: "SumatraPDF",
     exeName: "Swiftleaf.exe",
     outDir: join("out", "dbg64"),
     logName: "unit-tests-dbg.txt",

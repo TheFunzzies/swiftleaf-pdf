@@ -53,6 +53,9 @@ jobs:
           Copy-Item out\rel64\Swiftleaf.exe dist\Swiftleaf-install.exe
           Get-ChildItem dist | Format-Table Name, Length
 
+      - name: Gate release binary size
+        run: bun tools/check-release-size.ts dist
+
       - name: Check signing secrets
         id: signing
         shell: pwsh

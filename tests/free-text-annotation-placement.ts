@@ -85,6 +85,28 @@ async function placementState(client: ControlClient): Promise<PlacementState> {
   };
 }
 
+// Poll until placement cursor and preview settle over the canvas.
+async function waitForPreview(
+  client: ControlClient,
+  canvas: number,
+  screenPoint: { x: number; y: number },
+  pagePoint: { x: number; y: number },
+): Promise<PlacementState> {
+  const deadline = Date.now() + 5_000;
+  for (;;) {
+    setCursorPos(screenPoint.x, screenPoint.y);
+    sendMessage(canvas, WM_MOUSEMOVE, 0, packCoords(pagePoint.x, pagePoint.y));
+    const state = await placementState(client);
+    if (state.cursor && state.preview) {
+      return state;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`free-text-annotation-placement: preview/cursor was not active\n${state.raw}`);
+    }
+    await sleep(40);
+  }
+}
+
 async function waitForPlacement(client: ControlClient, active: boolean): Promise<PlacementState> {
   const deadline = Date.now() + 5_000;
   for (;;) {
@@ -203,12 +225,8 @@ export async function testit(): Promise<void> {
     }
 
     const screenPoint = clientToScreen(canvas, pagePoint.x, pagePoint.y);
-    setCursorPos(screenPoint.x, screenPoint.y);
-    sendMessage(canvas, WM_MOUSEMOVE, 0, packCoords(pagePoint.x, pagePoint.y));
-    state = await placementState(client);
-    if (!state.cursor || !state.preview) {
-      throw new Error(`free-text-annotation-placement: preview/cursor was not active\n${state.raw}`);
-    }
+    // Poll until placement cursor and preview settle over the canvas.
+    state = await waitForPreview(client, canvas, screenPoint, pagePoint);
     const preview = state.previewRect;
     // A one-line draft target, rather than MuPDF's 200x100 default.
     if (preview.dx < 20 || preview.dy < 8 || preview.dy > preview.dx / 2) {

@@ -197,7 +197,7 @@ async function buildWindows(config: Config, win32: boolean, clean: boolean, ninj
     await buildNinja([join(ninjaToRoot, outDir, "Swiftleaf.exe")]);
   } else {
     const { msbuildPath } = detectVisualStudio();
-    await buildApp(msbuildPath, configName, platform, "SwiftLeaf");
+    await buildApp(msbuildPath, configName, platform, "SumatraPDF");
   }
   printBinaries(outDir, new Set(["Swiftleaf.exe"]));
 }
@@ -293,7 +293,7 @@ async function buildAll(clean: boolean, ninja: boolean): Promise<void> {
     await buildNinja([join(ninjaToRoot, outDir, "Swiftleaf.exe"), join(ninjaToRoot, outDir, "SumatraPDF-static.exe")]);
   } else {
     const { msbuildPath } = detectVisualStudio();
-    await buildApp(msbuildPath, "Release", "x64", "SwiftLeaf");
+    await buildApp(msbuildPath, "Release", "x64", "SumatraPDF");
     await runLogged(msbuildPath, [
       String.raw`vs2022\SumatraPDF.sln`,
       "/t:SumatraPDF-static",

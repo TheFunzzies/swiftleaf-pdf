@@ -94,3 +94,13 @@ If you hold a standard Authenticode code-signing certificate as a PFX file:
 The workflow will extract the certificate into a temporary path on the runner, sign
 both `Swiftleaf.exe` and `Swiftleaf-install.exe` using `signtool.exe` with SHA-256 and
 DigiCert RFC 3161 timestamping, and securely delete the temporary PFX file.
+
+## Release binary size gate
+
+To prevent footprint regressions and preserve fast loading as features expand,
+the release build workflow (`.github/workflows/build.yml`) executes
+`tools/check-release-size.ts` against `tools/release-size-baseline.json`.
+
+- Reports exact byte counts and deltas for `Swiftleaf.exe` and `Swiftleaf-install.exe`.
+- Emits a warning if sizes increase within acceptable limits.
+- Fails the build if binary size grows by more than 10% over the recorded baseline.

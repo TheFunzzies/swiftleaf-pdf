@@ -494,78 +494,258 @@ void ShowPdfExtractTextDialog(MainWindow* win) {
     }
 }
 
-// --- Compress PDF dialog ---
+// --- Compress PDF dialog & optimization engine ---
 
-// Swiftleaf: how hard Compress PDF tries. Light is lossless; Medium and High
-// also scale photos down (to 150 / 96 dpi) and re-encode them as JPEG
-enum class CompressLevel {
-    Light = 0,
-    Medium,
-    High,
+constexpr int kCompressPresetCount = 4;
+static const PdfOptimizerPreset kCompressPresets[kCompressPresetCount] = {
+    PdfOptimizerPreset::Archive,
+    PdfOptimizerPreset::Print,
+    PdfOptimizerPreset::Web,
+    PdfOptimizerPreset::MinSize,
 };
-constexpr int kCompressLevelCount = 3;
+
+bool PdfAuditBreakdown(Str filePath, PdfOptimizationAudit* auditOut) {
+    if (!auditOut) {
+        return false;
+    }
+    i64 total = file::GetSize(filePath);
+    if (total <= 0) {
+        return false;
+    }
+    if (auditOut->beforeBytes <= 0) {
+        auditOut->beforeBytes = total;
+    }
+    if (auditOut->afterBytes <= 0) {
+        auditOut->afterBytes = total;
+    }
+    auditOut->imageBytes = 0;
+    auditOut->fontBytes = 0;
+    auditOut->objectBytes = 0;
+
+    fz_context* ctx = fz_new_context(nullptr, nullptr, FZ_STORE_DEFAULT);
+    if (!ctx) {
+        return false;
+    }
+    fz_register_document_handlers(ctx);
+    pdf_document* doc = nullptr;
+    fz_var(doc);
+    i64 images = 0;
+    i64 fonts = 0;
+    fz_try(ctx) {
+        doc = pdf_open_document(ctx, CStrTemp(filePath));
+        int n = pdf_xref_len(ctx, doc);
+
+        Vec<int> fontObjNums;
+        for (int i = 1; i < n; i++) {
+            pdf_obj* obj = pdf_load_object(ctx, doc, i);
+            if (!obj) {
+                continue;
+            }
+            if (pdf_is_dict(ctx, obj)) {
+                pdf_obj* type = pdf_dict_get(ctx, obj, PDF_NAME(Type));
+                pdf_obj* subtype = pdf_dict_get(ctx, obj, PDF_NAME(Subtype));
+                if (pdf_name_eq(ctx, type, PDF_NAME(Font)) || pdf_name_eq(ctx, type, PDF_NAME(FontDescriptor)) ||
+                    pdf_name_eq(ctx, subtype, PDF_NAME(Type1C)) || pdf_name_eq(ctx, subtype, PDF_NAME(CIDFontType0C))) {
+                    if (!VecContains(fontObjNums, i)) {
+                        VecAppend(fontObjNums, i);
+                    }
+                    pdf_obj* ff = pdf_dict_get(ctx, obj, PDF_NAME(FontFile));
+                    if (!ff) {
+                        ff = pdf_dict_get(ctx, obj, PDF_NAME(FontFile2));
+                    }
+                    if (!ff) {
+                        ff = pdf_dict_get(ctx, obj, PDF_NAME(FontFile3));
+                    }
+                    if (ff && pdf_is_indirect(ctx, ff)) {
+                        int num = pdf_to_num(ctx, ff);
+                        if (num > 0 && !VecContains(fontObjNums, num)) {
+                            VecAppend(fontObjNums, num);
+                        }
+                    }
+                }
+            }
+            pdf_drop_obj(ctx, obj);
+        }
+
+        for (int i = 1; i < n; i++) {
+            pdf_obj* obj = pdf_load_object(ctx, doc, i);
+            if (!obj) {
+                continue;
+            }
+            if (pdf_is_dict(ctx, obj)) {
+                i64 len = pdf_to_int64(ctx, pdf_dict_get(ctx, obj, PDF_NAME(Length)));
+                if (len > 0) {
+                    pdf_obj* type = pdf_dict_get(ctx, obj, PDF_NAME(Type));
+                    pdf_obj* subtype = pdf_dict_get(ctx, obj, PDF_NAME(Subtype));
+                    bool isImage =
+                        pdf_name_eq(ctx, subtype, PDF_NAME(Image)) ||
+                        (pdf_name_eq(ctx, type, PDF_NAME(XObject)) && pdf_name_eq(ctx, subtype, PDF_NAME(Image)));
+                    bool isFont = VecContains(fontObjNums, i);
+                    if (isImage) {
+                        images += len;
+                    } else if (isFont) {
+                        fonts += len;
+                    }
+                }
+            }
+            pdf_drop_obj(ctx, obj);
+        }
+    }
+    fz_always(ctx) {
+        if (doc) {
+            pdf_drop_document(ctx, doc);
+        }
+    }
+    fz_catch(ctx) {}
+    fz_drop_context(ctx);
+
+    if (images > total) {
+        images = total;
+    }
+    if (fonts > (total - images)) {
+        fonts = total - images;
+    }
+    i64 objects = total - images - fonts;
+    if (objects < 0) {
+        objects = 0;
+    }
+
+    auditOut->imageBytes = images;
+    auditOut->fontBytes = fonts;
+    auditOut->objectBytes = objects;
+    return true;
+}
+
+Str PdfOptimizerPresetDescription(PdfOptimizerPreset preset) {
+    switch (preset) {
+        case PdfOptimizerPreset::Archive:
+            return Tr(
+                "Archive: Lossless structure and stream compression for storage. Note: does not convert to ISO PDF/A "
+                "compliance.");
+        case PdfOptimizerPreset::Print:
+            return Tr(
+                "Print: Preserves high-resolution images (>=300 DPI) and compresses streams for physical printing.");
+        case PdfOptimizerPreset::Web:
+            return Tr("Web: Photos scaled to 150 DPI JPEG (quality 75): balanced size for screen viewing.");
+        case PdfOptimizerPreset::MinSize:
+            return Tr("Smallest: Photos scaled to 96 DPI JPEG (quality 50): minimum file size.");
+    }
+    return {};
+}
 
 bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOptimizationAudit* auditOut) {
-    CompressLevel level = CompressLevel::Light;
-    if (preset == PdfOptimizerPreset::Web) level = CompressLevel::Medium;
-    if (preset == PdfOptimizerPreset::MinSize) level = CompressLevel::High;
-    file::AtomicFile output(destPath);
-    if (len(output.tempPath) == 0) return false;
-    Vec<char*> argv;
-    const char* base[] = {"clean", "-gggg", "-e", "100", "-f", "-i", "-t", "-Z"};
-    for (const char* a : base) VecAppend(argv, (char*)a);
-    if (level == CompressLevel::Medium) {
-        VecAppend(argv, (char*)"--color-image-subsample-dpi=225,150");
-        VecAppend(argv, (char*)"--gray-image-subsample-dpi=225,150");
-        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:75");
-        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:75");
-    } else if (level == CompressLevel::High) {
-        VecAppend(argv, (char*)"--color-image-subsample-dpi=144,96");
-        VecAppend(argv, (char*)"--gray-image-subsample-dpi=144,96");
-        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:50");
-        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
+    i64 beforeBytes = file::GetSize(srcPath);
+    if (beforeBytes <= 0) {
+        return false;
     }
+
+    TempStr destDir = path::GetDirTemp(destPath);
+    if (len(destDir) == 0) {
+        destDir = path::GetDirTemp(srcPath);
+    }
+    static u32 gOptCounter = 0;
+    TempStr tempOutput = path::JoinTemp(destDir, fmt("opt-%u-%u-%u.pdf", (u32)GetCurrentProcessId(), (u32)GetTickCount(), ++gOptCounter));
+
+    Vec<char*> argv;
+    VecAppend(argv, (char*)"clean");
+    VecAppend(argv, (char*)"-gggg");
+    VecAppend(argv, (char*)"-e");
+    VecAppend(argv, (char*)"100");
+    VecAppend(argv, (char*)"-f");
+    VecAppend(argv, (char*)"-i");
+    VecAppend(argv, (char*)"-t");
+    VecAppend(argv, (char*)"-z");
+    VecAppend(argv, (char*)"-Z");
+
+    switch (preset) {
+        case PdfOptimizerPreset::Archive:
+            // Lossless storage: keep structure, no downsampling, lossless recompression.
+            // Distinct from PDF/A (does not enforce PDF/A color profiles or metadata).
+            VecAppend(argv, (char*)"--structure=keep");
+            VecAppend(argv, (char*)"--color-image-recompress-method=lossless");
+            VecAppend(argv, (char*)"--gray-image-recompress-method=lossless");
+            VecAppend(argv, (char*)"--bitonal-image-recompress-method=lossless");
+            break;
+        case PdfOptimizerPreset::Print:
+            // Print: retain high resolution (>=300 DPI) for print quality, compress high-res images >450 to 300 DPI.
+            VecAppend(argv, (char*)"--structure=keep");
+            VecAppend(argv, (char*)"--color-image-subsample-dpi=450,300");
+            VecAppend(argv, (char*)"--gray-image-subsample-dpi=450,300");
+            VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:85");
+            VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:85");
+            break;
+        case PdfOptimizerPreset::Web:
+            VecAppend(argv, (char*)"--color-image-subsample-dpi=225,150");
+            VecAppend(argv, (char*)"--gray-image-subsample-dpi=225,150");
+            VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:75");
+            VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:75");
+            break;
+        case PdfOptimizerPreset::MinSize:
+            VecAppend(argv, (char*)"--color-image-subsample-dpi=144,96");
+            VecAppend(argv, (char*)"--gray-image-subsample-dpi=144,96");
+            VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:50");
+            VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
+            break;
+    }
+
     VecAppend(argv, CStrTemp(srcPath));
-    VecAppend(argv, CStrTemp(output.tempPath));
+    VecAppend(argv, CStrTemp(tempOutput));
+    VecAppend(argv, (char*)nullptr);
+
     fz_set_optind(0);
-    if (pdfclean_main(len(argv), argv.els) != 0 || !output.Commit()) return false;
+    int res = pdfclean_main(len(argv) - 1, argv.els);
+    if (res != 0) {
+        file::Delete(tempOutput);
+        return false;
+    }
+
+    i64 tempSize = file::GetSize(tempOutput);
+    // keep original if output would grow
+    if (tempSize >= beforeBytes) {
+        logf("PdfOptimizeFile: output would grow (%lld -> %lld bytes), keeping original\n", beforeBytes, tempSize);
+        file::Delete(tempOutput);
+        if (!path::IsSame(srcPath, destPath)) {
+            if (!file::Copy(destPath, srcPath, false)) {
+                return false;
+            }
+        }
+    } else {
+        if (!file::RenameReplace(destPath, tempOutput)) {
+            if (!file::Copy(destPath, tempOutput, false)) {
+                file::Delete(tempOutput);
+                return false;
+            }
+        }
+        file::Delete(tempOutput);
+    }
+
+    i64 afterBytes = file::GetSize(destPath);
     if (auditOut) {
-        auditOut->beforeBytes = file::GetSize(srcPath);
-        auditOut->afterBytes = file::GetSize(destPath);
+        auditOut->beforeBytes = beforeBytes;
+        auditOut->afterBytes = afterBytes;
+        PdfAuditBreakdown(destPath, auditOut);
     }
     return true;
 }
 
 struct PdfCompressDialog : PdfToolDialog {
-    CompressLevel level = CompressLevel::Medium;
-    VirtButton* levelBtns[kCompressLevelCount]{};
+    PdfOptimizerPreset preset = PdfOptimizerPreset::Web;
+    VirtButton* presetBtns[kCompressPresetCount]{};
     VirtText* levelHint = nullptr;
 
     bool Create(MainWindow* win, WindowTab* tab);
     void DoIt(VirtMouseEvent* ev = nullptr) override;
-    void OnLevel(VirtMouseEvent* ev);
-    void StyleLevels();
+    void OnPreset(VirtMouseEvent* ev);
+    void StylePresets();
     void UpdateTheme() override;
 };
 
-static Str CompressLevelHint(CompressLevel level) {
-    switch (level) {
-        case CompressLevel::Light:
-            return Tr("Lossless: removes waste, the pages look the same.");
-        case CompressLevel::Medium:
-            return Tr("Photos scaled to 150 dpi: good for screens and printing.");
-        case CompressLevel::High:
-            return Tr("Photos scaled to 96 dpi: smallest file, for screens.");
-    }
-    return {};
-}
-
-// the chosen level in the selected-segment colors
-void PdfCompressDialog::StyleLevels() {
+// the chosen preset in the selected-segment colors
+void PdfCompressDialog::StylePresets() {
     const M3Scheme& m3 = M3();
-    for (int i = 0; i < kCompressLevelCount; i++) {
-        VirtButton* b = levelBtns[i];
-        bool selected = (int)level == i;
+    for (int i = 0; i < kCompressPresetCount; i++) {
+        VirtButton* b = presetBtns[i];
+        bool selected = preset == kCompressPresets[i];
         Color bg = selected ? m3.secondaryContainer : kColorTransparent;
         Color base = selected ? bg : DarkModeDialogBgColor();
         b->SetColor(kColBtnBg, bg);
@@ -578,15 +758,18 @@ void PdfCompressDialog::StyleLevels() {
 
 void PdfCompressDialog::UpdateTheme() {
     PdfToolDialog::UpdateTheme();
-    if (levelBtns[0]) {
-        StyleLevels();
+    if (presetBtns[0]) {
+        StylePresets();
     }
 }
 
-void PdfCompressDialog::OnLevel(VirtMouseEvent* ev) {
-    level = (CompressLevel)ev->target->id;
-    StyleLevels();
-    levelHint->SetText(CompressLevelHint(level));
+void PdfCompressDialog::OnPreset(VirtMouseEvent* ev) {
+    int idx = ev->target->id;
+    if (idx >= 0 && idx < kCompressPresetCount) {
+        preset = kCompressPresets[idx];
+    }
+    StylePresets();
+    levelHint->SetText(PdfOptimizerPresetDescription(preset));
     DoLayout();
     HwndInvalidate(hwnd);
 }
@@ -597,50 +780,29 @@ void PdfCompressDialog::DoIt(VirtMouseEvent*) {
         return;
     }
 
-    logf("PdfCompressDoIt: compressing '%s' to '%s', level %d\n", srcPath, destPath, (int)level);
+    logf("PdfCompressDoIt: compressing '%s' to '%s', preset %d\n", srcPath, destPath, (int)preset);
 
-    // Light: clean -gggg -e 100 -f -i -t -Z input output
-    file::AtomicFile output(destPath);
-    if (len(output.tempPath) == 0) {
-        MessageBoxWarning(hwnd, Tr("Couldn't create a temporary file beside the PDF."), Tr("Save PDF"));
+    PdfOptimizationAudit audit{};
+    if (!PdfOptimizeFile(srcPath, destPath, preset, &audit)) {
+        logf("PdfCompressDoIt: PdfOptimizeFile failed\n");
+        MessageBoxWarning(hwnd, StrL("Failed to compress PDF file."), Tr("Compress PDF"));
         return;
     }
-    Vec<char*> argv;
-    const char* base[] = {"clean", "-gggg", "-e", "100", "-f", "-i", "-t", "-Z"};
-    for (const char* a : base) {
-        VecAppend(argv, (char*)a);
-    }
-    // images above the first dpi go down to the second, as JPEG
-    if (level == CompressLevel::Medium) {
-        VecAppend(argv, (char*)"--color-image-subsample-dpi=225,150");
-        VecAppend(argv, (char*)"--gray-image-subsample-dpi=225,150");
-        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:75");
-        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:75");
-    } else if (level == CompressLevel::High) {
-        VecAppend(argv, (char*)"--color-image-subsample-dpi=144,96");
-        VecAppend(argv, (char*)"--gray-image-subsample-dpi=144,96");
-        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:50");
-        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
-    }
-    VecAppend(argv, CStrTemp(srcPath));
-    VecAppend(argv, CStrTemp(output.tempPath));
 
-    fz_set_optind(0);
-    int res = pdfclean_main(len(argv), argv.els);
-    if (res == 0 && !output.Commit()) {
-        res = 1;
-    }
-    if (res == 0) {
-        logf("PdfCompressDoIt: compressed successfully\n");
-        MainWindow* w = win;
-        TempStr path = str::DupTemp(destPath);
-        Close();
-        LoadArgs args(path, w);
-        StartLoadDocument(&args);
+    if (audit.afterBytes >= audit.beforeBytes) {
+        logf("PdfCompressDoIt: output would grow (%lld -> %lld bytes), kept original\n", audit.beforeBytes,
+             audit.afterBytes);
+        MessageBoxWarning(hwnd, Tr("Compression would increase file size. Kept original document."),
+                          Tr("Compress PDF"));
     } else {
-        logf("PdfCompressDoIt: pdfclean_main failed with %d\n", res);
-        MessageBoxWarning(hwnd, StrL("Failed to compress PDF file."), Tr("Compress PDF"));
+        logf("PdfCompressDoIt: compressed %lld -> %lld bytes\n", audit.beforeBytes, audit.afterBytes);
     }
+
+    MainWindow* w = win;
+    TempStr path = str::DupTemp(destPath);
+    Close();
+    LoadArgs args(path, w);
+    StartLoadDocument(&args);
 }
 
 bool PdfCompressDialog::Create(MainWindow* w, WindowTab* tab) {
@@ -648,6 +810,18 @@ bool PdfCompressDialog::Create(MainWindow* w, WindowTab* tab) {
         return false;
     }
     AddPathRow();
+
+    PdfOptimizationAudit initialAudit{};
+    if (PdfAuditBreakdown(srcPath, &initialAudit)) {
+        HBox* auditRow = AddRow();
+        TempStr auditText = fmt("%s: %s (%s: %s, %s: %s, %s: %s)", Tr("Current size"),
+                                str::FormatSizeShortTemp(initialAudit.beforeBytes), Tr("Images"),
+                                str::FormatSizeShortTemp(initialAudit.imageBytes), Tr("Fonts"),
+                                str::FormatSizeShortTemp(initialAudit.fontBytes), Tr("Objects"),
+                                str::FormatSizeShortTemp(initialAudit.objectBytes));
+        auditRow->AddChild(NewVirtText({.s = auditText, .font = font, .isRtl = IsUIRtl()}));
+    }
+
     // report.pdf -> report_compressed.pdf
     Str stem = str::DupTemp(srcPath);
     if (str::EndsWithI(stem, StrL(".pdf"))) {
@@ -656,25 +830,24 @@ bool PdfCompressDialog::Create(MainWindow* w, WindowTab* tab) {
     TempStr dest = MakeUniqueFilePathTemp(fmt("%s_compressed.pdf", stem));
     AddDestRow(dest, L"PDF Files\0*.pdf\0All Files\0*.*\0", L"pdf");
 
-    // Light | Medium | High, then what the chosen one does
     HBox* row = AddRow();
     row->gap = DpiScale(4);
-    row->AddChild(NewVirtText({.s = Tr("Compression:"), .font = font, .isRtl = IsUIRtl()}));
+    row->AddChild(NewVirtText({.s = Tr("Preset:"), .font = font, .isRtl = IsUIRtl()}));
     row->AddChild(new Spacer(gap, 0));
-    Str names[kCompressLevelCount] = {Tr("Light"), Tr("Medium"), Tr("High")};
-    for (int i = 0; i < kCompressLevelCount; i++) {
-        levelBtns[i] = NewButton(names[i], false);
-        levelBtns[i]->id = i;
-        levelBtns[i]->onClick = MkMethod1<PdfCompressDialog, VirtMouseEvent*, &PdfCompressDialog::OnLevel>(this);
-        row->AddChild(levelBtns[i]);
+    Str names[kCompressPresetCount] = {Tr("Archive"), Tr("Print"), Tr("Web"), Tr("Smallest")};
+    for (int i = 0; i < kCompressPresetCount; i++) {
+        presetBtns[i] = NewButton(names[i], false);
+        presetBtns[i]->id = i;
+        presetBtns[i]->onClick = MkMethod1<PdfCompressDialog, VirtMouseEvent*, &PdfCompressDialog::OnPreset>(this);
+        row->AddChild(presetBtns[i]);
     }
     HBox* hintRow = AddRow();
-    levelHint = NewVirtText({.s = CompressLevelHint(level), .font = font, .isRtl = IsUIRtl()});
+    levelHint = NewVirtText({.s = PdfOptimizerPresetDescription(preset), .font = font, .isRtl = IsUIRtl()});
     hintRow->AddChild(levelHint, 1);
 
     AddButtonsRow(Tr("Compress PDF"));
     FinishDialog(destEdit);
-    StyleLevels();
+    StylePresets();
     return true;
 }
 
@@ -3988,6 +4161,19 @@ struct PdfPrivacyDialog : PdfToolDialog {
     Checkbox* options[7]{};
     Checkbox* regex = nullptr;
     Edit* term = nullptr;
+    Edit* preview = nullptr;
+    Edit* selection = nullptr;
+    Edit* overlay = nullptr;
+    Edit* reason = nullptr;
+    Str reviewPath;
+    Vec<PdfRedactMatch> matches;
+
+    ~PdfPrivacyDialog() {
+        if (len(reviewPath)) file::Delete(reviewPath);
+        str::Free(reviewPath);
+    }
+    void ReviewRedactions(WindowTab* tab);
+    void OnPattern(VirtMouseEvent* ev);
 
     bool Create(MainWindow* w, WindowTab* tab, bool isRedact);
     Checkbox* AddCheck(Str label, bool checked);
@@ -4010,7 +4196,7 @@ Checkbox* PdfPrivacyDialog::AddCheck(Str label, bool checked) {
 
 bool PdfPrivacyDialog::Create(MainWindow* w, WindowTab* tab, bool isRedact) {
     redact = isRedact;
-    if (!CreateToolDialog(w, tab, redact ? Tr("Redact All Search Matches") : Tr("Sanitize Document"))) return false;
+    if (!CreateToolDialog(w, tab, redact ? Tr("Search and Redact") : Tr("Sanitize Document"))) return false;
     AddPathRow();
     Str stem = srcPath;
     if (str::EndsWithI(stem, StrL(".pdf"))) stem.len -= 4;
@@ -4019,6 +4205,28 @@ bool PdfPrivacyDialog::Create(MainWindow* w, WindowTab* tab, bool isRedact) {
     if (redact) {
         term = AddLabeledEdit(Tr("Find:"), {});
         regex = AddCheck(Tr("Regular expression (case sensitive)"), false);
+        HBox* presets = AddRow();
+        for (int i = 0; i < 2; i++) {
+            auto* button = NewButton(i ? Tr("SSN pattern") : Tr("Email pattern"), false);
+            button->id = i;
+            button->onClick = MkMethod1<PdfPrivacyDialog, VirtMouseEvent*, &PdfPrivacyDialog::OnPattern>(this);
+            presets->AddChild(button);
+        }
+        Edit::CreateArgs args;
+        args.parent = hwnd;
+        args.font = font;
+        args.isMultiLine = true;
+        args.withBorder = true;
+        args.idealSizeLines = 6;
+        preview = new Edit();
+        preview->Create(args);
+        SendMessageW(preview->hwnd, EM_SETREADONLY, TRUE, 0);
+        AddRow()->AddChild(preview, 1);
+        selection = AddLabeledEdit(Tr("Match IDs (comma separated):"), {});
+        reason = AddLabeledEdit(Tr("Reason (used as label if overlay is empty):"), {});
+        overlay = AddLabeledEdit(Tr("Overlay text (optional):"), {});
+        AddRow()->AddChild(
+            NewVirtText({.s = Tr("Apply removes metadata, attachments, scripts, comments and tags."), .font = font}));
         AddRow()->AddChild(NewVirtText(
             {.s = Tr("Searches all pages, including invisible text. Images are not OCR searched."), .font = font}));
         AddRow()->AddChild(NewVirtText(
@@ -4033,7 +4241,7 @@ bool PdfPrivacyDialog::Create(MainWindow* w, WindowTab* tab, bool isRedact) {
         options[5] = AddCheck(Tr("Form data and fields"), true);
         options[6] = AddCheck(Tr("Thumbnails"), true);
     }
-    AddButtonsRow(redact ? Tr("Redact All Matches") : Tr("Sanitize"));
+    AddButtonsRow(redact ? Tr("Preview Matches") : Tr("Sanitize"));
     FinishDialog(redact ? term : destEdit, 760);
     return true;
 }
@@ -4047,6 +4255,10 @@ void PdfPrivacyDialog::DoIt(VirtMouseEvent*) {
     }
     WindowTab* tab = win ? win->CurrentTab() : nullptr;
     if (!tab || !path::IsSame(tab->filePath, srcPath)) return;
+    if (redact) {
+        ReviewRedactions(tab);
+        return;
+    }
     EngineBase* engine = tab->GetEngine();
     TempStr snapshot;
     Str input = srcPath;
@@ -4080,7 +4292,7 @@ void PdfPrivacyDialog::DoIt(VirtMouseEvent*) {
     if (len(snapshot)) file::Delete(snapshot);
     if (!ok) {
         MessageBoxWarning(hwnd, len(error) ? error : Tr("Failed to save PDF copy."),
-                          redact ? Tr("Redact All Search Matches") : Tr("Sanitize Document"));
+                          redact ? Tr("Search and Redact") : Tr("Sanitize Document"));
         return;
     }
     MainWindow* w = win;
@@ -4091,6 +4303,81 @@ void PdfPrivacyDialog::DoIt(VirtMouseEvent*) {
     StartLoadDocument(&args);
     if (wasRedact)
         ShowTemporaryNotification(w->hwndCanvas, fmt(Tr("Redacted %d matches. Saved a separate copy.").s, count));
+}
+
+void PdfPrivacyDialog::OnPattern(VirtMouseEvent* ev) {
+    if (len(reviewPath)) return;
+    term->SetText(ev->target->id ? StrL("[0-9]{3}-[0-9]{2}-[0-9]{4}")
+                                 : StrL("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"));
+    regex->SetState(Checkbox::State::Checked);
+}
+
+void PdfPrivacyDialog::ReviewRedactions(WindowTab* tab) {
+    Str error;
+    if (!len(reviewPath)) {
+        TempStr snapshot = GetTempFilePathTemp(StrL("redact-review"));
+        if (!EngineMupdfSaveCopy(tab->GetEngine(), snapshot)) {
+            file::Delete(snapshot);
+            MessageBoxWarning(hwnd, Tr("Failed to save copy of PDF file."), Tr("Redaction"));
+            return;
+        }
+        PdfMergeSource source{snapshot, EngineMupdfGetPassword(tab->GetEngine())};
+        if (!EngineMupdfPreviewRedactions(source, term->GetTextTemp(),
+                                          regex->IsChecked() ? PdfSearchMode::Regex : PdfSearchMode::Text, matches,
+                                          &error)) {
+            file::Delete(snapshot);
+            MessageBoxWarning(hwnd, error, Tr("Redaction"));
+            return;
+        }
+        if (!len(matches)) {
+            file::Delete(snapshot);
+            preview->SetText(Tr("No matches. Try another search."));
+            return;
+        }
+        reviewPath = str::Dup(snapshot);
+        str::Builder rows, ids;
+        for (int i = 0; i < len(matches); i++) {
+            const auto& m = matches[i];
+            rows.Append(fmt("%d: page %d  box [%.2f, %.2f, %.2f, %.2f]\r\n", i + 1, m.pageNo, m.box.x, m.box.y,
+                            m.box.x + m.box.dx, m.box.y + m.box.dy));
+            if (i) ids.AppendChar(',');
+            ids.Append(fmt("%d", i + 1));
+        }
+        preview->SetText(ToStr(rows));
+        selection->SetText(ToStr(ids));
+        term->SetIsEnabled(false);
+        regex->SetIsEnabled(false);
+        actionBtn->SetText(Tr("Apply Selected Matches"));
+        return;
+    }
+    Vec<int> selected;
+    const char* cursor = CStrTemp(selection->GetTextTemp());
+    while (*cursor) {
+        char* end;
+        long id = strtol(cursor, &end, 10);
+        if (end == cursor || id < 1 || id > len(matches) || (*end && *end != ',')) {
+            MessageBoxWarning(hwnd, Tr("Enter match IDs from the preview, separated by commas."), Tr("Redaction"));
+            return;
+        }
+        if (VecFind(selected, (int)id) < 0) VecAppend(selected, (int)id);
+        cursor = *end ? end + 1 : end;
+        if (*end && !*cursor) return;
+    }
+    PdfMergeSource source{reviewPath, EngineMupdfGetPassword(tab->GetEngine())};
+    int count = 0;
+    TempStr dest = destEdit->GetTextTemp();
+    if (!EngineMupdfRedactMatches(source, dest, term->GetTextTemp(),
+                                  regex->IsChecked() ? PdfSearchMode::Regex : PdfSearchMode::Text, &count, &error,
+                                  &selected, overlay->GetTextTemp(), reason->GetTextTemp())) {
+        MessageBoxWarning(hwnd, error, Tr("Redaction"));
+        return;
+    }
+    MainWindow* w = win;
+    TempStr saved = str::DupTemp(dest);
+    Close();
+    LoadArgs args(saved, w);
+    StartLoadDocument(&args);
+    ShowTemporaryNotification(w->hwndCanvas, fmt(Tr("Redacted %d matches. Saved a separate copy.").s, count));
 }
 
 void ShowPdfSanitizeDialog(MainWindow* win) {

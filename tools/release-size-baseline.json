@@ -1,0 +1,8 @@
+{
+  "version": "0.5.0",
+  "comment": "Recorded baseline sizes (in bytes) for release binaries",
+  "files": {
+    "Swiftleaf.exe": 13570048,
+    "Swiftleaf-install.exe": 13570048
+  }
+}

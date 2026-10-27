@@ -41,4 +41,8 @@ void EnhanceGrayscalePixmap(Pixmap* px);
 void EnhanceContrastPixmap(Pixmap* px, float factor = 1.3f);
 void EnhanceThresholdPixmap(Pixmap* px, int threshold = -1);
 
+#if IS_DEBUG
+bool ScannerWia_UnitTests();
+#endif
+
 #endif
