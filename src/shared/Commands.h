@@ -417,8 +417,20 @@ enum {
     CmdPdfRemoveAnnotations = 611,
     CmdPdfRemoveLinks = 612,
     CmdPdfManageLayers = 613,
+    CmdAccessibilityChecker = 614,
+    CmdAccessibilityFixes = 615,
+    CmdPdfAConvert = 616,
+    CmdPdfAValidate = 617,
+    CmdPreflight = 618,
+    CmdPdfConvertColors = 619,
+    CmdScanAcquire = 620,
+    CmdImportCameraImage = 621,
+    CmdBatchOcr = 622,
+    CmdSignaturePanel = 623,
+    CmdCertifyDocument = 624,
+    CmdClearSignature = 625,
 
-    CmdLast = 613,
+    CmdLast = 625,
     CmdFirstCustom = CmdLast + 100,
 
     // aliases, at the end to not mess ordering

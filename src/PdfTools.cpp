@@ -510,6 +510,7 @@ bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOp
     if (preset == PdfOptimizerPreset::MinSize) level = CompressLevel::High;
     file::AtomicFile output(destPath);
     if (len(output.tempPath) == 0) return false;
+    TempStr pdfTemp = fmt("%s.pdf", output.tempPath);
     Vec<char*> argv;
     const char* base[] = {"clean", "-gggg", "-e", "100", "-f", "-i", "-t", "-Z"};
     for (const char* a : base) VecAppend(argv, (char*)a);
@@ -525,9 +526,12 @@ bool PdfOptimizeFile(Str srcPath, Str destPath, PdfOptimizerPreset preset, PdfOp
         VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
     }
     VecAppend(argv, CStrTemp(srcPath));
-    VecAppend(argv, CStrTemp(output.tempPath));
+    VecAppend(argv, CStrTemp(pdfTemp));
     fz_set_optind(0);
-    if (pdfclean_main(len(argv), argv.els) != 0 || !output.Commit()) return false;
+    int res = pdfclean_main(len(argv), argv.els);
+    bool moved = res == 0 && file::RenameReplace(output.tempPath, pdfTemp);
+    file::Delete(pdfTemp);
+    if (!moved || !output.Commit()) return false;
     if (auditOut) {
         auditOut->beforeBytes = file::GetSize(srcPath);
         auditOut->afterBytes = file::GetSize(destPath);
@@ -539,12 +543,15 @@ bool PdfEncryptFile(Str srcPath, Str destPath, Str password) {
     if (len(password) == 0) return false;
     file::AtomicFile output(destPath);
     if (len(output.tempPath) == 0) return false;
+    TempStr pdfTemp = fmt("%s.pdf", output.tempPath);
     char* pwd = CStrTemp(password);
-    char* argv[] = {
-        (char*)"clean",           (char*)"-E", (char*)"aes-256", (char*)"-U", pwd, (char*)"-O", pwd, CStrTemp(srcPath),
-        CStrTemp(output.tempPath)};
+    char* argv[] = {(char*)"clean", (char*)"-E", (char*)"aes-256",  (char*)"-U",      pwd,
+                    (char*)"-O",    pwd,         CStrTemp(srcPath), CStrTemp(pdfTemp)};
     fz_set_optind(0);
-    return pdfclean_main(dimof(argv), argv) == 0 && output.Commit();
+    int res = pdfclean_main(dimof(argv), argv);
+    bool moved = res == 0 && file::RenameReplace(output.tempPath, pdfTemp);
+    file::Delete(pdfTemp);
+    return moved && output.Commit();
 }
 
 struct PdfCompressDialog : PdfToolDialog {
@@ -610,38 +617,11 @@ void PdfCompressDialog::DoIt(VirtMouseEvent*) {
 
     logf("PdfCompressDoIt: compressing '%s' to '%s', level %d\n", srcPath, destPath, (int)level);
 
-    // Light: clean -gggg -e 100 -f -i -t -Z input output
-    file::AtomicFile output(destPath);
-    if (len(output.tempPath) == 0) {
-        MessageBoxWarning(hwnd, Tr("Couldn't create a temporary file beside the PDF."), Tr("Save PDF"));
-        return;
-    }
-    Vec<char*> argv;
-    const char* base[] = {"clean", "-gggg", "-e", "100", "-f", "-i", "-t", "-Z"};
-    for (const char* a : base) {
-        VecAppend(argv, (char*)a);
-    }
-    // images above the first dpi go down to the second, as JPEG
-    if (level == CompressLevel::Medium) {
-        VecAppend(argv, (char*)"--color-image-subsample-dpi=225,150");
-        VecAppend(argv, (char*)"--gray-image-subsample-dpi=225,150");
-        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:75");
-        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:75");
-    } else if (level == CompressLevel::High) {
-        VecAppend(argv, (char*)"--color-image-subsample-dpi=144,96");
-        VecAppend(argv, (char*)"--gray-image-subsample-dpi=144,96");
-        VecAppend(argv, (char*)"--color-image-recompress-method=jpeg:50");
-        VecAppend(argv, (char*)"--gray-image-recompress-method=jpeg:50");
-    }
-    VecAppend(argv, CStrTemp(srcPath));
-    VecAppend(argv, CStrTemp(output.tempPath));
-
-    fz_set_optind(0);
-    int res = pdfclean_main(len(argv), argv.els);
-    if (res == 0 && !output.Commit()) {
-        res = 1;
-    }
-    if (res == 0) {
+    PdfOptimizerPreset preset = PdfOptimizerPreset::Web;
+    if (level == CompressLevel::Light) preset = PdfOptimizerPreset::Archive;
+    if (level == CompressLevel::High) preset = PdfOptimizerPreset::MinSize;
+    bool ok = PdfOptimizeFile(srcPath, destPath, preset);
+    if (ok) {
         logf("PdfCompressDoIt: compressed successfully\n");
         MainWindow* w = win;
         TempStr path = str::DupTemp(destPath);
@@ -649,7 +629,7 @@ void PdfCompressDialog::DoIt(VirtMouseEvent*) {
         LoadArgs args(path, w);
         StartLoadDocument(&args);
     } else {
-        logf("PdfCompressDoIt: pdfclean_main failed with %d\n", res);
+        logf("PdfCompressDoIt: optimizer failed\n");
         MessageBoxWarning(hwnd, StrL("Failed to compress PDF file."), Tr("Compress PDF"));
     }
 }
@@ -1284,23 +1264,8 @@ void PdfEncryptDialog::DoIt(VirtMouseEvent*) {
 
     logf("PdfEncryptDoIt: encrypting '%s' to '%s' with AES-256\n", srcPath, destPath);
 
-    // equivalent of: clean -E aes-256 -U <pwd> -O <pwd> input output
-    char* pwdZ = CStrTemp(pwd);
-    file::AtomicFile output(destPath);
-    if (len(output.tempPath) == 0) {
-        MessageBoxWarning(hwnd, Tr("Couldn't create a temporary file beside the PDF."), Tr("Save PDF"));
-        return;
-    }
-    char* argv[] = {(char*)"clean", (char*)"-E",       (char*)"aes-256",         (char*)"-U", pwdZ, (char*)"-O",
-                    pwdZ,           CStrTemp(srcPath), CStrTemp(output.tempPath)};
-    int argc = 9;
-
-    fz_set_optind(0);
-    int res = pdfclean_main(argc, argv);
-    if (res == 0 && !output.Commit()) {
-        res = 1;
-    }
-    if (res == 0) {
+    bool ok = PdfEncryptFile(srcPath, destPath, pwd);
+    if (ok) {
         logf("PdfEncryptDoIt: encrypted successfully\n");
         MainWindow* w = win;
         TempStr path = str::DupTemp(destPath);
@@ -1308,7 +1273,7 @@ void PdfEncryptDialog::DoIt(VirtMouseEvent*) {
         LoadArgs args(path, w);
         StartLoadDocument(&args);
     } else {
-        logf("PdfEncryptDoIt: pdfclean_main failed with %d\n", res);
+        logf("PdfEncryptDoIt: pdfclean_main failed\n");
         MessageBoxWarning(hwnd, StrL("Failed to encrypt PDF file."), Tr("Encrypt PDF"));
     }
 }

@@ -54,6 +54,8 @@
 #include "PageTools2.h"
 #include "BatchActions.h"
 #include "ComparePdf.h"
+#include "Accessibility.h"
+#include "Preflight.h"
 #include "PageOrganize.h"
 #include "EditText.h"
 #include "StatusBar.h"
@@ -64,6 +66,8 @@
 #include "DocumentPanel.h"
 #include "SignatureCreate.h"
 #include "Ocr.h"
+#include "ScannerWia.h"
+#include "SignaturePanel.h"
 #include "Ribbon.h"
 #include "Material.h"
 #include "MergePdf.h"
@@ -10243,7 +10247,7 @@ static Annotation* MakeAnnotationsFromSelection(WindowTab* tab, AnnotCreateArgs*
 
     if (args->setContentToSelection) {
         bool isTextOnlySelection = false;
-        args->content = GetSelectedTextTemp(tab, StrL("\r\n"), isTextOnlySelection);
+        args->content = GetSelectedTextTemp(tab, StrL("\n"), isTextOnlySelection);
     }
 
     Annotation* annot = nullptr;
@@ -13251,8 +13255,32 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             break;
         }
 
+        case CmdScanAcquire:
+            ShowScanDialog(win);
+            break;
+
+        case CmdImportCameraImage:
+            ShowCameraImportDialog(win);
+            break;
+
+        case CmdBatchOcr:
+            ShowBatchOcrDialog(win);
+            break;
+
         case CmdSignDocument:
             ShowSignDocumentDialog(win);
+            break;
+
+        case CmdCertifyDocument:
+            ShowCertifyDocumentDialog(win);
+            break;
+
+        case CmdSignaturePanel:
+            ShowSignaturePanel(win);
+            break;
+
+        case CmdClearSignature:
+            ClearDocumentSignature(win);
             break;
 
         case CmdToggleMenuBar: {
@@ -13857,6 +13885,24 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             break;
         case CmdPdfManageLayers:
             ShowPdfManageLayersDialog(win);
+            break;
+        case CmdAccessibilityChecker:
+            ShowAccessibilityCheckerDialog(win);
+            break;
+        case CmdAccessibilityFixes:
+            ShowAccessibilityFixesDialog(win);
+            break;
+        case CmdPdfAConvert:
+            ShowPdfAConvertDialog(win);
+            break;
+        case CmdPdfAValidate:
+            ShowPdfAValidateDialog(win);
+            break;
+        case CmdPreflight:
+            ShowPreflightDialog(win);
+            break;
+        case CmdPdfConvertColors:
+            ShowPdfConvertColorsDialog(win);
             break;
 
         // Swiftleaf page organizing (PageOrganize.cpp)

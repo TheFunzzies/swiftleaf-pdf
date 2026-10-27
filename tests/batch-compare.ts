@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { EXE, ROOT, runStandalone, tmpPath } from "./util.ts";
 
@@ -40,6 +40,7 @@ export async function testit(): Promise<void> {
   check(batchResult.ok === true && batchResult.results?.[0]?.ok === true, `-batch result invalid: ${batch.stdout}`);
   check((batchResult.results?.[0]?.sizeBefore ?? 0) > 0, `optimizer audit missing: ${batch.stdout}`);
   check(existsSync(batchOutput), `batch output missing: ${batchOutput}`);
+  check(statSync(batchOutput).size > 0, `batch output is empty: ${batchOutput}`);
 
   const reportPath = tmpPath("compare-report.html");
   const compare = run(["-compare", LEFT, RIGHT, "-report", reportPath]);

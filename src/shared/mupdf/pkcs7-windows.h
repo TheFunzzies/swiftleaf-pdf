@@ -25,6 +25,7 @@ pdf_pkcs7_verifier* pkcs7_windows_new_verifier(fz_context* ctx);
 pdf_pkcs7_signer* pkcs7_windows_read_pfx(fz_context* ctx, const char* pfile, const char* pw);
 pdf_pkcs7_signer* pkcs7_windows_read_pfx_from_buffer(fz_context* ctx, fz_buffer* buf, const char* pw);
 pdf_pkcs7_signer* pkcs7_windows_read_store(fz_context* ctx, const char* thumbprint_hex);
+void pkcs7_windows_set_tsa_url(pdf_pkcs7_signer* signer, const char* tsa_url);
 
 typedef struct {
     char* signer_cn;

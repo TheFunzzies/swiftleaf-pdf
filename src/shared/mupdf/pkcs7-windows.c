@@ -425,12 +425,46 @@ pdf_pkcs7_distinguished_name* pkcs7_windows_distinguished_name(fz_context* ctx, 
 
 // ---- signing -------------------------------------------------------------
 
+// Convert UTF-8 C string to newly-allocated wide (UTF-16). Returns NULL for
+// NULL input. Caller fz_free's the result.
+static WCHAR* utf8_to_wide(fz_context* ctx, const char* s) {
+    if (!s) {
+        return NULL;
+    }
+    int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+    if (n <= 0) {
+        fz_throw(ctx, FZ_ERROR_GENERIC, "MultiByteToWideChar failed (gle=%lu)", GetLastError());
+    }
+    WCHAR* w = (WCHAR*)fz_calloc(ctx, (size_t)n, sizeof(WCHAR));
+    MultiByteToWideChar(CP_UTF8, 0, s, -1, w, n);
+    return w;
+}
+
 typedef struct {
     pdf_pkcs7_signer base;
     int refs;
     HCERTSTORE hStore;   // owns the PFX store
     PCCERT_CONTEXT cert; // signer cert, with embedded private-key provider info
+    char* tsa_url;
 } windows_signer;
+
+void pkcs7_windows_set_tsa_url(pdf_pkcs7_signer* signer, const char* tsa_url) {
+    if (!signer) {
+        return;
+    }
+    windows_signer* s = (windows_signer*)signer;
+    if (s->tsa_url) {
+        free(s->tsa_url);
+        s->tsa_url = NULL;
+    }
+    if (tsa_url && tsa_url[0]) {
+        size_t n = strlen(tsa_url);
+        s->tsa_url = (char*)malloc(n + 1);
+        if (s->tsa_url) {
+            memcpy(s->tsa_url, tsa_url, n + 1);
+        }
+    }
+}
 
 static pdf_pkcs7_signer* windows_keep_signer(fz_context* ctx, pdf_pkcs7_signer* signer) {
     (void)ctx;
@@ -452,6 +486,10 @@ static void windows_drop_signer(fz_context* ctx, pdf_pkcs7_signer* signer) {
     }
     if (s->hStore) {
         CertCloseStore(s->hStore, 0);
+    }
+    if (s->tsa_url) {
+        free(s->tsa_url);
+        s->tsa_url = NULL;
     }
     fz_free(ctx, s);
 }
@@ -523,6 +561,17 @@ static int windows_create_digest(fz_context* ctx, pdf_pkcs7_signer* signer, fz_s
                 fz_throw(ctx, FZ_ERROR_GENERIC, "CryptSignMessage failed (gle=%lu)", GetLastError());
             }
             res = (int)sigLen;
+            if (s->tsa_url && s->tsa_url[0]) {
+                WCHAR* wUrl = utf8_to_wide(ctx, s->tsa_url);
+                PCRYPT_TIMESTAMP_CONTEXT pTsCtx = NULL;
+                if (wUrl) {
+                    CryptRetrieveTimeStamp(wUrl, 0, 3000, szOID_NIST_sha256, NULL, digest, (DWORD)res, &pTsCtx, NULL, NULL);
+                    if (pTsCtx) {
+                        CryptMemFree(pTsCtx);
+                    }
+                    fz_free(ctx, wUrl);
+                }
+            }
         }
     }
     fz_always(ctx) {
@@ -537,22 +586,12 @@ static int windows_create_digest(fz_context* ctx, pdf_pkcs7_signer* signer, fz_s
 static size_t windows_max_digest_size(fz_context* ctx, pdf_pkcs7_signer* signer) {
     // Detached PKCS#7 size doesn't depend on signed content; query with no
     // content and use that as the placeholder reservation.
-    return (size_t)windows_create_digest(ctx, signer, NULL, NULL, 0);
-}
-
-// Convert UTF-8 C string to newly-allocated wide (UTF-16). Returns NULL for
-// NULL input. Caller fz_free's the result.
-static WCHAR* utf8_to_wide(fz_context* ctx, const char* s) {
-    if (!s) {
-        return NULL;
+    windows_signer* s = (windows_signer*)signer;
+    size_t sz = (size_t)windows_create_digest(ctx, signer, NULL, NULL, 0);
+    if (s && s->tsa_url && s->tsa_url[0]) {
+        sz += 8192;
     }
-    int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
-    if (n <= 0) {
-        fz_throw(ctx, FZ_ERROR_GENERIC, "MultiByteToWideChar failed (gle=%lu)", GetLastError());
-    }
-    WCHAR* w = (WCHAR*)fz_calloc(ctx, (size_t)n, sizeof(WCHAR));
-    MultiByteToWideChar(CP_UTF8, 0, s, -1, w, n);
-    return w;
+    return sz;
 }
 
 // Takes ownership of hStore and cert on success. On failure the caller still
