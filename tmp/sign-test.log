@@ -1,0 +1,13 @@
+'vswhere.exe' is not recognized as an internal or external command,
+operable program or batch file.
+signature-crypto.c
+cannot find builtin font with name 'Helvetica'
+warning: UNHANDLED EXCEPTION!
+argument error: cannot find builtin font with name 'Helvetica'
+plain signature failed
+At C:\Users\pstei\.t3\worktrees\swiftleaf-pdf\t3-38f17bf6\tests\signature-crypto.ps1:18 char:26
++     if ($LASTEXITCODE) { throw 'plain signature failed' }
++                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (plain signature failed:String) [], RuntimeException
+    + FullyQualifiedErrorId : plain signature failed
+ 

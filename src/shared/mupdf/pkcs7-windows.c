@@ -12,6 +12,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#define CERT_CHAIN_PARA_HAS_EXTRA_FIELDS
 #include <wincrypt.h>
 #include <ncrypt.h>
 #include <string.h>
@@ -511,6 +512,66 @@ static pdf_pkcs7_distinguished_name* windows_get_signing_name(fz_context* ctx, p
     return dn;
 }
 
+enum {
+    timestamp_reserve = 32768,
+    timestamp_timeout_ms = 15000
+};
+
+static int append_timestamp(fz_context* ctx, windows_signer* s, unsigned char* digest, DWORD size, size_t capacity) {
+    HCRYPTMSG msg = NULL;
+    PCMSG_SIGNER_INFO si = NULL;
+    PCRYPT_TIMESTAMP_CONTEXT ts = NULL;
+    WCHAR* url = NULL;
+    BYTE* encoded = NULL;
+    DWORD encoded_size = 0;
+    DWORD result = 0;
+    fz_var(msg);
+    fz_var(si);
+    fz_var(ts);
+    fz_var(url);
+    fz_var(encoded);
+    fz_var(result);
+    fz_try(ctx) {
+        msg = open_msg_for_metadata(digest, size);
+        si = msg ? get_signer_info(msg, 0) : NULL;
+        if (!si || !si->EncryptedHash.cbData) fz_throw(ctx, FZ_ERROR_GENERIC, "TSA: cannot read signature value");
+        url = utf8_to_wide(ctx, s->tsa_url);
+        CRYPT_TIMESTAMP_PARA request = {0};
+        request.fRequestCerts = TRUE;
+        // RFC 3161 timestamps cover SignerInfo.signature, not the CMS envelope.
+        if (!CryptRetrieveTimeStamp(url, TIMESTAMP_VERIFY_CONTEXT_SIGNATURE | TIMESTAMP_NO_AUTH_RETRIEVAL,
+                                    timestamp_timeout_ms, szOID_NIST_sha256, &request, si->EncryptedHash.pbData,
+                                    si->EncryptedHash.cbData, &ts, NULL, NULL))
+            fz_throw(ctx, FZ_ERROR_GENERIC, "TSA timestamp failed (gle=%lu)", GetLastError());
+        CRYPT_ATTR_BLOB token = {ts->cbEncoded, ts->pbEncoded};
+        CRYPT_ATTRIBUTE attr = {(LPSTR)szOID_RFC3161_counterSign, 1, &token};
+        if (!CryptEncodeObjectEx(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, PKCS_ATTRIBUTE, &attr,
+                                 CRYPT_ENCODE_ALLOC_FLAG, NULL, &encoded, &encoded_size))
+            fz_throw(ctx, FZ_ERROR_GENERIC, "TSA attribute encoding failed (gle=%lu)", GetLastError());
+        CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR_PARA add = {0};
+        add.cbSize = sizeof(add);
+        add.blob.cbData = encoded_size;
+        add.blob.pbData = encoded;
+        if (!CryptMsgControl(msg, 0, CMSG_CTRL_ADD_SIGNER_UNAUTH_ATTR, &add) ||
+            !CryptMsgGetParam(msg, CMSG_ENCODED_MESSAGE, 0, NULL, &result))
+            fz_throw(ctx, FZ_ERROR_GENERIC, "TSA embedding failed (gle=%lu)", GetLastError());
+        if (result > capacity) fz_throw(ctx, FZ_ERROR_LIMIT, "TSA token exceeds reserved signature space");
+        if (!CryptMsgGetParam(msg, CMSG_ENCODED_MESSAGE, 0, digest, &result))
+            fz_throw(ctx, FZ_ERROR_GENERIC, "TSA CMS encoding failed (gle=%lu)", GetLastError());
+    }
+    fz_always(ctx) {
+        LocalFree(encoded);
+        fz_free(ctx, url);
+        if (ts) CryptMemFree(ts);
+        if (si) LocalFree(si);
+        if (msg) CryptMsgClose(msg);
+    }
+    fz_catch(ctx) {
+        fz_rethrow(ctx);
+    }
+    return (int)result;
+}
+
 // Build a detached PKCS#7 SignedData over the bytes from `in` and write the
 // DER blob to `digest`. Matches the openssl helper's semantics:
 //   digest==NULL                   → size query (return bytes required)
@@ -521,9 +582,11 @@ static int windows_create_digest(fz_context* ctx, pdf_pkcs7_signer* signer, fz_s
                                  size_t digest_len) {
     windows_signer* s = (windows_signer*)signer;
     fz_buffer* buf = NULL;
+    BYTE* encoded_time = NULL;
     int res = 0;
 
     fz_var(buf);
+    fz_var(encoded_time);
     fz_try(ctx) {
         const BYTE* content = (const BYTE*)"";
         DWORD contentLen = 0;
@@ -541,6 +604,16 @@ static int windows_create_digest(fz_context* ctx, pdf_pkcs7_signer* signer, fz_s
         para.HashAlgorithm.pszObjId = (LPSTR)szOID_NIST_sha256;
         para.cMsgCert = 1;
         para.rgpMsgCert = &s->cert;
+        FILETIME now;
+        DWORD time_size = 0;
+        GetSystemTimeAsFileTime(&now);
+        if (!CryptEncodeObjectEx(X509_ASN_ENCODING, X509_CHOICE_OF_TIME, &now, CRYPT_ENCODE_ALLOC_FLAG, NULL,
+                                 &encoded_time, &time_size))
+            fz_throw(ctx, FZ_ERROR_GENERIC, "signingTime encoding failed (gle=%lu)", GetLastError());
+        CRYPT_ATTR_BLOB time_blob = {time_size, encoded_time};
+        CRYPT_ATTRIBUTE time_attr = {(LPSTR)szOID_RSA_signingTime, 1, &time_blob};
+        para.cAuthAttr = 1;
+        para.rgAuthAttr = &time_attr;
 
         const BYTE* pbToBeSigned[1];
         pbToBeSigned[0] = content;
@@ -562,19 +635,12 @@ static int windows_create_digest(fz_context* ctx, pdf_pkcs7_signer* signer, fz_s
             }
             res = (int)sigLen;
             if (s->tsa_url && s->tsa_url[0]) {
-                WCHAR* wUrl = utf8_to_wide(ctx, s->tsa_url);
-                PCRYPT_TIMESTAMP_CONTEXT pTsCtx = NULL;
-                if (wUrl) {
-                    CryptRetrieveTimeStamp(wUrl, 0, 3000, szOID_NIST_sha256, NULL, digest, (DWORD)res, &pTsCtx, NULL, NULL);
-                    if (pTsCtx) {
-                        CryptMemFree(pTsCtx);
-                    }
-                    fz_free(ctx, wUrl);
-                }
+                res = append_timestamp(ctx, s, digest, sigLen, digest_len);
             }
         }
     }
     fz_always(ctx) {
+        LocalFree(encoded_time);
         fz_drop_buffer(ctx, buf);
     }
     fz_catch(ctx) {
@@ -589,7 +655,7 @@ static size_t windows_max_digest_size(fz_context* ctx, pdf_pkcs7_signer* signer)
     windows_signer* s = (windows_signer*)signer;
     size_t sz = (size_t)windows_create_digest(ctx, signer, NULL, NULL, 0);
     if (s && s->tsa_url && s->tsa_url[0]) {
-        sz += 8192;
+        sz += timestamp_reserve;
     }
     return sz;
 }
@@ -1128,6 +1194,75 @@ static void collect_ts_from_raw(fz_context* ctx, unsigned char* sig, size_t sig_
     }
 }
 
+static DWORD chain_status(PCCERT_CONTEXT cert, HCERTSTORE store, FILETIME* when, const char* usage, DWORD flags) {
+    CERT_CHAIN_PARA para = {0};
+    PCCERT_CHAIN_CONTEXT chain = NULL;
+    DWORD status = CERT_TRUST_IS_PARTIAL_CHAIN;
+    para.cbSize = sizeof(para);
+    para.dwUrlRetrievalTimeout = 3000;
+    if (usage) {
+        para.RequestedUsage.dwType = USAGE_MATCH_TYPE_AND;
+        para.RequestedUsage.Usage.cUsageIdentifier = 1;
+        para.RequestedUsage.Usage.rgpszUsageIdentifier = (LPSTR*)&usage;
+    }
+    if (CertGetCertificateChain(NULL, cert, when, store, &para, flags, NULL, &chain)) {
+        status = chain->TrustStatus.dwErrorStatus;
+        CertFreeCertificateChain(chain);
+    }
+    return status;
+}
+
+static void inspect_validation(PCMSG_SIGNER_INFO si, PCCERT_CONTEXT cert, HCERTSTORE store,
+                               pkcs7_windows_sig_info* info) {
+    FILETIME when;
+    GetSystemTimeAsFileTime(&when);
+    // Authenticated signingTime is a signer claim; only a trusted TSA proves time.
+    CRYPT_ATTRIBUTE* claimed = find_attr(&si->AuthAttrs, szOID_RSA_signingTime);
+    if (claimed && claimed->cValue == 1) {
+        FILETIME value;
+        DWORD size = sizeof(value);
+        if (CryptDecodeObjectEx(X509_ASN_ENCODING, X509_CHOICE_OF_TIME, claimed->rgValue[0].pbData,
+                                claimed->rgValue[0].cbData, 0, NULL, &value, &size) &&
+            CompareFileTime(&value, &when) <= 0) {
+            when = value;
+        }
+    }
+    FILETIME now;
+    GetSystemTimeAsFileTime(&now);
+    for (DWORD i = 0; i < si->UnauthAttrs.cAttr; i++) {
+        CRYPT_ATTRIBUTE* attr = &si->UnauthAttrs.rgAttr[i];
+        if (strcmp(attr->pszObjId, szOID_RFC3161_counterSign)) continue;
+        for (DWORD j = 0; j < attr->cValue; j++) {
+            PCRYPT_TIMESTAMP_CONTEXT ts = NULL;
+            PCCERT_CONTEXT tsa = NULL;
+            HCERTSTORE ts_store = NULL;
+            if (CryptVerifyTimeStampSignature(attr->rgValue[j].pbData, attr->rgValue[j].cbData,
+                                              si->EncryptedHash.pbData, si->EncryptedHash.cbData, store, &ts, &tsa,
+                                              &ts_store)) {
+                info->timestamp_valid = 1;
+                if (tsa && ts && ts->pTimeStamp && CompareFileTime(&ts->pTimeStamp->ftTime, &now) <= 0 &&
+                    chain_status(tsa, ts_store, &ts->pTimeStamp->ftTime, szOID_KP_TIME_STAMP_SIGNING,
+                                 CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT) == CERT_TRUST_NO_ERROR) {
+                    when = ts->pTimeStamp->ftTime;
+                    info->timestamp_trusted = 1;
+                }
+            }
+            if (ts) CryptMemFree(ts);
+            if (tsa) CertFreeCertificateContext(tsa);
+            if (ts_store) CertCloseStore(ts_store, 0);
+        }
+    }
+    info->validation_time_unix = filetime_to_unix(&when);
+    if (!cert) return;
+    info->cert_time_valid = CertVerifyTimeValidity(&when, cert->pCertInfo) == 0;
+    DWORD status = chain_status(cert, store, &when, NULL, CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT);
+    const DWORD rev_unknown = CERT_TRUST_REVOCATION_STATUS_UNKNOWN | CERT_TRUST_IS_OFFLINE_REVOCATION;
+    info->revocation = (status & CERT_TRUST_IS_REVOKED) ? 2
+                       : (status & rev_unknown)         ? 0
+                                                        : (status == CERT_TRUST_NO_ERROR ? 1 : 0);
+    info->cert_trusted = (status & ~(rev_unknown | CERT_TRUST_IS_REVOKED)) == CERT_TRUST_NO_ERROR;
+}
+
 int pkcs7_windows_inspect(fz_context* ctx, unsigned char* sig, size_t sig_len, pkcs7_windows_sig_info* info) {
     HCRYPTMSG hMsg = NULL;
     HCERTSTORE hStore = NULL;
@@ -1210,6 +1345,7 @@ int pkcs7_windows_inspect(fz_context* ctx, unsigned char* sig, size_t sig_len, p
             }
         }
     }
+    inspect_validation(si, cert, hStore, info);
     ok = 1;
 
 done:

@@ -54,6 +54,12 @@ typedef struct {
     int has_sig_policy_attr;
     unsigned char* cert_der;
     int cert_der_len;
+    int cert_trusted;
+    int cert_time_valid;
+    int revocation; // 0 unknown, 1 checked, 2 revoked
+    int timestamp_valid;
+    int timestamp_trusted;
+    int64_t validation_time_unix;
     int has_timestamp;
     int n_ts;
     pkcs7_windows_ts_info ts[PKCS7_WINDOWS_MAX_TS];

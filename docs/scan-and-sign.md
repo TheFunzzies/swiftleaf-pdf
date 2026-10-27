@@ -46,10 +46,10 @@ Before invoking the Windows OCR engine (`Windows.Media.Ocr`), SwiftLeaf can run 
 ### Digital Signature Panel (`CmdSignaturePanel`)
 Lists all PKCS#7 / CMS signatures embedded in the document with real-time verification and inspection:
 - **Integrity Status**:
-  - `Valid`: Cryptographically sound; document unaltered since signed.
+  - `Valid`: Signed bytes verify; later revisions pass MuPDF signature-permission checks. Read the time and revocation qualifications in the status description.
   - `ModifiedAfterSigning`: Cryptographic digest mismatch or unauthorized incremental changes detected.
   - `UnknownSigner`: Untrusted root or self-signed certificate.
-  - `Expired`: Signing certificate expired before signature verification.
+  - `Expired`: Certificate was outside its validity period at the evaluated time (trusted TSA time, authenticated signer-claimed time, or current-time fallback).
   - `Revoked`: Revocation check via CryptoAPI / CRL / OCSP marked the certificate as revoked.
 - **Signer Details**: Common Name (CN), Issuer CN, signing timestamp (or RFC 3161 TSA timestamp), Reason, Location, Field name, and page number.
 - **Certificate Viewer**: Integrates directly with Windows `CryptUIDlgViewContext` (`cryptui.dll`) allowing users to inspect the full X.509 certificate hierarchy, thumbprint, key usage, and validity parameters.
@@ -63,7 +63,14 @@ Allows document owners to certify the PDF with DocMDP permissions (`TransformMet
 
 ### RFC 3161 Timestamp Authority (TSA)
 - Configurable via `TsaUrl` in Settings.
-- When configured, queries the RFC 3161 timestamp authority server via `CryptRetrieveTimeStamp` (CryptoAPI) and embeds the authenticated timestamp token in the signature `signer_info` unauthenticated attributes.
+- Requests SHA-256 over the CMS signature value, verifies the response signature, and embeds its token as the RFC 3161 unsigned attribute (`1.2.840.113549.1.9.16.2.14`). Reserves 32 KiB for the token; oversized responses fail saving.
+- A requested TSA failure aborts saving; it never silently creates an untimestamped signed output.
+- Validation checks the token signature and message imprint, then the TSA chain, timestamping EKU, time validity and revocation. Merely finding timestamp metadata does not establish trusted time.
+- Without a trusted TSA, authenticated CMS signingTime remains a signer claim. A PDF `/M` date is display metadata, not evidence of signing time.
+- Signer chains are evaluated at the selected time. Revocation unknown/offline is reported explicitly. Online checks do not establish historical revocation validity; DSS/VRI/archived OCSP/CRL LTV validation is not implemented.
+- Incremental revisions are checked against DocMDP/FieldMDP permissions, separately from the signed-byte digest. An approval signature does not certify all later content. Permission validation uses MuPDF's conservative object comparison; this is not a claim of full Acrobat/LTV parity.
+
+Run `bun cmd/build.ts -dbg`, then `powershell -File tests/signature-crypto.ps1` for generated CMS signatures, TSA failure/success, OpenSSL verification when installed, and DocMDP revision tests. The TSA success test uses a public endpoint by default; `-Tsa` selects another endpoint.
 
 ### Signing Providers
 - **Windows Certificate Store**: Signs using user/machine certificates via CryptoAPI / CNG (`MY` Personal store).
