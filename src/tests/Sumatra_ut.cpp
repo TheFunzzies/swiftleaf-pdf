@@ -1025,6 +1025,14 @@ static void TextReplaceToolsTest() {
              str::ContainsI(Str(deleted.fontName), StrL("Courier")));
     str::Free(deleted.text);
     SafeEngineRelease(&reopened);
+    // Find/replace with progress and cancellation
+    PdfWorkProgress progress;
+    progress.cancelled = 1;
+    utassert(!EngineMupdfReplaceAllText(e, output, StrL("text"), StrL("word"), &count, &error, &progress));
+    utassert(str::Eq(error, StrL("Operation cancelled.")));
+    progress.cancelled = 0;
+    utassert(EngineMupdfReplaceAllText(e, output, StrL("text"), StrL("word"), &count, &error, &progress));
+    utassert(progress.completed == 2 && progress.total == 2);
     SafeEngineRelease(&e);
     file::Delete(output);
 }
