@@ -1044,24 +1044,25 @@ struct AccessibilityFixesDialog : WindowBase {
         mainBox->AddChild(autoTagCheck);
 
         mainBox->AddChild(
-            NewVirtText({.s = Tr("Decorative whole pages (e.g. 2,4-5; untagged PDFs only; blank keeps content):"),
-                         .font = font,
-                         .isRtl = IsUIRtl()}));
+            NewVirtText({.s = Tr("Decorative whole pages (e.g. 2,4-5):"), .font = font, .isRtl = IsUIRtl()}));
+        mainBox->AddChild(
+            NewVirtText({.s = Tr("Untagged PDFs only; blank preserves content."), .font = font, .isRtl = IsUIRtl()}));
         eargs.text = {};
         eargs.accessibleName = Tr("Decorative whole pages");
         artifactEdit = new Edit();
         artifactEdit->Create(eargs);
         mainBox->AddChild(artifactEdit);
 
-        mainBox->AddChild(NewVirtText({.s = Tr("Table header object number from tag report (blank keeps scope):"),
-                                       .font = font,
-                                       .isRtl = IsUIRtl()}));
+        mainBox->AddChild(
+            NewVirtText({.s = Tr("Table header object number (from tag report):"), .font = font, .isRtl = IsUIRtl()}));
+        mainBox->AddChild(NewVirtText({.s = Tr("Blank preserves scope."), .font = font, .isRtl = IsUIRtl()}));
         eargs.accessibleName = Tr("Table header object number");
         headerEdit = new Edit();
         headerEdit->Create(eargs);
         mainBox->AddChild(headerEdit);
-        mainBox->AddChild(NewVirtText(
-            {.s = Tr("Header scope: Row, Column or Both (verify associations):"), .font = font, .isRtl = IsUIRtl()}));
+        mainBox->AddChild(
+            NewVirtText({.s = Tr("Header scope: Row, Column or Both:"), .font = font, .isRtl = IsUIRtl()}));
+        mainBox->AddChild(NewVirtText({.s = Tr("Verify header associations."), .font = font, .isRtl = IsUIRtl()}));
         eargs.accessibleName = Tr("Table header scope");
         eargs.text = StrL("Column");
         scopeEdit = new Edit();
@@ -1070,9 +1071,7 @@ struct AccessibilityFixesDialog : WindowBase {
 
         if (len(figures) > 0) {
             mainBox->AddChild(
-                NewVirtText({.s = Tr("Figure descriptions and decorative marking require an occurrence-aware editor."),
-                             .font = font,
-                             .isRtl = IsUIRtl()}));
+                NewVirtText({.s = Tr("Figure occurrence editing is unsupported."), .font = font, .isRtl = IsUIRtl()}));
         }
 
         // Destination Row

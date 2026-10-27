@@ -588,6 +588,7 @@ static void PaintPageFade(ToolsPanelVirt* panel, VirtHostPaintEvent* ev) {
 static void FocusPanelRow(ToolsPanelVirt* panel) {
     auto* root = panel->host->vroot;
     if (!root) return;
+    HwndSetFocus(panel->host->native);
     for (auto* row : panel->rows) {
         if (!row->IsEnabled()) continue;
         root->SetFocus(row);
@@ -607,6 +608,7 @@ static void OnSearchEditWndProc(ToolsPanelVirt* panel, ControlBase::WndProcEvent
                 Vec<TabStop> stops;
                 CollectTabStops(panel->header, stops);
                 if (len(stops) && stops[0].vwnd) {
+                    HwndSetFocus(panel->host->native);
                     panel->host->vroot->SetFocus(stops[0].vwnd);
                     ev->result = 0;
                     ev->didHandle = true;
@@ -784,13 +786,19 @@ void ToolsPanelSetRail(MainWindow* win, bool rail) {
     if (!panel || panel->rail == rail) return;
     panel->rail = rail;
     if (panel->contentPadding) {
-        panel->contentPadding->insets =
-            panel->page == (int)RibbonPage::Home && !rail ? DpiScaledInsets(52, 8, 8, 8) : DpiScaledInsets(8, 8);
+        panel->contentPadding->insets = rail                                   ? DpiScaledInsets(8, 4)
+                                        : panel->page == (int)RibbonPage::Home ? DpiScaledInsets(52, 8, 8, 8)
+                                                                               : DpiScaledInsets(8, 8);
     }
     auto vis = rail ? Visibility::Collapse : Visibility::Visible;
     panel->header->SetVisibility(vis);
     for (auto* heading : panel->headings) heading->SetVisibility(vis);
     for (auto* heading : panel->categoryHeaders) heading->SetVisibility(vis);
+    for (auto* favorite : panel->favoriteButtons) favorite->SetVisibility(vis);
+    if (panel->searchHelp) {
+        bool searching = panel->searchEdit && !str::IsEmptyOrWhiteSpace(panel->searchEdit->GetTextTemp());
+        panel->searchHelp->SetVisibility(!rail && searching ? Visibility::Visible : Visibility::Collapse);
+    }
     if (panel->searchEdit && panel->page == (int)RibbonPage::Home)
         ShowWindow(panel->searchEdit->hwnd, rail ? SW_HIDE : SW_SHOW);
     if (panel->more) panel->more->compact = rail;

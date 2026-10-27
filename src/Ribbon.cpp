@@ -11,6 +11,7 @@
 #include "gui/Gfx.h"
 #include "gui/GuiColors.h"
 #include "gui/VirtCtrl.h"
+#include "gui/win/WinGui.h"
 
 #include "Commands.h"
 #include "SvgIcons.h"
@@ -1093,6 +1094,14 @@ void RibbonTabRow::PaintUnderline(Gfx* gfx, HWND hwnd) {
     }
 }
 
+static void SyncNavControls(ILayout* layout, bool visible) {
+    if (!layout) return;
+    visible = visible && layout->GetVisibility() == Visibility::Visible;
+    if (auto* control = layout->AsControl(); control && control->hwnd)
+        ShowWindow(control->hwnd, visible ? SW_SHOWNA : SW_HIDE);
+    for (int i = 0; i < layout->LayoutChildCount(); i++) SyncNavControls(layout->LayoutChildAt(i), visible);
+}
+
 Size RibbonTabRow::Layout(Constraints bc) {
     bool collapse = bc.HasBoundedWidth() && bc.max.dx <= DpiScale(800);
     auto applyCollapse = [&](bool c) {
@@ -1104,11 +1113,13 @@ Size RibbonTabRow::Layout(Constraints bc) {
         if (printBtn) printBtn->SetVisibility(collapse ? Visibility::Collapse : Visibility::Visible);
     };
     applyCollapse(collapse);
+    if (navigationBox) navigationBox->SetVisibility(Visibility::Visible);
 
     int nTabs = 0;
     int pad = DpiScale(kRibbonTabPadX);
     for (auto& item : children) {
         if (auto* tab = AsRibbonTab(item.layout)) {
+            tab->SetVisibility(Visibility::Visible);
             tab->paddingDx = pad;
             if (!IsCollapsed(tab)) {
                 nTabs++;
@@ -1149,7 +1160,20 @@ Size RibbonTabRow::Layout(Constraints bc) {
             }
         }
     }
-    return HBox::Layout(bc);
+    if (bc.HasBoundedWidth() && MinIntrinsicWidth(bc.max.dy) > bc.max.dx) {
+        applyCollapse(true);
+        for (auto& item : children) {
+            if (auto* tab = AsRibbonTab(item.layout); tab && !tab->isActive) {
+                tab->SetVisibility(Visibility::Collapse);
+                if (MinIntrinsicWidth(bc.max.dy) <= bc.max.dx) break;
+            }
+        }
+        if (navigationBox && MinIntrinsicWidth(bc.max.dy) > bc.max.dx)
+            navigationBox->SetVisibility(Visibility::Collapse);
+    }
+    Size size = HBox::Layout(bc);
+    SyncNavControls(navigationBox, true);
+    return size;
 }
 
 //--- RibbonSearchBox

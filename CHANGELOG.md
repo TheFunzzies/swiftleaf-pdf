@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Accessibility UI: retain tool icons in narrow rails, transfer native focus from search to tools, hide page edits with collapsed navigation, and keep remediation instructions readable at 200% DPI.
+
 - Accessibility report: show inherited page, MCID and OBJR identities in tag order; retain warnings for unverified content associations.
 
 - Accessibility remediation: mark explicitly selected untagged whole pages as stream artifacts; edit source TH scope by report object number without changing shared attributes. Reject invalid targets and preserve source tagging.

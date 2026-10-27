@@ -41,5 +41,7 @@ validation, such as veraPDF. Check rendering and extraction after saving.
 The tools search edit participates in native Tab navigation. Its width is bounded
 by the available client area when resized. Ribbon overflow uses DPI-scaled widths
 and existing high-contrast colors. No animation was added; reduced-motion behavior
-is unchanged. 800x600, high DPI, high contrast, IME and Narrator/NVDA still require
-interactive verification; these changes do not constitute a full UI audit.
+is unchanged. Automated 800x600 and 200% DPI override checks and focused visual
+checks are recorded in [Accessibility](accessibility.md). High contrast, IME,
+monitor transitions and Narrator/NVDA speech still require interactive review;
+these checks do not constitute a full UI audit.

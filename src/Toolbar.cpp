@@ -4327,32 +4327,34 @@ void RibbonAccess_UnitTests() {
     utassert(RibbonAccessible::Find(box, id) == last);
     delete box;
 
-    auto* row = new RibbonTabRow();
-    auto* font = GetDefaultGuiFont();
-    auto* active = new RibbonTab(StrL("Read"), font);
-    active->isActive = true;
-    row->AddChild(active);
-    auto* inactive = new RibbonTab(StrL("Long translated editing tools"), font);
-    row->AddChild(inactive);
-    auto* navigation = new VirtSpacer(DpiScale(600), DpiScale(32));
-    row->navigationBox = navigation;
-    row->AddChild(navigation);
-    auto* overflow = new VirtButton(StrL("More"), font);
-    row->overflowBtn = overflow;
-    row->AddChild(overflow);
-    for (int width : {DpiScale(400), DpiScale(800)}) {
-        row->Layout(Tight({width, DpiScale(44)}));
-        row->SetBounds({0, 0, width, DpiScale(44)});
-        utassert(active->GetVisibility() == Visibility::Visible);
-        utassert(overflow->GetVisibility() == Visibility::Visible);
-        utassert(row->MinIntrinsicWidth(DpiScale(44)) <= width);
-        utassert(active->lastBounds.Right() <= width);
-        utassert(overflow->lastBounds.Right() <= width);
+    {
+        auto* row = new RibbonTabRow();
+        auto* font = GetDefaultGuiFont();
+        auto* active = new RibbonTab(StrL("Read"), font);
+        active->isActive = true;
+        row->AddChild(active);
+        auto* inactive = new RibbonTab(StrL("Long translated editing tools"), font);
+        row->AddChild(inactive);
+        auto* navigation = new VirtSpacer(DpiScale(600), DpiScale(32));
+        row->navigationBox = navigation;
+        row->AddChild(navigation);
+        auto* overflow = new VirtButton(StrL("More"), font);
+        row->overflowBtn = overflow;
+        row->AddChild(overflow);
+        for (int width : {DpiScale(400), DpiScale(800)}) {
+            row->Layout(Tight({width, DpiScale(44)}));
+            row->SetBounds({0, 0, width, DpiScale(44)});
+            utassert(active->GetVisibility() == Visibility::Visible);
+            utassert(overflow->GetVisibility() == Visibility::Visible);
+            utassert(row->MinIntrinsicWidth(DpiScale(44)) <= width);
+            utassert(active->lastBounds.Right() <= width);
+            utassert(overflow->lastBounds.Right() <= width);
+        }
+        row->Layout(Tight({DpiScale(2400), DpiScale(44)}));
+        utassert(inactive->GetVisibility() == Visibility::Visible);
+        utassert(navigation->GetVisibility() == Visibility::Visible);
+        delete row;
     }
-    row->Layout(Tight({DpiScale(2400), DpiScale(44)}));
-    utassert(inactive->GetVisibility() == Visibility::Visible);
-    utassert(navigation->GetVisibility() == Visibility::Visible);
-    delete row;
     {
         auto* sbox = new RibbonSearchBox(StrL("Find tools and commands"), StrL("Ctrl+K"), nullptr);
         sbox->SetFlag(vwfFocusable, true);

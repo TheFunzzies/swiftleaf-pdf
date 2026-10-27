@@ -11,7 +11,7 @@ import {
   sendMessage,
   sendText,
   setProcessDpiAware,
-  WM_CHAR,
+  WM_KEYDOWN,
 } from "./winapi.ts";
 import { TOOLS_PANEL_CLASS, panelRows, selectToolTab, toolsDump } from "./contextual-panel.ts";
 
@@ -121,11 +121,19 @@ export async function testit(): Promise<void> {
     const panelRect = getWindowRect(panel);
     const searchRect = getWindowRect(search);
     if (isWindowVisible(search)) {
-      want(searchRect.left >= panelRect.left && searchRect.right <= panelRect.right,
-        "Tools search must fit the 800x600 panel");
+      want(
+        searchRect.left >= panelRect.left && searchRect.right <= panelRect.right,
+        "Tools search must fit the 800x600 panel",
+      );
     } else {
-      want(/panel-layout rail=1/.test(await toolsDump(client)),
-        "Narrow panel must expose the tool rail when search is hidden");
+      const narrow = await toolsDump(client);
+      want(/panel-layout rail=1/.test(narrow), "Narrow panel must expose the tool rail when search is hidden");
+      const dpi = Number(/dpi=(\d+)/.exec(narrow)?.[1] ?? 96);
+      want(
+        panelRows(narrow).every((row) => row.dx >= (20 * dpi) / 96),
+        "Rail tool icons must retain visible width",
+        narrow,
+      );
     }
     moveWindow(frame, 0, 0, 1200, 800);
     await client.waitForRenderIdle();
@@ -135,7 +143,7 @@ export async function testit(): Promise<void> {
       (hwnd) => hwnd === search,
       { error: (hwnd) => `Search did not take focus: ${hwnd}` },
     );
-    sendMessage(search, WM_CHAR, 9, 0);
+    sendMessage(search, WM_KEYDOWN, 9, 0);
     await pollUntil(
       () => getFocusedHwnd(frame),
       (hwnd) => hwnd === panel,

@@ -37,11 +37,17 @@ Language, title, destination and tools-search edits expose stable MSAA names,
 independent of their values. Tools search provides search result help and connects
 with panel tools via Tab, Shift+Tab, and Down/Enter.
 Ribbon collapses into an overflow menu and compacts tabs/separators when window
-width is constrained, avoiding clipping at 800x600 and high DPI.
+width is constrained. Further width pressure moves inactive modes and page
+navigation to overflow. Narrow tool rails show tool icons; favorite stars return
+when expanded. Native page edits hide with their navigation group.
 Virtual controls expose MSAA roles and keyboard shortcuts, and animations
 respect Windows reduce-motion settings.
 
-Regression checks cover scroll visibility and native MSAA names after value edits,
-ribbon overflow collapse and separator compaction, and search edit focus flow.
-800x600, 200% DPI, high contrast, IME composition and real screen-reader speech
-still require interactive verification; unit tests do not establish a full audit.
+Regression checks cover scroll visibility, stable native MSAA names, ribbon
+overflow and restoration, rail icon width, and native search-to-tools focus.
+`bun tests/tools-panel.ts --no-build` passes at normal DPI and with
+`SUMATRA_DPI_OVERRIDE=200`, including the 800x600 rail. Visual checks at the 200%
+override cover that frame and the fixes dialog resized to 780x580, including
+keyboard scrolling to Apply and Cancel. Instructions use short separate lines.
+Actual monitor transitions, high contrast, IME composition and screen-reader
+speech still require interactive verification. This is not a full UI audit.
